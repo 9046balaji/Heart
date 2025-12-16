@@ -8,8 +8,8 @@ import json
 import requests
 import logging
 import traceback
-from typing import Optional, Dict, Any
-from flask import Flask, request, jsonify
+from typing import Optional, Dict, Any, Generator
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -41,19 +41,17 @@ logger = logging.getLogger(__name__)
 # NLP Service configuration
 NLP_SERVICE_URL = os.getenv('NLP_SERVICE_URL', 'http://localhost:5001')
 
-# Configure Google Generative AI (optional - won't fail if not set)
-API_KEY = os.getenv('GOOGLE_API_KEY')
-model = None
-if API_KEY and API_KEY != 'your-google-api-key-here':
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        logger.info("✓ Gemini AI configured successfully")
-    except Exception as e:
-        logger.error(f"✗ Failed to configure Gemini AI: {e}")
-else:
-    logger.warning("⚠ GOOGLE_API_KEY not set - AI features will return mock responses")
+# ============================================================================
+# AI GENERATION - ALL AI CALLS NOW PROXY TO NLP SERVICE (P1 FIX)
+# ============================================================================
+# The google.generativeai import has been REMOVED.
+# All AI generation now flows through the NLP Service which provides:
+# - Unified LLM Gateway (Gemini/Ollama with fallback)
+# - Safety guardrails (PII redaction, medical disclaimers)
+# - User memory context integration
+# - Centralized audit logging for HIPAA compliance
+
+logger.info(f"✓ AI generation will proxy to NLP Service at {NLP_SERVICE_URL}")
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -71,22 +69,126 @@ def validate_request(data: Dict[str, Any], required_fields: list) -> tuple[bool,
     return True, None
 
 
-def generate_content(prompt: str, context: Optional[str] = None) -> Optional[str]:
-    """Generate content using Google Generative AI"""
+def proxy_to_nlp(endpoint: str, data: dict, timeout: int = 30) -> tuple:
+    """
+    Proxy request to NLP Service with error handling.
+    
+    All AI generation is now centralized in the NLP Service which handles:
+    - LLM provider selection (Gemini/Ollama)
+    - Safety guardrails (PII redaction, disclaimers)
+    - User memory context
+    - Audit logging
+    
+    Args:
+        endpoint: NLP Service endpoint path (e.g., "/api/generate/insight")
+        data: Request payload
+        timeout: Request timeout in seconds
+        
+    Returns:
+        Tuple of (response_data, status_code)
+    """
     try:
-        if not model:
-            logger.warning("⚠ Gemini model not available, returning mock response")
-            return "Mock AI response: AI service not configured."
-        full_prompt = f"{context}\n\n{prompt}" if context else prompt
-        logger.debug(f"Generating content with prompt: {full_prompt[:100]}...")
-        response = model.generate_content(full_prompt)
-        result = response.text
-        logger.debug(f"Content generated successfully: {result[:100]}...")
-        return result
+        logger.debug(f"Proxying to NLP Service: {endpoint}")
+        response = requests.post(
+            f"{NLP_SERVICE_URL}{endpoint}",
+            json=data,
+            timeout=timeout,
+            headers={"X-Forwarded-For": request.remote_addr}  # For rate limiting
+        )
+        return response.json(), response.status_code
+    except requests.exceptions.ConnectionError:
+        logger.error(f"✗ NLP Service unavailable at {NLP_SERVICE_URL}")
+        return {"error": "AI service unavailable", "detail": "NLP Service not reachable"}, 503
+    except requests.exceptions.Timeout:
+        logger.error(f"✗ NLP Service timeout for {endpoint}")
+        return {"error": "AI service timeout", "detail": "Request took too long"}, 504
     except Exception as e:
-        logger.error(f"✗ Error generating content: {type(e).__name__}: {str(e)}")
-        logger.error(f"Traceback:", exc_info=True)
-        return None
+        logger.error(f"✗ NLP Service proxy error: {e}")
+        return {"error": f"AI service error: {str(e)}"}, 500
+
+
+def stream_to_nlp(endpoint: str, data: dict, timeout: int = 120) -> Generator[str, None, None]:
+    """
+    Stream response from NLP Service for real-time LLM output.
+    
+    FIX P5: Enable true streaming to eliminate Flask buffering.
+    This allows character-by-character display in the frontend.
+    
+    Args:
+        endpoint: NLP Service endpoint path
+        data: Request payload
+        timeout: Request timeout in seconds
+        
+    Yields:
+        Response chunks as they arrive from the LLM
+    """
+    try:
+        logger.debug(f"Streaming from NLP Service: {endpoint}")
+        with requests.post(
+            f"{NLP_SERVICE_URL}{endpoint}",
+            json=data,
+            stream=True,
+            timeout=timeout,
+            headers={
+                "X-Forwarded-For": request.remote_addr,
+                "Accept": "text/event-stream"
+            }
+        ) as response:
+            response.raise_for_status()
+            for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                if chunk:
+                    yield chunk
+    except requests.exceptions.ConnectionError:
+        logger.error(f"✗ NLP Service unavailable for streaming")
+        yield json.dumps({"error": "AI service unavailable"})
+    except requests.exceptions.Timeout:
+        logger.error(f"✗ NLP Service streaming timeout")
+        yield json.dumps({"error": "AI service timeout"})
+    except Exception as e:
+        logger.error(f"✗ Streaming error: {e}")
+        yield json.dumps({"error": str(e)})
+
+
+# ============================================================================
+# STREAMING ENDPOINTS (P5 FIX)
+# ============================================================================
+
+@app.route('/api/chat/stream', methods=['POST'])
+def stream_chat():
+    """
+    Stream chat response for real-time display.
+    
+    FIX P5: Uses stream_with_context to prevent Flask buffering.
+    Disables Nginx buffering via X-Accel-Buffering header.
+    
+    Returns:
+        Server-Sent Events (SSE) stream of response tokens
+    """
+    try:
+        logger.info("→ Starting streaming chat")
+        data = request.get_json()
+        
+        if not data or 'message' not in data:
+            return jsonify({"error": "Message required"}), 400
+        
+        def generate():
+            for chunk in stream_to_nlp("/api/chat/stream", data):
+                yield f"data: {chunk}\n\n"
+            yield "data: [DONE]\n\n"
+        
+        return Response(
+            stream_with_context(generate()),
+            content_type='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no',  # Disable Nginx buffering
+                'Connection': 'keep-alive'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"✗ Streaming chat error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================
@@ -102,109 +204,88 @@ def health_check():
 @app.route('/api/generate-insight', methods=['POST'])
 def generate_insight():
     """
-    Generate daily health insight based on user vitals and activities
+    Generate daily health insight based on user vitals and activities.
     
-    Request body:
-    {
-        "user_name": "string",
-        "vitals": {
-            "heart_rate": number,
-            "blood_pressure": string,
-            "blood_glucose": number
-        },
-        "activities": ["string"],
-        "medications": ["string"]
-    }
+    PROXIED TO NLP SERVICE (P1 FIX) - Includes:
+    - User memory context integration
+    - Medical disclaimers
+    - PII redaction
     """
     try:
-        logger.info(f"→ Processing /api/generate-insight request")
+        logger.info(f"→ Proxying /api/generate-insight to NLP Service")
         data = request.get_json()
-        logger.debug(f"Request payload: {data}")
         
         # Validate request
         is_valid, error_msg = validate_request(data, ["user_name", "vitals"])
         if not is_valid:
-            logger.warning(f"Validation failed: {error_msg}")
             return jsonify({"error": error_msg}), 400
         
-        user_name = data.get("user_name", "User")
-        vitals = data.get("vitals", {})
-        activities = data.get("activities", [])
-        medications = data.get("medications", [])
+        # Transform to NLP Service format
+        nlp_payload = {
+            "user_id": data.get("user_id", "anonymous"),
+            "user_name": data.get("user_name", "User"),
+            "vitals": data.get("vitals", {}),
+            "activities": data.get("activities", []),
+            "medications": data.get("medications", [])
+        }
         
-        logger.debug(f"User: {user_name}, Vitals: {vitals}, Activities: {activities}, Medications: {medications}")
+        # Proxy to NLP Service
+        result, status_code = proxy_to_nlp("/api/generate/insight", nlp_payload)
         
-        # Build context
-        context = f"""You are a health assistant providing personalized health insights.
-User: {user_name}
-Vitals: Heart Rate: {vitals.get('heart_rate', 'N/A')} bpm, Blood Pressure: {vitals.get('blood_pressure', 'N/A')}, Blood Glucose: {vitals.get('blood_glucose', 'N/A')} mg/dL
-Recent Activities: {', '.join(activities) if activities else 'None reported'}
-Current Medications: {', '.join(medications) if medications else 'None'}
-
-Provide a brief, personalized health insight (2-3 sentences) based on these metrics."""
-        
-        prompt = "Generate a brief, actionable health insight based on the user's current vitals and activities."
-        logger.debug(f"Calling generate_content with context length: {len(context)}")
-        insight = generate_content(prompt, context)
-        
-        if not insight:
-            logger.error("generate_content returned None")
-            return jsonify({"error": "Failed to generate insight"}), 500
-        
-        logger.info(f"✓ Successfully generated insight for {user_name}")
-        return jsonify({
-            "insight": insight,
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }), 200
+        # Transform response to match legacy format
+        if status_code == 200:
+            return jsonify({
+                "insight": result.get("insight", ""),
+                "timestamp": __import__('datetime').datetime.now().isoformat(),
+                "context_used": result.get("context_used", False),
+                "provider": result.get("provider", "nlp-service")
+            }), 200
+        else:
+            return jsonify(result), status_code
         
     except Exception as e:
         logger.error(f"✗ Error in generate_insight: {e}", exc_info=True)
-        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
 @app.route('/api/analyze-recipe', methods=['POST'])
 def analyze_recipe():
     """
-    Analyze recipe for nutritional insights
+    Analyze recipe for nutritional insights.
     
-    Request body:
-    {
-        "recipe_name": "string",
-        "ingredients": ["string"],
-        "servings": number,
-        "user_preferences": ["string"]
-    }
+    PROXIED TO NLP SERVICE (P1 FIX) - Includes:
+    - User allergy checking from memory
+    - Nutrition disclaimers
     """
     try:
+        logger.info(f"→ Proxying /api/analyze-recipe to NLP Service")
         data = request.get_json()
         
         is_valid, error_msg = validate_request(data, ["recipe_name", "ingredients"])
         if not is_valid:
             return jsonify({"error": error_msg}), 400
         
-        recipe_name = data.get("recipe_name")
-        ingredients = data.get("ingredients", [])
-        servings = data.get("servings", 1)
-        preferences = data.get("user_preferences", [])
+        # Transform to NLP Service format
+        nlp_payload = {
+            "user_id": data.get("user_id", "anonymous"),
+            "recipe_name": data.get("recipe_name"),
+            "ingredients": data.get("ingredients", []),
+            "servings": data.get("servings", 1),
+            "user_preferences": data.get("user_preferences", [])
+        }
         
-        context = f"""Analyze this recipe for nutritional value and health impact.
-Recipe: {recipe_name}
-Ingredients: {', '.join(ingredients)}
-Servings: {servings}
-User Preferences: {', '.join(preferences) if preferences else 'None'}"""
+        # Proxy to NLP Service
+        result, status_code = proxy_to_nlp("/api/generate/recipe", nlp_payload)
         
-        prompt = "Provide a brief nutritional analysis including estimated calories, macros, and health benefits. Format as a simple assessment."
-        analysis = generate_content(prompt, context)
-        
-        if not analysis:
-            return jsonify({"error": "Failed to analyze recipe"}), 500
-        
-        return jsonify({
-            "analysis": analysis,
-            "recipe": recipe_name,
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }), 200
+        if status_code == 200:
+            return jsonify({
+                "analysis": result.get("analysis", ""),
+                "recipe": data.get("recipe_name"),
+                "allergen_warnings": result.get("allergen_warnings", []),
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify(result), status_code
         
     except Exception as e:
         logger.error(f"✗ Error in analyze_recipe: {e}", exc_info=True)
@@ -267,45 +348,41 @@ User Goals: {', '.join(goals) if goals else 'General fitness'}"""
 @app.route('/api/generate-meal-plan', methods=['POST'])
 def generate_meal_plan():
     """
-    Generate personalized meal plan
+    Generate personalized meal plan.
     
-    Request body:
-    {
-        "dietary_preferences": ["string"],
-        "calorie_target": number,
-        "days": number,
-        "allergies": ["string"]
-    }
+    PROXIED TO NLP SERVICE (P1 FIX) - Includes:
+    - User allergy merging from memory
+    - Nutrition disclaimers
     """
     try:
+        logger.info(f"→ Proxying /api/generate-meal-plan to NLP Service")
         data = request.get_json()
         
         is_valid, error_msg = validate_request(data, ["dietary_preferences"])
         if not is_valid:
             return jsonify({"error": error_msg}), 400
         
-        preferences = data.get("dietary_preferences", [])
-        calorie_target = data.get("calorie_target", 2000)
-        days = data.get("days", 1)
-        allergies = data.get("allergies", [])
+        # Transform to NLP Service format
+        nlp_payload = {
+            "user_id": data.get("user_id", "anonymous"),
+            "dietary_preferences": data.get("dietary_preferences", []),
+            "calorie_target": data.get("calorie_target", 2000),
+            "days": data.get("days", 7),
+            "allergies": data.get("allergies", [])
+        }
         
-        context = f"""Create a meal plan based on these requirements.
-Dietary Preferences: {', '.join(preferences)}
-Daily Calorie Target: {calorie_target}
-Plan Duration: {days} day(s)
-Allergies to Avoid: {', '.join(allergies) if allergies else 'None'}"""
+        # Proxy to NLP Service
+        result, status_code = proxy_to_nlp("/api/generate/meal-plan", nlp_payload)
         
-        prompt = f"Generate a {days}-day meal plan with {days} breakfast, lunch, and dinner suggestions. Keep it brief and practical."
-        meal_plan = generate_content(prompt, context)
-        
-        if not meal_plan:
-            return jsonify({"error": "Failed to generate meal plan"}), 500
-        
-        return jsonify({
-            "meal_plan": meal_plan,
-            "days": days,
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }), 200
+        if status_code == 200:
+            return jsonify({
+                "meal_plan": result.get("meal_plan", ""),
+                "days": data.get("days", 7),
+                "allergies_considered": result.get("allergies_considered", []),
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify(result), status_code
         
     except Exception as e:
         logger.error(f"✗ Error in generate_meal_plan: {e}", exc_info=True)

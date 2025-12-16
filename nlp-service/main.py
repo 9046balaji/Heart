@@ -29,6 +29,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from rate_limiting import limiter, get_user_id_or_ip
 
 from config import (
     CORS_ORIGINS,
@@ -239,6 +240,18 @@ from memory_aware_agents import (
     MemoryAwareIntentRecognizer,
     MemoryAwareSentimentAnalyzer,
 )
+
+# 1. After imports, add:
+from rate_limiting import limiter
+# 2. After router includes, add:
+try:
+    from routes.generation import router as generation_router
+    app.include_router(generation_router, tags=["Generation"])
+    logger.info("Generation router mounted at /api/generate/*")
+except ImportError as e:
+    logger.warning(f"Generation routes not available: {e}")
+# 3. Replace existing limiter line with:
+app.state.limiter = limiter
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -459,31 +472,6 @@ if KNOWLEDGE_GRAPH_ROUTES_ENABLED and knowledge_graph_router:
 if NOTIFICATIONS_ROUTES_ENABLED and notifications_router:
     app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
     logger.info("Notifications router mounted at /api/notifications/*")
-
-# PHASE 15: Include Tools routers (Function Calling)
-if TOOLS_ROUTES_ENABLED and tools_router:
-    app.include_router(tools_router, prefix="/api", tags=["Tools"])
-    logger.info("Tools router mounted at /api/tools/*")
-
-# PHASE 16: Include Vision routers
-if VISION_ROUTES_ENABLED and vision_router:
-    app.include_router(vision_router, prefix="/api", tags=["Vision"])
-    logger.info("Vision router mounted at /api/vision/*")
-
-# Initialize rate limiter (PHASE 1 TASK 1.5)
-# Default: 200 requests per minute per IP
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
-app.state.limiter = limiter
-
-# Initialize global instances
-analytics_manager = AnalyticsManager()
-model_version_manager = ModelVersionManager()
-
-# Add global exception handler
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler to reduce code duplication"""
-    return structured_exception_handler(request, exc)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
