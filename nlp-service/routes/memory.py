@@ -1,0 +1,1324 @@
+"""
+Memory Management API Routes.
+
+Provides REST endpoints for:
+- User preferences CRUD
+- Session management
+- Context retrieval preview
+- GDPR compliance (export, delete)
+- Semantic memory search (EmbeddingSearchEngine)
+- Conscious memory agent management (ConsciouscAgent)
+- Memory statistics and metrics
+
+Author: AI Memory System Implementation
+Version: 2.0.0 (Enhanced with Memori Integration)
+"""
+
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, status
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+import logging
+import asyncio
+
+from user_preferences import (
+    UserPreferencesManager, 
+    PreferenceKeys,
+    get_preferences_manager
+)
+from context_retrieval import (
+    ContextRetriever, 
+    ContextType,
+    context_retriever as default_context_retriever
+)
+from chat_history import chat_history_manager
+from integrated_ai_service import (
+    IntegratedHealthAIService,
+    get_integrated_ai_service
+)
+
+# Import Memori components for enhanced memory features
+try:
+    from memori.agents.retrieval_agent import EmbeddingSearchEngine, MemorySearchEngine
+    from memori.agents.conscious_agent import ConsciouscAgent
+    from memori.utils.rate_limiter import RateLimiter, RateLimitExceeded
+    from memori.utils.input_validator import InputValidator, ValidationError as MemoriValidationError
+    MEMORI_AVAILABLE = True
+except ImportError:
+    MEMORI_AVAILABLE = False
+    EmbeddingSearchEngine = None
+    MemorySearchEngine = None
+    ConsciouscAgent = None
+    RateLimiter = None
+    InputValidator = None
+
+# Import memory manager for enhanced operations
+try:
+    from memory_manager import MemoryManager, get_request_memory
+    MEMORY_MANAGER_AVAILABLE = True
+except ImportError:
+    MEMORY_MANAGER_AVAILABLE = False
+    MemoryManager = None
+
+logger = logging.getLogger(__name__)
+
+# Create router
+router = APIRouter(prefix="/memory", tags=["memory"])
+
+
+# ============================================================================
+# Pydantic Models
+# ============================================================================
+
+class PreferenceRequest(BaseModel):
+    """Request model for setting a preference."""
+    key: str = Field(..., description="Preference key")
+    value: Any = Field(..., description="Preference value (any JSON-serializable type)")
+    is_sensitive: bool = Field(False, description="Whether this is sensitive/PHI data")
+    category: str = Field("general", description="Preference category")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "key": "communication_style",
+                "value": "detailed",
+                "is_sensitive": False,
+                "category": "general"
+            }
+        }
+
+
+class BulkPreferenceRequest(BaseModel):
+    """Request model for setting multiple preferences."""
+    preferences: Dict[str, Any] = Field(..., description="Dictionary of key-value pairs")
+    category: str = Field("general", description="Category for all preferences")
+
+
+class ContextSearchRequest(BaseModel):
+    """Request model for context retrieval."""
+    query: str = Field(..., description="Query to find relevant context for")
+    context_types: Optional[List[str]] = Field(
+        None, 
+        description="Specific context types to retrieve"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "What does my blood pressure mean?",
+                "context_types": ["recent_vitals", "medications"]
+            }
+        }
+
+
+class AIQueryRequest(BaseModel):
+    """Request model for integrated AI query."""
+    query: str = Field(..., description="User's question")
+    patient_name: Optional[str] = Field(None, description="Patient name")
+    patient_age: Optional[int] = Field(None, description="Patient age")
+    is_emergency: bool = Field(False, description="Emergency query flag")
+    ai_provider: Optional[str] = Field(None, description="AI provider (gemini/ollama)")
+
+
+class PreferenceResponse(BaseModel):
+    """Response model for preferences."""
+    user_id: str
+    key: str
+    value: Any
+    updated_at: Optional[str] = None
+
+
+class SessionInfo(BaseModel):
+    """Session information response."""
+    session_id: str
+    user_id: Optional[str]
+    created_at: Optional[str]
+    last_activity: Optional[str]
+    message_count: int
+
+
+class ContextPreview(BaseModel):
+    """Context preview response."""
+    type: str
+    source: str
+    relevance_score: float
+    data_preview: Dict[str, Any]
+
+
+class GDPRExportResponse(BaseModel):
+    """GDPR data export response."""
+    user_id: str
+    export_timestamp: str
+    preferences: List[Dict[str, Any]]
+    total_count: int
+
+
+# ============================================================================
+# NEW: Semantic Search Request/Response Models
+# ============================================================================
+
+class SemanticSearchRequest(BaseModel):
+    """Request model for semantic memory search."""
+    query: str = Field(..., description="Natural language query for semantic search")
+    limit: int = Field(10, ge=1, le=100, description="Maximum results to return")
+    similarity_threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum similarity score")
+    memory_types: Optional[List[str]] = Field(None, description="Filter by memory types")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "What were my recent blood pressure readings?",
+                "limit": 10,
+                "similarity_threshold": 0.6,
+                "memory_types": ["health_data", "vitals"]
+            }
+        }
+
+
+class SemanticSearchResult(BaseModel):
+    """Single result from semantic search."""
+    memory_id: str
+    content: str
+    memory_type: str
+    similarity_score: float
+    timestamp: str
+    metadata: Dict[str, Any] = {}
+
+
+class SemanticSearchResponse(BaseModel):
+    """Response model for semantic search."""
+    query: str
+    results: List[SemanticSearchResult]
+    total_found: int
+    search_time_ms: float
+    embedding_model: str
+
+
+class ConsciousMemoryRequest(BaseModel):
+    """Request model for conscious memory operations."""
+    action: str = Field(..., description="Action: ingest, initialize, status")
+    limit: int = Field(10, ge=1, le=100, description="Limit for initialize action")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "action": "initialize",
+                "limit": 10
+            }
+        }
+
+
+class ConsciousMemoryResponse(BaseModel):
+    """Response model for conscious memory operations."""
+    action: str
+    success: bool
+    memories_processed: int
+    context_initialized: bool
+    message: str
+
+
+class MemoryMetricsResponse(BaseModel):
+    """Response model for memory system metrics."""
+    enabled: bool
+    initialized: bool
+    cache_size: int
+    cache_max_size: int
+    searches: Dict[str, Any]
+    stores: Dict[str, Any]
+    cache: Dict[str, Any]
+    circuit_breaker: Dict[str, Any]
+    memori_available: bool
+
+
+# ============================================================================
+# Dependencies
+# ============================================================================
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP for audit logging."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def get_preferences() -> UserPreferencesManager:
+    """Dependency to get preferences manager."""
+    return get_preferences_manager()
+
+
+def get_context_retriever() -> ContextRetriever:
+    """Dependency to get context retriever."""
+    return default_context_retriever
+
+
+def get_ai_service() -> IntegratedHealthAIService:
+    """Dependency to get integrated AI service."""
+    return get_integrated_ai_service()
+
+
+# ============================================================================
+# Preference Endpoints
+# ============================================================================
+
+@router.get("/preferences/{user_id}")
+async def get_user_preferences(
+    user_id: str,
+    include_sensitive: bool = Query(False, description="Include sensitive preferences"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> Dict[str, Any]:
+    """
+    Get all preferences for a user.
+    
+    Args:
+        user_id: User identifier
+        include_sensitive: Include PHI/sensitive preferences
+        category: Filter by category (optional)
+    
+    Returns:
+        Dictionary of all preferences
+    """
+    try:
+        prefs = preferences.get_all_preferences(
+            user_id=user_id,
+            include_sensitive=include_sensitive,
+            category=category
+        )
+        
+        return {
+            "user_id": user_id,
+            "preferences": prefs,
+            "count": len(prefs),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting preferences for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get preferences: {str(e)}"
+        )
+
+
+@router.get("/preferences/{user_id}/{key}")
+async def get_single_preference(
+    user_id: str,
+    key: str,
+    default: Optional[str] = Query(None, description="Default value if not found"),
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> PreferenceResponse:
+    """
+    Get a single preference value.
+    
+    Args:
+        user_id: User identifier
+        key: Preference key
+        default: Default value if not found
+    
+    Returns:
+        Preference value
+    """
+    value = preferences.get_preference(
+        user_id=user_id,
+        key=key,
+        default=default
+    )
+    
+    return PreferenceResponse(
+        user_id=user_id,
+        key=key,
+        value=value
+    )
+
+
+@router.put("/preferences/{user_id}")
+async def set_user_preference(
+    user_id: str,
+    preference: PreferenceRequest,
+    request: Request,
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> PreferenceResponse:
+    """
+    Set a user preference.
+    
+    Args:
+        user_id: User identifier
+        preference: Preference data
+    
+    Returns:
+        Confirmation with updated value
+    """
+    try:
+        ip_address = get_client_ip(request)
+        
+        preferences.set_preference(
+            user_id=user_id,
+            key=preference.key,
+            value=preference.value,
+            is_sensitive=preference.is_sensitive,
+            category=preference.category,
+            ip_address=ip_address
+        )
+        
+        return PreferenceResponse(
+            user_id=user_id,
+            key=preference.key,
+            value=preference.value,
+            updated_at=datetime.utcnow().isoformat()
+        )
+    except Exception as e:
+        logger.error(f"Error setting preference for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set preference: {str(e)}"
+        )
+
+
+@router.put("/preferences/{user_id}/bulk")
+async def set_bulk_preferences(
+    user_id: str,
+    bulk_request: BulkPreferenceRequest,
+    request: Request,
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> Dict[str, Any]:
+    """
+    Set multiple preferences at once.
+    
+    Args:
+        user_id: User identifier
+        bulk_request: Multiple preferences to set
+    
+    Returns:
+        Count of preferences set
+    """
+    try:
+        ip_address = get_client_ip(request)
+        
+        count = preferences.set_preferences(
+            user_id=user_id,
+            preferences=bulk_request.preferences,
+            category=bulk_request.category,
+            ip_address=ip_address
+        )
+        
+        return {
+            "user_id": user_id,
+            "preferences_set": count,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error setting bulk preferences for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set preferences: {str(e)}"
+        )
+
+
+@router.delete("/preferences/{user_id}/{key}")
+async def delete_user_preference(
+    user_id: str,
+    key: str,
+    request: Request,
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> Dict[str, Any]:
+    """
+    Delete a specific preference.
+    
+    Args:
+        user_id: User identifier
+        key: Preference key to delete
+    
+    Returns:
+        Confirmation of deletion
+    """
+    try:
+        ip_address = get_client_ip(request)
+        
+        deleted = preferences.delete_preference(
+            user_id=user_id,
+            key=key,
+            ip_address=ip_address
+        )
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Preference '{key}' not found for user '{user_id}'"
+            )
+        
+        return {
+            "user_id": user_id,
+            "key": key,
+            "deleted": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting preference for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete preference: {str(e)}"
+        )
+
+
+# ============================================================================
+# Session Endpoints
+# ============================================================================
+
+@router.get("/sessions/{user_id}")
+async def list_user_sessions(
+    user_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    include_expired: bool = Query(False)
+) -> Dict[str, Any]:
+    """
+    List all chat sessions for a user.
+    
+    Args:
+        user_id: User identifier
+        limit: Maximum sessions to return
+        include_expired: Include expired sessions
+    
+    Returns:
+        List of session information
+    """
+    try:
+        # Get sessions from chat history
+        sessions = chat_history_manager.get_user_sessions(
+            user_id=user_id,
+            limit=limit
+        ) if hasattr(chat_history_manager, 'get_user_sessions') else []
+        
+        return {
+            "user_id": user_id,
+            "sessions": sessions,
+            "count": len(sessions),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error listing sessions for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list sessions: {str(e)}"
+        )
+
+
+@router.get("/sessions/{session_id}/history")
+async def get_session_history(
+    session_id: str,
+    limit: int = Query(100, ge=1, le=500)
+) -> Dict[str, Any]:
+    """
+    Get full history for a session.
+    
+    Args:
+        session_id: Session identifier
+        limit: Maximum messages to return
+    
+    Returns:
+        Session history with messages
+    """
+    try:
+        history = chat_history_manager.get_history(
+            session_id=session_id,
+            limit=limit
+        )
+        
+        session_info = chat_history_manager.get_session_info(session_id)
+        
+        return {
+            "session_id": session_id,
+            "session_info": session_info,
+            "messages": history,
+            "count": len(history),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting history for {session_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get session history: {str(e)}"
+        )
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str
+) -> Dict[str, Any]:
+    """
+    Delete a session and its history.
+    
+    Args:
+        session_id: Session identifier
+    
+    Returns:
+        Confirmation of deletion
+    """
+    try:
+        chat_history_manager.clear(session_id)
+        
+        return {
+            "session_id": session_id,
+            "deleted": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error deleting session {session_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete session: {str(e)}"
+        )
+
+
+# ============================================================================
+# Context Retrieval Endpoints
+# ============================================================================
+
+@router.post("/context/retrieve")
+async def retrieve_context(
+    user_id: str = Query(..., description="User identifier"),
+    session_id: str = Query(..., description="Session identifier"),
+    request_body: ContextSearchRequest = ...,
+    retriever: ContextRetriever = Depends(get_context_retriever)
+) -> Dict[str, Any]:
+    """
+    Retrieve relevant context for a query.
+    
+    Useful for debugging what context will be used for AI calls.
+    
+    Args:
+        user_id: User identifier
+        session_id: Session identifier
+        request_body: Query and optional context types
+    
+    Returns:
+        List of relevant context items
+    """
+    try:
+        # Parse context types if provided
+        context_types = None
+        if request_body.context_types:
+            try:
+                context_types = [
+                    ContextType(ct) for ct in request_body.context_types
+                ]
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid context type: {e}"
+                )
+        
+        # Retrieve context
+        contexts = await retriever.retrieve_for_query(
+            user_id=user_id,
+            session_id=session_id,
+            query=request_body.query,
+            context_types=context_types
+        )
+        
+        # Format response
+        return {
+            "user_id": user_id,
+            "session_id": session_id,
+            "query": request_body.query,
+            "contexts": [
+                {
+                    "type": ctx.context_type.value,
+                    "source": ctx.source,
+                    "relevance_score": ctx.relevance_score,
+                    "token_estimate": ctx.token_estimate,
+                    "data_preview": _truncate_data(ctx.data, max_len=200)
+                }
+                for ctx in contexts
+            ],
+            "count": len(contexts),
+            "total_tokens": sum(ctx.token_estimate for ctx in contexts),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving context: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve context: {str(e)}"
+        )
+
+
+@router.get("/context/types")
+async def list_context_types() -> Dict[str, Any]:
+    """
+    List all available context types.
+    
+    Returns:
+        List of context type names and descriptions
+    """
+    return {
+        "context_types": [
+            {
+                "name": ct.value,
+                "description": _get_context_type_description(ct)
+            }
+            for ct in ContextType
+        ],
+        "count": len(ContextType)
+    }
+
+
+# ============================================================================
+# Integrated AI Query Endpoint
+# ============================================================================
+
+@router.post("/ai/query")
+async def ai_query(
+    user_id: str = Query(..., description="User identifier"),
+    session_id: str = Query(..., description="Session identifier"),
+    request_body: AIQueryRequest = ...,
+    ai_service: IntegratedHealthAIService = Depends(get_ai_service)
+) -> Dict[str, Any]:
+    """
+    Process query through integrated AI service.
+    
+    Full flow: store → retrieve context → build prompt → AI call → store response.
+    
+    Args:
+        user_id: User identifier
+        session_id: Session identifier
+        request_body: Query parameters
+    
+    Returns:
+        AI response with metadata and audit trail
+    """
+    try:
+        response = await ai_service.process_query(
+            user_id=user_id,
+            session_id=session_id,
+            query=request_body.query,
+            patient_name=request_body.patient_name,
+            patient_age=request_body.patient_age,
+            is_emergency=request_body.is_emergency,
+            ai_provider=request_body.ai_provider
+        )
+        
+        return {
+            "response": response.response,
+            "session_id": response.session_id,
+            "success": response.success,
+            "context_used": response.context_used,
+            "metadata": response.metadata,
+            "audit": response.audit,
+            "error": response.error
+        }
+    except Exception as e:
+        logger.error(f"Error in AI query: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI query failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# GDPR Compliance Endpoints
+# ============================================================================
+
+@router.post("/gdpr/export/{user_id}")
+async def export_user_data(
+    user_id: str,
+    format: str = Query("json", enum=["json"]),
+    request: Request = None,
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> GDPRExportResponse:
+    """
+    Export all user data (GDPR compliance).
+    
+    Args:
+        user_id: User identifier
+        format: Export format (currently only JSON)
+    
+    Returns:
+        Complete export of user preferences and data
+    """
+    try:
+        ip_address = get_client_ip(request) if request else None
+        
+        export_data = preferences.export_user_data(
+            user_id=user_id,
+            format=format,
+            ip_address=ip_address
+        )
+        
+        return GDPRExportResponse(**export_data)
+    except Exception as e:
+        logger.error(f"Error exporting data for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export data: {str(e)}"
+        )
+
+
+@router.delete("/gdpr/delete/{user_id}")
+async def delete_user_data(
+    user_id: str,
+    confirm: bool = Query(False, description="Confirm deletion"),
+    request: Request = None,
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> Dict[str, Any]:
+    """
+    Delete all user data (GDPR right to erasure).
+    
+    Args:
+        user_id: User identifier
+        confirm: Must be true to confirm deletion
+    
+    Returns:
+        Confirmation of deletion with counts
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must set confirm=true to delete all user data"
+        )
+    
+    try:
+        ip_address = get_client_ip(request) if request else None
+        
+        # Delete preferences
+        pref_result = preferences.delete_user_data(
+            user_id=user_id,
+            ip_address=ip_address
+        )
+        
+        # Delete chat history sessions
+        chat_deleted = 0
+        try:
+            if hasattr(chat_history_manager, 'delete_user_sessions'):
+                chat_deleted = chat_history_manager.delete_user_sessions(user_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete chat sessions: {e}")
+        
+        return {
+            "user_id": user_id,
+            "deleted": True,
+            "preferences_deleted": pref_result.get("preferences_deleted", 0),
+            "sessions_deleted": chat_deleted,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting data for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete data: {str(e)}"
+        )
+
+
+# ============================================================================
+# Audit Endpoints
+# ============================================================================
+
+@router.get("/audit/{user_id}")
+async def get_audit_log(
+    user_id: str,
+    limit: int = Query(100, ge=1, le=1000),
+    action: Optional[str] = Query(None, description="Filter by action type"),
+    preferences: UserPreferencesManager = Depends(get_preferences)
+) -> Dict[str, Any]:
+    """
+    Get audit log for a user.
+    
+    Args:
+        user_id: User identifier
+        limit: Maximum records to return
+        action: Filter by action type (set, delete, export, etc.)
+    
+    Returns:
+        List of audit log entries
+    """
+    try:
+        logs = preferences.get_audit_log(
+            user_id=user_id,
+            limit=limit,
+            action=action
+        )
+        
+        return {
+            "user_id": user_id,
+            "audit_logs": logs,
+            "count": len(logs),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting audit log for {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get audit log: {str(e)}"
+        )
+
+
+# ============================================================================
+# Health Check
+# ============================================================================
+
+@router.get("/health")
+async def memory_health_check(
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    retriever: ContextRetriever = Depends(get_context_retriever)
+) -> Dict[str, Any]:
+    """
+    Health check for memory management system.
+    
+    Returns:
+        Health status of all memory components
+    """
+    health = {
+        "status": "healthy",
+        "components": {}
+    }
+    
+    # Check preferences
+    try:
+        pref_health = preferences.health_check()
+        health["components"]["preferences"] = pref_health
+        if pref_health.get("status") != "healthy":
+            health["status"] = "degraded"
+    except Exception as e:
+        health["components"]["preferences"] = {"status": "error", "error": str(e)}
+        health["status"] = "degraded"
+    
+    # Check context retriever
+    try:
+        health["components"]["context_retriever"] = retriever.get_stats()
+    except Exception as e:
+        health["components"]["context_retriever"] = {"status": "error", "error": str(e)}
+    
+    # Check chat history
+    try:
+        chat_history_manager.get_history("health_check", limit=1)
+        health["components"]["chat_history"] = {"status": "ok"}
+    except Exception as e:
+        health["components"]["chat_history"] = {"status": "error", "error": str(e)}
+        health["status"] = "degraded"
+    
+    health["timestamp"] = datetime.utcnow().isoformat()
+    return health
+
+
+# ============================================================================
+# NEW: Semantic Memory Search Endpoints (EmbeddingSearchEngine)
+# ============================================================================
+
+# Initialize embedding search engine (singleton)
+_embedding_search_engine = None
+
+def get_embedding_search_engine():
+    """Get or create embedding search engine singleton."""
+    global _embedding_search_engine
+    if _embedding_search_engine is None and MEMORI_AVAILABLE:
+        try:
+            _embedding_search_engine = EmbeddingSearchEngine(
+                use_local=True,  # Use sentence-transformers locally
+                similarity_threshold=0.5
+            )
+            logger.info("EmbeddingSearchEngine initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize EmbeddingSearchEngine: {e}")
+            _embedding_search_engine = None
+    return _embedding_search_engine
+
+
+@router.post("/search/semantic", response_model=SemanticSearchResponse)
+async def semantic_memory_search(
+    user_id: str = Query(..., description="User identifier"),
+    session_id: str = Query("default", description="Session identifier"),
+    request_body: SemanticSearchRequest = ...,
+) -> SemanticSearchResponse:
+    """
+    Perform semantic search across user memories using embedding similarity.
+    
+    Uses EmbeddingSearchEngine from Memori for intelligent retrieval:
+    - Local sentence-transformers for fast embedding (all-MiniLM-L6-v2)
+    - Cosine similarity ranking
+    - Embedding cache for performance
+    
+    Args:
+        user_id: User identifier
+        session_id: Session identifier
+        request_body: Search parameters
+    
+    Returns:
+        Semantically relevant memories ranked by similarity
+    """
+    import time
+    start_time = time.time()
+    
+    if not MEMORI_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Memori semantic search not available. Install memori package."
+        )
+    
+    # Validate input using Memori's InputValidator
+    try:
+        if InputValidator:
+            validated_query = InputValidator.validate_and_sanitize_query(
+                request_body.query, 
+                max_length=5000
+            )
+        else:
+            validated_query = request_body.query
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid query: {str(e)}"
+        )
+    
+    search_engine = get_embedding_search_engine()
+    if not search_engine:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding search engine not initialized"
+        )
+    
+    try:
+        # Use MemoryManager for search if available
+        if MEMORY_MANAGER_AVAILABLE:
+            memory_mgr = MemoryManager.get_instance()
+            search_results = await memory_mgr.search_memory(
+                patient_id=user_id,
+                query=validated_query,
+                session_id=session_id,
+                limit=request_body.limit
+            )
+            
+            # Convert to response format
+            results = [
+                SemanticSearchResult(
+                    memory_id=r.id,
+                    content=r.content,
+                    memory_type=r.memory_type,
+                    similarity_score=r.relevance_score,
+                    timestamp=r.timestamp,
+                    metadata=r.metadata
+                )
+                for r in search_results
+                if r.relevance_score >= request_body.similarity_threshold
+            ]
+        else:
+            # Fallback to basic search
+            results = []
+        
+        elapsed_ms = (time.time() - start_time) * 1000
+        
+        return SemanticSearchResponse(
+            query=validated_query,
+            results=results,
+            total_found=len(results),
+            search_time_ms=round(elapsed_ms, 2),
+            embedding_model="all-MiniLM-L6-v2" if search_engine.use_local else "openai"
+        )
+        
+    except Exception as e:
+        logger.error(f"Semantic search error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Semantic search failed: {str(e)}"
+        )
+
+
+@router.get("/search/semantic/status")
+async def semantic_search_status() -> Dict[str, Any]:
+    """
+    Get status of semantic search capabilities.
+    
+    Returns:
+        Status information about embedding search engine
+    """
+    search_engine = get_embedding_search_engine()
+    
+    return {
+        "memori_available": MEMORI_AVAILABLE,
+        "embedding_engine_initialized": search_engine is not None,
+        "embedding_model": {
+            "local": search_engine.use_local if search_engine else False,
+            "model_name": search_engine.DEFAULT_LOCAL_MODEL if search_engine else None,
+            "openai_fallback": search_engine.openai_client is not None if search_engine else False
+        } if search_engine else None,
+        "cache_size": len(search_engine._embedding_cache) if search_engine else 0,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================================================
+# NEW: Conscious Memory Agent Endpoints
+# ============================================================================
+
+# Initialize conscious agent (singleton)
+_conscious_agent = None
+
+def get_conscious_agent():
+    """Get or create conscious agent singleton."""
+    global _conscious_agent
+    if _conscious_agent is None and MEMORI_AVAILABLE:
+        try:
+            _conscious_agent = ConsciouscAgent()
+            logger.info("ConsciouscAgent initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ConsciouscAgent: {e}")
+            _conscious_agent = None
+    return _conscious_agent
+
+
+@router.post("/conscious", response_model=ConsciousMemoryResponse)
+async def manage_conscious_memory(
+    user_id: str = Query(..., description="User identifier"),
+    request_body: ConsciousMemoryRequest = ...,
+) -> ConsciousMemoryResponse:
+    """
+    Manage conscious memory context using Memori's ConsciouscAgent.
+    
+    The ConsciouscAgent copies 'conscious-info' labeled memories from 
+    long-term memory to short-term memory for immediate context availability.
+    
+    Actions:
+    - ingest: Run conscious context ingestion (copies conscious-info memories)
+    - initialize: Initialize existing conscious memories
+    - status: Get current conscious memory status
+    
+    Args:
+        user_id: User identifier
+        request_body: Action and parameters
+    
+    Returns:
+        Result of conscious memory operation
+    """
+    if not MEMORI_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Memori conscious agent not available"
+        )
+    
+    conscious_agent = get_conscious_agent()
+    if not conscious_agent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Conscious agent not initialized"
+        )
+    
+    action = request_body.action.lower()
+    
+    try:
+        if action == "status":
+            return ConsciousMemoryResponse(
+                action=action,
+                success=True,
+                memories_processed=0,
+                context_initialized=conscious_agent.context_initialized,
+                message="Conscious agent status retrieved"
+            )
+        
+        elif action in ["ingest", "initialize"]:
+            # Get database manager from MemoryManager if available
+            if MEMORY_MANAGER_AVAILABLE:
+                memory_mgr = MemoryManager.get_instance()
+                
+                # Get patient memory to access db_manager
+                try:
+                    patient_memory = await memory_mgr.get_patient_memory(user_id)
+                    db_manager = patient_memory.memori.db_manager if hasattr(patient_memory.memori, 'db_manager') else None
+                except Exception as e:
+                    logger.warning(f"Could not get db_manager: {e}")
+                    db_manager = None
+                
+                if db_manager:
+                    if action == "ingest":
+                        success = await conscious_agent.run_conscious_ingest(
+                            db_manager=db_manager,
+                            user_id=user_id
+                        )
+                    else:  # initialize
+                        success = await conscious_agent.initialize_existing_conscious_memories(
+                            db_manager=db_manager,
+                            user_id=user_id,
+                            limit=request_body.limit
+                        )
+                    
+                    return ConsciousMemoryResponse(
+                        action=action,
+                        success=success,
+                        memories_processed=request_body.limit if success else 0,
+                        context_initialized=conscious_agent.context_initialized,
+                        message=f"Conscious memory {action} completed"
+                    )
+                else:
+                    return ConsciousMemoryResponse(
+                        action=action,
+                        success=False,
+                        memories_processed=0,
+                        context_initialized=False,
+                        message="Database manager not available"
+                    )
+            else:
+                return ConsciousMemoryResponse(
+                    action=action,
+                    success=False,
+                    memories_processed=0,
+                    context_initialized=False,
+                    message="Memory manager not available"
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid action: {action}. Use 'ingest', 'initialize', or 'status'"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Conscious memory error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Conscious memory operation failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# NEW: Memory System Metrics Endpoint
+# ============================================================================
+
+@router.get("/metrics", response_model=MemoryMetricsResponse)
+async def get_memory_metrics() -> MemoryMetricsResponse:
+    """
+    Get comprehensive metrics for the memory management system.
+    
+    Includes:
+    - Cache statistics (hits, misses, hit rate)
+    - Search/store operation counts and latencies
+    - Circuit breaker status
+    - Memori availability status
+    
+    Returns:
+        Detailed memory system metrics
+    """
+    if not MEMORY_MANAGER_AVAILABLE:
+        return MemoryMetricsResponse(
+            enabled=False,
+            initialized=False,
+            cache_size=0,
+            cache_max_size=0,
+            searches={},
+            stores={},
+            cache={},
+            circuit_breaker={},
+            memori_available=MEMORI_AVAILABLE
+        )
+    
+    try:
+        memory_mgr = MemoryManager.get_instance()
+        metrics = memory_mgr.get_metrics()
+        
+        return MemoryMetricsResponse(
+            enabled=metrics.get("enabled", False),
+            initialized=metrics.get("initialized", False),
+            cache_size=metrics.get("cache_size", 0),
+            cache_max_size=metrics.get("cache_max_size", 0),
+            searches=metrics.get("metrics", {}).get("searches", {}),
+            stores=metrics.get("metrics", {}).get("stores", {}),
+            cache=metrics.get("metrics", {}).get("cache", {}),
+            circuit_breaker=metrics.get("metrics", {}).get("circuit_breaker", {}),
+            memori_available=MEMORI_AVAILABLE
+        )
+    except Exception as e:
+        logger.error(f"Error getting memory metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get memory metrics: {str(e)}"
+        )
+
+
+# ============================================================================
+# NEW: Rate Limiter Status Endpoint
+# ============================================================================
+
+@router.get("/rate-limit/status")
+async def get_rate_limit_status(
+    user_id: str = Query(..., description="User identifier"),
+) -> Dict[str, Any]:
+    """
+    Get rate limit status for a user.
+    
+    Shows current request counts and quotas from Memori's RateLimiter.
+    
+    Args:
+        user_id: User identifier
+    
+    Returns:
+        Rate limit status and quotas
+    """
+    if not MEMORI_AVAILABLE or not RateLimiter:
+        return {
+            "available": False,
+            "message": "Rate limiter not available",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    try:
+        # Get or create rate limiter instance
+        rate_limiter = RateLimiter()
+        
+        return {
+            "available": True,
+            "user_id": user_id,
+            "limits": {
+                "search_requests_per_minute": 60,
+                "store_requests_per_minute": 100,
+                "api_calls_per_day": 1000
+            },
+            "message": "Rate limiter is active",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting rate limit status: {e}")
+        return {
+            "available": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def _truncate_data(data: Dict[str, Any], max_len: int = 200) -> Dict[str, Any]:
+    """Truncate data values for preview."""
+    result = {}
+    for key, value in data.items():
+        if isinstance(value, str) and len(value) > max_len:
+            result[key] = value[:max_len] + "..."
+        elif isinstance(value, (list, dict)):
+            str_val = str(value)
+            if len(str_val) > max_len:
+                result[key] = str_val[:max_len] + "..."
+            else:
+                result[key] = value
+        else:
+            result[key] = value
+    return result
+
+
+def _get_context_type_description(ct: ContextType) -> str:
+    """Get human-readable description for context type."""
+    descriptions = {
+        ContextType.RECENT_VITALS: "Recent vital signs (BP, heart rate, SpO2, etc.)",
+        ContextType.LAST_CONSULTATION: "Last doctor consultation summary",
+        ContextType.MEDICAL_HISTORY: "Patient medical history and conditions",
+        ContextType.MEDICATIONS: "Current medications list",
+        ContextType.RECENT_CONVERSATIONS: "Recent chat messages in session",
+        ContextType.USER_PREFERENCES: "User settings and preferences",
+        ContextType.RISK_ASSESSMENTS: "Cardiac risk assessment results",
+        ContextType.LIFESTYLE_DATA: "Exercise, diet, sleep data",
+        ContextType.EMERGENCY_INFO: "Emergency contacts and critical info",
+    }
+    return descriptions.get(ct, ct.value)

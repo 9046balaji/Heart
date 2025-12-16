@@ -1,0 +1,217 @@
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+// ============================================================================
+// Message Types (consolidated)
+// ============================================================================
+
+export interface Citation {
+  id: string;
+  source: string;
+  content: string;
+  relevance?: number;
+}
+
+export interface ToolExecution {
+  tool: string;
+  input: Record<string, unknown>;
+  output: unknown;
+  status: 'success' | 'error';
+  timestamp?: string;
+}
+
+/**
+ * Unified Message interface for chat interactions
+ * Compatible with both frontend display and backend API
+ */
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  citations?: Citation[];
+  toolExecutions?: ToolExecution[];
+  thinkingProcess?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * @deprecated Use Message with role: 'user' | 'assistant' instead
+ * Kept for backward compatibility with older components
+ */
+export interface LegacyMessage {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  timestamp: Date;
+  groundingMetadata?: unknown;
+}
+
+// ============================================================================
+// Health Types
+// ============================================================================
+
+export enum HealthStatus {
+  LowRisk = 'Low Risk',
+  ModerateRisk = 'Moderate Risk',
+  HighRisk = 'High Risk'
+}
+
+export type RiskLevel = 'Low Risk' | 'Moderate Risk' | 'High Risk';
+
+export interface VitalsData {
+  // Blood pressure
+  systolic?: number;
+  diastolic?: number;
+  
+  // Cholesterol
+  cholesterol?: number;
+  ldl?: number;
+  hdl?: number;
+  triglycerides?: number;
+  
+  // Other vitals
+  bloodGlucose?: number;
+  heartRate?: number;
+  weight?: number;
+  bmi?: number;
+  oxygenSaturation?: number;
+  temperature?: number;
+}
+
+export interface HealthAssessment {
+  date: string;
+  score: number;
+  risk: RiskLevel;
+  details: string;
+  vitals: VitalsData;
+}
+
+// ============================================================================
+// Notification Types
+// ============================================================================
+
+export type NotificationType = 'info' | 'warning' | 'error' | 'success' | 'medication' | 'appointment';
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  timestamp: string;
+  read: boolean;
+  actionUrl?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface Appointment {
+  id: string;
+  doctorName: string;
+  specialty: string;
+  date: string;
+  time: string;
+  avatar?: string;
+  rating?: number;
+  type: 'in-person' | 'video';
+  location: string;
+  summary?: string; // AI generated summary
+}
+
+export type WorkoutCategory = 'Cardio' | 'Strength' | 'Flexibility' | 'Balance' | 'Recovery' | 'Aerobic' | 'HIIT' | 'Yoga Style' | 'Yoga Pose - Standing' | 'Yoga Pose - Seated' | 'Yoga Pose - Floor' | 'Yoga Pose - Inversion' | 'Yoga Pose - Core' | 'Yoga Pose - Rest';
+
+export interface Workout {
+  id: string;
+  title: string;
+  description: string;
+  category: WorkoutCategory;
+  duration_min: number;
+  intensity: string;
+  equipment: string[];
+  goal: string[];
+  accessibility: string[];
+  estimated_calories_per_min: number;
+  image: string;
+  steps: string[];
+  videoUrl?: string;
+}
+
+export interface PlanDay {
+  day: string; // Mon, Tue, Wed, Thu, Fri, Sat, Sun
+  workoutId: string | 'rest';
+  completed: boolean;
+  duration?: number;
+}
+
+export interface ExercisePlan {
+  id: string;
+  name: string;
+  days: PlanDay[];
+  weeklyTargetMinutes: number;
+  createdAt: string;
+  goal?: string;
+}
+
+export interface Provider {
+  id: string;
+  name: string;
+  specialty: string;
+  qualifications: string;
+  rating: number;
+  reviewCount: number;
+  photoUrl: string;
+  clinicName: string;
+  address: string;
+  languages: string[];
+  telehealthAvailable: boolean;
+  acceptedInsurances: string[];
+  bio: string;
+  experienceYears: number;
+  acceptsNewPatients: boolean;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  type: 'watch' | 'ring' | 'chest-strap';
+  lastSync: string;
+  status: 'connected' | 'disconnected';
+  battery?: number;
+}
+
+export interface Medication {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  times: string[]; // ["08:00", "20:00"]
+  takenToday: boolean[]; // [true, false] corresponding to times
+  instructions?: string;
+  quantity?: number; // Pills remaining
+  refillThreshold?: number; // When to warn
+}
+
+export interface Badge {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  unlocked: boolean;
+  dateUnlocked?: string;
+  progress?: number; // percentage 0-100
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  relation: string;
+  avatar: string;
+  accessLevel: 'read-only' | 'admin';
+  status: 'Critical' | 'Warning' | 'Stable';
+  lastActive: string;
+}
