@@ -6,6 +6,16 @@ _current_dir = _os.path.dirname(_os.path.abspath(__file__))
 if _current_dir not in sys.path:
     sys.path.insert(0, _current_dir)
 
+# P2: FAIL-FAST DEPENDENCY VALIDATION
+# Add at very top, before other imports
+from dependencies import validate_dependencies, get_enabled_features
+
+# FAIL FAST: Validate required dependencies before anything else
+validate_dependencies()
+
+# Get feature configuration  
+FEATURES = get_enabled_features()
+
 print(f"[STARTUP] NLP Service working directory: {_os.getcwd()}")
 print(f"[STARTUP] NLP Service script directory: {_current_dir}")
 print(f"[STARTUP] Python path (first 3): {sys.path[0:3]}")
@@ -208,6 +218,37 @@ except ImportError as e:
     vision_router = None
     print(f"[STARTUP] Vision routes not available: {e}")
 
+# PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
+try:
+    from agents.langgraph_orchestrator import create_langgraph_orchestrator
+    from core.observable_llm_gateway import create_observable_llm_gateway
+    from agents.crew_simulation import create_healthcare_crew
+    NEW_AI_FRAMEWORKS_ENABLED = True
+    print("[STARTUP] New AI frameworks loaded successfully")
+except ImportError as e:
+    NEW_AI_FRAMEWORKS_ENABLED = False
+    print(f"[STARTUP] New AI frameworks not available: {e}")
+
+# Optional: Phoenix Monitoring
+phoenix_monitor = None
+if os.getenv("USE_PHOENIX_MONITORING", "false").lower() == "true":
+    try:
+        from monitoring.phoenix_monitor import create_phoenix_monitor
+        phoenix_monitor = create_phoenix_monitor()
+        logger.info(f"Phoenix dashboard: {phoenix_monitor.get_dashboard_url()}")
+    except ImportError:
+        logger.warning("Phoenix monitoring not available")
+
+# PHASE 19: Import Evaluation Routes
+try:
+    from routes.evaluation_routes import router as evaluation_router
+    EVALUATION_ROUTES_ENABLED = True
+    print("[STARTUP] Evaluation routes loaded successfully")
+except ImportError as e:
+    EVALUATION_ROUTES_ENABLED = False
+    evaluation_router = None
+    print(f"[STARTUP] Evaluation routes not available: {e}")
+
 # PHASE 4: Import structured output schemas
 try:
     from structured_outputs import (
@@ -241,17 +282,16 @@ from memory_aware_agents import (
     MemoryAwareSentimentAnalyzer,
 )
 
-# 1. After imports, add:
-from rate_limiting import limiter
-# 2. After router includes, add:
+# PHASE 17: Import Generation Routes (P1 FIX - AI Unification)
 try:
-    from routes.generation import router as generation_router
-    app.include_router(generation_router, tags=["Generation"])
-    logger.info("Generation router mounted at /api/generate/*")
+    from routes.generation import router as generation_router, chat_router
+    GENERATION_ROUTES_ENABLED = True
+    print("[STARTUP] Generation routes loaded successfully")
 except ImportError as e:
-    logger.warning(f"Generation routes not available: {e}")
-# 3. Replace existing limiter line with:
-app.state.limiter = limiter
+    GENERATION_ROUTES_ENABLED = False
+    generation_router = None
+    chat_router = None
+    print(f"[STARTUP] Generation routes not available: {e}")
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -268,6 +308,10 @@ class NLPState:
     memory_manager: Optional[MemoryManager] = None
     memory_aware_intent: Optional[MemoryAwareIntentRecognizer] = None
     memory_aware_sentiment: Optional[MemoryAwareSentimentAnalyzer] = None
+    # NEW: Add new AI framework components
+    llm_gateway: Optional[Any] = None
+    orchestrator: Optional[Any] = None
+    healthcare_crew: Optional[Any] = None
 
     @classmethod
     async def initialize(cls):
@@ -314,6 +358,16 @@ class NLPState:
             cls.memory_aware_sentiment = MemoryAwareSentimentAnalyzer(
                 cls.sentiment_analyzer
             )
+            
+            # NEW: Initialize new AI framework components
+            if NEW_AI_FRAMEWORKS_ENABLED:
+                try:
+                    cls.llm_gateway = create_observable_llm_gateway()
+                    cls.orchestrator = create_langgraph_orchestrator(llm_client=cls.llm_gateway)
+                    cls.healthcare_crew = create_healthcare_crew()
+                    logger.info("New AI framework components initialized successfully")
+                except Exception as e:
+                    logger.error(f"Failed to initialize new AI framework components: {e}")
             
             # Update global instances
             global analytics_manager, model_version_manager
@@ -473,14 +527,22 @@ if NOTIFICATIONS_ROUTES_ENABLED and notifications_router:
     app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
     logger.info("Notifications router mounted at /api/notifications/*")
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTP exception handler"""
-    return structured_exception_handler(request, exc)
+# PHASE 17: Include Generation routers (P1 FIX - AI Unification)
+if GENERATION_ROUTES_ENABLED:
+    if generation_router:
+        app.include_router(generation_router, tags=["Generation"])
+        logger.info("Generation router mounted at /api/generate/*")
+    if chat_router:
+        app.include_router(chat_router, tags=["Chat"])
+        logger.info("Chat router mounted at /api/chat/*")
 
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """
+# NEW: Include new AI framework endpoints
+if NEW_AI_FRAMEWORKS_ENABLED:
+    logger.info("New AI framework endpoints available at /api/agent/*")
+
+# PHASE 19: Include Evaluation routes
+if EVALUATION_ROUTES_ENABLED and evaluation_router:
+    app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
     Handle rate limit exceeded errors.
     PHASE 2: Uses RateLimitError exception for consistency with exception hierarchy.
     
@@ -630,12 +692,14 @@ async def get_memory_context(
         return None
 
 
-@app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
+@app.get("/health", tags=["Health"])
 @limiter.limit("1000/minute")  # Higher limit for health checks (PHASE 1 TASK 1.5)
-async def health_check(request: Request) -> HealthCheckResponse:
+async def health_check(request: Request) -> Dict[str, Any]:
     """
     Health check endpoint.
-    Returns service status and loaded models, including memory manager status.
+    Returns service status, loaded models, memory manager status, and LLM Gateway status.
+    
+    P2.2 FIX: Now includes LLM Gateway readiness status.
     """
     try:
         # Check memory health
@@ -653,6 +717,16 @@ async def health_check(request: Request) -> HealthCheckResponse:
                 logger.warning(f"Memory health check failed: {e}")
                 memory_health = {"status": "error", "error": str(e)}
         
+        # P2.2 FIX: Get LLM Gateway status
+        llm_gateway_status = None
+        try:
+            from core.llm_gateway import get_llm_gateway
+            gateway = get_llm_gateway()
+            llm_gateway_status = gateway.get_status()
+        except Exception as e:
+            logger.warning(f"LLM Gateway status check failed: {e}")
+            llm_gateway_status = {"status": "error", "error": str(e)}
+        
         models_loaded = {
             "intent_recognizer": NLPState.intent_recognizer is not None,
             "sentiment_analyzer": NLPState.sentiment_analyzer is not None,
@@ -661,24 +735,73 @@ async def health_check(request: Request) -> HealthCheckResponse:
             "memory_manager": NLPState.memory_manager is not None,
         }
         
-        return HealthCheckResponse(
-            status="healthy",
-            version=SERVICE_VERSION,
-            timestamp=datetime.utcnow().isoformat(),
-            models_loaded=models_loaded
-        )
+        return {
+            "status": "healthy",
+            "version": SERVICE_VERSION,
+            "timestamp": datetime.utcnow().isoformat(),
+            "models_loaded": models_loaded,
+            "llm_gateway": llm_gateway_status,
+            "memory_health": memory_health
+        }
     except Exception as e:
         ErrorReporter.log_error(
             error_code="PROCESSING_ERROR",
             error_message="Health check failed",
             exception=e
         )
-        return HealthCheckResponse(
-            status="unhealthy",
-            version=SERVICE_VERSION,
-            timestamp=datetime.utcnow().isoformat(),
-            models_loaded={}
-        )
+        return {
+            "status": "unhealthy",
+            "version": SERVICE_VERSION,
+            "timestamp": datetime.utcnow().isoformat(),
+            "models_loaded": {},
+            "error": str(e)
+        }
+
+
+@app.get("/api/features", tags=["Status"])
+async def get_feature_flags() -> Dict[str, Any]:
+    """
+    Feature Flags Dashboard Endpoint.
+    
+    P2.3 FIX: Single endpoint showing all optional feature states.
+    Useful for debugging and monitoring service capabilities.
+    
+    Returns:
+        Dict with all feature flags and their current status
+    """
+    try:
+        # Get LLM Gateway guardrails status
+        guardrails_enabled = False
+        try:
+            from core.llm_gateway import get_llm_gateway
+            gateway = get_llm_gateway()
+            guardrails_enabled = gateway.guardrails_enabled
+        except Exception:
+            pass
+        
+        return {
+            "rag_enabled": RAG_ENABLED,
+            "memory_routes_enabled": MEMORY_ROUTES_ENABLED,
+            "realtime_enabled": REALTIME_ENABLED,
+            "medical_routes_enabled": MEDICAL_ROUTES_ENABLED,
+            "integrations_enabled": INTEGRATIONS_ROUTES_ENABLED,
+            "compliance_enabled": COMPLIANCE_ROUTES_ENABLED,
+            "agents_enabled": AGENTS_ROUTES_ENABLED,
+            "calendar_enabled": CALENDAR_ROUTES_ENABLED,
+            "knowledge_graph_enabled": KNOWLEDGE_GRAPH_ROUTES_ENABLED,
+            "notifications_enabled": NOTIFICATIONS_ROUTES_ENABLED,
+            "tools_enabled": TOOLS_ROUTES_ENABLED,
+            "vision_enabled": VISION_ROUTES_ENABLED,
+            "generation_enabled": GENERATION_ROUTES_ENABLED,
+            "structured_outputs_enabled": STRUCTURED_OUTPUTS_ENABLED,
+            "streaming_enabled": True,  # Always enabled via generation routes
+            "guardrails_enabled": guardrails_enabled,
+            "evaluation_enabled": EVALUATION_ROUTES_ENABLED,  # Add evaluation status
+            "new_ai_frameworks_enabled": NEW_AI_FRAMEWORKS_ENABLED,
+        }
+    except Exception as e:
+        logger.error(f"Error getting feature flags: {e}")
+        return {"error": str(e)}
 
 
 @app.get("/cache/stats", tags=["Cache"])
@@ -908,6 +1031,127 @@ async def entity_distribution():
 
 @app.get("/analytics/top-intents", tags=["Analytics"])
 async def top_intents(limit: int = 10):
+    """
+    Get top intents by frequency.
+    
+    **Query Parameters:**
+    - limit: Number of top intents to retrieve (default: 10)
+    
+    **Response:**
+    - intents: List of top intents with their frequencies
+    - timestamp: Timestamp of retrieval
+    """
+    try:
+        return analytics_manager.get_top_intents(limit=limit)
+    except Exception as e:
+        return ErrorReporter.handle_exception(
+            exception=e,
+            error_code="PROCESSING_ERROR",
+            error_details={"operation": "top_intents"}
+        )
+
+
+@app.post("/api/agent/process", response_model=AgentResponse, tags=["Agents"])
+async def process_agent_query(request: AgentRequest):
+    """
+    New Endpoint: Routes complex queries to LangGraph Orchestrator
+    
+    This endpoint processes complex healthcare queries using the LangGraph orchestrator
+    for improved state management and workflow visualization.
+    
+    **Request Body:**
+    - query: User query to process
+    - user_id: (optional) User ID for personalization
+    - session_id: (optional) Session ID for context
+    - context: (optional) Additional context for processing
+    
+    **Response:**
+    - status: Processing status
+    - response: Agent's response
+    - data: Additional data from processing
+    - timestamp: Timestamp of response
+    """
+    try:
+        if not NEW_AI_FRAMEWORKS_ENABLED or NLPState.orchestrator is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="New AI frameworks not available"
+            )
+        
+        logger.info(f"Processing agent query: {request.query[:50]}...")
+        
+        # Process query with LangGraph orchestrator
+        result = await NLPState.orchestrator.process(
+            query=request.query,
+            user_id=request.user_id,
+            session_id=request.session_id,
+            context=request.context
+        )
+        
+        return AgentResponse(
+            status="success",
+            response=result.get("response", "Processing completed"),
+            data=result,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Error processing agent query: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Agent processing error: {str(e)}"
+        )
+
+
+@app.post("/api/agent/simulate", response_model=AgentResponse, tags=["Agents"])
+async def simulate_healthcare_crew(request: AgentRequest):
+    """
+    New Endpoint: Simulates healthcare crew coordination using CrewAI
+    
+    This endpoint coordinates care among specialized healthcare professionals
+    (Cardiologist, Nutritionist, Pharmacist) using CrewAI simulation.
+    
+    **Request Body:**
+    - query: User query to process
+    - user_id: (optional) User ID for personalization
+    - session_id: (optional) Session ID for context
+    - context: (optional) Additional context for processing
+    
+    **Response:**
+    - status: Processing status
+    - response: Agent's response
+    - data: Additional data from processing
+    - timestamp: Timestamp of response
+    """
+    try:
+        if not NEW_AI_FRAMEWORKS_ENABLED or NLPState.healthcare_crew is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Healthcare crew simulation not available"
+            )
+        
+        logger.info(f"Simulating healthcare crew for: {request.query[:50]}...")
+        
+        # Coordinate care with Healthcare Crew
+        result = NLPState.healthcare_crew.coordinate_care(
+            patient_query=request.query,
+            patient_context=request.context
+        )
+        
+        return AgentResponse(
+            status="success" if result.get("success", False) else "error",
+            response=result.get("coordinated_care", "Care coordination completed"),
+            data=result,
+            timestamp=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Error simulating healthcare crew: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Healthcare crew simulation error: {str(e)}"
+        )
+
     """
     Get most common intents.
     """

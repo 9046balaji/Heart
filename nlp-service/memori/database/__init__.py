@@ -1,16 +1,6 @@
-"""Database components for Memoriai"""
+"""Database module for Memori - Connectors removed, use managers directly"""
 
-from .connectors import MySQLConnector, PostgreSQLConnector, SQLiteConnector
+# Connectors were removed during cleanup (moved to backups/)
+# Use sqlalchemy_manager.py or mongodb_manager.py directly instead
 
-try:
-    from .connectors import MongoDBConnector
-
-    MONGODB_AVAILABLE = True
-except ImportError:
-    MongoDBConnector = None  # type: ignore
-    MONGODB_AVAILABLE = False
-
-__all__ = ["SQLiteConnector", "PostgreSQLConnector", "MySQLConnector"]
-
-if MONGODB_AVAILABLE:
-    __all__.append("MongoDBConnector")
+__all__ = []

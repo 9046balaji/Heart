@@ -24,8 +24,8 @@ from .core.database import DatabaseManager
 # Core components
 from .core.memory import Memori
 
-# Database system
-from .database.connectors import MySQLConnector, PostgreSQLConnector, SQLiteConnector
+# Database system (Connectors removed - use DatabaseManager directly)
+# from .database.connectors import MySQLConnector, PostgreSQLConnector, SQLiteConnector
 from .database.queries import (  # EntityQueries removed (graph search simplified)
     BaseQueries,
     ChatQueries,
@@ -102,9 +102,9 @@ _all_components = [
     "LoggingSettings",
     "ConfigManager",
     # Database
-    "SQLiteConnector",
-    "PostgreSQLConnector",
-    "MySQLConnector",
+    # "SQLiteConnector",      # Removed - connectors deleted
+    # "PostgreSQLConnector",  # Removed - connectors deleted
+    # "MySQLConnector",       # Removed - connectors deleted
     "BaseQueries",
     "MemoryQueries",
     "ChatQueries",

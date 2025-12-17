@@ -38,9 +38,51 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./nlp_cache.db"
 
     # Security Configuration
-    SECRET_KEY: str = "default-secret-key"
+    SECRET_KEY: str = Field(default="default-secret-key", env="SECRET_KEY")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """
+        Validate SECRET_KEY to prevent insecure defaults in production.
+        
+        Security Requirements:
+        - Must not be the default value in production
+        - Must be at least 32 characters long
+        - Should be cryptographically random
+        
+        Raises:
+            ValueError: If SECRET_KEY is insecure or too short
+        """
+        # Check environment (default to development if not set)
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        
+        # In production, reject the default secret key
+        if environment == "production" and v == "default-secret-key":
+            raise ValueError(
+                "SECRET_KEY must be set to a secure value in production. "
+                "Generate a random secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        
+        # Enforce minimum length for security (32 characters = 256 bits)
+        if len(v) < 32:
+            raise ValueError(
+                f"SECRET_KEY must be at least 32 characters long (current: {len(v)}). "
+                "For production, use: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        
+        # Warn if using default in development
+        if v == "default-secret-key":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Using default SECRET_KEY in development. "
+                "Set a unique SECRET_KEY in .env for better security."
+            )
+        
+        return v
 
     # NLP Model Configuration
     SPACY_MODEL: str = "en_core_web_sm"
@@ -159,7 +201,8 @@ class Settings(BaseSettings):
 
     model_config = ConfigDict(
         env_file=".env",
-        case_sensitive=True
+        case_sensitive=True,
+        extra="ignore"  # Allow extra env vars like GOOGLE_*, SMTP_*, TWILIO_*, etc.
     )
 
 # Initialize Settings

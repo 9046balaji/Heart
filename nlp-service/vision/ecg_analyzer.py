@@ -158,63 +158,20 @@ class ECGAnalyzer:
     ):
         """
         Initialize ECG analyzer.
-        
-        Args:
-            gemini_api_key: API key for Gemini Vision
-            use_mock: Use mock responses
-        """
-        self.api_key = gemini_api_key or os.getenv("GOOGLE_API_KEY")
-        self.use_mock = use_mock or not self.api_key
-        self._model = None
-        
-        if self.use_mock:
-            logger.info("ECGAnalyzer running in mock mode")
-    
-    async def initialize(self):
-        """Initialize the Gemini model."""
-        if not self.use_mock and self.api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._model = genai.GenerativeModel("gemini-1.5-flash")
-                logger.info("ECG Analyzer initialized with Gemini")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Gemini for ECG: {e}")
-                self.use_mock = True
-    
-    async def analyze(
-        self,
-        image: Union[bytes, str, Path],
-        patient_context: Optional[Dict] = None,
-    ) -> ECGAnalysis:
-        """
-        Analyze an ECG image.
-        
-        Args:
-            image: ECG image (bytes, base64, or path)
-            patient_context: Optional patient info for context
-        
-        Returns:
-            ECGAnalysis with detailed results
-        """
-        # Get image bytes
-        image_bytes = self._get_image_bytes(image)
-        
-        if self.use_mock:
-            return self._mock_analysis(patient_context)
-        
         try:
             # Build analysis prompt
             prompt = self._build_analysis_prompt(patient_context)
             
-            # Call Gemini Vision
-            response = await asyncio.to_thread(
-                self._model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            # Call Gemini Vision via Gateway
+            # Note: Gateway handles the disclaimer via content_type="medical"
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="medical"
             )
             
             # Parse response
-            return self._parse_gemini_response(response.text)
+            return self._parse_gemini_response(response_text)
             
         except Exception as e:
             logger.error(f"ECG analysis error: {e}")

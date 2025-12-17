@@ -133,7 +133,8 @@ class VisionService:
             max_cache_size: Maximum cache entries
         """
         self.api_key = gemini_api_key or os.getenv("GOOGLE_API_KEY")
-        self.use_mock = use_mock or not self.api_key
+        self._llm_gateway = None
+        self.use_mock = use_mock
         self.cache_enabled = cache_enabled
         self._cache: Dict[str, VisionAnalysis] = {}
         self._max_cache_size = max_cache_size
@@ -142,21 +143,24 @@ class VisionService:
         self._ecg_analyzer = None
         self._food_recognizer = None
         self._document_scanner = None
-        self._gemini_model = None
         
         if self.use_mock:
             logger.info("VisionService running in mock mode")
     
     async def initialize(self):
-        """Initialize the service and models."""
-        if not self.use_mock and self.api_key:
+        """Initialize the service and models via Gateway."""
+        if not self.use_mock:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-                logger.info("Gemini Vision model initialized")
+                from core.llm_gateway import get_llm_gateway
+                self._llm_gateway = get_llm_gateway()
+                
+                if self._llm_gateway.gemini_available:
+                    logger.info("Vision Service initialized with Gemini via Gateway")
+                else:
+                    logger.warning("Gemini not available via Gateway, falling back to mock")
+                    self.use_mock = True
             except Exception as e:
-                logger.warning(f"Failed to initialize Gemini: {e}")
+                logger.warning(f"Failed to initialize Gateway for Vision: {e}")
                 self.use_mock = True
     
     async def analyze_image(
@@ -273,12 +277,13 @@ class VisionService:
             if context:
                 prompt += f"\n\nAdditional context: {context}"
             
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="general"
             )
             
-            classification = response.text.strip().lower()
+            classification = response_text.strip().lower()
             
             # Map to enum
             type_map = {
@@ -328,17 +333,18 @@ class VisionService:
             if context:
                 prompt += f"\n\nPatient context: {context}"
             
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="medical"
             )
             
             return AnalysisResult(
                 success=True,
                 image_type=ImageType.ECG,
                 confidence=0.85,
-                analysis={"raw_analysis": response.text},
-                summary=response.text[:500],
+                analysis={"raw_analysis": response_text},
+                summary=response_text[:500],
                 warnings=["This analysis is for educational purposes only. Consult a cardiologist."],
                 recommendations=["Professional ECG interpretation recommended"],
                 model_used="gemini-1.5-flash",
@@ -400,17 +406,18 @@ class VisionService:
             if context:
                 prompt += f"\n\nDietary context: {context}"
             
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="nutrition"
             )
             
             return AnalysisResult(
                 success=True,
                 image_type=ImageType.FOOD,
                 confidence=0.80,
-                analysis={"raw_analysis": response.text},
-                summary=response.text[:500],
+                analysis={"raw_analysis": response_text},
+                summary=response_text[:500],
                 warnings=["Nutritional estimates are approximate"],
                 recommendations=[],
                 model_used="gemini-1.5-flash",
@@ -488,17 +495,18 @@ class VisionService:
             if context:
                 prompt += f"\n\nContext: {context}"
             
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="general"
             )
             
             return AnalysisResult(
                 success=True,
                 image_type=doc_type,
                 confidence=0.85,
-                analysis={"extracted_text": response.text},
-                summary=response.text[:500],
+                analysis={"extracted_text": response_text},
+                summary=response_text[:500],
                 warnings=["Verify extracted information with original document"],
                 recommendations=[],
                 model_used="gemini-1.5-flash",
@@ -577,17 +585,18 @@ class VisionService:
             if context:
                 prompt += f"\n\nContext: {context}"
             
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="general"
             )
             
             return AnalysisResult(
                 success=True,
                 image_type=ImageType.GENERAL,
                 confidence=0.70,
-                analysis={"description": response.text},
-                summary=response.text[:500],
+                analysis={"description": response_text},
+                summary=response_text[:500],
                 warnings=[],
                 recommendations=[],
                 model_used="gemini-1.5-flash",

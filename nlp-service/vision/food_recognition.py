@@ -177,22 +177,26 @@ class FoodRecognitionService:
             use_mock: Use mock responses
         """
         self.api_key = gemini_api_key or os.getenv("GOOGLE_API_KEY")
-        self.use_mock = use_mock or not self.api_key
-        self._model = None
+        self._llm_gateway = None
+        self.use_mock = use_mock
         
         if self.use_mock:
             logger.info("FoodRecognitionService running in mock mode")
     
     async def initialize(self):
-        """Initialize the Gemini model."""
-        if not self.use_mock and self.api_key:
+        """Initialize the Gemini model via Gateway."""
+        if not self.use_mock:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._model = genai.GenerativeModel("gemini-1.5-flash")
-                logger.info("Food Recognition initialized with Gemini")
+                from core.llm_gateway import get_llm_gateway
+                self._llm_gateway = get_llm_gateway()
+                
+                if self._llm_gateway.gemini_available:
+                    logger.info("Food Recognition initialized with Gemini via Gateway")
+                else:
+                    logger.warning("Gemini not available via Gateway, falling back to mock")
+                    self.use_mock = True
             except Exception as e:
-                logger.warning(f"Failed to initialize Gemini: {e}")
+                logger.warning(f"Failed to initialize Gateway for Food Recognition: {e}")
                 self.use_mock = True
     
     async def analyze(
@@ -221,14 +225,16 @@ class FoodRecognitionService:
             # Build analysis prompt
             prompt = self._build_prompt(meal_type, dietary_context)
             
-            # Call Gemini Vision
-            response = await asyncio.to_thread(
-                self._model.generate_content,
-                [prompt, {"mime_type": "image/jpeg", "data": image_bytes}],
+            # Call Gemini Vision via Gateway
+            # Note: Gateway handles the disclaimer via content_type="nutrition"
+            response_text = await self._llm_gateway.generate(
+                prompt=prompt,
+                images=[{"mime_type": "image/jpeg", "data": image_bytes}],
+                content_type="nutrition"
             )
             
             # Parse response
-            return self._parse_response(response.text, meal_type)
+            return self._parse_response(response_text, meal_type)
             
         except Exception as e:
             logger.error(f"Food analysis error: {e}")

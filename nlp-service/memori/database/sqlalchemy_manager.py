@@ -22,14 +22,16 @@ from ..utils.exceptions import DatabaseError
 from ..utils.pydantic_models import (
     ProcessedLongTermMemory,
 )
-from .auto_creator import DatabaseAutoCreator
+# auto_creator removed - SQLAlchemy handles database creation via create_all()
+# from .auto_creator import DatabaseAutoCreator
 from .models import (
     Base,
     ChatHistory,
     LongTermMemory,
     ShortTermMemory,
 )
-from .query_translator import QueryParameterTranslator
+# query_translator removed - using SQLAlchemy ORM directly
+# from .query_translator import QueryParameterTranslator
 from .search_service import SearchService
 
 
@@ -41,12 +43,12 @@ class SQLAlchemyDatabaseManager:
         database_connect: str,
         template: str = "basic",
         schema_init: bool = True,
-        pool_size: int = pool_config.DEFAULT_POOL_SIZE,  # Centralized configuration
-        max_overflow: int = pool_config.DEFAULT_MAX_OVERFLOW,  # Centralized configuration
-        pool_timeout: int = pool_config.DEFAULT_POOL_TIMEOUT,
-        pool_recycle: int = pool_config.DEFAULT_POOL_RECYCLE,
-        pool_pre_ping: bool = pool_config.DEFAULT_POOL_PRE_PING,
-    ):
+        pool_size: int = pool_config.get("pool_size", 5),
+        max_overflow: int = pool_config.get("max_overflow", 10),
+        pool_timeout: int = pool_config.get("pool_timeout", 30),
+        pool_recycle: int = pool_config.get("pool_recycle", 3600),
+        pool_pre_ping: bool = pool_config.get("pool_pre_ping", True),
+   ):
         self.database_connect = database_connect
         self.template = template
         self.schema_init = schema_init
@@ -58,13 +60,11 @@ class SQLAlchemyDatabaseManager:
         self.pool_recycle = pool_recycle
         self.pool_pre_ping = pool_pre_ping
 
-        # Initialize database auto-creator
-        self.auto_creator = DatabaseAutoCreator(schema_init)
+        # auto_creator removed - using SQLAlchemy create_all()
+        # self.auto_creator = DatabaseAutoCreator(schema_init)
 
-        # Ensure database exists (create if necessary)
-        self.database_connect = self.auto_creator.ensure_database_exists(
-            database_connect
-        )
+        # Ensure database exists (create if necessary) - handled by SQLAlchemy
+        # self.database_connect = self.auto_creator.ensure_database_exists(database_connect)
 
         # Parse connection string and create engine
         self.engine = self._create_engine(self.database_connect)
@@ -76,8 +76,8 @@ class SQLAlchemyDatabaseManager:
         # Initialize search service
         self._search_service = None
 
-        # Initialize query parameter translator for cross-database compatibility
-        self.query_translator = QueryParameterTranslator(self.database_type)
+        # query_translator removed - using SQLAlchemy ORM directly  
+        # self.query_translator = QueryParameterTranslator(self.database_type)
 
         logger.info(
             f"Initialized SQLAlchemy database manager for {self.database_type} "

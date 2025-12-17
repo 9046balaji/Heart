@@ -7,7 +7,7 @@ Phase 1: Foundation - ADK agents + nlp-service bridge
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 import logging
 import uuid
 

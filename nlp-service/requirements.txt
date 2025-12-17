@@ -24,6 +24,37 @@ google-adk>=1.2.1
 google-generativeai>=0.6.0
 litellm>=1.35.0
 
+# NEW: LangChain Dependencies for LLMGateway enhancement (Phase 1)
+langchain>=0.3.0
+langchain-google-genai>=2.0.0
+langchain-ollama>=0.2.0
+
+# NEW: Langfuse for observability (Phase 1)
+langfuse>=2.0.0
+
+# NEW: PydanticAI for structured outputs (Phase 1)
+pydantic-ai>=1.0.0
+
+# NEW: LlamaIndex for RAG enhancement (Phase 3)
+llama-index-core>=0.11.0
+llama-index-llms-ollama>=0.3.0
+llama-index-embeddings-ollama>=0.3.0
+
+# NEW: Unstructured for document processing (Phase 3)
+unstructured[all-docs]>=0.15.0
+
+# NEW: CrewAI for multi-agent simulation (Phase 2)
+crewai>=0.80.0
+
+# NEW: LangGraph for orchestration (Phase 2)
+langgraph>=0.2.0
+
+# NEW: Ragas for RAG evaluation (Phase 4)
+ragas>=0.2.0
+
+# NEW: Arize Phoenix for production monitoring (Phase 4)
+arize-phoenix>=5.0.0
+
 # Health & Appointment Features (Phase 2-3)
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0  # PostgreSQL adapter

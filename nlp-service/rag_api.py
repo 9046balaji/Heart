@@ -14,6 +14,7 @@ Endpoints:
 
 import logging
 import time
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -22,9 +23,12 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
+# Feature flag for LlamaIndex
+USE_LLAMA_INDEX = os.getenv("USE_LLAMA_INDEX", "false").lower() == "true"
+
+# ============================================================================
 # REQUEST/RESPONSE MODELS
-# =============================================================================
+# ============================================================================
 
 class RAGQueryRequest(BaseModel):
     """Request model for RAG query."""
@@ -119,9 +123,29 @@ class RAGInitializeResponse(BaseModel):
     duration_seconds: float
 
 
-# =============================================================================
-# RAG API ROUTER
-# =============================================================================
+# ============================================================================
+# RAG PIPELINE FACTORY WITH HOT SWAP
+# ============================================================================
+
+def get_rag_pipeline():
+    """
+    Factory function to get the appropriate RAG pipeline based on feature flag.
+    Allows hot-swapping between implementations without code changes.
+    """
+    if USE_LLAMA_INDEX:
+        try:
+            from rag.llama_index_pipeline import LlamaIndexRAG
+            return LlamaIndexRAG()
+        except ImportError as e:
+            logger.warning(f"LlamaIndex not available, falling back to custom RAGPipeline: {e}")
+            from rag.rag_pipeline import RAGPipeline
+            from rag.vector_store import VectorStore
+            return RAGPipeline(vector_store=VectorStore())
+    else:
+        from rag.rag_pipeline import RAGPipeline
+        from rag.vector_store import VectorStore
+        return RAGPipeline(vector_store=VectorStore())
+
 
 # Global RAG instances (initialized in lifespan)
 _rag_pipeline = None
@@ -130,14 +154,11 @@ _knowledge_loader = None
 _memori_rag_bridge = None  # Bridge for unified Memori + RAG search
 _is_initialized = False
 
-def get_rag_pipeline():
-    """Get the RAG pipeline instance."""
+def get_rag_pipeline_instance():
+    """Get or create the RAG pipeline singleton."""
     global _rag_pipeline
     if _rag_pipeline is None:
-        raise HTTPException(
-            status_code=503,
-            detail="RAG system not initialized. Call /api/rag/initialize first."
-        )
+        _rag_pipeline = get_rag_pipeline()
     return _rag_pipeline
 
 def get_vector_store():
@@ -195,33 +216,57 @@ async def rag_query(request: RAGQueryRequest):
     3. Checks drug interactions (if relevant)
     4. Generates a response with the LLM
     5. Returns response with source citations
+    
+    Uses LlamaIndex or custom RAG based on USE_LLAMA_INDEX env var.
     """
     start_time = time.time()
     
     try:
-        pipeline = get_rag_pipeline()
+        pipeline = get_rag_pipeline_instance()
         
         # Query the RAG pipeline
-        result = await pipeline.query(
-            query=request.query,
-            user_id=request.user_id,
-            search_medical=request.include_medical,
-            search_drugs=request.include_drugs,
-            search_user_memory=request.include_user_memory,
-            top_k=request.top_k,
-            generate=request.generate_response,
-        )
+        # Handle both implementations' interfaces
+        if USE_LLAMA_INDEX:
+            # LlamaIndex implementation
+            result = await pipeline.query(
+                question=request.query,
+                user_id=request.user_id
+            )
+        else:
+            # Custom RAGPipeline implementation
+            result = await pipeline.query(
+                query=request.query,
+                user_id=request.user_id,
+                search_medical=request.include_medical,
+                search_drugs=request.include_drugs,
+                search_user_memory=request.include_user_memory,
+                top_k=request.top_k,
+                generate=request.generate_response,
+            )
         
         processing_time = (time.time() - start_time) * 1000
         
-        return RAGQueryResponse(
-            response=result.response,
-            citations=[Citation(**c) for c in result.citations],
-            sources=result.to_dict().get("sources", {}),
-            query=request.query,
-            processing_time_ms=processing_time,
-            timestamp=datetime.now().isoformat(),
-        )
+        # Handle response format differences
+        if USE_LLAMA_INDEX:
+            # LlamaIndex response format
+            return RAGQueryResponse(
+                response=result.get("response", ""),
+                citations=[],  # LlamaIndex implementation doesn't provide citations in current implementation
+                sources={},  # Would need to extract from LlamaIndex result
+                query=request.query,
+                processing_time_ms=processing_time,
+                timestamp=datetime.now().isoformat(),
+            )
+        else:
+            # Custom RAGPipeline response format
+            return RAGQueryResponse(
+                response=result.response,
+                citations=[Citation(**c) for c in result.citations],
+                sources=result.to_dict().get("sources", {}),
+                query=request.query,
+                processing_time_ms=processing_time,
+                timestamp=datetime.now().isoformat(),
+            )
         
     except Exception as e:
         logger.error(f"RAG query failed: {e}")
@@ -435,21 +480,21 @@ async def initialize_knowledge_base(force_reload: bool = False):
     
     try:
         # Import RAG components
-        from rag import RAGPipeline, VectorStore, create_rag_pipeline
+        from rag import VectorStore
         from rag.knowledge_base import KnowledgeLoader
         
         # Create/get instances
         if _vector_store is None or force_reload:
             _vector_store = VectorStore()
-            
-        if _rag_pipeline is None or force_reload:
-            _rag_pipeline = RAGPipeline(vector_store=_vector_store)
         
         # Initialize knowledge loader
         _knowledge_loader = KnowledgeLoader(_vector_store)
         
         # Load all knowledge bases
         results = _knowledge_loader.load_all(force_reload=force_reload)
+        
+        # Create RAG pipeline based on feature flag
+        _rag_pipeline = get_rag_pipeline()
         
         _is_initialized = True
         duration = time.time() - start_time
@@ -483,6 +528,7 @@ async def rag_health():
         "status": "healthy" if _is_initialized else "not_initialized",
         "vector_store": _vector_store is not None,
         "rag_pipeline": _rag_pipeline is not None,
+        "implementation": "LlamaIndex" if USE_LLAMA_INDEX else "Custom RAGPipeline",
         "timestamp": datetime.now().isoformat(),
     }
     
@@ -495,6 +541,16 @@ async def rag_health():
             health_status["status"] = "degraded"
     
     return health_status
+
+
+@router.get("/status")
+async def get_rag_status():
+    """Get current RAG configuration and status."""
+    return {
+        "implementation": "LlamaIndex" if USE_LLAMA_INDEX else "Custom RAGPipeline",
+        "feature_flag": USE_LLAMA_INDEX,
+        "status": "active"
+    }
 
 
 # =============================================================================
@@ -510,15 +566,15 @@ async def initialize_rag_on_startup():
     global _rag_pipeline, _vector_store, _memori_rag_bridge, _is_initialized
     
     try:
-        from rag import RAGPipeline, VectorStore
+        from rag import VectorStore
         
         logger.info("Initializing RAG system on startup...")
         
         # Create vector store
         _vector_store = VectorStore()
         
-        # Create RAG pipeline
-        _rag_pipeline = RAGPipeline(vector_store=_vector_store)
+        # Create RAG pipeline based on feature flag
+        _rag_pipeline = get_rag_pipeline()
         
         # Create MemoriRAGBridge (Memori will be connected later if available)
         try:
@@ -546,7 +602,7 @@ async def initialize_rag_on_startup():
             logger.info(f"Knowledge base has {total_docs} documents")
         
         _is_initialized = True
-        logger.info("✅ RAG system initialized successfully")
+        logger.info(f"✅ RAG system initialized successfully (using {'LlamaIndex' if USE_LLAMA_INDEX else 'Custom RAGPipeline'})")
         
     except ImportError as e:
         logger.warning(f"RAG dependencies not available: {e}")

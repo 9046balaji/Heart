@@ -9,10 +9,219 @@ from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Query
 from pydantic import BaseModel, Field
 import logging
+import os
+import asyncio
+import chardet
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/documents", tags=["Document Scanning"])
+
+# Configuration
+UNSTRUCTURED_TIMEOUT = float(os.getenv("UNSTRUCTURED_TIMEOUT", "30.0"))
+USE_UNSTRUCTURED_FALLBACK = os.getenv("USE_UNSTRUCTURED_FALLBACK", "true").lower() == "true"
+
+
+# ==================== Chain of Responsibility Pattern ====================
+
+class DocumentProcessingResult(BaseModel):
+    """Result from document processing."""
+    text: str
+    metadata: dict
+    processor_used: str
+    entities: List[Dict[str, Any]] = []
+    tables: List[Dict[str, Any]] = []
+    confidence: float = 0.0
+
+
+class DocumentProcessor(ABC):
+    """Abstract base class for document processors (Chain of Responsibility)."""
+    
+    def __init__(self):
+        self._next_processor: Optional["DocumentProcessor"] = None
+    
+    def set_next(self, processor: "DocumentProcessor") -> "DocumentProcessor":
+        """Set the next processor in the chain."""
+        self._next_processor = processor
+        return processor
+    
+    @abstractmethod
+    async def can_process(self, file_content: bytes, file_type: str) -> bool:
+        """Check if this processor can handle the file."""
+        pass
+    
+    @abstractmethod
+    async def process(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
+        """Process the document."""
+        pass
+    
+    async def handle(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
+        """
+        Handle the document processing request.
+        Try this processor first, fall back to next in chain on failure.
+        """
+        try:
+            if await self.can_process(file_content, file_type):
+                return await self.process(file_content, file_type)
+        except Exception as e:
+            logger.warning(f"{self.__class__.__name__} failed: {e}, trying next processor")
+        
+        # Fall back to next processor in chain
+        if self._next_processor:
+            return await self._next_processor.handle(file_content, file_type)
+        
+        raise HTTPException(status_code=500, detail="All document processors failed")
+
+
+class UnstructuredProcessor(DocumentProcessor):
+    """
+    Primary processor using Unstructured.io for high-quality document parsing.
+    Handles complex layouts, tables, and forms automatically.
+    """
+    
+    async def can_process(self, file_content: bytes, file_type: str) -> bool:
+        """Unstructured.io can handle most document types."""
+        supported_types = ["pdf", "docx", "doc", "pptx", "xlsx", "html", "txt", "md", "png", "jpg", "jpeg"]
+        return file_type.lower() in supported_types
+    
+    async def process(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
+        """Process using Unstructured.io with timeout protection."""
+        try:
+            # Save content to temporary file for Unstructured.io processing
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=f".{file_type}", delete=False) as tmp_file:
+                tmp_file.write(file_content)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Apply timeout to prevent hanging on large documents
+                result = await asyncio.wait_for(
+                    self._process_document(tmp_file_path),
+                    timeout=UNSTRUCTURED_TIMEOUT
+                )
+                
+                return DocumentProcessingResult(
+                    text=result.get("content", ""),
+                    metadata=result.get("metadata", {}),
+                    processor_used="UnstructuredIO",
+                    entities=result.get("entities", []),
+                    tables=result.get("tables", []),
+                    confidence=result.get("confidence", 0.95)
+                )
+            finally:
+                # Clean up temporary file
+                os.unlink(tmp_file_path)
+                
+        except asyncio.TimeoutError:
+            logger.warning(f"Unstructured.io timed out after {UNSTRUCTURED_TIMEOUT}s")
+            raise
+        except ImportError as e:
+            logger.error(f"Unstructured.io not available: {e}")
+            raise
+    
+    async def _process_document(self, file_path: str) -> dict:
+        """Internal method to process document with Unstructured.io."""
+        from document_scanning.unstructured_processor import UnstructuredDocumentProcessor
+        processor = UnstructuredDocumentProcessor()
+        return processor.process_document(file_path)
+
+
+class TesseractOCRProcessor(DocumentProcessor):
+    """
+    Fallback processor using Tesseract OCR for image-based documents.
+    Lighter weight but less feature-rich than Unstructured.io.
+    """
+    
+    async def can_process(self, file_content: bytes, file_type: str) -> bool:
+        """Tesseract handles images and PDFs."""
+        supported_types = ["pdf", "png", "jpg", "jpeg", "tiff", "bmp"]
+        return file_type.lower() in supported_types
+    
+    async def process(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
+        """Process using legacy Tesseract OCR engine."""
+        # Save content to temporary file for OCR processing
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=f".{file_type}", delete=False) as tmp_file:
+            tmp_file.write(file_content)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            from document_scanning.ocr_engine import OCREngineFactory, OCRProvider
+            factory = OCREngineFactory()
+            ocr_engine = factory.get_engine(OCRProvider.TESSERACT)
+            result = ocr_engine.extract_text(tmp_file_path)
+            
+            return DocumentProcessingResult(
+                text=result.text,
+                metadata={"source": "tesseract_ocr", "file_type": file_type, "processing_time_ms": result.processing_time_ms},
+                processor_used="TesseractOCR",
+                confidence=result.confidence
+            )
+        finally:
+            # Clean up temporary file
+            os.unlink(tmp_file_path)
+
+
+class SimpleTextProcessor(DocumentProcessor):
+    """
+    Last-resort processor for plain text files.
+    No dependencies, always available.
+    """
+    
+    async def can_process(self, file_content: bytes, file_type: str) -> bool:
+        """Text processor handles plain text formats."""
+        return file_type.lower() in ["txt", "md", "csv", "json"]
+    
+    async def process(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
+        """Simple text extraction with encoding detection."""
+        # Detect encoding
+        detected = chardet.detect(file_content)
+        encoding = detected.get("encoding", "utf-8")
+        
+        try:
+            text = file_content.decode(encoding)
+        except:
+            text = file_content.decode("utf-8", errors="ignore")
+        
+        return DocumentProcessingResult(
+            text=text,
+            metadata={"encoding": encoding, "file_type": file_type},
+            processor_used="SimpleText",
+            confidence=0.99
+        )
+
+
+def create_processor_chain() -> DocumentProcessor:
+    """
+    Create the Chain of Responsibility for document processing.
+    Order: Unstructured.io -> Tesseract OCR -> Simple Text
+    """
+    # Build the chain
+    unstructured = UnstructuredProcessor()
+    tesseract = TesseractOCRProcessor()
+    simple_text = SimpleTextProcessor()
+    
+    if USE_UNSTRUCTURED_FALLBACK:
+        # Full chain: Unstructured -> Tesseract -> Simple
+        unstructured.set_next(tesseract).set_next(simple_text)
+        return unstructured
+    else:
+        # Skip Unstructured: Tesseract -> Simple
+        tesseract.set_next(simple_text)
+        return tesseract
+
+
+# Global processor chain
+_processor_chain: Optional[DocumentProcessor] = None
+
+
+def get_processor_chain() -> DocumentProcessor:
+    """Get or create the processor chain singleton."""
+    global _processor_chain
+    if _processor_chain is None:
+        _processor_chain = create_processor_chain()
+    return _processor_chain
 
 
 # ==================== Request/Response Models ====================
@@ -549,3 +758,58 @@ async def get_document_audit(
     except Exception as e:
         logger.error(f"Failed to get audit trail: {e}")
         return {"document_id": document_id, "events": []}
+
+
+@router.post(
+    "/process",
+    response_model=DocumentProcessingResult,
+    summary="Process Document",
+    description="Process an uploaded document using the Chain of Responsibility pattern."
+)
+async def process_document(
+    file: UploadFile = File(...),
+    user_id: str = Query(..., description="User ID")
+):
+    """
+    Process an uploaded document using the Chain of Responsibility pattern.
+    Tries Unstructured.io first, falls back to Tesseract OCR if needed.
+    """
+    # Get file extension
+    file_type = file.filename.split(".")[-1] if "." in file.filename else "txt"
+    
+    # Read file content
+    file_content = await file.read()
+    
+    # Process through the chain
+    processor_chain = get_processor_chain()
+    result = await processor_chain.handle(file_content, file_type)
+    
+    logger.info(f"Document processed by: {result.processor_used}")
+    return result
+
+
+@router.get("/processors/status")
+async def get_processors_status():
+    """Get status of available document processors."""
+    status = {
+        "chain_order": [],
+        "unstructured_enabled": USE_UNSTRUCTURED_FALLBACK,
+        "timeout_seconds": UNSTRUCTURED_TIMEOUT
+    }
+    
+    # Check which processors are available
+    try:
+        from document_scanning.unstructured_processor import UnstructuredDocumentProcessor
+        status["chain_order"].append("UnstructuredIO")
+    except ImportError:
+        pass
+    
+    try:
+        from document_scanning.ocr_engine import OCREngineFactory
+        status["chain_order"].append("TesseractOCR")
+    except ImportError:
+        pass
+    
+    status["chain_order"].append("SimpleText")  # Always available
+    
+    return status

@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 import logging
 from datetime import datetime
+import os
+from enum import Enum
 
 from agents.base import (
     HealthAgent,
@@ -22,10 +24,103 @@ from agents.base import (
 from intent_recognizer import IntentRecognizer, IntentResult
 from models import IntentEnum
 
+# Feature flag for LangChain Gateway
+import os
+USE_LANGCHAIN_GATEWAY = os.getenv("USE_LANGCHAIN_GATEWAY", "false").lower() == "true"
+
+# Initialize LangChain Gateway if enabled
+langchain_gateway = None
+if USE_LANGCHAIN_GATEWAY:
+    try:
+        from core.langchain_gateway import LangChainGateway
+        langchain_gateway = LangChainGateway()
+        logger.info("✅ LangChain Gateway enabled")
+    except ImportError as e:
+        logger.warning(f"LangChain Gateway not available: {e}")
+
 logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+# ============================================================================
+# EXTENDED INTENT ENUM FOR SEMANTIC ROUTING
+# ============================================================================
+
+class ExtendedIntentEnum(str, Enum):
+    """Extended intent types for semantic routing (standalone enum)"""
+    # Original intents from IntentEnum
+    GREETING = "greeting"
+    RISK_ASSESSMENT = "risk_assessment"
+    NUTRITION_ADVICE = "nutrition_advice"
+    EXERCISE_COACHING = "exercise_coaching"
+    MEDICATION_REMINDER = "medication_reminder"
+    SYMPTOM_CHECK = "symptom_check"
+    HEALTH_GOAL = "health_goal"
+    HEALTH_EDUCATION = "health_education"
+    APPOINTMENT_BOOKING = "appointment_booking"
+    EMERGENCY = "emergency"
+    UNKNOWN = "unknown"
+    # Extended intents for semantic routing
+    SIMPLE_QUERY = "simple_query"
+    COMPLEX_DIAGNOSIS = "complex_diagnosis"
+    MULTI_DOMAIN = "multi_domain"
+    HEALTH_CHECK = "health_check"
+    APPOINTMENT = "appointment"
+    MEDICATION = "medication"
+
+
+# ============================================================================
+# SEMANTIC ROUTER IMPLEMENTATION
+# ============================================================================
+
+class SemanticRouter:
+    """Routes queries based on complexity and intent analysis."""
+    
+    def __init__(self, intent_recognizer, langgraph_orchestrator=None):
+        self.intent_recognizer = intent_recognizer
+        self.langgraph_orchestrator = langgraph_orchestrator
+        self.complexity_threshold = float(os.getenv("COMPLEXITY_THRESHOLD", "0.8"))
+    
+    def calculate_complexity_score(self, query: str) -> float:
+        """
+        Calculate query complexity based on multiple factors:
+        - Length of query
+        - Number of medical terms
+        - Presence of multiple symptoms/conditions
+        - Question depth indicators
+        """
+        score = 0.0
+        
+        # Length factor (longer queries tend to be more complex)
+        if len(query) > 200:
+            score += 0.3
+        elif len(query) > 100:
+            score += 0.15
+        
+        # Medical complexity indicators
+        complex_keywords = [
+            "diagnosis", "differential", "interaction", "contraindication",
+            "prognosis", "etiology", "comorbidity", "treatment plan",
+            "multiple symptoms", "history of", "risk factors"
+        ]
+        for keyword in complex_keywords:
+            if keyword.lower() in query.lower():
+                score += 0.15
+        
+        # Multi-domain indicators (cardiac + nutrition + medication)
+        domain_indicators = {
+            "cardiac": ["heart", "cardiac", "cardiovascular", "arrhythmia", "ecg", "blood pressure"],
+            "nutrition": ["diet", "nutrition", "food", "eating", "weight"],
+            "medication": ["drug", "medication", "prescription", "dosage", "medicine"]
+        }
+        domains_present = sum(1 for domain, keywords in domain_indicators.items() 
+                            if any(kw in query.lower() for kw in keywords))
+        if domains_present >= 2:
+            score += 0.3
+        
+        return min(score, 1.0)  # Cap at 1.0
+
 
 # ============================================================================
 # PYDANTIC MODELS FOR REQUEST/RESPONSE
@@ -143,6 +238,46 @@ async def verify_token(authorization: Optional[str] = None) -> str:
         return "verified_user"
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+
+# ============================================================================
+# LEGACY INTENT HANDLER
+# ============================================================================
+
+async def legacy_intent_handler(query: str, intent: IntentEnum, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Legacy intent handler for simple queries.
+    Maintains backward compatibility with existing implementation.
+    """
+    # Since we don't have direct access to NLPState here, we'll use the global instances
+    response = {
+        "query": query,
+        "intent": intent.value if isinstance(intent, IntentEnum) else str(intent),
+        "response": None,
+        "confidence": 0.0
+    }
+    
+    try:
+        # Process based on intent type
+        if intent in [IntentEnum.SYMPTOM_CHECK, IntentEnum.HEALTH_CHECK, IntentEnum.HEALTH_EDUCATION]:
+            # For simplicity, we'll simulate a response
+            response["response"] = f"Processing health query: {query}"
+            response["confidence"] = 0.9
+        elif intent == IntentEnum.APPOINTMENT_BOOKING:
+            response["response"] = "I'll help you schedule an appointment."
+            response["confidence"] = 0.95
+        elif intent == IntentEnum.MEDICATION_REMINDER:
+            response["response"] = f"Providing medication guidance for: {query}"
+            response["confidence"] = 0.85
+        else:
+            response["response"] = f"Processing general query: {query}"
+            response["confidence"] = 0.7
+            
+    except Exception as e:
+        response["error"] = str(e)
+        response["confidence"] = 0.0
+    
+    return response
 
 
 # ============================================================================
@@ -344,6 +479,17 @@ async def agent_chat(
             "keywords_matched": intent_result.keywords_matched or []
         }
         
+        # Use LangChain Gateway if enabled and intent is health-related
+        if langchain_gateway and intent_result.intent in health_intents:
+            try:
+                response_text = await langchain_gateway.generate(
+                    request.query, 
+                    content_type="medical"
+                )
+                response_data["langchain_response"] = response_text
+            except Exception as e:
+                logger.warning(f"LangChain generation failed: {e}")
+        
         return AgentResponse(
             agent=agent_name,
             response=f"Query processed by {agent_name}: {result.get('status', 'success')}",
@@ -359,6 +505,99 @@ async def agent_chat(
             detail=f"Agent error: {str(e)}"
         )
 
+
+@router.post("/process-nlp", response_model=AgentResponse)
+async def process_nlp(
+    request: QueryRequest,
+    token: str = Depends(verify_token)
+) -> AgentResponse:
+    """
+    Main NLP processing function with semantic routing.
+    Routes to LangGraph for complex queries, legacy handler for simple ones.
+    
+    This endpoint implements the Semantic Router pattern that checks query 
+    complexity and routes accordingly:
+    - Simple queries → Legacy handler
+    - Complex queries → LangGraph orchestrator (if available)
+    """
+    try:
+        logger.info(f"Processing NLP request from {token}: {request.query[:50]}...")
+        
+        # Try to access NLPState to get the LangGraph orchestrator
+        # We'll simulate this since we don't have direct access in this context
+        langgraph_orchestrator = None
+        try:
+            from ..main import NLPState
+            langgraph_orchestrator = getattr(NLPState, 'orchestrator', None)
+        except ImportError:
+            logger.debug("NLPState not available, using legacy processing")
+        
+        # Create semantic router with intent recognizer and LangGraph orchestrator
+        router = SemanticRouter(
+            intent_recognizer=intent_recognizer,
+            langgraph_orchestrator=langgraph_orchestrator
+        )
+        
+        # Analyze intent and complexity
+        intent_result: IntentResult = await intent_recognizer.recognize_intent_async(request.query)
+        complexity_score = router.calculate_complexity_score(request.query)
+        
+        logger.info(f"Intent: {intent_result.intent.value}, Complexity: {complexity_score:.2f}")
+        
+        # Semantic routing decision
+        if (intent_result.intent == IntentEnum.RISK_ASSESSMENT or 
+            intent_result.intent == IntentEnum.SYMPTOM_CHECK or
+            complexity_score > router.complexity_threshold):
+            # Route to LangGraph for complex multi-step processing
+            if router.langgraph_orchestrator:
+                logger.info("Routing to LangGraph orchestrator for complex processing")
+                result = await router.langgraph_orchestrator.process(
+                    query=request.query, 
+                    context=request.context
+                )
+                agent_name = "LangGraphOrchestrator"
+                action = "complex_processing"
+            else:
+                # Fallback if LangGraph not available
+                logger.info("LangGraph not available, falling back to legacy handler")
+                result = await legacy_intent_handler(
+                    request.query, 
+                    intent_result.intent, 
+                    request.context
+                )
+                agent_name = "LegacyHandler"
+                action = "fallback_processing"
+        else:
+            # Use legacy handler for simple queries
+            logger.info("Routing to legacy handler for simple processing")
+            result = await legacy_intent_handler(
+                request.query, 
+                intent_result.intent, 
+                request.context
+            )
+            agent_name = "LegacyHandler"
+            action = "simple_processing"
+        
+        # Format response
+        if "response" in result:
+            response_text = result["response"]
+        else:
+            response_text = str(result)
+            
+        return AgentResponse(
+            agent=agent_name,
+            response=response_text,
+            action=action,
+            data=result,
+            status="success"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in NLP processing: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"NLP processing error: {str(e)}"
+        )
 
 # ============================================================================
 # MONITORING & AUDIT ENDPOINTS

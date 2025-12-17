@@ -102,6 +102,7 @@ class LLMGateway:
         content_type: str = "general",
         skip_guardrails: bool = False,
         user_id: Optional[str] = None,
+        images: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ) -> str:
         """
@@ -112,6 +113,7 @@ class LLMGateway:
             content_type: "medical", "nutrition", or "general" (for disclaimer)
             skip_guardrails: If True, skip safety processing (internal use only)
             user_id: Optional user ID for logging
+            images: Optional list of image data dicts (for multimodal models)
             **kwargs: Additional provider-specific parameters
             
         Returns:
@@ -119,14 +121,17 @@ class LLMGateway:
         """
         logger.info(
             f"LLMGateway.generate: type={content_type}, "
-            f"user={user_id or 'anonymous'}, provider={self.primary_provider}"
+            f"user={user_id or 'anonymous'}, provider={self.primary_provider}, "
+            f"has_images={bool(images)}"
         )
         
         try:
             # Try primary provider
             if self.primary_provider == "gemini" and self.gemini_available:
-                raw_response = await self._generate_gemini(prompt, **kwargs)
+                raw_response = await self._generate_gemini(prompt, images=images, **kwargs)
             elif self.ollama_available:
+                if images:
+                    logger.warning("Ollama provider does not currently support images via Gateway. Ignoring images.")
                 raw_response = await self._generate_ollama(prompt, **kwargs)
             else:
                 raise RuntimeError("No LLM provider available")
@@ -137,6 +142,8 @@ class LLMGateway:
             # Try fallback
             if self.fallback_enabled and self.ollama_available:
                 logger.info("Falling back to Ollama")
+                if images:
+                    logger.warning("Fallback to Ollama drops image context.")
                 raw_response = await self._generate_ollama(prompt, **kwargs)
             else:
                 raise RuntimeError(f"LLM generation failed: {e}")
@@ -188,7 +195,7 @@ class LLMGateway:
             if disclaimer:
                 yield "\n\n" + disclaimer
     
-    async def _generate_gemini(self, prompt: str, **kwargs) -> str:
+    async def _generate_gemini(self, prompt: str, images: Optional[List] = None, **kwargs) -> str:
         """Generate response using Google Gemini."""
         import google.generativeai as genai
         
@@ -198,11 +205,15 @@ class LLMGateway:
         model_name = kwargs.get("model", "gemini-1.5-flash")
         model = genai.GenerativeModel(model_name)
         
+        content = [prompt]
+        if images:
+            content.extend(images)
+        
         # Run in executor to avoid blocking
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: model.generate_content(prompt)
+            lambda: model.generate_content(content)
         )
         
         return response.text

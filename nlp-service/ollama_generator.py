@@ -139,31 +139,6 @@ class OllamaGenerator:
                     logger.debug(f"Health check request failed: {e}")
                     return False
             
-            is_responding = await run_in_threadpool(_check_health)
-            
-            if not is_responding:
-                logger.warning(f"Ollama server not responding at {check_url}")
-                return False
-            
-            # Then check if model is available
-            try:
-                response = self.client.list()
-                # Handle both old ('name') and new ('model') formats from Ollama API
-                models = response.get("models", [])
-                model_names = []
-                for m in models:
-                    # Check for 'name' or 'model' key
-                    name = m.get("name") or m.get("model")
-                    if name:
-                        model_names.append(name.split(":")[0])
-                
-                is_available = self.model_name.split(":")[0] in model_names
-                logger.info(
-                    f"Ollama availability check: {is_available} (available models: {model_names})"
-                )
-                return is_available
-            except Exception as e:
-                logger.error(f"Error listing Ollama models: {str(e)}")
                 return False
                 
         except Exception as e:
@@ -264,7 +239,66 @@ class OllamaGenerator:
             
         Raises:
             CircuitBreakerOpen: If Ollama service is unavailable
+            ProcessingError: If input validation fails or prompt injection detected
         """
+        # ========== INPUT VALIDATION & SECURITY (Security Fix) ==========
+        # 1. Validate prompt length (prevent DoS and excessive token usage)
+        if not prompt or len(prompt.strip()) == 0:
+            raise ProcessingError(
+                error_code="EMPTY_PROMPT",
+                message="Prompt cannot be empty"
+            )
+        
+        if len(prompt) > 5000:
+            raise ProcessingError(
+                error_code="PROMPT_TOO_LONG",
+                message="Prompt exceeds maximum length of 5,000 characters",
+                details={
+                    "prompt_length": len(prompt),
+                    "max_length": 5000,
+                    "suggestion": "Shorten your message or split into multiple requests"
+                }
+            )
+        
+        # 2. Basic prompt injection detection (regex-based)
+        # Common injection patterns that attempt to override system instructions
+        injection_patterns = [
+            r"ignore\s+(previous|above|all)\s+instructions?",
+            r"disregard\s+(previous|above|system)\s+(prompt|instructions?)",
+            r"forget\s+(everything|all|previous)\s+(instructions?|context)",
+            r"act\s+as\s+(a\s+)?different",
+            r"you\s+are\s+now\s+(a\s+)?",
+            r"new\s+instructions?:",
+            r"system\s*:\s*ignore",
+            r"</system>",  # Attempting to close system tag
+            r"<\|im_start\|>",  # ChatML injection
+            r"<\|im_end\|>",
+        ]
+        
+        import re
+        for pattern in injection_patterns:
+            if re.search(pattern, prompt, re.IGNORECASE):
+                # Log security event
+                logger.warning(
+                    f"Potential prompt injection detected: pattern='{pattern}' in prompt",
+                    extra={
+                        "security_event": "prompt_injection_attempt",
+                        "pattern": pattern,
+                        "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                    }
+                )
+                raise ProcessingError(
+                    error_code="PROMPT_INJECTION_DETECTED",
+                    message="Your message contains patterns that may attempt to manipulate the system. Please rephrase.",
+                    details={
+                        "security_reason": "Potential prompt injection detected",
+                        "suggestion": "Avoid instructions like 'ignore previous' or 'act as different'"
+                    }
+                )
+        
+        logger.debug(f"Prompt validation passed: {len(prompt)} characters")
+        # ========== END INPUT VALIDATION ==========
+        
         try:
             # Check circuit breaker status
             if self.circuit_breaker.is_open:
@@ -284,185 +318,6 @@ class OllamaGenerator:
                     content = msg.get("content", "")
                     context_text += f"{role.capitalize()}: {content}\n"
 
-            # Build full prompt with system message and context
-            if system_prompt:
-                full_prompt = f"{system_prompt}\n\nConversation:\n{context_text}User: {prompt}\nAssistant:"
-            else:
-                full_prompt = f"{context_text}User: {prompt}\nAssistant:" if context_text else f"User: {prompt}\nAssistant:"
-
-            logger.info(
-                f"Generating response with {self.model_name} (stream={stream}, history_msgs={len(pruned_history)})"
-            )
-
-            if stream:
-                return self._stream_response(full_prompt)
-            else:
-                # Wrap in circuit breaker with timeout handling
-                def _generate():
-                    try:
-                        logger.debug(f"Calling Ollama.generate() with timeout of 60s")
-                        response = self.client.generate(
-                            model=self.model_name,
-                            prompt=full_prompt,
-                            stream=False,
-                            options={
-                                'temperature': self.temperature,
-                                'top_p': self.top_p,
-                                'top_k': self.top_k,
-                                'num_predict': self.max_tokens,
-                            }
-                        )
-                        logger.debug(f"Ollama response received: {len(response.get('response', ''))} chars")
-                        return response
-                    except Exception as e:
-                        logger.error(f"Error in Ollama generate call: {type(e).__name__}: {str(e)}")
-                        # Add more detailed timeout error handling
-                        if "timeout" in str(e).lower() or "timed out" in str(e).lower():
-                            logger.warning("Ollama request timed out - model may still be loading")
-                        raise
-                
-                # Execute circuit breaker call in threadpool with timeout of 65 seconds
-                logger.info(f"Generating response with {self.model_name} - starting circuit breaker call")
-                response = await asyncio.wait_for(
-                    run_in_threadpool(self.circuit_breaker.call, _generate),
-                    timeout=65.0  # 5 second buffer beyond client timeout
-                )
-                
-                generated_text = response["response"].strip()
-                self.generation_count += 1
-                self.total_tokens += response.get("eval_count", 0)
-
-                logger.info(
-                    f"Generated response ({response.get('eval_count', 0)} tokens, total: {self.total_tokens})"
-                )
-
-                return generated_text
-
-        except asyncio.TimeoutError as e:
-            logger.error(f"Ollama generation timeout after 65 seconds")
-            raise Exception("Ollama generation timeout - model may be overloaded")
-        except CircuitBreakerOpen as e:
-            logger.warning(f"Circuit breaker blocked Ollama call: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Error generating response: {type(e).__name__}: {str(e)}")
-            raise
-
-    def _stream_response(self, prompt: str) -> AsyncGenerator[str, None]:
-        """
-        Stream response from Ollama
-
-        Args:
-            prompt: Full prompt with context
-
-        Yields:
-            Response chunks as they are generated
-        """
-
-        async def _stream_generator():
-            try:
-                # Initial call in threadpool
-                response = await run_in_threadpool(
-                    self.client.generate,
-                    model=self.model_name,
-                    prompt=prompt,
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                    top_k=self.top_k,
-                    num_predict=self.max_tokens,
-                    stream=True,
-                )
-
-                # Iterate in threadpool
-                async for chunk in iterate_in_threadpool(response):
-                    if "response" in chunk:
-                        text = chunk["response"]
-                        if text:
-                            yield text
-
-                        # Update stats on final chunk
-                        if chunk.get("done", False):
-                            self.generation_count += 1
-                            self.total_tokens += chunk.get("eval_count", 0)
-                            logger.info(
-                                f"Stream complete ({chunk.get('eval_count', 0)} tokens)"
-                            )
-
-            except Exception as e:
-                logger.error(f"Error in stream generation: {str(e)}")
-                raise
-
-        return _stream_generator()
-
-    async def _stream_response_async(
-        self,
-        prompt: str = "",
-        conversation_history: Optional[List[Dict[str, str]]] = None,
-        system_prompt: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]:
-        """
-        Async stream response from Ollama with conversation history support
-
-        Args:
-            prompt: User input message
-            conversation_history: List of previous messages
-            system_prompt: Optional system prompt
-
-        Yields:
-            Response chunks as they are generated
-        """
-        try:
-            # Prune conversation history to fit within context window
-            pruned_history = self._prune_history(conversation_history)
-            
-            # Build context from pruned conversation history
-            context_text = ""
-            if pruned_history:
-                for msg in pruned_history:
-                    role = msg.get("role", "user")
-                    content = msg.get("content", "")
-                    context_text += f"{role.capitalize()}: {content}\n"
-
-            # Build full prompt
-            if system_prompt:
-                full_prompt = f"{system_prompt}\n\nConversation:\n{context_text}User: {prompt}\nAssistant:"
-            else:
-                full_prompt = f"{context_text}User: {prompt}\nAssistant:" if context_text else f"User: {prompt}\nAssistant:"
-
-            logger.info(f"Streaming response with {self.model_name} (history_msgs={len(pruned_history)})")
-
-            # Stream response (initial call)
-            response = await run_in_threadpool(
-                self.client.generate,
-                model=self.model_name,
-                prompt=full_prompt,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                num_predict=self.max_tokens,
-                stream=True,
-            )
-
-            token_count = 0
-            # Iterate in threadpool
-            async for chunk in iterate_in_threadpool(response):
-                if "response" in chunk:
-                    text = chunk["response"]
-                    if text:
-                        token_count += 1
-                        yield text
-
-                    # Update stats on final chunk
-                    if chunk.get("done", False):
-                        self.generation_count += 1
-                        self.total_tokens += chunk.get("eval_count", 0)
-                        logger.info(
-                            f"Stream complete ({token_count} tokens, total: {self.total_tokens})"
-                        )
-
-        except Exception as e:
-            logger.error(f"Error in async stream generation: {str(e)}")
-            raise
 
     async def generate_healthcare_response(
         self,

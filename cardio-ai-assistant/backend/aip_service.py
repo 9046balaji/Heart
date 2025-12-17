@@ -416,25 +416,32 @@ def health_assessment():
         health_history = data.get("health_history", [])
         lifestyle = data.get("lifestyle", {})
         
-        context = f"""Perform a health assessment for the following user.
+        # Transform to NLP Service format for general generation
+        nlp_payload = {
+            "message": f"""Perform a health assessment for the following user.
 Name: {user_name}
 Age: {age}
 Vitals: {json.dumps(vitals)}
 Health History: {', '.join(health_history) if health_history else 'None reported'}
-Lifestyle: {json.dumps(lifestyle)}"""
+Lifestyle: {json.dumps(lifestyle)}
+
+Provide a brief health assessment (3-4 bullet points) highlighting key observations and one primary recommendation.""",
+            "user_id": data.get("user_id", "anonymous"),
+            "content_type": "medical"
+        }
         
-        prompt = "Provide a brief health assessment (3-4 bullet points) highlighting key observations and one primary recommendation."
-        assessment = generate_content(prompt, context)
+        # Proxy to NLP Service chat endpoint
+        result, status_code = proxy_to_nlp("/api/chat/stream", nlp_payload)
         
-        if not assessment:
-            return jsonify({"error": "Failed to perform assessment"}), 500
-        
-        return jsonify({
-            "assessment": assessment,
-            "user": user_name,
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }), 200
-        
+        if status_code == 200:
+            return jsonify({
+                "assessment": result.get("insight", result.get("response", "")),
+                "user": user_name,
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify(result), status_code
+            
     except Exception as e:
         logger.error(f"✗ Error in health_assessment: {e}", exc_info=True)
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
@@ -465,23 +472,30 @@ def medication_insights():
         
         med_list = [f"{m.get('name')} ({m.get('dosage', 'N/A')})" for m in medications]
         
-        context = f"""Provide insights about medication management.
+        # Transform to NLP Service format for general generation
+        nlp_payload = {
+            "message": f"""Provide insights about medication management.
 Current Medications: {', '.join(med_list)}
 Supplements: {', '.join(supplements) if supplements else 'None'}
-Recent Vitals: {json.dumps(vitals)}"""
+Recent Vitals: {json.dumps(vitals)}
+
+Provide brief insights on medication management including adherence tips and any observations based on vitals. Keep it practical and encouraging.""",
+            "user_id": data.get("user_id", "anonymous"),
+            "content_type": "medical"
+        }
         
-        prompt = "Provide brief insights on medication management including adherence tips and any observations based on vitals. Keep it practical and encouraging."
-        insights = generate_content(prompt, context)
+        # Proxy to NLP Service chat endpoint
+        result, status_code = proxy_to_nlp("/api/chat/stream", nlp_payload)
         
-        if not insights:
-            return jsonify({"error": "Failed to generate insights"}), 500
-        
-        return jsonify({
-            "insights": insights,
-            "medication_count": len(medications),
-            "timestamp": __import__('datetime').datetime.now().isoformat()
-        }), 200
-        
+        if status_code == 200:
+            return jsonify({
+                "insights": result.get("insight", result.get("response", "")),
+                "medication_count": len(medications),
+                "timestamp": __import__('datetime').datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify(result), status_code
+            
     except Exception as e:
         logger.error(f"✗ Error in medication_insights: {e}", exc_info=True)
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500

@@ -149,15 +149,75 @@ class EntityExtractor:
 
     def extract_entities(self, text: str, entity_types: Optional[List[str]] = None) -> List[Entity]:
         """
-        Extract entities from text with caching.
+        Extract entities from text with caching and input validation.
 
         Args:
-            text: Input text
+            text: Input text (max 10,000 characters)
             entity_types: Specific entity types to extract (None = all types)
 
         Returns:
             List of extracted entities (sorted by position)
+            
+        Raises:
+            ProcessingError: If input validation fails
         """
+        # ========== INPUT VALIDATION (Security Fix) ==========
+        # 1. Validate text input (prevent DoS via oversized inputs)
+        if not text or len(text.strip()) == 0:
+            raise ProcessingError(
+                error_code="INVALID_INPUT",
+                message="Text input cannot be empty",
+                details={"text_length": len(text) if text else 0}
+            )
+        
+        if len(text) > 10000:
+            raise ProcessingError(
+                error_code="INPUT_TOO_LARGE",
+                message="Text exceeds maximum length of 10,000 characters",
+                details={
+                    "text_length": len(text),
+                    "max_length": 10000,
+                    "suggestion": "Split large texts into smaller chunks"
+                }
+            )
+        
+        # 2. Validate entity_types parameter
+        if entity_types is not None:
+            if not isinstance(entity_types, list):
+                raise ProcessingError(
+                    error_code="INVALID_PARAMETER",
+                    message="entity_types must be a list",
+                    details={"received_type": type(entity_types).__name__}
+                )
+            
+            if len(entity_types) > 20:
+                raise ProcessingError(
+                    error_code="TOO_MANY_ENTITY_TYPES",
+                    message="Maximum 20 entity types allowed per request",
+                    details={
+                        "requested": len(entity_types),
+                        "max_allowed": 20
+                    }
+                )
+            
+            # Define valid entity types
+            valid_types = {
+                "symptom", "medication", "food", "measurement", 
+                "time_reference", "blood_pressure", "weight", 
+                "cholesterol", "duration"
+            }
+            
+            invalid_types = set(entity_types) - valid_types
+            if invalid_types:
+                raise ProcessingError(
+                    error_code="INVALID_ENTITY_TYPES",
+                    message=f"Invalid entity types requested: {invalid_types}",
+                    details={
+                        "invalid_types": list(invalid_types),
+                        "valid_types": list(valid_types)
+                    }
+                )
+        # ========== END INPUT VALIDATION ==========
         # Create cache key
         cache_key = f"entities:{hashlib.md5(f'{text}:{sorted(entity_types or [])}'.encode()).hexdigest()}"
         

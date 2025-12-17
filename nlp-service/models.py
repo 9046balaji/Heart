@@ -338,3 +338,67 @@ class OllamaHealthCheckResponse(BaseModel):
     available: bool = Field(..., description="Whether model is available")
     timestamp: str = Field(..., description="Check timestamp")
 
+
+# NEW: Pydantic models for agent requests
+class AgentRequest(BaseModel):
+    """Request for agent processing"""
+    query: str = Field(
+        ...,
+        description="User query to process",
+        min_length=1,
+        max_length=10000,
+    )
+    user_id: Optional[str] = Field(
+        None,
+        description="User ID for personalization",
+        max_length=100,
+        pattern=r'^[a-zA-Z0-9_\-]+$',
+    )
+    session_id: Optional[str] = Field(
+        None,
+        description="Session ID for context",
+        max_length=100,
+        pattern=r'^[a-zA-Z0-9_\-]+$',
+    )
+    context: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Additional context for processing"
+    )
+    
+    @field_validator('query')
+    @classmethod
+    def sanitize_query(cls, v: str) -> str:
+        """Sanitize input query to prevent injection attacks."""
+        if not v:
+            raise ValueError('Query cannot be empty')
+        
+        # Remove null bytes (null injection attack)
+        v = v.replace('\x00', '')
+        
+        # Remove control characters (except newlines and tabs)
+        v = ''.join(
+            c for c in v
+            if ord(c) >= 32 or c in '\n\t\r'
+        )
+        
+        # HTML escape to prevent injection
+        v = escape(v)
+        
+        # Normalize whitespace (multiple spaces → single space)
+        v = ' '.join(v.split())
+        
+        # Remove leading/trailing whitespace
+        v = v.strip()
+        
+        if not v:
+            raise ValueError('Query cannot be empty after sanitization')
+        
+        return v
+
+
+class AgentResponse(BaseModel):
+    """Response from agent processing"""
+    status: str = Field(..., description="Processing status (success/error)")
+    response: str = Field(..., description="Agent's response")
+    data: Optional[Dict[str, Any]] = Field(None, description="Additional data from processing")
+    timestamp: str = Field(..., description="Timestamp of response")
