@@ -19,6 +19,9 @@ vaderSentiment>=3.3.2
 tenacity>=8.2.3
 slowapi>=0.1.9  # Rate limiting for API protection (PHASE 1 TASK 1.5)
 
+# NEW: ChromaDB for persistent vector storage (Issue H4)
+chromadb>=0.5.0
+
 # ADK & LLM Integration (Phase 1)
 google-adk>=1.2.1
 google-generativeai>=0.6.0

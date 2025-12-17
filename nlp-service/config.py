@@ -49,7 +49,7 @@ class Settings(BaseSettings):
         Validate SECRET_KEY to prevent insecure defaults in production.
         
         Security Requirements:
-        - Must not be the default value in production
+        - Must not be the default value in production or staging
         - Must be at least 32 characters long
         - Should be cryptographically random
         
@@ -59,10 +59,10 @@ class Settings(BaseSettings):
         # Check environment (default to development if not set)
         environment = os.getenv("ENVIRONMENT", "development").lower()
         
-        # In production, reject the default secret key
-        if environment == "production" and v == "default-secret-key":
+        # In production AND staging, reject the default secret key
+        if environment in ["production", "staging"] and v == "default-secret-key":
             raise ValueError(
-                "SECRET_KEY must be set to a secure value in production. "
+                "SECRET_KEY must be set to a secure value in production/staging. "
                 "Generate a random secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
             )
         
@@ -72,6 +72,14 @@ class Settings(BaseSettings):
                 f"SECRET_KEY must be at least 32 characters long (current: {len(v)}). "
                 "For production, use: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
             )
+        
+        # Entropy check for production
+        if environment == "production":
+            import hashlib
+            # Calculate entropy: unique_chars / total_chars
+            entropy = len(set(v)) / len(v)
+            if entropy < 0.5:
+                raise ValueError("SECRET_KEY has insufficient entropy for production")
         
         # Warn if using default in development
         if v == "default-secret-key":
@@ -109,6 +117,23 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT_SECONDS: int = 60
 
     # Feature Flags
+    RAG_ENABLED: bool = Field(default=True, env="FEATURE_RAG")
+    MEMORY_ENABLED: bool = Field(default=True, env="FEATURE_MEMORY")
+    AGENTS_ENABLED: bool = Field(default=True, env="FEATURE_AGENTS")
+    REALTIME_ENABLED: bool = Field(default=True, env="FEATURE_REALTIME")
+    MEDICAL_ROUTES_ENABLED: bool = Field(default=True, env="FEATURE_MEDICAL_ROUTES")
+    INTEGRATIONS_ENABLED: bool = Field(default=True, env="FEATURE_INTEGRATIONS")
+    COMPLIANCE_ENABLED: bool = Field(default=True, env="FEATURE_COMPLIANCE")
+    CALENDAR_ENABLED: bool = Field(default=True, env="FEATURE_CALENDAR")
+    KNOWLEDGE_GRAPH_ENABLED: bool = Field(default=True, env="FEATURE_KNOWLEDGE_GRAPH")
+    NOTIFICATIONS_ENABLED: bool = Field(default=True, env="FEATURE_NOTIFICATIONS")
+    TOOLS_ENABLED: bool = Field(default=True, env="FEATURE_TOOLS")
+    VISION_ENABLED: bool = Field(default=True, env="FEATURE_VISION")
+    NEW_AI_FRAMEWORKS_ENABLED: bool = Field(default=True, env="FEATURE_NEW_AI_FRAMEWORKS")
+    EVALUATION_ENABLED: bool = Field(default=True, env="FEATURE_EVALUATION")
+    STRUCTURED_OUTPUTS_ENABLED: bool = Field(default=True, env="FEATURE_STRUCTURED_OUTPUTS")
+    GENERATION_ENABLED: bool = Field(default=True, env="FEATURE_GENERATION")
+    
     USE_OLLAMA_FOR_RESPONSES: bool = True
     OLLAMA_FALLBACK_TO_LLM: bool = True
 
@@ -137,7 +162,14 @@ class Settings(BaseSettings):
     LOG_FILE: str = "nlp_service.log"
 
     # CORS Configuration - includes ports 5173, 5174, 5175, 5176 for Vite dev server
-    CORS_ORIGINS: str = "http://localhost:5000,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176"
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5000",
+        "http://localhost:5173", 
+        "http://localhost:5174", 
+        "http://localhost:5175", 
+        "http://localhost:5176",
+        "https://heartguard.ai"
+    ]
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
@@ -186,18 +218,17 @@ class Settings(BaseSettings):
 
     @field_validator("CORS_ORIGINS", mode="after")
     @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            # Handle empty string case
-            if not v.strip():
-                return ["http://localhost:5000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176"]
-            # Split on comma and strip whitespace
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        elif isinstance(v, list):
-            return v
-        else:
-            # Fallback to default
-            return ["http://localhost:5000", "http://localhost:5173", "http://localhost:5176"]
+    def validate_cors_origins(cls, v):
+        # Check for wildcard which is forbidden in production
+        if "*" in v:
+            raise ValueError("Wildcard CORS origin '*' is forbidden in production!")
+            
+        # Ensure all origins are valid URLs
+        for origin in v:
+            if not origin.startswith(("http://", "https://")):
+                raise ValueError(f"Invalid CORS origin: {origin}. Must start with http:// or https://")
+                
+        return v
 
     model_config = ConfigDict(
         env_file=".env",

@@ -1,10 +1,16 @@
-# 🫀 Cardio AI Assistant (HeartGuard)
+# Cardio AI Assistant - Frontend
 
-An AI-powered cardiovascular health assistant built with React, TypeScript, and Google Gemini AI.
+Advanced React Native/TypeScript frontend for the Cardiovascular Health Super-App.
 
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+## Architecture Overview
+
+```
+┌────────────────────┐    ┌────────────────────┐
+│   React Frontend   │    │   NLP Service      │
+│   (Vite + React)   │◄──►│   (FastAPI)        │
+│   Port: 5173       │    │   Port: 5001       │
+└────────────────────┘    └────────────────────┘
+```
 
 ## Overview
 
@@ -113,77 +119,30 @@ cardio-ai-assistant/
     └── workouts.ts
 ```
 
-## Run Locally
+## Quick Start
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Python 3.10+ (for backend)
-
-### Setup
-
-1. **Install dependencies**:
+1. Install dependencies: `npm install`
+2. Copy `.env.local.example` to `.env.local` and configure:
    ```bash
-   npm install
+   cp .env.local.example .env.local
+   # Edit .env.local to set VITE_NLP_SERVICE_URL=http://localhost:5001
    ```
-
-2. **Configure environment**:
-   Set the `GEMINI_API_KEY` in [.env.local](.env.local):
-   ```env
-   VITE_API_URL=http://localhost:5000
-   VITE_NLP_URL=http://localhost:5001
-   GEMINI_API_KEY=your-api-key-here
-   ```
-
-3. **Run the frontend**:
-   ```bash
-   npm run dev
-   # Opens at http://localhost:5173
-   ```
-
-4. **Run the backend** (in a separate terminal):
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   python aip_service.py
-   # Runs at http://localhost:5000
-   ```
-
-## Backend Endpoints
-
-The Flask backend (`aip_service.py`) provides:
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/api/generate-insight` | POST | Generate daily health insight |
-| `/api/analyze-recipe` | POST | Analyze recipe nutrition |
-| `/api/analyze-workout` | POST | Analyze workout performance |
-| `/api/generate-meal-plan` | POST | Generate personalized meal plan |
-| `/api/health-assessment` | POST | Comprehensive health assessment |
-| `/api/medication-insights` | POST | Medication management insights |
-| `/api/nlp/process` | POST | Proxy to NLP service |
-| `/api/nlp/health` | GET | NLP service health check |
-
-## ML Pipeline
-
-The ML anomaly detection system (`backend/ml/`) processes smartwatch data:
-
-- **Feature Extraction**: Statistical features from time-series data
-- **Anomaly Detection**: Isolation Forest algorithm
-- **Rule Engine**: Clinical threshold-based rules
-- **Alert Pipeline**: Priority classification and recommendations
-- **Health Explainer**: Natural language explanations
-- **Chatbot Connector**: AI-powered contextual responses
-
-## Integration with NLP Service
-
-The frontend communicates with the NLP service (port 5001) through:
-- Direct API calls for NLP processing
-- Memory service for context management
-- Real-time WebSocket for live updates
+3. Start development server: `npm run dev`
+4. Open browser to [http://localhost:5173](http://localhost:5173)
 
 ## Development
+
+### Environment Variables
+
+Create a `.env.local` file with these settings:
+
+```bash
+# Point to the NLP Service (FastAPI backend)
+VITE_NLP_SERVICE_URL=http://localhost:5001
+
+# Optional Gemini API key for direct frontend AI calls
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
+```
 
 ### Available Scripts
 

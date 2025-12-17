@@ -91,6 +91,10 @@ class AnomalyDetector:
         self.rule_engine = RuleEngine(user_profile)
         self.ml_model = CardiacAnomalyModel()
         
+        # NEW: Initialize Redis store
+        from .redis_vitals_store import RedisVitalsStore
+        self.vitals_store = RedisVitalsStore()
+        
         logger.info("AnomalyDetector initialized")
     
     def analyze(
@@ -121,10 +125,30 @@ class AnomalyDetector:
         Returns:
             PredictionResult with all analysis details
         """
-        # 1. Add sample to feature buffer
-        self.feature_extractor.add_sample(hr, spo2, steps, ibi)
+        # 1. Add sample to Redis (persistent storage)
+        current_reading = {
+            "hr": hr, 
+            "spo2": spo2, 
+            "steps": steps, 
+            "ibi": ibi,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        self.vitals_store.add_reading(device_id, current_reading)
         
-        # 2. Extract features
+        # 2. Fetch full history from Redis (Stateless!)
+        history = self.vitals_store.get_history(device_id)
+        
+        # 3. Rehydrate feature extractor with full history
+        self.feature_extractor.clear()  # Clear local buffer
+        for reading in history:
+            self.feature_extractor.add_sample(
+                reading["hr"], 
+                reading["spo2"], 
+                reading["steps"], 
+                reading["ibi"]
+            )
+        
+        # 4. Extract features
         features = self.feature_extractor.extract_features()
         
         # 3. Run rule engine (always works, even with limited data)

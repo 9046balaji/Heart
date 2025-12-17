@@ -5,8 +5,7 @@ Run with: python run_services.py
 This script starts:
 1. Ollama (with gemma3:1b model check/pull)
 2. NLP Service (FastAPI on port 5001)
-3. Flask Backend (on port 5000)
-4. Frontend (React/Vite on port 5173)
+3. Frontend (React/Vite on port 5173)
 """
 import subprocess
 import sys
@@ -125,7 +124,7 @@ def main():
     logger.info("=" * 70)
     
     # --- STEP 1: START OLLAMA ---
-    print("\n[1/5] Starting Ollama Service...")
+    print("\n[1/4] Starting Ollama Service...")
     logger.info("STEP 1: Starting Ollama Service")
     if is_port_open(11434):
         print("      [OK] Ollama is already running on port 11434")
@@ -157,9 +156,9 @@ def main():
     # --- STEP 2: WARM UP GPU ---
     warm_up_gpu()
     
-    # --- STEP 3: START BACKEND & NLP ---
-    print("\n[3/5] Starting Backend & NLP Services...")
-    logger.info("STEP 3: Starting NLP Service and Flask Backend")
+    # --- STEP 3: START NLP SERVICE ---
+    print("\n[3/4] Starting NLP Service...")
+    logger.info("STEP 3: Starting NLP Service")
     nlp_service_path = os.path.join(project_root, 'nlp-service')
     print(f"      Starting NLP Service from: {nlp_service_path}")
     logger.info(f"Starting NLP Service from: {nlp_service_path}")
@@ -196,43 +195,8 @@ def main():
         logger.error("NLP Service failed to start after 30 retries. Check logs: " + str(nlp_log_path))
         sys.exit(1)
     
-    # Start Flask Backend (on port 5000)
-    flask_path = os.path.join(project_root, 'cardio-ai-assistant', 'backend')
-    print(f"      Starting Flask Backend from: {flask_path}")
-    logger.info(f"Starting Flask Backend from: {flask_path}")
-    
-    # Create log file for Flask backend
-    flask_log_path = LOG_DIR / "flask_backend.log"
-    flask_log_file = open(flask_log_path, 'w')
-    service_logs['Flask Backend'] = flask_log_file
-    
-    flask_process = subprocess.Popen(
-        [sys.executable, 'aip_service.py'],
-        cwd=flask_path,
-        stdout=flask_log_file,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
-    processes.append(('Flask Backend', flask_process))
-    logger.info(f"Flask Backend started with PID {flask_process.pid}, logs: {flask_log_path}")
-    
-    # Wait for Flask backend to start
-    print("      Waiting for Flask Backend to initialize...")
-    logger.info("Waiting for Flask Backend to initialize on port 5000...")
-    retries = 0
-    while not is_port_open(5000):
-        time.sleep(1)
-        retries += 1
-        if retries > 30:
-            print("      [WARNING] Flask Backend taking time to start. Continuing anyway...")
-            logger.warning("Flask Backend taking longer than expected to start")
-            break
-    print("      [OK] Flask Backend is online")
-    logger.info("Flask Backend is online on port 5000")
-    
     # --- STEP 4: START FRONTEND ---
-    print("\n[4/5] Starting Frontend Interface...")
+    print("\n[4/4] Starting Frontend Interface...")
     logger.info("STEP 4: Starting Frontend")
     frontend_path = os.path.join(project_root, 'cardio-ai-assistant')
     logger.info(f"Starting Frontend from: {frontend_path}")
@@ -266,15 +230,14 @@ def main():
         print("      [WARNING] Frontend taking time to start. Continuing anyway...")
         logger.warning("Frontend taking longer than expected to start")
     
-    # --- STEP 5: FINAL SUMMARY ---
+    # --- FINAL SUMMARY ---
     print("\n" + "=" * 60)
     print("All services are starting up!")
     print("=" * 60)
     print("\nService URLs:")
-    print("  - Frontend:       http://localhost:5174")
-    print("  - Flask Backend:  http://localhost:5000")
-    print("  - NLP Service:    http://localhost:5001")
-    print("  - Ollama:         http://localhost:11434")
+    print("  - Frontend:    http://localhost:5174")
+    print("  - NLP Service: http://localhost:5001")
+    print("  - Ollama:      http://localhost:11434")
     print(f"\nLog files location: {LOG_DIR}")
     print("\nPress Ctrl+C to stop all services.")
     print("=" * 60)

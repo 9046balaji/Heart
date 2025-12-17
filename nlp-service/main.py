@@ -53,6 +53,22 @@ from config import (
     OLLAMA_TOP_P,
     OLLAMA_TOP_K,
     OLLAMA_MAX_TOKENS,
+    RAG_ENABLED,
+    MEMORY_ENABLED,
+    AGENTS_ENABLED,
+    REALTIME_ENABLED,
+    MEDICAL_ROUTES_ENABLED,
+    INTEGRATIONS_ENABLED,
+    COMPLIANCE_ENABLED,
+    CALENDAR_ENABLED,
+    KNOWLEDGE_GRAPH_ENABLED,
+    NOTIFICATIONS_ENABLED,
+    TOOLS_ENABLED,
+    VISION_ENABLED,
+    NEW_AI_FRAMEWORKS_ENABLED,
+    EVALUATION_ENABLED,
+    STRUCTURED_OUTPUTS_ENABLED,
+    GENERATION_ENABLED,
 )
 from models import (
     EntityExtractionRequest,
@@ -88,169 +104,131 @@ from model_versioning import ModelVersionManager
 from ollama_generator import OllamaGenerator
 
 # PHASE 5: Import RAG API for semantic search
-try:
+if RAG_ENABLED:
     from rag_api import rag_router, initialize_rag_service
-    RAG_ENABLED = True
     print("[STARTUP] RAG service module loaded successfully")
-except ImportError as e:
-    RAG_ENABLED = False
+else:
     rag_router = None
     async def initialize_rag_service():
         pass
-    print(f"[STARTUP] RAG service not available: {e}")
+    print("[STARTUP] RAG service DISABLED via config")
 
 # PHASE 6: Import Memory Management Routes
-try:
+if MEMORY_ENABLED:
     from routes.memory import router as memory_router
     from user_preferences import init_preferences_manager
     from integrated_ai_service import init_integrated_ai_service
-    MEMORY_ROUTES_ENABLED = True
     print("[STARTUP] Memory management routes loaded successfully")
-except ImportError as e:
-    MEMORY_ROUTES_ENABLED = False
+else:
     memory_router = None
-    print(f"[STARTUP] Memory routes not available: {e}")
+    print("[STARTUP] Memory routes DISABLED via config")
 
 # PHASE 7: Import Real-time WebSocket Support
-try:
+if REALTIME_ENABLED:
     from realtime import websocket_router, get_event_bus
-    REALTIME_ENABLED = True
     print("[STARTUP] Real-time WebSocket module loaded successfully")
-except ImportError as e:
-    REALTIME_ENABLED = False
+else:
     websocket_router = None
-    print(f"[STARTUP] Real-time WebSocket not available: {e}")
+    print("[STARTUP] Real-time WebSocket DISABLED via config")
 
 # PHASE 8: Import Medical Document Processing Routes (medical.md implementation)
-try:
+if MEDICAL_ROUTES_ENABLED:
     from routes.document_routes import router as document_router
     from routes.medical_ai_routes import router as medical_ai_router
     from routes.weekly_summary_routes import router as weekly_summary_router
     from routes.weekly_summary_routes import consent_router, webhook_router
-    MEDICAL_ROUTES_ENABLED = True
     print("[STARTUP] Medical document processing routes loaded successfully")
-except ImportError as e:
-    MEDICAL_ROUTES_ENABLED = False
+else:
     document_router = None
     medical_ai_router = None
     weekly_summary_router = None
     consent_router = None
     webhook_router = None
-    print(f"[STARTUP] Medical routes not available: {e}")
+    print("[STARTUP] Medical routes DISABLED via config")
 
 # PHASE 9: Import Integration Routes (medical.md Part 5)
-try:
+if INTEGRATIONS_ENABLED:
     from routes.integrations_routes import router as integrations_router
-    INTEGRATIONS_ROUTES_ENABLED = True
     print("[STARTUP] Integration routes loaded successfully")
-except ImportError as e:
-    INTEGRATIONS_ROUTES_ENABLED = False
+else:
     integrations_router = None
-    print(f"[STARTUP] Integration routes not available: {e}")
+    print("[STARTUP] Integration routes DISABLED via config")
 
 # PHASE 10: Import Compliance Routes (medical.md Part 4)
-try:
+if COMPLIANCE_ENABLED:
     from routes.compliance_routes import router as compliance_router
-    COMPLIANCE_ROUTES_ENABLED = True
     print("[STARTUP] Compliance routes loaded successfully")
-except ImportError as e:
-    COMPLIANCE_ROUTES_ENABLED = False
+else:
     compliance_router = None
-    print(f"[STARTUP] Compliance routes not available: {e}")
+    print("[STARTUP] Compliance routes DISABLED via config")
 
 # PHASE 11: Import Agent Routes (ADK orchestration)
-try:
+if AGENTS_ENABLED:
     from routes.agents import router as agents_router
-    AGENTS_ROUTES_ENABLED = True
     print("[STARTUP] Agents routes loaded successfully")
-except ImportError as e:
-    AGENTS_ROUTES_ENABLED = False
+else:
     agents_router = None
-    print(f"[STARTUP] Agents routes not available: {e}")
+    print("[STARTUP] Agents routes DISABLED via config")
 
 # PHASE 12: Import Calendar Integration Routes
-try:
+if CALENDAR_ENABLED:
     from routes.calendar_routes import router as calendar_router
-    CALENDAR_ROUTES_ENABLED = True
     print("[STARTUP] Calendar integration routes loaded successfully")
-except ImportError as e:
-    CALENDAR_ROUTES_ENABLED = False
+else:
     calendar_router = None
-    print(f"[STARTUP] Calendar routes not available: {e}")
+    print("[STARTUP] Calendar routes DISABLED via config")
 
 # PHASE 13: Import Knowledge Graph Routes
-try:
+if KNOWLEDGE_GRAPH_ENABLED:
     from routes.knowledge_graph_routes import router as knowledge_graph_router
-    KNOWLEDGE_GRAPH_ROUTES_ENABLED = True
     print("[STARTUP] Knowledge graph routes loaded successfully")
-except ImportError as e:
-    KNOWLEDGE_GRAPH_ROUTES_ENABLED = False
+else:
     knowledge_graph_router = None
-    print(f"[STARTUP] Knowledge graph routes not available: {e}")
+    print("[STARTUP] Knowledge graph routes DISABLED via config")
 
 # PHASE 14: Import Notifications Routes
-try:
+if NOTIFICATIONS_ENABLED:
     from routes.notifications_routes import router as notifications_router
-    NOTIFICATIONS_ROUTES_ENABLED = True
     print("[STARTUP] Notifications routes loaded successfully")
-except ImportError as e:
-    NOTIFICATIONS_ROUTES_ENABLED = False
+else:
     notifications_router = None
-    print(f"[STARTUP] Notifications routes not available: {e}")
+    print("[STARTUP] Notifications routes DISABLED via config")
 
 # PHASE 15: Import Tools Routes (Function Calling)
-try:
+if TOOLS_ENABLED:
     from routes.tools_routes import router as tools_router
-    TOOLS_ROUTES_ENABLED = True
     print("[STARTUP] Tools routes loaded successfully")
-except ImportError as e:
-    TOOLS_ROUTES_ENABLED = False
+else:
     tools_router = None
-    print(f"[STARTUP] Tools routes not available: {e}")
+    print("[STARTUP] Tools routes DISABLED via config")
 
 # PHASE 16: Import Vision Routes
-try:
+if VISION_ENABLED:
     from routes.vision_routes import router as vision_router
-    VISION_ROUTES_ENABLED = True
     print("[STARTUP] Vision routes loaded successfully")
-except ImportError as e:
-    VISION_ROUTES_ENABLED = False
+else:
     vision_router = None
-    print(f"[STARTUP] Vision routes not available: {e}")
+    print("[STARTUP] Vision routes DISABLED via config")
 
 # PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
-try:
+if NEW_AI_FRAMEWORKS_ENABLED:
     from agents.langgraph_orchestrator import create_langgraph_orchestrator
     from core.observable_llm_gateway import create_observable_llm_gateway
     from agents.crew_simulation import create_healthcare_crew
-    NEW_AI_FRAMEWORKS_ENABLED = True
     print("[STARTUP] New AI frameworks loaded successfully")
-except ImportError as e:
-    NEW_AI_FRAMEWORKS_ENABLED = False
-    print(f"[STARTUP] New AI frameworks not available: {e}")
-
-# Optional: Phoenix Monitoring
-phoenix_monitor = None
-if os.getenv("USE_PHOENIX_MONITORING", "false").lower() == "true":
-    try:
-        from monitoring.phoenix_monitor import create_phoenix_monitor
-        phoenix_monitor = create_phoenix_monitor()
-        logger.info(f"Phoenix dashboard: {phoenix_monitor.get_dashboard_url()}")
-    except ImportError:
-        logger.warning("Phoenix monitoring not available")
+else:
+    print("[STARTUP] New AI frameworks DISABLED via config")
 
 # PHASE 19: Import Evaluation Routes
-try:
+if EVALUATION_ENABLED:
     from routes.evaluation_routes import router as evaluation_router
-    EVALUATION_ROUTES_ENABLED = True
     print("[STARTUP] Evaluation routes loaded successfully")
-except ImportError as e:
-    EVALUATION_ROUTES_ENABLED = False
+else:
     evaluation_router = None
-    print(f"[STARTUP] Evaluation routes not available: {e}")
+    print("[STARTUP] Evaluation routes DISABLED via config")
 
 # PHASE 4: Import structured output schemas
-try:
+if STRUCTURED_OUTPUTS_ENABLED:
     from structured_outputs import (
         CardioHealthAnalysis,
         SimpleIntentAnalysis,
@@ -265,10 +243,9 @@ try:
         HealthAnalysisGenerator,
         pydantic_to_json_schema,
     )
-    STRUCTURED_OUTPUTS_ENABLED = True
-except ImportError as e:
-    print(f"[STARTUP] Structured outputs not available: {e}")
-    STRUCTURED_OUTPUTS_ENABLED = False
+else:
+    print("[STARTUP] Structured outputs DISABLED via config")
+
 from memory_manager import MemoryManager, PatientMemory, MemoryManagerException
 from memory_middleware import (
     CorrelationIDMiddleware,
@@ -283,15 +260,17 @@ from memory_aware_agents import (
 )
 
 # PHASE 17: Import Generation Routes (P1 FIX - AI Unification)
-try:
+if GENERATION_ENABLED:
     from routes.generation import router as generation_router, chat_router
-    GENERATION_ROUTES_ENABLED = True
     print("[STARTUP] Generation routes loaded successfully")
-except ImportError as e:
-    GENERATION_ROUTES_ENABLED = False
+else:
     generation_router = None
     chat_router = None
-    print(f"[STARTUP] Generation routes not available: {e}")
+    print("[STARTUP] Generation routes DISABLED via config")
+
+# NEW: Import Legacy Flask Endpoints
+from routes.legacy_flask_endpoints import router as legacy_router
+print("[STARTUP] Legacy Flask endpoints migrated to FastAPI")
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -464,77 +443,52 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# PHASE 5: Include RAG router if available
+# Register routers
+app.include_router(health_router, prefix="", tags=["System Health"])
 if RAG_ENABLED and rag_router:
-    app.include_router(rag_router, tags=["RAG"])  # Router already has /api/rag prefix
-    logger.info("RAG router mounted at /api/rag/*")
-
-# PHASE 6: Include Memory Management router if available
-if MEMORY_ROUTES_ENABLED and memory_router:
-    app.include_router(memory_router, prefix="/api", tags=["Memory"])
-    logger.info("Memory router mounted at /api/memory/*")
-
-# PHASE 7: Include WebSocket router if available
+    app.include_router(rag_router, prefix="/api/rag", tags=["RAG"])
+if MEMORY_ENABLED and memory_router:
+    app.include_router(memory_router, prefix="/api/memory", tags=["Memory"])
 if REALTIME_ENABLED and websocket_router:
-    app.include_router(websocket_router, tags=["WebSocket"])
-    logger.info("WebSocket router mounted at /ws/*")
-
-# PHASE 8: Include Medical Document Processing routers (medical.md implementation)
+    app.include_router(websocket_router, prefix="/api/ws", tags=["Realtime"])
 if MEDICAL_ROUTES_ENABLED:
     if document_router:
-        app.include_router(document_router, tags=["Document Scanning"])
-        logger.info("Document scanning router mounted at /api/documents/*")
+        app.include_router(document_router, prefix="/api/documents", tags=["Documents"])
     if medical_ai_router:
-        app.include_router(medical_ai_router, tags=["Medical AI"])
-        logger.info("Medical AI router mounted at /api/medical-ai/*")
+        app.include_router(medical_ai_router, prefix="/api/medical", tags=["Medical AI"])
     if weekly_summary_router:
-        app.include_router(weekly_summary_router, tags=["Weekly Summary"])
-        logger.info("Weekly summary router mounted at /api/weekly-summary/*")
+        app.include_router(weekly_summary_router, prefix="/api/summary", tags=["Weekly Summary"])
     if consent_router:
-        app.include_router(consent_router, tags=["Consent Management"])
-        logger.info("Consent router mounted at /api/consent/*")
+        app.include_router(consent_router, prefix="/api/consent", tags=["Consent"])
     if webhook_router:
-        app.include_router(webhook_router, tags=["Webhooks"])
-        logger.info("Webhook router mounted at /api/webhooks/*")
-
-# PHASE 9: Include Integration routers (medical.md Part 5)
-if INTEGRATIONS_ROUTES_ENABLED and integrations_router:
-    app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
-    logger.info("Integrations router mounted at /api/integrations/*")
-
-# PHASE 10: Include Compliance routers (medical.md Part 4)
-if COMPLIANCE_ROUTES_ENABLED and compliance_router:
-    app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
-    logger.info("Compliance router mounted at /api/compliance/*")
-
-# PHASE 11: Include Agent routers (ADK orchestration)
-if AGENTS_ROUTES_ENABLED and agents_router:
-    app.include_router(agents_router, prefix="/api", tags=["Agents"])
-    logger.info("Agents router mounted at /api/agents/*")
-
-# PHASE 12: Include Calendar Integration routers
-if CALENDAR_ROUTES_ENABLED and calendar_router:
-    app.include_router(calendar_router, prefix="/api", tags=["Calendar Integration"])
-    logger.info("Calendar router mounted at /api/calendar/*")
-
-# PHASE 13: Include Knowledge Graph routers
-if KNOWLEDGE_GRAPH_ROUTES_ENABLED and knowledge_graph_router:
-    app.include_router(knowledge_graph_router, prefix="/api", tags=["Knowledge Graph"])
-    logger.info("Knowledge graph router mounted at /api/knowledge-graph/*")
-
-# PHASE 14: Include Notifications routers
-if NOTIFICATIONS_ROUTES_ENABLED and notifications_router:
-    app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
-    logger.info("Notifications router mounted at /api/notifications/*")
-
-# PHASE 17: Include Generation routers (P1 FIX - AI Unification)
-if GENERATION_ROUTES_ENABLED:
+        app.include_router(webhook_router, prefix="/api/webhook", tags=["Webhook"])
+if INTEGRATIONS_ENABLED and integrations_router:
+    app.include_router(integrations_router, prefix="/api/integrations", tags=["Integrations"])
+if COMPLIANCE_ENABLED and compliance_router:
+    app.include_router(compliance_router, prefix="/api/compliance", tags=["Compliance"])
+if AGENTS_ENABLED and agents_router:
+    app.include_router(agents_router, prefix="/api/agents", tags=["Agents"])
+if CALENDAR_ENABLED and calendar_router:
+    app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
+if KNOWLEDGE_GRAPH_ENABLED and knowledge_graph_router:
+    app.include_router(knowledge_graph_router, prefix="/api/kg", tags=["Knowledge Graph"])
+if NOTIFICATIONS_ENABLED and notifications_router:
+    app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
+if TOOLS_ENABLED and tools_router:
+    app.include_router(tools_router, prefix="/api/tools", tags=["Tools"])
+if VISION_ENABLED and vision_router:
+    app.include_router(vision_router, prefix="/api/vision", tags=["Vision"])
+if EVALUATION_ENABLED and evaluation_router:
+    app.include_router(evaluation_router, prefix="/api/eval", tags=["Evaluation"])
+if GENERATION_ENABLED:
     if generation_router:
-        app.include_router(generation_router, tags=["Generation"])
-        logger.info("Generation router mounted at /api/generate/*")
+        app.include_router(generation_router, prefix="/api/generate", tags=["Generation"])
     if chat_router:
-        app.include_router(chat_router, tags=["Chat"])
-        logger.info("Chat router mounted at /api/chat/*")
+        app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
+        
+# NEW: Register Legacy Flask Endpoints
+app.include_router(legacy_router)
+
 
 # NEW: Include new AI framework endpoints
 if NEW_AI_FRAMEWORKS_ENABLED:
@@ -611,10 +565,10 @@ async def get_rag_context(query: str, user_id: Optional[str] = None, top_k: int 
 app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=CORS_ORIGINS,  # Uses strict list from config
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # Restrict methods
+    allow_headers=["Authorization", "Content-Type", "X-Forwarded-For"], # Restrict headers
 )
 
 

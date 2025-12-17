@@ -529,3 +529,36 @@ async def acknowledge_alert(
         return {"status": "acknowledged", "alert_id": alert_id}
     else:
         raise HTTPException(status_code=404, detail="Alert not found")
+
+
+# =====================================================================
+# TESTING/DEMO ENDPOINTS
+# =====================================================================
+
+def generate_synthetic_vitals(device_id: str, condition: str = "normal") -> dict:
+    """
+    Generates synthetic vital signs for testing/demo purposes.
+    CRITICAL: Must tag data as SIMULATED to prevent clinical deception.
+    """
+    import random
+    base_hr = 70 if condition == "normal" else 140
+    hr_variation = random.randint(-5, 5)
+    
+    payload = {
+        "device_id": device_id,
+        "hr": base_hr + hr_variation,
+        "spo2": 98.0,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        # 🔥 CRITICAL FIX: Explicitly tag source
+        "metadata": {
+            "source": "SIMULATED",
+            "simulation_id": f"sim_{random.randint(1000, 9999)}",
+            "disclaimer": "NOT REAL MEDICAL DATA"
+        }
+    }
+    
+    # Append tag to device_id for visibility in dashboards
+    if not payload["device_id"].endswith("(SIMULATED)"):
+        payload["device_id"] = f"{payload['device_id']} (SIMULATED)"
+        
+    return payload

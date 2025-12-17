@@ -7,9 +7,10 @@
 // Use empty string for API_BASE_URL when using Vite proxy (VITE_API_URL is empty or '/')
 // When VITE_API_URL is empty, endpoints will be relative like /api/...
 // When using proxy, /api paths are automatically forwarded to backend
-const API_BASE_URL = (import.meta as any).env.VITE_API_URL && (import.meta as any).env.VITE_API_URL !== '/' 
-  ? (import.meta as any).env.VITE_API_URL 
-  : '';
+// Updated to point to the new NLP service instead of Flask backend
+const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.meta as any).env.VITE_NLP_SERVICE_URL !== '/' 
+  ? (import.meta as any).env.VITE_NLP_SERVICE_URL 
+  : 'http://localhost:5001';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';

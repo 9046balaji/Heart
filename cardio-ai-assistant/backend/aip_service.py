@@ -19,10 +19,14 @@ load_dotenv(dotenv_path)
 
 # Initialize Flask app
 app = Flask(__name__)
-# Enable CORS for all origins during development
-# In production, specify allowed origins more strictly
+# Enable CORS for specific origins only (security fix)
 CORS(app, 
-     origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+     origins=[
+         "http://localhost:5173", 
+         "http://127.0.0.1:5173", 
+         "http://localhost:3000",
+         "https://heartguard.ai"
+     ],
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      supports_credentials=True)
