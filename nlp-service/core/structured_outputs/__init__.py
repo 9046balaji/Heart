@@ -12,6 +12,9 @@ from .pydantic_ai_wrapper import (
     create_pydantic_health_agent,
     SimpleIntentAnalysis,
     ConversationResponse,
+    HealthAnalysisGenerator,
+    IntentAnalysisGenerator,
+    ConversationGenerator,
 )
 
 __all__ = [
@@ -22,4 +25,7 @@ __all__ = [
     "create_pydantic_health_agent",
     "SimpleIntentAnalysis",
     "ConversationResponse",
+    "HealthAnalysisGenerator",
+    "IntentAnalysisGenerator",
+    "ConversationGenerator",
 ]
