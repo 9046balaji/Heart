@@ -8,7 +8,7 @@ All models are defined in the root models.py file.
 """
 
 # Re-export all models from root models.py
-from models import (
+from core.models import (
     # Enums
     IntentEnum,
     SentimentEnum,
