@@ -14,15 +14,15 @@ from datetime import datetime
 import os
 from enum import Enum
 
-from agents.base import (
+from nlp.agents.base import (
     HealthAgent,
     AppointmentAgent,
     HealthAppointmentOrchestrator
 )
 
 # Import IntentRecognizer for smart query routing
-from intent_recognizer import IntentRecognizer, IntentResult
-from models import IntentEnum
+from nlp.intent_recognizer import IntentRecognizer, IntentResult
+from core.models import IntentEnum
 
 # Feature flag for LangChain Gateway
 import os
@@ -32,7 +32,7 @@ USE_LANGCHAIN_GATEWAY = os.getenv("USE_LANGCHAIN_GATEWAY", "false").lower() == "
 langchain_gateway = None
 if USE_LANGCHAIN_GATEWAY:
     try:
-        from core.langchain_gateway import LangChainGateway
+        from core.llm.langchain_gateway import LangChainGateway
         langchain_gateway = LangChainGateway()
         logger.info("✅ LangChain Gateway enabled")
     except ImportError as e:

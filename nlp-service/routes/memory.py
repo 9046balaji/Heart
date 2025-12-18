@@ -21,18 +21,18 @@ from datetime import datetime
 import logging
 import asyncio
 
-from user_preferences import (
+from core.user_preferences import (
     UserPreferencesManager, 
     PreferenceKeys,
     get_preferences_manager
 )
-from context_retrieval import (
+from nlp.context_retrieval import (
     ContextRetriever, 
     ContextType,
     context_retriever as default_context_retriever
 )
-from chat_history import chat_history_manager
-from integrated_ai_service import (
+from nlp.chat_history import chat_history_manager
+from nlp.integrated_ai_service import (
     IntegratedHealthAIService,
     get_integrated_ai_service
 )
@@ -54,7 +54,7 @@ except ImportError:
 
 # Import memory manager for enhanced operations
 try:
-    from memory_manager import MemoryManager, get_request_memory
+    from nlp.memory_manager import MemoryManager, get_request_memory
     MEMORY_MANAGER_AVAILABLE = True
 except ImportError:
     MEMORY_MANAGER_AVAILABLE = False

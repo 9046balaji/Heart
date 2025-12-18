@@ -2,7 +2,7 @@
 Configuration for NLP Microservice
 """
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
@@ -67,7 +67,8 @@ class Settings(BaseSettings):
             )
         
         # Enforce minimum length for security (32 characters = 256 bits)
-        if len(v) < 32:
+        # Skip this check if using default key in development (handled by warning below)
+        if v != "default-secret-key" and len(v) < 32:
             raise ValueError(
                 f"SECRET_KEY must be at least 32 characters long (current: {len(v)}). "
                 "For production, use: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
@@ -162,7 +163,7 @@ class Settings(BaseSettings):
     LOG_FILE: str = "nlp_service.log"
 
     # CORS Configuration - includes ports 5173, 5174, 5175, 5176 for Vite dev server
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5000",
         "http://localhost:5173", 
         "http://localhost:5174", 
@@ -215,6 +216,13 @@ class Settings(BaseSettings):
     # Circuit Breaker Settings
     MEMORI_CIRCUIT_BREAKER_THRESHOLD: int = 5  # Failures before opening
     MEMORI_CIRCUIT_BREAKER_TIMEOUT: int = 60  # Seconds before half-open
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str) and not v.strip().startswith("["):
+            return [origin.strip() for origin in v.split(",")]
+        return v
 
     @field_validator("CORS_ORIGINS", mode="after")
     @classmethod
@@ -303,6 +311,24 @@ MEMORI_RATE_LIMIT_SEARCH = settings.MEMORI_RATE_LIMIT_SEARCH
 MEMORI_RATE_LIMIT_STORE = settings.MEMORI_RATE_LIMIT_STORE
 MEMORI_AUTH_PROVIDER = settings.MEMORI_AUTH_PROVIDER
 MEMORI_CIRCUIT_BREAKER_THRESHOLD = settings.MEMORI_CIRCUIT_BREAKER_THRESHOLD
+
+# Feature Flags Exports
+RAG_ENABLED = settings.RAG_ENABLED
+MEMORY_ENABLED = settings.MEMORY_ENABLED
+AGENTS_ENABLED = settings.AGENTS_ENABLED
+REALTIME_ENABLED = settings.REALTIME_ENABLED
+MEDICAL_ROUTES_ENABLED = settings.MEDICAL_ROUTES_ENABLED
+INTEGRATIONS_ENABLED = settings.INTEGRATIONS_ENABLED
+COMPLIANCE_ENABLED = settings.COMPLIANCE_ENABLED
+CALENDAR_ENABLED = settings.CALENDAR_ENABLED
+KNOWLEDGE_GRAPH_ENABLED = settings.KNOWLEDGE_GRAPH_ENABLED
+NOTIFICATIONS_ENABLED = settings.NOTIFICATIONS_ENABLED
+TOOLS_ENABLED = settings.TOOLS_ENABLED
+VISION_ENABLED = settings.VISION_ENABLED
+NEW_AI_FRAMEWORKS_ENABLED = settings.NEW_AI_FRAMEWORKS_ENABLED
+EVALUATION_ENABLED = settings.EVALUATION_ENABLED
+STRUCTURED_OUTPUTS_ENABLED = settings.STRUCTURED_OUTPUTS_ENABLED
+GENERATION_ENABLED = settings.GENERATION_ENABLED
 
 # Constants (Not Settings)
 EMERGENCY_KEYWORDS = [

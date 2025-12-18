@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 import json
 import logging
 
-from ollama_generator import generate_response
+from nlp.ollama_generator import generate_response
 from config import OLLAMA_MODEL
 
 router = APIRouter(prefix="/api", tags=["Legacy Flask Endpoints"])

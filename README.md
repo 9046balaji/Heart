@@ -1,27 +1,25 @@
-# HeartGuard / Cardio AI Super-App
+# Cardio AI Assistant (HeartGuard)
 
-## System Architecture
+AI-powered cardiovascular health management platform combining natural language processing, machine learning risk assessment, and real-time health monitoring.
 
-```
-┌────────────────────┐    ┌────────────────────┐
-│   React Frontend   │    │   NLP Service      │
-│   (Vite + React)   │◄──►│   (FastAPI)        │
-│   Port: 5173       │    │   Port: 5001       │
-└────────────────────┘    └────────────────────┘
-                                 ▲
-                                 │
-                       ┌─────────┴──────────┐
-                       │   Ollama/Gemini    │
-                       │   (LLM Providers)  │
-                       └────────────────────┘
-```
+---
 
-## Services
+## Table of Contents
 
-| Service | Tech Stack | Port | Description |
-|---------|------------|------|-------------|
-| Frontend | React + Vite | 5173 | User Interface |
-| NLP Service | FastAPI + Python | 5001 | AI Orchestration Layer |
+1. [Project Overview](#project-overview)
+2. [Key Features](#key-features)
+3. [System Architecture](#system-architecture)
+4. [AI and ML Components](#ai-and-ml-components)
+5. [Data Flow](#data-flow)
+6. [Technology Stack](#technology-stack)
+7. [Installation and Setup](#installation-and-setup)
+8. [Configuration](#configuration)
+9. [Security and Privacy](#security-and-privacy)
+10. [Usage Guide](#usage-guide)
+11. [Project Status and Roadmap](#project-status-and-roadmap)
+12. [Folder Structure Overview](#folder-structure-overview)
+13. [Documentation Index](#documentation-index)
+14. [Disclaimer](#disclaimer)
 
 ---
 
@@ -437,7 +435,14 @@ python main.py
 # Runs on http://localhost:5001
 ```
 
-Terminal 2 - Frontend:
+Terminal 2 - Flask Backend:
+```bash
+cd cardio-ai-assistant/backend
+python aip_service.py
+# Runs on http://localhost:5000
+```
+
+Terminal 3 - Frontend:
 ```bash
 cd cardio-ai-assistant
 npm run dev
@@ -448,6 +453,7 @@ npm run dev
 
 1. Open browser to http://localhost:5173
 2. Test NLP health: `curl http://localhost:5001/health`
+3. Test Flask health: `curl http://localhost:5000/api/health`
 
 ### Common Setup Issues
 
@@ -496,9 +502,20 @@ USE_TRANSFORMER_MODELS=false
 USE_ML_RISK_MODELS=false
 ```
 
+#### Flask Backend (cardio-ai-assistant/backend/.env)
+
+```env
+GOOGLE_API_KEY=your-gemini-api-key
+NLP_SERVICE_URL=http://localhost:5001
+FLASK_PORT=5000
+FLASK_ENV=development
+FLASK_SECRET_KEY=your-secret-key
+```
+
 #### Frontend (cardio-ai-assistant/.env.local)
 
 ```env
+VITE_API_URL=http://localhost:5000
 VITE_NLP_URL=http://localhost:5001
 ```
 
