@@ -21,22 +21,22 @@ from tenacity import (
     AsyncRetrying,
 )  # PHASE 2: Add retry logic with exponential backoff
 
-from circuit_breaker import CircuitBreaker, CircuitBreakerOpen
-from error_handling import (
+from core.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from core.error_handling import (
     ExternalServiceError,
     TimeoutError,
     ProcessingError,
 )  # PHASE 2: Import exception hierarchy
 # Fix the relative import issue
 try:
-    from chat_history import chat_history_manager
+    from nlp.chat_history import chat_history_manager
 except ImportError:
     # Fallback if running as a module
     from .chat_history import chat_history_manager
 
 # Import structured output support
 try:
-    from structured_outputs import (
+    from core.structured_outputs import (
         StructuredOutputParser,
         StructuredGenerator,
         HealthAnalysisGenerator,

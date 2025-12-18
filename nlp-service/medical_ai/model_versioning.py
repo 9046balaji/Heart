@@ -5,7 +5,7 @@ Manages different versions of NLP models and enables A/B testing
 import logging
 from typing import Dict, Any, Optional
 from config import MODEL_VERSIONS, DEFAULT_MODEL_VERSION
-from error_handling import ModelLoadError, ProcessingError  # PHASE 2: Import exception hierarchy
+from core.error_handling import ModelLoadError, ProcessingError  # PHASE 2: Import exception hierarchy
 
 logger = logging.getLogger(__name__)
 

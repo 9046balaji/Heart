@@ -32,14 +32,14 @@ from config import (
     HEART_HEALTHY_FOODS,
     ENTITY_CONFIDENCE_THRESHOLD
 )
-from models import Entity
+from core.models import Entity
 from core.cache import cache_manager
-from error_handling import (
+from core.error_handling import (
     ProcessingError,
     CacheError,
     ExternalServiceError,
 )  # PHASE 2: Import exception hierarchy
-from keywords import (
+from nlp.keywords import (
     UnifiedKeywordDatabase,
     SymptomKeywords,
     MedicationKeywords,

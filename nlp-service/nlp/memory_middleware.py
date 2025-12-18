@@ -38,7 +38,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeVar, Awaitable
 from fastapi import Request, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from memory_manager import (
+from nlp.memory_manager import (
     MemoryManager,
     PatientMemory,
     MemoryManagerException,

@@ -17,7 +17,7 @@ from collections import OrderedDict
 from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
-from error_handling import CacheError  # PHASE 2: Import exception hierarchy
+from core.error_handling import CacheError  # PHASE 2: Import exception hierarchy
 
 logger = logging.getLogger(__name__)
 

@@ -4,15 +4,15 @@ Risk Assessment Engine
 from typing import Dict, List, Tuple
 import os
 import hashlib
-from models import HealthMetrics, RiskAssessmentResponse
-from error_handling import (
+from core.models import HealthMetrics, RiskAssessmentResponse
+from core.error_handling import (
     ProcessingError,
     ExternalServiceError,
 )  # PHASE 2: Import exception hierarchy
 
 # Conditional import for ML models
 try:
-    from ml_risk_assessor import MLRiskAssessor
+    from medical_ai.ml_risk_assessor import MLRiskAssessor
     ML_AVAILABLE = True
 except ImportError as e:
     ML_AVAILABLE = False

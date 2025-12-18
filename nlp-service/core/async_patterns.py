@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from functools import wraps
 import time
-from error_handling import TimeoutError, ProcessingError  # PHASE 2: Import exception hierarchy
+from core.error_handling import TimeoutError, ProcessingError  # PHASE 2: Import exception hierarchy
 
 logger = logging.getLogger(__name__)
 

@@ -39,7 +39,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 from collections import defaultdict
 
-from memory_manager import MemoryManager, MemoryManagerMetrics
+from nlp.memory_manager import MemoryManager, MemoryManagerMetrics
 
 logger = logging.getLogger(__name__)
 
