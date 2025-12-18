@@ -321,7 +321,7 @@ export const apiClient = {
     conversation_history?: Array<{ role: string; content: string }>;
     temperature?: number;
   }): AsyncGenerator<{ type: 'token' | 'done' | 'error'; data: string | any }> {
-    const url = `${API_BASE_URL}/ollama-generate-stream`;
+    const url = `${API_BASE_URL}/api/chat/stream`;
     
     try {
       const response = await fetch(url, {

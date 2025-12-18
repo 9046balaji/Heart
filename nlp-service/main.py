@@ -98,7 +98,10 @@ from medical_ai.model_versioning import ModelVersionManager
 # Import Routes
 # PHASE 1: Core Routes
 from routes.health import router as health_router
-from routes.generation import router as generation_router
+from medical_ai.smart_watch.router import router as smartwatch_router
+from medical_ai.smart_watch.router import init_smartwatch_module, shutdown_smartwatch_module
+from routes.generation import router as generation_router, chat_router
+from routes.structured_outputs import router as structured_outputs_router
 
 # PHASE 2: RAG & Memory Routes
 if RAG_ENABLED:
@@ -314,6 +317,11 @@ async def lifespan(app: FastAPI):
         NLPState.memory_manager = memory_manager
         NLPState.memory_observability = memory_observability
         
+        NLPState.memory_observability = memory_observability
+        
+        # Initialize Smart Watch Module
+        await init_smartwatch_module()
+        
         logger.info("All AI components initialized successfully")
         
     except Exception as e:
@@ -324,7 +332,9 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info(f"Shutting down {SERVICE_NAME}...")
-    # Cleanup resources if needed
+    logger.info(f"Shutting down {SERVICE_NAME}...")
+    # Cleanup resources
+    await shutdown_smartwatch_module()
 
 # Create FastAPI app
 app = FastAPI(
@@ -344,47 +354,50 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(health_router, prefix="/api/v1", tags=["Health"])
-app.include_router(generation_router, prefix="/api/v1/generation", tags=["Generation"])
+app.include_router(health_router, tags=["Health"])
+app.include_router(smartwatch_router)  # Already has prefix /api/smartwatch
+app.include_router(generation_router, tags=["Generation"])
+app.include_router(chat_router, tags=["Chat"])
+app.include_router(structured_outputs_router, tags=["Structured Outputs"])
 
 if document_router:
-    app.include_router(document_router, prefix="/api/v1/documents", tags=["Documents"])
+    app.include_router(document_router, tags=["Documents"])
 
 if memory_router:
-    app.include_router(memory_router, prefix="/api/v1/memory", tags=["Memory"])
+    app.include_router(memory_router, prefix="/api", tags=["Memory"])
 
 if agents_router:
-    app.include_router(agents_router, prefix="/api/v1/agents", tags=["Agents"])
+    app.include_router(agents_router, tags=["Agents"])
 
 if realtime_router:
-    app.include_router(realtime_router, prefix="/api/v1/realtime", tags=["Realtime"])
+    app.include_router(realtime_router, prefix="/api", tags=["Realtime"])
 
 if medical_router:
-    app.include_router(medical_router, prefix="/api/v1/medical", tags=["Medical"])
+    app.include_router(medical_router, prefix="/api", tags=["Medical"])
 
 if integration_router:
-    app.include_router(integration_router, prefix="/api/v1/integration", tags=["Integration"])
+    app.include_router(integration_router, prefix="/api", tags=["Integration"])
 
 if compliance_router:
-    app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["Compliance"])
+    app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
 
 if calendar_router:
-    app.include_router(calendar_router, prefix="/api/v1/calendar", tags=["Calendar"])
+    app.include_router(calendar_router, prefix="/api", tags=["Calendar"])
 
 if knowledge_graph_router:
-    app.include_router(knowledge_graph_router, prefix="/api/v1/knowledge-graph", tags=["Knowledge Graph"])
+    app.include_router(knowledge_graph_router, prefix="/api", tags=["Knowledge Graph"])
 
 if notifications_router:
-    app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["Notifications"])
+    app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
 
 if tools_router:
-    app.include_router(tools_router, prefix="/api/v1/tools", tags=["Tools"])
+    app.include_router(tools_router, prefix="/api", tags=["Tools"])
 
 if vision_router:
-    app.include_router(vision_router, prefix="/api/v1/vision", tags=["Vision"])
+    app.include_router(vision_router, prefix="/api", tags=["Vision"])
 
 if evaluation_router:
-    app.include_router(evaluation_router, prefix="/api/v1/evaluation", tags=["Evaluation"])
+    app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
 
 # Root endpoint
 @app.get("/")

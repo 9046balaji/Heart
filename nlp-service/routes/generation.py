@@ -23,7 +23,7 @@ from core.llm.llm_gateway import get_llm_gateway, LLMGateway
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/generate", tags=["Generation"])
+router = APIRouter(prefix="/api", tags=["Generation"])
 
 # Streaming chat router (separate prefix)
 chat_router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -81,6 +81,49 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User message")
     user_id: str = Field(default="anonymous", description="User identifier")
     content_type: str = Field(default="general", description="Content type for disclaimers")
+
+class WorkoutAnalysisRequest(BaseModel):
+    """Request for workout analysis."""
+    workout_type: str = Field(..., description="Type of workout")
+    duration_minutes: int = Field(..., description="Duration in minutes")
+    intensity: str = Field(default="moderate", description="Intensity level")
+    heart_rate_data: List[float] = Field(default_factory=list, description="Heart rate samples")
+    user_goals: List[str] = Field(default_factory=list, description="User fitness goals")
+    user_id: str = Field(default="anonymous", description="User identifier")
+
+class WorkoutAnalysisResponse(BaseModel):
+    """Response for workout analysis."""
+    analysis: str = Field(..., description="Analysis text")
+    workout_type: str = Field(..., description="Workout type")
+    provider: str = Field(..., description="LLM provider used")
+
+class HealthAssessmentRequest(BaseModel):
+    """Request for comprehensive health assessment."""
+    user_name: str = Field(..., description="User name")
+    age: Optional[int] = Field(None, description="User age")
+    vitals: Dict[str, Any] = Field(default_factory=dict, description="Vital signs")
+    health_history: List[str] = Field(default_factory=list, description="Health history")
+    lifestyle: Dict[str, Any] = Field(default_factory=dict, description="Lifestyle factors")
+    user_id: str = Field(default="anonymous", description="User identifier")
+
+class HealthAssessmentResponse(BaseModel):
+    """Response for health assessment."""
+    assessment: str = Field(..., description="Assessment text")
+    user: str = Field(..., description="User name")
+    provider: str = Field(..., description="LLM provider used")
+
+class MedicationInsightsRequest(BaseModel):
+    """Request for medication insights."""
+    medications: List[Dict[str, str]] = Field(..., description="List of medications with name and dosage")
+    supplements: List[str] = Field(default_factory=list, description="List of supplements")
+    recent_vitals: Dict[str, Any] = Field(default_factory=dict, description="Recent vitals")
+    user_id: str = Field(default="anonymous", description="User identifier")
+
+class MedicationInsightsResponse(BaseModel):
+    """Response for medication insights."""
+    insights: str = Field(..., description="Insights text")
+    medication_count: int = Field(..., description="Count of medications")
+    provider: str = Field(..., description="LLM provider used")
 
 
 # ============================================================================
@@ -214,12 +257,45 @@ Include estimated calories for each meal. Focus on heart-healthy options with:
 - Plenty of vegetables
 - Limited sodium and saturated fat"""
 
+def build_workout_prompt(request: WorkoutAnalysisRequest) -> str:
+    """Build prompt for workout analysis."""
+    avg_hr = sum(request.heart_rate_data) / len(request.heart_rate_data) if request.heart_rate_data else "N/A"
+    return f"""Analyze this workout session and provide performance insights.
+Workout Type: {request.workout_type}
+Duration: {request.duration_minutes} minutes
+Intensity: {request.intensity}
+Average Heart Rate: {avg_hr} bpm
+User Goals: {', '.join(request.user_goals) if request.user_goals else 'General fitness'}
+
+Provide a brief workout analysis including calories burned estimate, performance notes, and one recommendation for improvement."""
+
+def build_assessment_prompt(request: HealthAssessmentRequest) -> str:
+    """Build prompt for health assessment."""
+    return f"""Perform a health assessment for the following user.
+Name: {request.user_name}
+Age: {request.age if request.age else 'N/A'}
+Vitals: {request.vitals}
+Health History: {', '.join(request.health_history) if request.health_history else 'None reported'}
+Lifestyle: {request.lifestyle}
+
+Provide a brief health assessment (3-4 bullet points) highlighting key observations and one primary recommendation."""
+
+def build_medication_prompt(request: MedicationInsightsRequest) -> str:
+    """Build prompt for medication insights."""
+    med_list = [f"{m.get('name')} ({m.get('dosage', 'N/A')})" for m in request.medications]
+    return f"""Provide insights about medication management.
+Current Medications: {', '.join(med_list)}
+Supplements: {', '.join(request.supplements) if request.supplements else 'None'}
+Recent Vitals: {request.recent_vitals}
+
+Provide brief insights on medication management including adherence tips and any observations based on vitals. Keep it practical and encouraging."""
+
 
 # ============================================================================
 # Endpoints
 # ============================================================================
 
-@router.post("/insight", response_model=InsightResponse)
+@router.post("/generate-insight", response_model=InsightResponse)
 async def generate_insight(request: InsightRequest) -> InsightResponse:
     """
     Generate daily health insight with memory context and safety rails.
@@ -261,7 +337,7 @@ async def generate_insight(request: InsightRequest) -> InsightResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/recipe", response_model=RecipeAnalysisResponse)
+@router.post("/analyze-recipe", response_model=RecipeAnalysisResponse)
 async def analyze_recipe(request: RecipeAnalysisRequest) -> RecipeAnalysisResponse:
     """
     Analyze recipe with allergy checking from user memory.
@@ -305,7 +381,7 @@ async def analyze_recipe(request: RecipeAnalysisRequest) -> RecipeAnalysisRespon
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/meal-plan", response_model=MealPlanResponse)
+@router.post("/generate-meal-plan", response_model=MealPlanResponse)
 async def generate_meal_plan(request: MealPlanRequest) -> MealPlanResponse:
     """
     Generate meal plan respecting user allergies from memory.
@@ -344,6 +420,63 @@ async def generate_meal_plan(request: MealPlanRequest) -> MealPlanResponse:
         
     except Exception as e:
         logger.error(f"Error generating meal plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-workout", response_model=WorkoutAnalysisResponse)
+async def analyze_workout(request: WorkoutAnalysisRequest) -> WorkoutAnalysisResponse:
+    """Analyze workout for performance insights."""
+    logger.info(f"Analyzing workout for user: {request.user_id}")
+    try:
+        gateway = get_llm_gateway()
+        prompt = build_workout_prompt(request)
+        analysis = await gateway.generate(prompt=prompt, content_type="fitness", user_id=request.user_id)
+        status = gateway.get_status()
+        return WorkoutAnalysisResponse(
+            analysis=analysis,
+            workout_type=request.workout_type,
+            provider=status["primary_provider"]
+        )
+    except Exception as e:
+        logger.error(f"Error analyzing workout: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/health-assessment", response_model=HealthAssessmentResponse)
+async def health_assessment(request: HealthAssessmentRequest) -> HealthAssessmentResponse:
+    """Perform comprehensive health assessment."""
+    logger.info(f"Performing health assessment for user: {request.user_id}")
+    try:
+        gateway = get_llm_gateway()
+        prompt = build_assessment_prompt(request)
+        assessment = await gateway.generate(prompt=prompt, content_type="medical", user_id=request.user_id)
+        status = gateway.get_status()
+        return HealthAssessmentResponse(
+            assessment=assessment,
+            user=request.user_name,
+            provider=status["primary_provider"]
+        )
+    except Exception as e:
+        logger.error(f"Error performing health assessment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/medication-insights", response_model=MedicationInsightsResponse)
+async def medication_insights(request: MedicationInsightsRequest) -> MedicationInsightsResponse:
+    """Provide medication-related insights."""
+    logger.info(f"Generating medication insights for user: {request.user_id}")
+    try:
+        gateway = get_llm_gateway()
+        prompt = build_medication_prompt(request)
+        insights = await gateway.generate(prompt=prompt, content_type="medical", user_id=request.user_id)
+        status = gateway.get_status()
+        return MedicationInsightsResponse(
+            insights=insights,
+            medication_count=len(request.medications),
+            provider=status["primary_provider"]
+        )
+    except Exception as e:
+        logger.error(f"Error generating medication insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

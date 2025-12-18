@@ -41,7 +41,7 @@ if USE_LANGCHAIN_GATEWAY:
 logger = logging.getLogger(__name__)
 
 # Create router
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(prefix="/api/nlp", tags=["agents"])
 
 # ============================================================================
 # EXTENDED INTENT ENUM FOR SEMANTIC ROUTING
@@ -129,12 +129,13 @@ class SemanticRouter:
 
 class QueryRequest(BaseModel):
     """Base query request to agents."""
-    query: str = Field(..., description="User query or input")
+    query: str = Field(..., alias="message", description="User query or input")
     session_id: str = Field(..., description="Session ID for tracking")
     user_id: str = Field(..., description="User ID")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context")
     
     class Config:
+        populate_by_name = True
         json_schema_extra = {
             "example": {
                 "query": "I have a headache and my heart rate is 72",
@@ -506,7 +507,7 @@ async def agent_chat(
         )
 
 
-@router.post("/process-nlp", response_model=AgentResponse)
+@router.post("/process", response_model=AgentResponse)
 async def process_nlp(
     request: QueryRequest,
     token: str = Depends(verify_token)

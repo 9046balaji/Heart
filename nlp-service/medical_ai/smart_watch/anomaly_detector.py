@@ -92,7 +92,7 @@ class AnomalyDetector:
         self.ml_model = CardiacAnomalyModel()
         
         # NEW: Initialize Redis store
-        from .redis_vitals_store import RedisVitalsStore
+        from core.services.redis_vitals_store import RedisVitalsStore
         self.vitals_store = RedisVitalsStore()
         
         logger.info("AnomalyDetector initialized")
