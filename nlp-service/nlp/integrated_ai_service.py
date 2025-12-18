@@ -20,24 +20,24 @@ from dataclasses import dataclass, field
 import logging
 import asyncio
 
-from context_retrieval import (
+from core.context_retrieval import (
     ContextRetriever, 
     ContextType, 
     RetrievedContext,
     context_retriever as default_context_retriever
 )
-from prompt_builder import (
+from nlp.prompt_builder import (
     HealthcarePromptBuilder, 
     BuiltPrompt, 
     CommunicationStyle,
     prompt_builder as default_prompt_builder
 )
-from user_preferences import (
+from core.user_preferences import (
     UserPreferencesManager,
     PreferenceKeys,
     get_preferences_manager
 )
-from chat_history import chat_history_manager
+from nlp.chat_history import chat_history_manager
 
 logger = logging.getLogger(__name__)
 
