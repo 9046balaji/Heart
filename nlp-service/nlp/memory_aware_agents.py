@@ -31,17 +31,17 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 
-from memory_manager import (
+from nlp.memory_manager import (
     MemoryManager,
     PatientMemory,
     MemoryResult,
     MemoryOperationTimeout,
 )
-from intent_recognizer import IntentRecognizer
-from sentiment_analyzer import SentimentAnalyzer
-from entity_extractor import EntityExtractor
-from risk_assessor import RiskAssessor
-from models import IntentResult, SentimentResult, RiskAssessmentResponse
+from nlp.intent_recognizer import IntentRecognizer
+from nlp.sentiment_analyzer import SentimentAnalyzer
+from nlp.entity_extractor import EntityExtractor
+from medical_ai.risk_assessor import RiskAssessor
+from core.models import IntentResult, SentimentResult, RiskAssessmentResponse
 
 logger = logging.getLogger(__name__)
 

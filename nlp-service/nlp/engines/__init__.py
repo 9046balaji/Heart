@@ -2,28 +2,17 @@
 NLP Engines Package
 
 This package provides a clean import interface for the core NLP processing engines.
-The actual implementations are in the parent nlp-service directory for backwards
-compatibility. This __init__.py re-exports them for cleaner imports.
+After the 4-module refactor, these are now in the nlp package (parent directory).
 
 Usage:
-    from engines import IntentRecognizer, SentimentAnalyzer
-    # or
-    from engines.intent_recognizer import IntentRecognizer
+    from nlp.engines import IntentRecognizer, SentimentAnalyzer
 """
 
-import sys
-from pathlib import Path
-
-# Add parent directory to path for imports
-parent_dir = str(Path(__file__).parent.parent)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Re-export from parent directory
-from intent_recognizer import IntentRecognizer
-from sentiment_analyzer import SentimentAnalyzer
-from entity_extractor import EntityExtractor
-from risk_assessor import RiskAssessor
+# Re-export from parent nlp package (relative imports)
+from nlp.intent_recognizer import IntentRecognizer
+from nlp.sentiment_analyzer import SentimentAnalyzer
+from nlp.entity_extractor import EntityExtractor
+from medical_ai.risk_assessor import RiskAssessor
 
 __all__ = [
     "IntentRecognizer",

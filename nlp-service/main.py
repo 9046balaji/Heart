@@ -8,7 +8,7 @@ if _current_dir not in sys.path:
 
 # P2: FAIL-FAST DEPENDENCY VALIDATION
 # Add at very top, before other imports
-from dependencies import validate_dependencies, get_enabled_features
+from core.dependencies import validate_dependencies, get_enabled_features
 
 # FAIL FAST: Validate required dependencies before anything else
 validate_dependencies()
@@ -39,7 +39,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from rate_limiting import limiter, get_user_id_or_ip
+from core.rate_limiting import limiter, get_user_id_or_ip
 
 from config import (
     CORS_ORIGINS,
@@ -70,7 +70,7 @@ from config import (
     STRUCTURED_OUTPUTS_ENABLED,
     GENERATION_ENABLED,
 )
-from models import (
+from core.models import (
     EntityExtractionRequest,
     EntityExtractionResponse,
     HealthCheckResponse,
@@ -87,10 +87,10 @@ from models import (
     SentimentResult,
 )
 # PHASE 3: Import from engines package (re-exports from parent directory)
-from engines import IntentRecognizer, SentimentAnalyzer, EntityExtractor, RiskAssessor
-from analytics import AnalyticsManager
-from cache import cache_manager
-from error_handling import (
+from nlp.engines import IntentRecognizer, SentimentAnalyzer, EntityExtractor, RiskAssessor
+from core.analytics import AnalyticsManager
+from core.cache import cache_manager
+from core.error_handling import (
     ErrorReporter,
     structured_exception_handler,
     ValidationError,
@@ -100,12 +100,12 @@ from error_handling import (
     ModelLoadError,
     ProcessingError,
 )  # PHASE 2: Import new exception hierarchy
-from model_versioning import ModelVersionManager
-from ollama_generator import OllamaGenerator
+from medical_ai.model_versioning import ModelVersionManager
+from nlp.ollama_generator import OllamaGenerator
 
 # PHASE 5: Import RAG API for semantic search
 if RAG_ENABLED:
-    from rag_api import rag_router, initialize_rag_service
+    from nlp.rag_api import rag_router, initialize_rag_service
     print("[STARTUP] RAG service module loaded successfully")
 else:
     rag_router = None
@@ -116,8 +116,8 @@ else:
 # PHASE 6: Import Memory Management Routes
 if MEMORY_ENABLED:
     from routes.memory import router as memory_router
-    from user_preferences import init_preferences_manager
-    from integrated_ai_service import init_integrated_ai_service
+    from core.user_preferences import init_preferences_manager
+    from nlp.integrated_ai_service import init_integrated_ai_service
     print("[STARTUP] Memory management routes loaded successfully")
 else:
     memory_router = None
@@ -125,7 +125,7 @@ else:
 
 # PHASE 7: Import Real-time WebSocket Support
 if REALTIME_ENABLED:
-    from realtime import websocket_router, get_event_bus
+    from core.realtime import websocket_router, get_event_bus
     print("[STARTUP] Real-time WebSocket module loaded successfully")
 else:
     websocket_router = None
@@ -212,9 +212,9 @@ else:
 
 # PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
 if NEW_AI_FRAMEWORKS_ENABLED:
-    from agents.langgraph_orchestrator import create_langgraph_orchestrator
-    from core.observable_llm_gateway import create_observable_llm_gateway
-    from agents.crew_simulation import create_healthcare_crew
+    from nlp.agents.langgraph_orchestrator import create_langgraph_orchestrator
+    from core.llm.observable_llm_gateway import create_observable_llm_gateway
+    from nlp.agents.crew_simulation import create_healthcare_crew
     print("[STARTUP] New AI frameworks loaded successfully")
 else:
     print("[STARTUP] New AI frameworks DISABLED via config")
@@ -229,7 +229,7 @@ else:
 
 # PHASE 4: Import structured output schemas
 if STRUCTURED_OUTPUTS_ENABLED:
-    from structured_outputs import (
+    from core.structured_outputs import (
         CardioHealthAnalysis,
         SimpleIntentAnalysis,
         ConversationResponse,
@@ -246,15 +246,15 @@ if STRUCTURED_OUTPUTS_ENABLED:
 else:
     print("[STARTUP] Structured outputs DISABLED via config")
 
-from memory_manager import MemoryManager, PatientMemory, MemoryManagerException
-from memory_middleware import (
+from nlp.memory_manager import MemoryManager, PatientMemory, MemoryManagerException
+from nlp.memory_middleware import (
     CorrelationIDMiddleware,
     get_memory_injector,
     fetch_and_merge_context,
     handle_endpoint_error,
     request_id_context,
 )
-from memory_aware_agents import (
+from nlp.memory_aware_agents import (
     MemoryAwareIntentRecognizer,
     MemoryAwareSentimentAnalyzer,
 )
@@ -536,7 +536,7 @@ async def get_rag_context(query: str, user_id: Optional[str] = None, top_k: int 
     
     try:
         # Import lazily to avoid circular imports
-        from rag_api import get_rag_pipeline
+        from nlp.rag_api import get_rag_pipeline
         pipeline = get_rag_pipeline()
         
         # Search for relevant context (don't generate, just retrieve)
@@ -674,7 +674,7 @@ async def health_check(request: Request) -> Dict[str, Any]:
         # P2.2 FIX: Get LLM Gateway status
         llm_gateway_status = None
         try:
-            from core.llm_gateway import get_llm_gateway
+            from core.llm.llm_gateway import get_llm_gateway
             gateway = get_llm_gateway()
             llm_gateway_status = gateway.get_status()
         except Exception as e:
@@ -727,7 +727,7 @@ async def get_feature_flags() -> Dict[str, Any]:
         # Get LLM Gateway guardrails status
         guardrails_enabled = False
         try:
-            from core.llm_gateway import get_llm_gateway
+            from core.llm.llm_gateway import get_llm_gateway
             gateway = get_llm_gateway()
             guardrails_enabled = gateway.guardrails_enabled
         except Exception:

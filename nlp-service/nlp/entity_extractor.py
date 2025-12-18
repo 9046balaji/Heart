@@ -33,7 +33,7 @@ from config import (
     ENTITY_CONFIDENCE_THRESHOLD
 )
 from models import Entity
-from cache import cache_manager
+from core.cache import cache_manager
 from error_handling import (
     ProcessingError,
     CacheError,

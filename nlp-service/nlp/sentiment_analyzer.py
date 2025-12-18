@@ -25,14 +25,14 @@ from config import (
     SENTIMENT_THRESHOLD_DISTRESSED,
     SENTIMENT_THRESHOLD_URGENT
 )
-from models import SentimentEnum, SentimentResult
-from async_patterns import AsyncTimeout, run_sync_in_executor
-from error_handling import (
+from core.models import SentimentEnum, SentimentResult
+from core.async_patterns import AsyncTimeout, run_sync_in_executor
+from core.error_handling import (
     ProcessingError,
     CacheError,
     ExternalServiceError,
 )  # PHASE 2: Import exception hierarchy
-from keywords import UnifiedKeywordDatabase, SentimentKeywords  # PHASE 2.4: Unified keywords
+from nlp.keywords import UnifiedKeywordDatabase, SentimentKeywords  # PHASE 2.4: Unified keywords
 
 logger = logging.getLogger(__name__)
 

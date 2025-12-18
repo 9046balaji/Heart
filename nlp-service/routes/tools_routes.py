@@ -28,7 +28,7 @@ except ImportError:
 
 # Import MemoryManager for tool integration
 try:
-    from memory_manager import MemoryManager
+    from nlp.memory_manager import MemoryManager
     MEMORY_MANAGER_AVAILABLE = True
 except ImportError:
     MEMORY_MANAGER_AVAILABLE = False

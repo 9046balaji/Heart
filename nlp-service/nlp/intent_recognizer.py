@@ -20,14 +20,14 @@ from config import (
     MEDICATIONS_DATABASE,
     INTENT_CONFIDENCE_THRESHOLD
 )
-from models import IntentEnum, IntentResult
-from cache import cache_manager
-from error_handling import (
+from core.models import IntentEnum, IntentResult
+from core.cache import cache_manager
+from core.error_handling import (
     ProcessingError,
     CacheError,
     ModelLoadError,
 )  # PHASE 2: Import exception hierarchy
-from keywords import UnifiedKeywordDatabase, IntentKeywords  # PHASE 2.4: Unified keywords
+from nlp.keywords import UnifiedKeywordDatabase, IntentKeywords  # PHASE 2.4: Unified keywords
 
 # Import scikit-learn for TF-IDF vectorization
 from sklearn.feature_extraction.text import TfidfVectorizer

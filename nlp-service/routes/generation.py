@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import logging
 
-from core.llm_gateway import get_llm_gateway, LLMGateway
+from core.llm.llm_gateway import get_llm_gateway, LLMGateway
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ async def get_user_context(user_id: str) -> Optional[Dict[str, Any]]:
     """
     try:
         # Lazy import to avoid circular dependencies
-        from memory_manager import MemoryManager
+        from nlp.memory_manager import MemoryManager
         
         mm = MemoryManager.get_instance()
         context = await mm.get_user_context(user_id)

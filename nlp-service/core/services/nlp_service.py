@@ -13,11 +13,11 @@ import time
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
-from intent_recognizer import IntentRecognizer
-from sentiment_analyzer import SentimentAnalyzer
-from entity_extractor import EntityExtractor
-from risk_assessor import RiskAssessor
-from models import (
+from nlp.intent_recognizer import IntentRecognizer
+from nlp.sentiment_analyzer import SentimentAnalyzer
+from nlp.entity_extractor import EntityExtractor
+from medical_ai.risk_assessor import RiskAssessor
+from core.models import (
     IntentResult,
     SentimentResult,
     Entity,
@@ -25,7 +25,7 @@ from models import (
     NLPProcessRequest,
     NLPProcessResponse,
 )
-from error_handling import (
+from core.error_handling import (
     TimeoutError,
     ProcessingError,
 )  # PHASE 2: Import exception hierarchy

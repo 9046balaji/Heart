@@ -54,7 +54,7 @@ except ImportError:
 
 # Import memory manager for enhanced operations
 try:
-    from memory_manager import MemoryManager, get_request_memory
+    from nlp.memory_manager import MemoryManager, get_request_memory
     MEMORY_MANAGER_AVAILABLE = True
 except ImportError:
     MEMORY_MANAGER_AVAILABLE = False
