@@ -19,7 +19,7 @@ from datetime import datetime
 import logging
 from enum import Enum
 
-from core.context_retrieval import RetrievedContext, ContextType
+from nlp.context_retrieval import RetrievedContext, ContextType
 
 logger = logging.getLogger(__name__)
 

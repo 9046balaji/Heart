@@ -17,8 +17,18 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 # Langfuse imports
-from langfuse import Langfuse
-from langfuse.decorators import observe
+try:
+    from langfuse import Langfuse
+    from langfuse.decorators import observe
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    Langfuse = None
+    # Define a dummy observe decorator
+    def observe(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +47,19 @@ class ObservableLLMGateway:
         """Initialize Observable LLM Gateway with Langfuse."""
         # Initialize Langfuse client
         self.langfuse = None
-        try:
-            self.langfuse = Langfuse(
-                public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-                secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-                host=os.getenv("LANGFUSE_HOST", "http://localhost:3000")
-            )
-            logger.info("✅ Langfuse client initialized")
-        except Exception as e:
-            logger.warning(f"Langfuse initialization failed: {e}")
+        
+        if LANGFUSE_AVAILABLE:
+            try:
+                self.langfuse = Langfuse(
+                    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+                    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+                    host=os.getenv("LANGFUSE_HOST", "http://localhost:3000")
+                )
+                logger.info("✅ Langfuse client initialized")
+            except Exception as e:
+                logger.warning(f"Langfuse initialization failed: {e}")
+        else:
+            logger.info("Langfuse not available (skipping observability)")
         
         logger.info("✅ ObservableLLMGateway initialized")
     

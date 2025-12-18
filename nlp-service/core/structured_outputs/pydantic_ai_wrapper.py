@@ -50,6 +50,22 @@ class CardioHealthAnalysis(BaseModel):
     response: str = Field(description="Main response to user")
 
 
+class SimpleIntentAnalysis(BaseModel):
+    """Simple intent analysis result."""
+    intent: str = Field(description="Identified intent")
+    confidence: float = Field(description="Confidence score")
+    entities: List[str] = Field(default_factory=list, description="Extracted entities")
+
+
+class ConversationResponse(BaseModel):
+    """Structured conversation response."""
+    response: str = Field(description="The response content")
+    intent: Optional[str] = Field(description="Detected intent")
+    confidence: float = Field(description="Confidence score")
+    entities: List[str] = Field(default_factory=list, description="Extracted entities")
+    next_action: Optional[str] = Field(description="Suggested next action")
+
+
 class PydanticHealthAgent:
     """
     Health agent using PydanticAI for structured outputs.

@@ -317,6 +317,35 @@ class OllamaGenerator:
                     role = msg.get("role", "user")
                     content = msg.get("content", "")
                     context_text += f"{role.capitalize()}: {content}\n"
+            
+            # Combine prompts
+            full_prompt = prompt
+            if context_text:
+                full_prompt = f"Context:\n{context_text}\n\nUser: {prompt}"
+
+            # Call Ollama
+            response = self.client.generate(
+                model=self.model_name,
+                prompt=full_prompt,
+                system=system_prompt,
+                stream=False,
+                options={
+                    "temperature": self.temperature,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "num_ctx": self.context_window,
+                }
+            )
+            
+            # Record success
+            self.circuit_breaker.record_success()
+            
+            return response['response']
+
+        except Exception as e:
+            logger.error(f"Ollama generation failed: {e}")
+            self.circuit_breaker.record_failure()
+            raise ExternalServiceError(f"Ollama generation failed: {e}")
 
 
     async def generate_healthcare_response(

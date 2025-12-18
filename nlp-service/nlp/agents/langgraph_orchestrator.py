@@ -21,8 +21,16 @@ import uuid
 import operator
 
 # LangGraph imports
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, AIMessage
+try:
+    from langgraph.graph import StateGraph, END
+    from langchain_core.messages import HumanMessage, AIMessage
+    LANGGRAPH_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_AVAILABLE = False
+    StateGraph = None
+    END = None
+    HumanMessage = None
+    AIMessage = None
 
 # Local imports
 from .base import BaseAgent, HealthAgent
@@ -84,6 +92,11 @@ class LangGraphOrchestrator:
         Args:
             llm_client: LLM client for agent execution
         """
+        if not LANGGRAPH_AVAILABLE:
+            logger.warning("LangGraph not available. Orchestrator disabled.")
+            self.app = None
+            return
+
         self.llm_client = llm_client
         self.workflow = StateGraph(AgentState)
         self._setup_workflow()
@@ -357,6 +370,9 @@ class LangGraphOrchestrator:
         Returns:
             Dict with response and metadata
         """
+        if not self.app:
+            raise RuntimeError("LangGraph orchestrator is not initialized (missing dependencies)")
+
         logger.info(f"Processing query: {query[:50]}...")
         
         # Initialize state

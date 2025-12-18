@@ -8,7 +8,7 @@ Includes:
 - Multi-agent orchestrator for complex queries
 """
 
-from agents.base import (
+from .base import (
     BaseAgent,
     HealthAgent,
     AppointmentAgent,
@@ -17,7 +17,7 @@ from agents.base import (
     HealthAppointmentOrchestrator
 )
 
-from agents.orchestrator import (
+from .orchestrator import (
     AgentOrchestrator,
     AgentRole,
     AgentTask,

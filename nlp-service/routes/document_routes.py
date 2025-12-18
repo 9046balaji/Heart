@@ -4,14 +4,17 @@ Document Scanning API Routes.
 FastAPI routes for document upload, OCR processing, and classification.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Query
 from pydantic import BaseModel, Field
 import logging
 import os
 import asyncio
-import chardet
+try:
+    import chardet
+except ImportError:
+    chardet = None
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
@@ -176,8 +179,11 @@ class SimpleTextProcessor(DocumentProcessor):
     async def process(self, file_content: bytes, file_type: str) -> DocumentProcessingResult:
         """Simple text extraction with encoding detection."""
         # Detect encoding
-        detected = chardet.detect(file_content)
-        encoding = detected.get("encoding", "utf-8")
+        if chardet:
+            detected = chardet.detect(file_content)
+            encoding = detected.get("encoding", "utf-8")
+        else:
+            encoding = "utf-8"
         
         try:
             text = file_content.decode(encoding)

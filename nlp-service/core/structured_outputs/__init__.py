@@ -10,6 +10,8 @@ from .pydantic_ai_wrapper import (
     CardioHealthAnalysis,
     PydanticHealthAgent,
     create_pydantic_health_agent,
+    SimpleIntentAnalysis,
+    ConversationResponse,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "CardioHealthAnalysis",
     "PydanticHealthAgent",
     "create_pydantic_health_agent",
+    "SimpleIntentAnalysis",
+    "ConversationResponse",
 ]

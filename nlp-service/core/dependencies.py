@@ -55,5 +55,10 @@ def _check_import(module_name: str) -> bool:
     try:
         __import__(module_name)
         return True
-    except ImportError:
+    except Exception as e:
+        logger.warning(f"Failed to import optional dependency {module_name}: {e}")
         return False
+
+def check_optional_dependency(module_name: str) -> bool:
+    """Public wrapper for _check_import."""
+    return _check_import(module_name)

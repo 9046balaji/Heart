@@ -17,9 +17,18 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 # CrewAI imports
-from crewai import Agent, Task, Crew
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_ollama import ChatOllama
+try:
+    from crewai import Agent, Task, Crew
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_ollama import ChatOllama
+    CREWAI_AVAILABLE = True
+except ImportError:
+    CREWAI_AVAILABLE = False
+    Agent = None
+    Task = None
+    Crew = None
+    ChatGoogleGenerativeAI = None
+    ChatOllama = None
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +51,14 @@ class HealthcareCrew:
             primary_provider: "gemini" or "ollama" for LLM provider
         """
         self.primary_provider = primary_provider
+        
+        if not CREWAI_AVAILABLE:
+            logger.warning("CrewAI not available. Simulation disabled.")
+            self.llm = None
+            self.cardiologist = None
+            self.nutritionist = None
+            self.pharmacist = None
+            return
         
         # Initialize LLM
         if primary_provider == "gemini":
@@ -95,6 +112,13 @@ class HealthcareCrew:
         Returns:
             Dict with coordinated care recommendations
         """
+        if not CREWAI_AVAILABLE:
+            return {
+                "error": "CrewAI dependencies not installed",
+                "timestamp": datetime.now().isoformat(),
+                "success": False
+            }
+
         logger.info(f"Coordinating care for: {patient_query[:50]}...")
         
         # Build context string

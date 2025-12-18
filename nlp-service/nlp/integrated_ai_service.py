@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import logging
 import asyncio
 
-from core.context_retrieval import (
+from nlp.context_retrieval import (
     ContextRetriever, 
     ContextType, 
     RetrievedContext,
@@ -668,3 +668,6 @@ def init_integrated_ai_service(
         **kwargs
     )
     return _integrated_service
+
+# Alias for backward compatibility
+IntegratedAIService = IntegratedHealthAIService

@@ -19,19 +19,19 @@ Usage:
     normalized, mappings = normalizer.normalize_text(text)
 """
 
-from .medgemma_service import (
+from .services.medgemma_service import (
     MedGemmaService,
     MedGemmaModel,
     ExtractionResult,
     SummaryResult
 )
 
-from .terminology_normalizer import (
+from .services.terminology_normalizer import (
     MedicalTerminologyNormalizer,
     TermMapping
 )
 
-from .multimodal_processor import (
+from .services.multimodal_processor import (
     MultimodalMedicalProcessor,
     MultimodalAnalysisResult
 )

@@ -26,7 +26,7 @@ from core.user_preferences import (
     PreferenceKeys,
     get_preferences_manager
 )
-from core.context_retrieval import (
+from nlp.context_retrieval import (
     ContextRetriever, 
     ContextType,
     context_retriever as default_context_retriever

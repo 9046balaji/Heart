@@ -22,7 +22,7 @@ Usage:
 """
 import os
 import asyncio
-from typing import Optional, AsyncGenerator, Dict, Any
+from typing import Optional, AsyncGenerator, Dict, Any, List
 import logging
 
 logger = logging.getLogger(__name__)
