@@ -15,6 +15,8 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+from .contextual_chunker import ContextualMedicalChunker, MedicalChunk
+
 
 class KnowledgeLoader:
     """
@@ -266,7 +268,7 @@ class KnowledgeLoader:
         overlap: int = 200,
     ) -> List[str]:
         """
-        Split text into overlapping chunks.
+        Split text into overlapping chunks using contextual chunker.
         
         Args:
             text: Text to chunk
@@ -279,34 +281,18 @@ class KnowledgeLoader:
         if not text:
             return []
         
-        chunks = []
-        start = 0
+        # Use contextual chunker for better medical document handling
+        chunker = ContextualMedicalChunker(
+            max_chunk_size=chunk_size,
+            min_chunk_size=200,
+            overlap_sentences=overlap // 100  # Approximate sentence overlap
+        )
         
-        while start < len(text):
-            end = start + chunk_size
-            
-            # Try to break at sentence boundary
-            if end < len(text):
-                # Look for period, question mark, or newline
-                for boundary in ['. ', '? ', '! ', '\n\n', '\n']:
-                    last_boundary = text.rfind(boundary, start, end)
-                    if last_boundary > start + chunk_size // 2:
-                        end = last_boundary + len(boundary)
-                        break
-            
-            chunk = text[start:end].strip()
-            if chunk:
-                chunks.append(chunk)
-            
-            start = end - overlap
-            if start < 0:
-                start = 0
-            
-            # Avoid infinite loop
-            if end >= len(text):
-                break
+        # Chunk the document
+        chunks = chunker.chunk_document(text, "medical_document", "unknown")
         
-        return chunks
+        # Return just the content of each chunk
+        return [chunk.content for chunk in chunks]
     
     def load_all(self) -> Dict[str, Any]:
         """

@@ -486,6 +486,23 @@ class ConsentManager:
         }
 
 
+# Global consent manager instance
+_consent_manager: Optional["ConsentManager"] = None
+
+
+def get_consent_manager() -> "ConsentManager":
+    """
+    Get or create the global consent manager instance.
+    
+    Returns:
+        ConsentManager instance
+    """
+    global _consent_manager
+    if _consent_manager is None:
+        _consent_manager = ConsentManager()
+    return _consent_manager
+
+
 # Required consents for specific features
 REQUIRED_CONSENTS = {
     "weekly_summary": [

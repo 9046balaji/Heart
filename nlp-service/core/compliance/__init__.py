@@ -50,21 +50,36 @@ __all__ = [
     "AuditEvent",
     "AuditEventType",
     "AuditLog",
+    "get_audit_service",
     
     # Consent
     "ConsentManager",
     "ConsentRecord",
     "ConsentType",
     "ConsentStatus",
+    "get_consent_manager",
     
     # Retention
     "DataRetentionService",
     "RetentionPolicy",
     "RetentionAction",
+    "get_retention_service",
     
     # Verification
     "VerificationQueue",
     "VerificationItem",
     "VerificationStatus",
-    "VerificationResult"
+    "VerificationResult",
+    "get_verification_queue",
+    
+    # Disclaimers
+    "DisclaimerService",
+    "DisclaimerType",
+    "DisclaimerSeverity",
+    "Disclaimer",
+    "get_disclaimer_service",
+    
+    # Encryption
+    "PHIEncryptionService",
+    "get_encryption_service"
 ]

@@ -608,3 +608,20 @@ class DataRetentionService:
             })
         
         return inventory
+
+
+# Global data retention service instance
+_retention_service: Optional["DataRetentionService"] = None
+
+
+def get_retention_service() -> "DataRetentionService":
+    """
+    Get or create the global data retention service instance.
+    
+    Returns:
+        DataRetentionService instance
+    """
+    global _retention_service
+    if _retention_service is None:
+        _retention_service = DataRetentionService()
+    return _retention_service

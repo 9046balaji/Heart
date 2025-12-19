@@ -1,4 +1,4 @@
-"""
+ """
 MedGemma Integration Service.
 
 Provides medical document understanding using Google's MedGemma model.
@@ -22,10 +22,13 @@ import os
 import logging
 import time
 import json
+import hashlib
 import aiohttp
 from typing import Optional, Dict, Any, List, Union
 from dataclasses import dataclass
 from enum import Enum
+from pydantic import ValidationError
+from .medgemma_validators import MedGemmaExtractionResult
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +113,38 @@ class MedGemmaService:
             mock_mode = os.getenv('MEDGEMMA_MOCK_MODE', 'false').lower() == 'true'
         self.mock_mode = mock_mode or not self.api_key
         
+        # Response caching
+        self._response_cache = {}
+        self._cache_ttl = 3600  # 1 hour
+    
+    def _get_cache_key(self, prompt: str) -> str:
+        """Generate cache key for prompt."""
+        return hashlib.sha256(prompt.encode()).hexdigest()[:16]
+    
+    async def _call_model_cached(
+        self, 
+        prompt: str, 
+        task_type: str = "extraction",
+        cache_enabled: bool = True
+    ) -> str:
+        """Call model with response caching."""
+        if cache_enabled:
+            key = self._get_cache_key(prompt)
+            if key in self._response_cache:
+                cached = self._response_cache[key]
+                if time.time() - cached["timestamp"] < self._cache_ttl:
+                    return cached["response"]
+        
+        response = await self._call_model(prompt, task_type)
+        
+        if cache_enabled:
+            self._response_cache[key] = {
+                "response": response,
+                "timestamp": time.time()
+            }
+        
+        return response
+        
         if self.mock_mode:
             logger.info("MedGemma service initialized in MOCK mode")
         else:
@@ -143,7 +178,7 @@ class MedGemmaService:
         prompt = self._build_extraction_prompt(text, document_type, schema)
         
         try:
-            response = await self._call_model(prompt)
+            response = await self._call_model_cached(prompt, "extraction")
             entities = self._parse_extraction_response(response, schema)
             
             return ExtractionResult(
@@ -184,7 +219,7 @@ class MedGemmaService:
         prompt = self._build_summary_prompt(text, patient_name, reading_level)
         
         try:
-            response = await self._call_model(prompt)
+            response = await self._call_model_cached(prompt, "summary")
             return self._parse_summary_response(response, text, reading_level)
         except Exception as e:
             logger.error(f"Summary generation failed: {e}")
@@ -225,7 +260,7 @@ Return JSON with:
 """
         
         try:
-            response = await self._call_model(prompt)
+            response = await self._call_model_cached(prompt, "normalization")
             return json.loads(response)
         except Exception as e:
             logger.error(f"Terminology normalization failed: {e}")
@@ -265,7 +300,7 @@ diagnosis, recommendations, doctor_info, billing, instructions
             return [{"section_type": "unknown", "content": text[:200]}]
         
         try:
-            response = await self._call_model(prompt)
+            response = await self._call_model_cached(prompt, "section_classification")
             return json.loads(response)
         except Exception as e:
             logger.error(f"Section classification failed: {e}")
@@ -343,8 +378,18 @@ Return JSON:
 }}
 """
     
-    async def _call_model(self, prompt: str) -> str:
-        """Call MedGemma/Gemini model API."""
+    def _get_token_limit(self, task_type: str) -> int:
+        """Get appropriate token limit for task type."""
+        limits = {
+            "extraction": 2048,
+            "summary": 1024,
+            "normalization": 512,
+            "section_classification": 1024
+        }
+        return limits.get(task_type, 2048)
+    
+    async def _call_model(self, prompt: str, task_type: str = "extraction") -> str:
+        """Call MedGemma/Gemini model API with dynamic token limits."""
         if not self.api_key:
             raise ValueError("API key not configured")
         
@@ -370,7 +415,7 @@ Return JSON:
             "generationConfig": {
                 "temperature": 0.1,  # Low temperature for factual extraction
                 "topP": 0.8,
-                "maxOutputTokens": 4096
+                "maxOutputTokens": self._get_token_limit(task_type)
             }
         }
         
@@ -439,7 +484,7 @@ Return JSON:
         response: str, 
         schema: Optional[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Parse model response into entities."""
+        """Parse model response into entities with validation."""
         try:
             # Try to parse as JSON
             # Handle markdown code blocks
@@ -454,20 +499,37 @@ Return JSON:
             
             data = json.loads(response)
             
-            # Convert to list of entities if it's a dict
-            if isinstance(data, dict):
-                entities = []
-                for key, value in data.items():
-                    if value is not None:
-                        entities.append({
-                            "type": key,
-                            "value": value,
-                            "confidence": 0.85
-                        })
-                return entities
+            # ✅ Validate with Pydantic
+            validated = MedGemmaExtractionResult(**data)
             
-            return data if isinstance(data, list) else [data]
+            # Convert to entity list
+            entities = []
+            for med in validated.medications:
+                entities.append({
+                    "type": "medication",
+                    "value": med.dict(),
+                    "confidence": med.confidence
+                })
             
+            for lab in validated.lab_values:
+                entities.append({
+                    "type": "lab_value",
+                    "value": lab.dict(),
+                    "confidence": validated.raw_confidence
+                })
+                
+            for diagnosis in validated.diagnoses:
+                entities.append({
+                    "type": "diagnosis",
+                    "value": diagnosis,
+                    "confidence": validated.raw_confidence
+                })
+            
+            return entities
+            
+        except ValidationError as e:
+            logger.warning(f"Extraction validation failed: {e}")
+            return [{"validation_errors": e.errors(), "raw_response": response[:500]}]
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse extraction response: {e}")
             return [{"raw_response": response, "parse_error": str(e)}]

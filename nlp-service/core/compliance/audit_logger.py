@@ -787,3 +787,21 @@ class AuditService:
             # Phone: show country code and last 4
             return f"{destination[:3]}***{destination[-4:]}"
         return "***"
+
+# ==================== Singleton Access ====================
+
+# Global audit service instance
+_audit_service: Optional[AuditService] = None
+
+
+def get_audit_service() -> AuditService:
+    """
+    Get or create the global audit service instance.
+    
+    Returns:
+        AuditService instance
+    """
+    global _audit_service
+    if _audit_service is None:
+        _audit_service = AuditService()
+    return _audit_service

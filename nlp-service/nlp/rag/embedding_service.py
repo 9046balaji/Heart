@@ -338,6 +338,57 @@ class EmbeddingService:
             "max_cache_size": self._cache_size,
         }
 
+    def warm_cache(self, texts: List[str]) -> int:
+        """
+        Pre-warm the embedding cache with commonly used texts.
+        
+        This improves cold-start performance by pre-computing embeddings
+        for frequently accessed texts.
+        
+        Args:
+            texts: List of texts to pre-embed and cache
+            
+        Returns:
+            Number of embeddings successfully cached
+            
+        Example:
+            # Warm cache with common medical terms
+            common_terms = [
+                "chest pain",
+                "heart rate",
+                "blood pressure",
+                "shortness of breath",
+                "medication"
+            ]
+            warmed = service.warm_cache(common_terms)
+            print(f"Warmed {warmed} embeddings")
+        """
+        if not texts:
+            return 0
+        
+        try:
+            # Generate embeddings for all texts in batch
+            embeddings = self.model.encode(
+                texts,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+            
+            # Cache each embedding
+            warmed_count = 0
+            for i, text in enumerate(texts):
+                if text and text.strip():
+                    cache_key = self._get_cache_key(text)
+                    self._manage_cache()
+                    self._cache[cache_key] = embeddings[i]
+                    warmed_count += 1
+            
+            logger.info(f"Warmed {warmed_count} embeddings in cache")
+            return warmed_count
+            
+        except Exception as e:
+            logger.error(f"Failed to warm embedding cache: {e}")
+            return 0
 
 # =============================================================================
 # STANDALONE FUNCTIONS FOR QUICK USE

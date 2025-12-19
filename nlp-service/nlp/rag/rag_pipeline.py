@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 from .vector_store import VectorStore
 from .embedding_service import EmbeddingService
+from core.compliance.medical_pii_scrubber import get_medical_pii_scrubber
+from .token_budget import TokenBudgetManager
+from .reranker import MedicalReranker
 
 
 @dataclass
@@ -37,26 +40,27 @@ class RetrievedContext:
     drug_info: List[Dict] = field(default_factory=list)
     
     def to_prompt_context(self) -> str:
-        """Format retrieved context for LLM prompt."""
+        """Format retrieved context for LLM prompt with PII scrubbing."""
         sections = []
+        pii_scrubber = get_medical_pii_scrubber()
         
         if self.medical_sources:
             medical_text = "\n".join([
-                f"- {src['content'][:500]}... [Source: {src.get('metadata', {}).get('source', 'Unknown')}]"
+                f"- {pii_scrubber.scrub(src['content'][:500])}... [Source: {src.get('metadata', {}).get('source', 'Unknown')}]"
                 for src in self.medical_sources
             ])
             sections.append(f"**Medical Knowledge:**\n{medical_text}")
         
         if self.drug_info:
             drug_text = "\n".join([
-                f"- {info['content'][:300]}..."
+                f"- {pii_scrubber.scrub(info['content'][:300])}..."
                 for info in self.drug_info
             ])
             sections.append(f"**Drug Information:**\n{drug_text}")
         
         if self.user_memories:
             memory_text = "\n".join([
-                f"- {mem['content'][:200]}"
+                f"- {pii_scrubber.scrub(mem['content'][:200])}"
                 for mem in self.user_memories
             ])
             sections.append(f"**Patient History:**\n{memory_text}")
@@ -249,6 +253,12 @@ When responding:
         self.drug_top_k = drug_top_k
         self.min_relevance_score = min_relevance_score
         
+        # Initialize token budget manager
+        self.token_budget = TokenBudgetManager()
+        
+        # Initialize reranker
+        self.reranker = MedicalReranker()
+        
         logger.info("✅ RAGPipeline initialized")
     
     async def retrieve(
@@ -307,14 +317,22 @@ When responding:
         return context
     
     async def _retrieve_medical(self, query: str) -> List[Dict]:
-        """Retrieve medical knowledge."""
+        """Retrieve medical knowledge with reranking."""
         try:
+            # Get more candidates than needed for reranking
             results = self.vector_store.search_medical_knowledge(
                 query, 
-                top_k=self.medical_top_k
+                top_k=self.medical_top_k * 3  # Retrieve 3x for reranking
             )
+            
             # Filter by relevance score
-            return [r for r in results if r.get("score", 0) >= self.min_relevance_score]
+            filtered_results = [r for r in results if r.get("score", 0) >= self.min_relevance_score]
+            
+            # Rerank if reranker is available
+            if self.reranker.is_available() and len(filtered_results) > self.medical_top_k:
+                filtered_results = self.reranker.rerank(query, filtered_results, self.medical_top_k)
+            
+            return filtered_results
         except Exception as e:
             logger.error(f"Medical retrieval failed: {e}")
             return []
@@ -351,7 +369,7 @@ When responding:
         conversation_history: Optional[List[Dict]] = None,
     ) -> str:
         """
-        Build augmented prompt with retrieved context.
+        Build augmented prompt with retrieved context and token budget management.
         
         Args:
             query: User query
@@ -363,10 +381,35 @@ When responding:
         """
         parts = [self.SYSTEM_PROMPT]
         
-        # Add retrieved context
+        # Add retrieved context with token budget management
         if context.has_context:
             parts.append("\n--- RETRIEVED CONTEXT ---")
-            parts.append(context.to_prompt_context())
+            
+            # Get context content
+            context_content = context.to_prompt_context()
+            
+            # If we have conversation history, apply token budget
+            if conversation_history:
+                # Convert history to text
+                history_text = "\n".join([
+                    f"{msg.get('role', 'user').upper()}: {msg.get('content', '')}"
+                    for msg in conversation_history[-5:]
+                ])
+                
+                # Apply token budget
+                budget_allocation = self.token_budget.allocate(
+                    query=query,
+                    medical_context=context_content,
+                    memories="",  # TODO: Add memory context if needed
+                    history=history_text
+                )
+                
+                # Use budgeted context
+                parts.append(budget_allocation["medical_context"])
+            else:
+                # No history, just add context directly
+                parts.append(context_content)
+                
             parts.append("--- END CONTEXT ---\n")
         
         # Add conversation history

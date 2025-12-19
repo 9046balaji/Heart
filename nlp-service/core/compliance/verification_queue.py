@@ -606,3 +606,20 @@ class VerificationQueue:
             stats["avg_review_time_seconds"] = sum(review_times) / len(review_times)
         
         return stats
+
+
+# Global verification queue instance
+_verification_queue: Optional["VerificationQueue"] = None
+
+
+def get_verification_queue() -> "VerificationQueue":
+    """
+    Get or create the global verification queue instance.
+    
+    Returns:
+        VerificationQueue instance
+    """
+    global _verification_queue
+    if _verification_queue is None:
+        _verification_queue = VerificationQueue()
+    return _verification_queue

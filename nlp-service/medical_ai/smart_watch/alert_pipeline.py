@@ -7,6 +7,7 @@ alert fatigue. Supports multiple delivery channels (in-app, push, WebSocket, SMS
 
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Callable, Dict, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
@@ -177,6 +178,9 @@ class AlertPipeline:
         
         # Callback handlers for different channels
         self.handlers: Dict[AlertChannel, Callable] = {}
+        
+        # Thread pool executor for sync handlers
+        self._executor = ThreadPoolExecutor(max_workers=4)
         
         logger.info("AlertPipeline initialized")
     
@@ -357,24 +361,62 @@ class AlertPipeline:
         return quick
     
     async def _deliver_alert(self, alert: Alert) -> None:
-        """Deliver alert to all specified channels."""
+        """Deliver alert to all specified channels (event-loop safe)."""
+        delivery_tasks = []
+        
         for channel in alert.channels:
             handler = self.handlers.get(channel)
             if handler:
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(alert)
-                    else:
-                        handler(alert)
-                    logger.info(f"Alert delivered via {channel.value}")
-                except Exception as e:
-                    logger.error(f"Failed to deliver alert via {channel.value}: {e}")
+                if asyncio.iscoroutinefunction(handler):
+                    # Native async handler
+                    delivery_tasks.append(
+                        self._deliver_with_timeout(handler, alert, channel)
+                    )
+                else:
+                    # ✅ FIX: Run sync handlers in thread pool
+                    delivery_tasks.append(
+                        self._deliver_sync_in_thread(handler, alert, channel)
+                    )
             else:
                 # Default logging
                 if channel == AlertChannel.SILENT_LOG:
                     logger.info(f"Alert logged: {alert.title}")
                 else:
                     logger.debug(f"No handler for channel {channel.value}")
+        
+        # Deliver all channels concurrently
+        if delivery_tasks:
+            await asyncio.gather(*delivery_tasks, return_exceptions=True)
+    
+    async def _deliver_with_timeout(
+        self, 
+        handler, 
+        alert: Alert, 
+        channel: AlertChannel,
+        timeout: float = 10.0
+    ):
+        """Deliver with timeout to prevent hanging."""
+        try:
+            await asyncio.wait_for(handler(alert), timeout=timeout)
+            logger.info(f"Alert delivered via {channel.value}")
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout delivering alert via {channel.value}")
+        except Exception as e:
+            logger.error(f"Failed to deliver alert via {channel.value}: {e}")
+    
+    async def _deliver_sync_in_thread(
+        self, 
+        handler, 
+        alert: Alert, 
+        channel: AlertChannel
+    ):
+        """Run synchronous handler in thread pool."""
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(self._executor, handler, alert)
+            logger.info(f"Alert delivered via {channel.value} (threaded)")
+        except Exception as e:
+            logger.error(f"Failed to deliver alert via {channel.value}: {e}")
     
     def get_recent_alerts(self, limit: int = 10) -> List[Dict]:
         """

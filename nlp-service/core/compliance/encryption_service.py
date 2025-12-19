@@ -410,13 +410,18 @@ class PHIEncryptionService:
         return re_encrypted
 
 
-# Global instance (initialized lazily)
-_encryption_service: Optional[PHIEncryptionService] = None
+# Global encryption service instance
+_encryption_service: Optional["PHIEncryptionService"] = None
 
 
-def get_encryption_service(mock_mode: bool = False) -> PHIEncryptionService:
-    """Get or create the global encryption service instance."""
+def get_encryption_service() -> "PHIEncryptionService":
+    """
+    Get or create the global PHI encryption service instance.
+    
+    Returns:
+        PHIEncryptionService instance
+    """
     global _encryption_service
     if _encryption_service is None:
-        _encryption_service = PHIEncryptionService(mock_mode=mock_mode)
+        _encryption_service = PHIEncryptionService()
     return _encryption_service
