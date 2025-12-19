@@ -80,6 +80,7 @@ class NLPState:
     model_version_manager = None
     memory_manager = None
     memory_observability = None
+    nlp_service = None  # Add NLPService instance
 
 # Validate dependencies on startup
 validate_dependencies()
@@ -90,6 +91,8 @@ from nlp.entity_extractor import EntityExtractor
 from nlp.sentiment_analyzer import SentimentAnalyzer
 from nlp.ollama_generator import OllamaGenerator, ExternalServiceError
 from nlp.integrated_ai_service import IntegratedAIService
+# Import NLPService
+from core.services.nlp_service import NLPService
 
 # Import Medical AI components
 from medical_ai.risk_assessor import RiskAssessor
@@ -301,6 +304,14 @@ async def lifespan(app: FastAPI):
         risk_assessor = RiskAssessor()
         model_version_manager = ModelVersionManager()
         
+        # Initialize NLP Service for parallel processing
+        nlp_service = NLPService(
+            intent_recognizer=intent_recognizer,
+            sentiment_analyzer=sentiment_analyzer,
+            entity_extractor=entity_extractor,
+            risk_assessor=risk_assessor
+        )
+        
         # Initialize Integrated AI Service
         integrated_ai = IntegratedAIService(
             ollama_client=ollama_generator,
@@ -317,6 +328,7 @@ async def lifespan(app: FastAPI):
         NLPState.model_version_manager = model_version_manager
         NLPState.memory_manager = memory_manager
         NLPState.memory_observability = memory_observability
+        NLPState.nlp_service = nlp_service  # Add NLPService to global state
         
         NLPState.memory_observability = memory_observability
         

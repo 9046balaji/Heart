@@ -18,6 +18,7 @@ class NLPState:
     entity_extractor = None
     risk_assessor = None
     memory_manager = None
+    nlp_service = None  # Add NLPService reference
 
 
 # ========================================
@@ -251,3 +252,23 @@ async def rate_limiter(request: Request):
         True (always passes)
     """
     return True
+
+
+def get_nlp_service():
+    """
+    Dependency: Get NLP service from app state.
+    
+    Returns:
+        NLPService instance
+        
+    Raises:
+        HTTPException: If service not initialized
+    """
+    from main import NLPState as MainNLPState
+    
+    if MainNLPState.nlp_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="NLPService not initialized"
+        )
+    return MainNLPState.nlp_service

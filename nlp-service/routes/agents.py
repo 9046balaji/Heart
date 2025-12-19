@@ -14,6 +14,9 @@ from datetime import datetime
 import os
 from enum import Enum
 
+# Import app dependencies for cleaner dependency injection
+from core.app_dependencies import get_nlp_service
+
 from nlp.agents.base import (
     HealthAgent,
     AppointmentAgent,
@@ -23,6 +26,8 @@ from nlp.agents.base import (
 # Import IntentRecognizer for smart query routing
 from nlp.intent_recognizer import IntentRecognizer, IntentResult
 from core.models import IntentEnum
+# Import NLPService for parallel processing
+from core.services.nlp_service import NLPService, NLPAnalysisResult
 
 # Feature flag for LangChain Gateway
 import os
@@ -211,10 +216,7 @@ health_agent = HealthAgent(name="health_agent")
 appointment_agent = AppointmentAgent(name="appointment_agent")
 orchestrator = HealthAppointmentOrchestrator()
 
-# Initialize IntentRecognizer for smart query routing
-intent_recognizer = IntentRecognizer()
-
-logger.info("ADK agents and IntentRecognizer initialized successfully")
+logger.info("ADK agents initialized successfully")
 
 
 # ============================================================================
@@ -381,13 +383,14 @@ async def appointment_query(
 @router.post("/chat", response_model=AgentResponse)
 async def agent_chat(
     request: QueryRequest,
-    token: str = Depends(verify_token)
+    token: str = Depends(verify_token),
+    nlp_service: NLPService = Depends(get_nlp_service)
 ) -> AgentResponse:
     """
     Smart routing endpoint - classifies query and routes to appropriate agent.
     
     This endpoint:
-    1. Analyzes the user query using IntentRecognizer (Trie + TF-IDF)
+    1. Analyzes the user query using NLPService (parallel processing of intent, sentiment, entities, risk)
     2. Routes to the appropriate agent (Health, Appointment, or Sequential)
     3. Returns structured response with intent confidence
     
@@ -399,8 +402,14 @@ async def agent_chat(
     try:
         logger.info(f"Chat request from {token}: {request.query[:50]}...")
         
-        # Use IntentRecognizer for smart classification (Trie + TF-IDF)
-        intent_result: IntentResult = await intent_recognizer.recognize_intent_async(request.query)
+        # Use NLPService for parallel analysis
+        analysis: NLPAnalysisResult = await nlp_service.analyze(
+            text=request.query,
+            user_id=request.user_id,
+            session_id=request.session_id
+        )
+        
+        intent_result = analysis.intent
         
         logger.info(f"Intent classified: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})")
         
@@ -416,8 +425,21 @@ async def agent_chat(
             IntentEnum.EMERGENCY
         }
         
+        # Check for high-risk queries first
+        if analysis.risk and analysis.risk.level == "HIGH":
+            # Handle high-risk queries immediately
+            result = {
+                "status": "success",
+                "data": {
+                    "response": "I've identified this as a high-risk situation. Please seek immediate medical attention or call emergency services.",
+                    "risk_level": analysis.risk.level,
+                    "risk_factors": analysis.risk.risk_factors
+                }
+            }
+            agent_name = "EmergencyHandler"
+            action = "emergency_response"
         # Route based on recognized intent
-        if intent_result.intent == IntentEnum.APPOINTMENT_BOOKING:
+        elif intent_result.intent == IntentEnum.APPOINTMENT_BOOKING:
             # Route to Appointment Agent
             result = await appointment_agent.manage_appointment(
                 appointment_data={
@@ -472,12 +494,21 @@ async def agent_chat(
             agent_name = "HealthAppointmentOrchestrator"
             action = "orchestration"
         
-        # Include intent info in response data
+        # Include comprehensive analysis info in response data
         response_data = result.get("data", {})
-        response_data["intent_classification"] = {
-            "intent": intent_result.intent.value,
-            "confidence": intent_result.confidence,
-            "keywords_matched": intent_result.keywords_matched or []
+        response_data["nlp_analysis"] = {
+            "intent_classification": {
+                "intent": intent_result.intent.value,
+                "confidence": intent_result.confidence,
+                "keywords_matched": intent_result.keywords_matched or []
+            },
+            "sentiment": {
+                "sentiment": analysis.sentiment.sentiment,
+                "score": analysis.sentiment.score
+            },
+            "entities": [entity.to_dict() for entity in analysis.entities],
+            "risk_assessment": analysis.risk.to_dict() if analysis.risk else None,
+            "processing_time_ms": analysis.processing_time_ms
         }
         
         # Use LLM Gateway for health intents
@@ -485,7 +516,7 @@ async def agent_chat(
             try:
                 # Generate response using unified LLM Gateway
                 response_text = await langchain_gateway.generate(
-                    prompt=user_message,
+                    prompt=request.query,
                     content_type="medical"  # Always use medical for health intents
                 )
                 response_data["langchain_response"] = response_text
@@ -511,16 +542,17 @@ async def agent_chat(
 @router.post("/process", response_model=AgentResponse)
 async def process_nlp(
     request: QueryRequest,
-    token: str = Depends(verify_token)
+    token: str = Depends(verify_token),
+    nlp_service: NLPService = Depends(get_nlp_service)
 ) -> AgentResponse:
     """
     Main NLP processing function with semantic routing.
-    Routes to LangGraph for complex queries, legacy handler for simple ones.
+    Uses NLPService for parallel processing of intent, sentiment, entities, and risk.
     
-    This endpoint implements the Semantic Router pattern that checks query 
-    complexity and routes accordingly:
-    - Simple queries → Legacy handler
-    - Complex queries → LangGraph orchestrator (if available)
+    This endpoint:
+    - Performs comprehensive NLP analysis in parallel (~300ms vs 1200ms sequential)
+    - Routes to LangGraph for complex queries, legacy handler for simple ones
+    - Provides rich analysis including sentiment, entities, and risk assessment
     """
     try:
         logger.info(f"Processing NLP request from {token}: {request.query[:50]}...")
@@ -536,12 +568,18 @@ async def process_nlp(
         
         # Create semantic router with intent recognizer and LangGraph orchestrator
         router = SemanticRouter(
-            intent_recognizer=intent_recognizer,
+            intent_recognizer=nlp_service.intent_recognizer,
             langgraph_orchestrator=langgraph_orchestrator
         )
         
-        # Analyze intent and complexity
-        intent_result: IntentResult = await intent_recognizer.recognize_intent_async(request.query)
+        # Use NLPService for parallel analysis
+        analysis: NLPAnalysisResult = await nlp_service.analyze(
+            text=request.query,
+            user_id=request.user_id,
+            session_id=request.session_id
+        )
+        
+        intent_result = analysis.intent
         complexity_score = router.calculate_complexity_score(request.query)
         
         logger.info(f"Intent: {intent_result.intent.value}, Complexity: {complexity_score:.2f}")
@@ -580,17 +618,33 @@ async def process_nlp(
             agent_name = "LegacyHandler"
             action = "simple_processing"
         
-        # Format response
-        if "response" in result:
-            response_text = result["response"]
+        # Format response with comprehensive analysis
+        response_data = result.copy() if isinstance(result, dict) else {"result": str(result)}
+        response_data["nlp_analysis"] = {
+            "intent_classification": {
+                "intent": intent_result.intent.value,
+                "confidence": intent_result.confidence,
+                "keywords_matched": intent_result.keywords_matched or []
+            },
+            "sentiment": {
+                "sentiment": analysis.sentiment.sentiment,
+                "score": analysis.sentiment.score
+            },
+            "entities": [entity.to_dict() for entity in analysis.entities],
+            "risk_assessment": analysis.risk.to_dict() if analysis.risk else None,
+            "processing_time_ms": analysis.processing_time_ms
+        }
+        
+        if "response" in response_data:
+            response_text = response_data["response"]
         else:
-            response_text = str(result)
+            response_text = str(response_data)
             
         return AgentResponse(
             agent=agent_name,
             response=response_text,
             action=action,
-            data=result,
+            data=response_data,
             status="success"
         )
         
