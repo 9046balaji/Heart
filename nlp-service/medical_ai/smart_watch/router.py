@@ -22,9 +22,11 @@ from config import (
     LOG_LEVEL
 )
 
+# Import schemas
+from schemas.vitals import VitalsSubmission, VitalsReading
+
 # Import dependencies
-# Note: We'll need to ensure these dependencies exist or create them
-# from core.dependencies import get_current_user  # Example dependency
+from core.security import get_current_user
 
 # Import ML components (will be moved to this package)
 from .anomaly_detector import AnomalyDetector
@@ -83,6 +85,20 @@ class HealthQuestionRequest(BaseModel):
     question: str = Field(..., description="Health question to ask")
     include_vitals: bool = Field(True, description="Include vitals in context")
 
+class DeviceRegistrationRequest(BaseModel):
+    """Request model for device registration."""
+    device_id: str = Field(..., description="Unique device identifier")
+    device_type: str = Field(..., description="Device type (e.g., apple_watch, fitbit)")
+    name: Optional[str] = Field(None, description="User-friendly device name")
+
+class DeviceRegistrationResponse(BaseModel):
+    """Response model for device registration."""
+    device_id: str
+    user_id: str
+    device_type: str
+    registered_at: datetime.datetime
+    is_active: bool
+
 # --------- Dependencies ----------
 def verify_device_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")):
     """Dependency to enforce API Key auth on routes."""
@@ -128,16 +144,95 @@ async def ingest_timeseries_data(
     background: BackgroundTasks,
     authorized: bool = Depends(verify_device_api_key),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Accepts high-frequency data from devices and offloads writing to background.
+    
+    Args:
+        payload: Time series data from device
+        background: Background tasks handler
+        authorized: Device API key validation
+        x_idempotency_key: Idempotency key for duplicate prevention
+        current_user: Authenticated user from JWT token
     """
+    # ✅ CRITICAL: Validate device ownership before accepting vitals
+    # Check if device is registered to the current user
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+    
+    query = """
+        SELECT user_id FROM user_devices 
+        WHERE device_id = $1 AND is_active = TRUE
+    """
+    
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(query, payload.device_id)
+        if not row or row['user_id'] != current_user.get("user_id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Device not registered to your account"
+            )
+    
     logger.info(f"Received {len(payload.samples)} samples from {payload.device_id}")
     background.add_task(_persist_samples, payload.device_id, payload.samples, x_idempotency_key)
     return {
         "status": "accepted",
         "device_id": payload.device_id,
         "count": len(payload.samples)
+    }
+
+@router.post("/vitals/schema", status_code=201)
+async def ingest_vitals_with_schema(
+    submission: VitalsSubmission,
+    background: BackgroundTasks,
+    authorized: bool = Depends(verify_device_api_key),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Accepts validated vitals data from devices using Pydantic schema validation.
+    
+    Args:
+        submission: Validated vitals submission with device ID
+        background: Background tasks handler
+        authorized: Device API key validation
+        x_idempotency_key: Idempotency key for duplicate prevention
+        current_user: Authenticated user from JWT token
+    """
+    # ✅ CRITICAL: Validate device ownership before accepting vitals
+    # Check if device is registered to the current user
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+    
+    query = """
+        SELECT user_id FROM user_devices 
+        WHERE device_id = $1 AND is_active = TRUE
+    """
+    
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(query, submission.device_id)
+        if not row or row['user_id'] != current_user.get("user_id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Device not registered to your account"
+            )
+    
+    # Convert Pydantic model to dict for storage
+    reading_dict = submission.reading.dict()
+    
+    logger.info(f"Received vitals reading from {submission.device_id}")
+    
+    # Store in Redis using the existing RedisVitalsStore
+    # Note: This is a simplified approach - in production, you'd want to integrate this better
+    from core.services.redis_vitals_store import RedisVitalsStore
+    vitals_store = RedisVitalsStore()
+    vitals_store.add_reading(submission.device_id, reading_dict)
+    
+    return {
+        "status": "accepted",
+        "device_id": submission.device_id,
+        "timestamp": reading_dict.get("timestamp")
     }
 
 # --------- Core Logic: Aggregation (Read) ----------
@@ -335,6 +430,73 @@ async def acknowledge_alert(
     else:
         raise HTTPException(status_code=404, detail="Alert not found")
 
+
+@router.post("/register", response_model=DeviceRegistrationResponse)
+async def register_device(
+    request: DeviceRegistrationRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Register a smartwatch device to a user account.
+    
+    Args:
+        request: Device registration details
+        current_user: Authenticated user from JWT token
+        
+    Returns:
+        Confirmation of device registration
+    """
+    if not db_pool:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+    
+    user_id = current_user.get("user_id")
+    
+    # Check if device is already registered
+    check_query = """
+        SELECT id FROM user_devices 
+        WHERE device_id = $1
+    """
+    
+    insert_query = """
+        INSERT INTO user_devices (user_id, device_id, device_type, registered_at, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, user_id, device_id, device_type, registered_at, is_active
+    """
+    
+    async with db_pool.acquire() as conn:
+        # Check if device already exists
+        existing = await conn.fetchrow(check_query, request.device_id)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Device already registered"
+            )
+        
+        # Register new device
+        try:
+            row = await conn.fetchrow(
+                insert_query,
+                user_id,
+                request.device_id,
+                request.device_type,
+                datetime.datetime.now(datetime.timezone.utc),
+                True
+            )
+            
+            return DeviceRegistrationResponse(
+                device_id=row['device_id'],
+                user_id=row['user_id'],
+                device_type=row['device_type'],
+                registered_at=row['registered_at'],
+                is_active=row['is_active']
+            )
+        except Exception as e:
+            logger.error(f"Failed to register device: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to register device"
+            )
+
 # --------- Startup/Shutdown Logic for Router ----------
 # Routers don't have lifespan, so we need a way to initialize the DB pool.
 # We can expose an init function to be called by main.py's lifespan.
@@ -346,8 +508,28 @@ async def init_smartwatch_module():
     try:
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
         logger.info("Smart Watch DB pool created.")
+        
+        # Create user_devices table if it doesn't exist
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS user_devices (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(255) NOT NULL,
+            device_id VARCHAR(255) UNIQUE NOT NULL,
+            device_type VARCHAR(100),
+            registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE
+        );
+        
+        CREATE INDEX IF NOT EXISTS user_devices_user_id_idx ON user_devices (user_id);
+        CREATE INDEX IF NOT EXISTS user_devices_device_id_idx ON user_devices (device_id);
+        """
+        
+        async with db_pool.acquire() as conn:
+            await conn.execute(create_table_sql)
+            logger.info("User devices table ensured")
+            
     except Exception as e:
-        logger.error(f"Failed to connect to DB: {e}")
+        logger.error(f"Failed to connect to DB or create tables: {e}")
         # Don't raise, allow partial startup? Or raise?
         # For now, log error.
     

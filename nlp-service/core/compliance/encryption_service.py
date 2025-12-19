@@ -78,6 +78,7 @@ class PHIEncryptionService:
         'medical_history',
         'family_history',
         'medication_history',
+        'chronic_conditions',
         
         # Financial
         'insurance_id',

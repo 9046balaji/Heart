@@ -353,6 +353,11 @@ def similarity(text1: str, text2: str) -> float:
     return EmbeddingService.get_instance().similarity(text1, text2)
 
 
+def get_embedding_service() -> EmbeddingService:
+    """Get or create embedding service singleton."""
+    return EmbeddingService.get_instance()
+
+
 # =============================================================================
 # TESTING
 # =============================================================================

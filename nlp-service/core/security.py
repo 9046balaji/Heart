@@ -4,7 +4,6 @@ Provides JWT authentication, rate limiting, and audit logging
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
-import hashlib
 import os
 import time
 import logging
@@ -15,16 +14,41 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
+# Import Argon2 for secure password hashing
+try:
+    from argon2 import PasswordHasher
+    from argon2.exceptions import VerifyMismatchError
+    ARGON2_AVAILABLE = True
+except ImportError:
+    ARGON2_AVAILABLE = False
+    logger.warning("argon2-cffi not available - falling back to SHA-256")
+
 logger = logging.getLogger(__name__)
 
-# Simple password hashing using hashlib (for demonstration purposes)
+# Password hashing using Argon2 (OWASP recommended) or fallback to SHA-256
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using Argon2 (preferred) or SHA-256 (fallback)."""
+    if ARGON2_AVAILABLE:
+        ph = PasswordHasher()
+        return ph.hash(password)
+    else:
+        # Fallback to SHA-256 for backward compatibility
+        import hashlib
+        return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return hash_password(plain_password) == hashed_password
+    """Verify a password against its hash using Argon2 (preferred) or SHA-256 (fallback)."""
+    if ARGON2_AVAILABLE:
+        ph = PasswordHasher()
+        try:
+            ph.verify(hashed_password, plain_password)
+            return True
+        except VerifyMismatchError:
+            return False
+    else:
+        # Fallback to SHA-256 for backward compatibility
+        import hashlib
+        return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
 
 # JWT authentication scheme
 bearer_scheme = HTTPBearer()

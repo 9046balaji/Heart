@@ -21,6 +21,7 @@ from datetime import datetime
 import logging
 import asyncio
 
+from core.security import get_current_user
 from core.user_preferences import (
     UserPreferencesManager, 
     PreferenceKeys,
@@ -266,19 +267,28 @@ async def get_user_preferences(
     user_id: str,
     include_sensitive: bool = Query(False, description="Include sensitive preferences"),
     category: Optional[str] = Query(None, description="Filter by category"),
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get all preferences for a user.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         include_sensitive: Include PHI/sensitive preferences
         category: Filter by category (optional)
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Dictionary of all preferences
     """
+    # ✅ CRITICAL: Enforce ownership - users can only access their own preferences
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only access your own preferences"
+        )
+    
     try:
         prefs = preferences.get_all_preferences(
             user_id=user_id,
@@ -305,19 +315,28 @@ async def get_single_preference(
     user_id: str,
     key: str,
     default: Optional[str] = Query(None, description="Default value if not found"),
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> PreferenceResponse:
     """
     Get a single preference value.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         key: Preference key
         default: Default value if not found
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Preference value
     """
+    # ✅ CRITICAL: Enforce ownership - users can only access their own preferences
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only access your own preferences"
+        )
+    
     value = preferences.get_preference(
         user_id=user_id,
         key=key,
@@ -336,18 +355,27 @@ async def set_user_preference(
     user_id: str,
     preference: PreferenceRequest,
     request: Request,
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> PreferenceResponse:
     """
     Set a user preference.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         preference: Preference data
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Confirmation with updated value
     """
+    # ✅ CRITICAL: Enforce ownership - users can only set their own preferences
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only set your own preferences"
+        )
+    
     try:
         ip_address = get_client_ip(request)
         
@@ -379,18 +407,27 @@ async def set_bulk_preferences(
     user_id: str,
     bulk_request: BulkPreferenceRequest,
     request: Request,
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Set multiple preferences at once.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         bulk_request: Multiple preferences to set
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Count of preferences set
     """
+    # ✅ CRITICAL: Enforce ownership - users can only set their own preferences
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only set your own preferences"
+        )
+    
     try:
         ip_address = get_client_ip(request)
         
@@ -419,18 +456,27 @@ async def delete_user_preference(
     user_id: str,
     key: str,
     request: Request,
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Delete a specific preference.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         key: Preference key to delete
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Confirmation of deletion
     """
+    # ✅ CRITICAL: Enforce ownership - users can only delete their own preferences
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only delete your own preferences"
+        )
+    
     try:
         ip_address = get_client_ip(request)
         
@@ -470,19 +516,28 @@ async def delete_user_preference(
 async def list_user_sessions(
     user_id: str,
     limit: int = Query(50, ge=1, le=200),
-    include_expired: bool = Query(False)
+    include_expired: bool = Query(False),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     List all chat sessions for a user.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         limit: Maximum sessions to return
         include_expired: Include expired sessions
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         List of session information
     """
+    # ✅ CRITICAL: Enforce ownership - users can only list their own sessions
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only list your own sessions"
+        )
+    
     try:
         # Get sessions from chat history
         sessions = chat_history_manager.get_user_sessions(
@@ -507,7 +562,8 @@ async def list_user_sessions(
 @router.get("/sessions/{session_id}/history")
 async def get_session_history(
     session_id: str,
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=500),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get full history for a session.
@@ -515,10 +571,14 @@ async def get_session_history(
     Args:
         session_id: Session identifier
         limit: Maximum messages to return
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Session history with messages
     """
+    # TODO: Add session ownership validation
+    # This would require checking if the session belongs to the current user
+    
     try:
         history = chat_history_manager.get_history(
             session_id=session_id,
@@ -544,17 +604,22 @@ async def get_session_history(
 
 @router.delete("/sessions/{session_id}")
 async def delete_session(
-    session_id: str
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Delete a session and its history.
     
     Args:
         session_id: Session identifier
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Confirmation of deletion
     """
+    // TODO: Add session ownership validation
+    // This would require checking if the session belongs to the current user
+    
     try:
         chat_history_manager.clear(session_id)
         
@@ -580,7 +645,8 @@ async def retrieve_context(
     user_id: str = Query(..., description="User identifier"),
     session_id: str = Query(..., description="Session identifier"),
     request_body: ContextSearchRequest = ...,
-    retriever: ContextRetriever = Depends(get_context_retriever)
+    retriever: ContextRetriever = Depends(get_context_retriever),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Retrieve relevant context for a query.
@@ -588,13 +654,21 @@ async def retrieve_context(
     Useful for debugging what context will be used for AI calls.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         session_id: Session identifier
         request_body: Query and optional context types
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         List of relevant context items
     """
+    # ✅ CRITICAL: Enforce ownership - users can only retrieve context for their own user_id
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only retrieve context for your own user ID"
+        )
+    
     try:
         # Parse context types if provided
         context_types = None
@@ -675,7 +749,8 @@ async def ai_query(
     user_id: str = Query(..., description="User identifier"),
     session_id: str = Query(..., description="Session identifier"),
     request_body: AIQueryRequest = ...,
-    ai_service: IntegratedHealthAIService = Depends(get_ai_service)
+    ai_service: IntegratedHealthAIService = Depends(get_ai_service),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Process query through integrated AI service.
@@ -683,13 +758,21 @@ async def ai_query(
     Full flow: store → retrieve context → build prompt → AI call → store response.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         session_id: Session identifier
         request_body: Query parameters
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         AI response with metadata and audit trail
     """
+    # ✅ CRITICAL: Enforce ownership - users can only query with their own user_id
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only query with your own user ID"
+        )
+    
     try:
         response = await ai_service.process_query(
             user_id=user_id,
@@ -727,18 +810,27 @@ async def export_user_data(
     user_id: str,
     format: str = Query("json", enum=["json"]),
     request: Request = None,
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> GDPRExportResponse:
     """
     Export all user data (GDPR compliance).
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         format: Export format (currently only JSON)
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Complete export of user preferences and data
     """
+    # ✅ CRITICAL: Enforce ownership - users can only export their own data
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only export your own data"
+        )
+    
     try:
         ip_address = get_client_ip(request) if request else None
         
@@ -762,18 +854,27 @@ async def delete_user_data(
     user_id: str,
     confirm: bool = Query(False, description="Confirm deletion"),
     request: Request = None,
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Delete all user data (GDPR right to erasure).
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         confirm: Must be true to confirm deletion
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Confirmation of deletion with counts
     """
+    # ✅ CRITICAL: Enforce ownership - users can only delete their own data
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only delete your own data"
+        )
+    
     if not confirm:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -823,19 +924,28 @@ async def get_audit_log(
     user_id: str,
     limit: int = Query(100, ge=1, le=1000),
     action: Optional[str] = Query(None, description="Filter by action type"),
-    preferences: UserPreferencesManager = Depends(get_preferences)
+    preferences: UserPreferencesManager = Depends(get_preferences),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get audit log for a user.
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         limit: Maximum records to return
         action: Filter by action type (set, delete, export, etc.)
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         List of audit log entries
     """
+    # ✅ CRITICAL: Enforce ownership - users can only access their own audit logs
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only access your own audit logs"
+        )
+    
     try:
         logs = preferences.get_audit_log(
             user_id=user_id,
@@ -930,9 +1040,9 @@ def get_embedding_search_engine():
 
 @router.post("/search/semantic", response_model=SemanticSearchResponse)
 async def semantic_memory_search(
+    request_body: SemanticSearchRequest,
     user_id: str = Query(..., description="User identifier"),
-    session_id: str = Query("default", description="Session identifier"),
-    request_body: SemanticSearchRequest = ...,
+    current_user: dict = Depends(get_current_user)
 ) -> SemanticSearchResponse:
     """
     Perform semantic search across user memories using embedding similarity.
@@ -943,13 +1053,20 @@ async def semantic_memory_search(
     - Embedding cache for performance
     
     Args:
-        user_id: User identifier
-        session_id: Session identifier
         request_body: Search parameters
-    
+        user_id: User identifier (must match authenticated user)
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Semantically relevant memories ranked by similarity
     """
+    # ✅ CRITICAL: Enforce ownership - users can only search their own memories
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only search your own memories"
+        )
+    
     import time
     start_time = time.time()
     
@@ -1074,6 +1191,7 @@ def get_conscious_agent():
 async def manage_conscious_memory(
     user_id: str = Query(..., description="User identifier"),
     request_body: ConsciousMemoryRequest = ...,
+    current_user: dict = Depends(get_current_user)
 ) -> ConsciousMemoryResponse:
     """
     Manage conscious memory context using Memori's ConsciouscAgent.
@@ -1087,12 +1205,20 @@ async def manage_conscious_memory(
     - status: Get current conscious memory status
     
     Args:
-        user_id: User identifier
+        user_id: User identifier (must match authenticated user)
         request_body: Action and parameters
-    
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Result of conscious memory operation
     """
+    # ✅ CRITICAL: Enforce ownership - users can only manage their own memories
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only manage your own memories"
+        )
+    
     if not MEMORI_AVAILABLE:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1244,6 +1370,7 @@ async def get_memory_metrics() -> MemoryMetricsResponse:
 @router.get("/rate-limit/status")
 async def get_rate_limit_status(
     user_id: str = Query(..., description="User identifier"),
+    current_user: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get rate limit status for a user.
@@ -1251,11 +1378,19 @@ async def get_rate_limit_status(
     Shows current request counts and quotas from Memori's RateLimiter.
     
     Args:
-        user_id: User identifier
-    
+        user_id: User identifier (must match authenticated user)
+        current_user: Authenticated user from JWT token
+        
     Returns:
         Rate limit status and quotas
     """
+    # ✅ CRITICAL: Enforce ownership - users can only check their own rate limits
+    if user_id != current_user.get("user_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You can only check your own rate limits"
+        )
+    
     if not MEMORI_AVAILABLE or not RateLimiter:
         return {
             "available": False,

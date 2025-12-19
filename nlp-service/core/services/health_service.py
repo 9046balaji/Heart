@@ -12,8 +12,9 @@ from datetime import datetime
 from typing import Optional, List
 import logging
 
-from models.health import HealthRecord
-from services.encryption_service import get_encryption_service
+from ..models.health import HealthRecord
+from ..models.access_log import HealthRecordAccessLog  # Import the new access log model
+from ..services.encryption_service import get_encryption_service
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create all tables
+# Create all tables including the new access log table
 Base.metadata.create_all(bind=engine)
 logger.info(f"Database initialized: {_db_url}")
 
@@ -135,11 +136,22 @@ class HealthService:
                 allergies_encrypted=encrypted_allergies,
                 chronic_conditions=health_data.chronic_conditions,
                 data_classification=health_data.data_classification,
-                hipaa_consent=health_data.hipaa_consent,
-                accessed_by=[user_id]
+                hipaa_consent=health_data.hipaa_consent
+                # ✅ Remove accessed_by field - using dedicated access log table instead
             )
             
             session.add(db_record)
+            
+            # ✅ Log the creation in the access log table
+            access_log = HealthRecordAccessLog(
+                patient_id=health_data.patient_id,
+                user_id=user_id,
+                access_type="create",
+                accessed_at=datetime.now(),
+                ip_address=None  # Would need to pass this in from the request context
+            )
+            session.add(access_log)
+            
             session.commit()
             
             logger.info(
@@ -213,11 +225,17 @@ class HealthService:
                 modified_at=db_record.modified_at
             )
             
-            # Update access audit
-            accessed_by = db_record.accessed_by or []
-            if user_id not in accessed_by:
-                accessed_by.append(user_id)
-            db_record.accessed_by = accessed_by  # Explicitly set to trigger SQLAlchemy tracking
+            # ✅ Use dedicated table for audit logging instead of JSON column
+            access_log = HealthRecordAccessLog(
+                patient_id=patient_id,
+                user_id=user_id,
+                access_type="view",
+                accessed_at=datetime.now(),
+                ip_address=None  # Would need to pass this in from the request context
+            )
+            session.add(access_log)
+            
+            # Update last accessed time
             db_record.last_accessed_at = datetime.now()
             session.commit()
             
@@ -229,6 +247,7 @@ class HealthService:
         
         except Exception as e:
             logger.error(f"Error retrieving health record: {e}")
+            session.rollback()  # Rollback in case of error
             return None
         
         finally:
@@ -275,10 +294,15 @@ class HealthService:
             db_record.modified_at = datetime.now()
             db_record.chronic_conditions = health_data.chronic_conditions
             
-            accessed_by = db_record.accessed_by or []
-            if user_id not in accessed_by:
-                accessed_by.append(user_id)
-            db_record.accessed_by = accessed_by  # Explicitly set to trigger SQLAlchemy tracking
+            # ✅ Use dedicated table for audit logging instead of JSON column
+            access_log = HealthRecordAccessLog(
+                patient_id=patient_id,
+                user_id=user_id,
+                access_type="edit",
+                accessed_at=datetime.now(),
+                ip_address=None  # Would need to pass this in from the request context
+            )
+            session.add(access_log)
             
             session.commit()
             
@@ -320,10 +344,16 @@ class HealthService:
             
             db_record.is_active = False
             db_record.modified_at = datetime.now()
-            accessed_by = db_record.accessed_by or []
-            if user_id not in accessed_by:
-                accessed_by.append(user_id)
-            db_record.accessed_by = accessed_by  # Explicitly set to trigger SQLAlchemy tracking
+            
+            # ✅ Use dedicated table for audit logging instead of JSON column
+            access_log = HealthRecordAccessLog(
+                patient_id=patient_id,
+                user_id=user_id,
+                access_type="delete",
+                accessed_at=datetime.now(),
+                ip_address=None  # Would need to pass this in from the request context
+            )
+            session.add(access_log)
             
             session.commit()
             
@@ -338,7 +368,7 @@ class HealthService:
         finally:
             session.close()
     
-    def get_access_audit_log(self, patient_id: str) -> Optional[List[str]]:
+    def get_access_audit_log(self, patient_id: str) -> Optional[List[Dict]]:
         """
         Get audit log of who accessed this record.
         
@@ -346,18 +376,29 @@ class HealthService:
             patient_id: Patient ID
             
         Returns:
-            List of user IDs or None if record not found
+            List of access log entries or None if record not found
         """
         session = SessionLocal()
         try:
-            db_record = session.query(HealthRecordDB).filter(
-                HealthRecordDB.patient_id == patient_id
-            ).first()
+            # Query the dedicated access log table
+            access_logs = session.query(HealthRecordAccessLog).filter(
+                HealthRecordAccessLog.patient_id == patient_id
+            ).order_by(HealthRecordAccessLog.accessed_at.desc()).all()
             
-            if not db_record:
-                return None
-            
-            return db_record.accessed_by
+            # Convert to list of dictionaries
+            return [
+                {
+                    "user_id": log.user_id,
+                    "access_type": log.access_type,
+                    "accessed_at": log.accessed_at.isoformat() if log.accessed_at else None,
+                    "ip_address": log.ip_address
+                }
+                for log in access_logs
+            ]
+        
+        except Exception as e:
+            logger.error(f"Error retrieving access audit log: {e}")
+            return None
         
         finally:
             session.close()
@@ -464,7 +505,7 @@ class HealthService:
             user_id
         )
     
-    async def get_access_audit_log_async(self, patient_id: str) -> Optional[List[str]]:
+    async def get_access_audit_log_async(self, patient_id: str) -> Optional[List[Dict]]:
         """
         Get audit log of who accessed this record asynchronously (non-blocking).
         PHASE 2A ENHANCEMENT: Async variant avoids blocking event loop.
@@ -473,7 +514,7 @@ class HealthService:
             patient_id: Patient ID
             
         Returns:
-            List of user IDs or None if record not found
+            List of access log entries or None if record not found
         """
         from fastapi.concurrency import run_in_threadpool
         return await run_in_threadpool(

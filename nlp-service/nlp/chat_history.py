@@ -33,6 +33,14 @@ except ImportError:
     import logging
     logger = logging.getLogger(__name__)
 
+# Import encryption service for PHI protection
+try:
+    from core.compliance.encryption_service import get_encryption_service
+    ENCRYPTION_AVAILABLE = True
+except ImportError:
+    ENCRYPTION_AVAILABLE = False
+    logger.warning("Encryption service not available - chat metadata will not be encrypted")
+
 # SQLAlchemy model for persistent chat history
 if SQLALCHEMY_AVAILABLE:
     Base = declarative_base()
@@ -49,15 +57,34 @@ if SQLALCHEMY_AVAILABLE:
         metadata_json = Column(Text, default="{}")  # JSON serialized metadata
         created_at = Column(DateTime, default=datetime.utcnow, index=True)
         
-        def to_dict(self) -> Dict[str, Any]:
-            """Convert to dictionary."""
+        def to_dict(self, encryption_service=None) -> Dict[str, Any]:
+            """Convert to dictionary with optional metadata decryption."""
+            # Parse metadata, decrypting if necessary
+            metadata = {}
+            if self.metadata_json:
+                try:
+                    if encryption_service and self.metadata_json.startswith("ENC:"):
+                        # Decrypt encrypted metadata
+                        decrypted_metadata = encryption_service.decrypt_field(self.metadata_json)
+                        metadata = json.loads(decrypted_metadata)
+                    else:
+                        # Legacy unencrypted metadata
+                        metadata = json.loads(self.metadata_json)
+                except Exception as e:
+                    logger.error(f"Failed to parse/decrypt metadata: {e}")
+                    # Fall back to raw metadata
+                    try:
+                        metadata = json.loads(self.metadata_json)
+                    except:
+                        metadata = {}
+            
             return {
                 "id": self.id,
                 "session_id": self.session_id,
                 "user_id": self.user_id,
                 "role": self.role,
                 "content": self.content,
-                "metadata": json.loads(self.metadata_json) if self.metadata_json else {},
+                "metadata": metadata,
                 "created_at": self.created_at.isoformat() if self.created_at else None
             }
     
@@ -180,6 +207,15 @@ class PersistentChatHistory:
         self.timeout_policy = timeout_policy or SessionTimeoutPolicy()
         self.in_memory_cache_size = in_memory_cache_size
         
+        # Initialize encryption service if available
+        self._encryption = None
+        if ENCRYPTION_AVAILABLE:
+            try:
+                self._encryption = get_encryption_service()
+                logger.info("Chat history encryption service initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize encryption service: {e}")
+        
         # Initialize database
         self.engine = create_engine(
             self.database_url,
@@ -290,6 +326,19 @@ class PersistentChatHistory:
         Returns:
             Message ID
         """
+        # Encrypt metadata if encryption service is available
+        encrypted_metadata = None
+        if metadata and self._encryption:
+            try:
+                metadata_json = json.dumps(metadata)
+                encrypted_metadata = self._encryption.encrypt_field(metadata_json)
+            except Exception as e:
+                logger.error(f"Failed to encrypt metadata: {e}")
+                # Fall back to unencrypted metadata
+                encrypted_metadata = json.dumps(metadata)
+        else:
+            encrypted_metadata = json.dumps(metadata or {})
+        
         with self._get_db() as db:
             # Ensure session exists
             chat_session = db.query(ChatSession).filter_by(session_id=session_id).first()
@@ -303,13 +352,22 @@ class PersistentChatHistory:
                 chat_session.last_activity = datetime.utcnow()
                 chat_session.message_count = (chat_session.message_count or 0) + 1
             
-            # Add message
+            # Encrypt content if encryption service is available
+            encrypted_content = content
+            if self._encryption:
+                try:
+                    encrypted_content = self._encryption.encrypt_field(content)
+                except Exception as e:
+                    logger.error(f"Failed to encrypt content: {e}")
+                    # Fall back to unencrypted content
+                    
+            # Add message with encrypted content and metadata
             message = ChatMessage(
                 session_id=session_id,
                 user_id=user_id,
                 role=role,
-                content=content,
-                metadata_json=json.dumps(metadata or {})
+                content=encrypted_content,
+                metadata_json=encrypted_metadata
             )
             db.add(message)
             db.flush()
@@ -355,9 +413,67 @@ class PersistentChatHistory:
             messages = list(reversed(messages))
             
             if include_metadata:
-                history = [m.to_dict() for m in messages]
+                # Decrypt metadata if encryption service is available
+                history = []
+                for m in messages:
+                    message_dict = {
+                        "id": m.id,
+                        "session_id": m.session_id,
+                        "user_id": m.user_id,
+                        "role": m.role,
+                        "content": m.content,
+                        "created_at": m.created_at.isoformat() if m.created_at else None
+                    }
+                    
+                    # Decrypt content if it's encrypted
+                    if m.content and self._encryption:
+                        try:
+                            if m.content.startswith("ENC:"):
+                                # Decrypt encrypted content
+                                message_dict["content"] = self._encryption.decrypt_field(m.content)
+                        except Exception as e:
+                            logger.error(f"Failed to decrypt content: {e}")
+                            # Fall back to raw content
+                    
+                    # Decrypt metadata if it's encrypted
+                    if m.metadata_json and self._encryption:
+                        try:
+                            if m.metadata_json.startswith("ENC:"):
+                                # Decrypt encrypted metadata
+                                decrypted_metadata = self._encryption.decrypt_field(m.metadata_json)
+                                message_dict["metadata"] = json.loads(decrypted_metadata)
+                            else:
+                                # Legacy unencrypted metadata
+                                message_dict["metadata"] = json.loads(m.metadata_json)
+                        except Exception as e:
+                            logger.error(f"Failed to decrypt metadata: {e}")
+                            # Fall back to raw metadata
+                            try:
+                                message_dict["metadata"] = json.loads(m.metadata_json)
+                            except:
+                                message_dict["metadata"] = {}
+                    else:
+                        # No encryption or no metadata
+                        try:
+                            message_dict["metadata"] = json.loads(m.metadata_json or "{}")
+                        except:
+                            message_dict["metadata"] = {}
+                    
+                    history.append(message_dict)
             else:
-                history = [{"role": m.role, "content": m.content} for m in messages]
+                history = []
+            for m in messages:
+                content = m.content
+                # Decrypt content if it's encrypted
+                if content and self._encryption:
+                    try:
+                        if content.startswith("ENC:"):
+                            # Decrypt encrypted content
+                            content = self._encryption.decrypt_field(content)
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt content: {e}")
+                        # Fall back to raw content
+                history.append({"role": m.role, "content": content})
         
         # Update cache
         self._update_cache(session_id, history)

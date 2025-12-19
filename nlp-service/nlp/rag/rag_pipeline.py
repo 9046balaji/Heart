@@ -102,15 +102,30 @@ class RAGResponse:
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     processing_time_ms: float = 0.0
     
-    def to_dict(self) -> Dict:
-        """Convert to dictionary for API response."""
-        return {
+    def to_dict(self, include_sources: bool = False) -> Dict:
+        """
+        Convert to dictionary for API response.
+        
+        Args:
+            include_sources: Only True for internal/admin APIs
+            
+        Returns:
+            Dictionary representation of the response
+        """
+        result = {
             "response": self.response,
-            "citations": self.citations,
-            "sources": {
+            "citations": self._get_safe_citations(),
+            "query": self.query,
+            "timestamp": self.timestamp,
+            "processing_time_ms": self.processing_time_ms,
+        }
+        
+        # Only include raw sources for internal debugging
+        if include_sources:
+            result["_debug_sources"] = {
                 "medical_sources": [
                     {
-                        "content": s["content"][:200],
+                        "content_preview": s["content"][:200] + "..." if len(s["content"]) > 200 else s["content"],
                         "source": s.get("metadata", {}).get("source"),
                         "score": s.get("score", 0),
                     }
@@ -118,17 +133,49 @@ class RAGResponse:
                 ],
                 "user_memories": [
                     {
-                        "content": m["content"][:100],
+                        "content_preview": m["content"][:100] + "..." if len(m["content"]) > 100 else m["content"],
                         "type": m.get("metadata", {}).get("type"),
                         "score": m.get("score", 0),
                     }
                     for m in self.context.user_memories
                 ],
-            },
-            "query": self.query,
-            "timestamp": self.timestamp,
-            "processing_time_ms": self.processing_time_ms,
-        }
+            }
+        
+        return result
+    
+    def _get_safe_citations(self) -> List[Dict]:
+        """Return only safe citation metadata, not raw content."""
+        safe_citations = []
+        
+        # Medical sources
+        for src in self.context.medical_sources:
+            meta = src.get("metadata", {})
+            safe_citations.append({
+                "type": "medical_knowledge",
+                "source": meta.get("source", "Unknown"),
+                "category": meta.get("category", "general"),
+                "score": src.get("score", 0),
+            })
+        
+        # Drug info
+        for drug in self.context.drug_info:
+            meta = drug.get("metadata", {})
+            safe_citations.append({
+                "type": "drug_info",
+                "drug_name": meta.get("drug_name", "Unknown"),
+                "score": drug.get("score", 0),
+            })
+        
+        # User memories (only metadata, no content)
+        for mem in self.context.user_memories:
+            meta = mem.get("metadata", {})
+            safe_citations.append({
+                "type": "user_memory",
+                "memory_type": meta.get("type", "general"),
+                "score": mem.get("score", 0),
+            })
+        
+        return safe_citations
 
 
 class RAGPipeline:
