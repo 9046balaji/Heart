@@ -30,13 +30,13 @@ USE_LANGCHAIN_GATEWAY = os.getenv("USE_LANGCHAIN_GATEWAY", "false").lower() == "
 
 # Initialize LangChain Gateway if enabled
 langchain_gateway = None
-if USE_LANGCHAIN_GATEWAY:
-    try:
-        from core.llm.langchain_gateway import LangChainGateway
-        langchain_gateway = LangChainGateway()
-        logger.info("✅ LangChain Gateway enabled")
-    except ImportError as e:
-        logger.warning(f"LangChain Gateway not available: {e}")
+
+try:
+    from core.llm.llm_gateway import get_llm_gateway
+    langchain_gateway = get_llm_gateway()
+    logger.info("✅ LLM Gateway (unified) initialized")
+except ImportError as e:
+    logger.warning(f"LLM Gateway not available: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -480,12 +480,13 @@ async def agent_chat(
             "keywords_matched": intent_result.keywords_matched or []
         }
         
-        # Use LangChain Gateway if enabled and intent is health-related
+        # Use LLM Gateway for health intents
         if langchain_gateway and intent_result.intent in health_intents:
             try:
+                # Generate response using unified LLM Gateway
                 response_text = await langchain_gateway.generate(
-                    request.query, 
-                    content_type="medical"
+                    prompt=user_message,
+                    content_type="medical"  # Always use medical for health intents
                 )
                 response_data["langchain_response"] = response_text
             except Exception as e:

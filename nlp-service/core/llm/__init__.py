@@ -1,9 +1,8 @@
 # LLM Gateway Module - LangChain, Guardrails, Observable LLM
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
+from .llm_gateway import LLMGateway, get_llm_gateway
 
 __all__ = [
-    # LLM gateway exports will be populated after import updates
+    "LLMGateway",
+    "get_llm_gateway"
 ]

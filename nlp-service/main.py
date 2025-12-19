@@ -201,7 +201,8 @@ else:
 # PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
 if NEW_AI_FRAMEWORKS_ENABLED:
     from nlp.agents.langgraph_orchestrator import create_langgraph_orchestrator
-    from core.llm.observable_llm_gateway import create_observable_llm_gateway
+    # Use unified LLM gateway instead of observable_llm_gateway
+    from core.llm.llm_gateway import get_llm_gateway
     from nlp.agents.crew_simulation import create_healthcare_crew
     print("[STARTUP] New AI frameworks loaded successfully")
 else:
@@ -398,6 +399,15 @@ if vision_router:
 
 if evaluation_router:
     app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
+
+# Initialize LLM Gateway (unified implementation)
+llm_gateway = None
+try:
+    from core.llm.llm_gateway import get_llm_gateway
+    llm_gateway = get_llm_gateway()
+    logger.info("✅ LLM Gateway (unified) initialized")
+except ImportError as e:
+    logger.warning(f"LLM Gateway not available: {e}")
 
 # Root endpoint
 @app.get("/")
