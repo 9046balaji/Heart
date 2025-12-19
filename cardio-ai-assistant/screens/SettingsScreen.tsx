@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Device } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { pdfExportService } from '../services/pdfExport';
+import { calendarService, CalendarServiceError } from '../services/calendarService';
+import { notificationService, NotificationServiceError } from '../services/notificationService';
+import type { CalendarProvider, WeeklySummaryPreferences, DeliveryChannel } from '../services/api.types';
 
 interface SettingsProps {
   isDark: boolean;
@@ -21,16 +24,25 @@ interface AppSettings {
   };
 }
 
+interface CalendarConnection {
+  provider: CalendarProvider;
+  connected: boolean;
+  email?: string;
+  lastSync?: string;
+}
+
+const USER_ID = 'demo_user_123'; // Would come from auth context in production
+
 // --- Extracted Modal Components ---
 
-const DevicesModal = ({ 
-  onClose, 
-  devices, 
-  onDisconnect, 
-  onConnect 
-}: { 
-  onClose: () => void, 
-  devices: Device[], 
+const DevicesModal = ({
+  onClose,
+  devices,
+  onDisconnect,
+  onConnect
+}: {
+  onClose: () => void,
+  devices: Device[],
   onDisconnect: (id: string) => void,
   onConnect: (device: Device) => void
 }) => {
@@ -41,51 +53,51 @@ const DevicesModal = ({
   const startScan = async () => {
     setIsScanning(true);
     setErrorMsg(null);
-    
+
     // Web Bluetooth API Logic
     if ('bluetooth' in navigator) {
-        try {
-            // Request device with Heart Rate Service
-            const device = await (navigator as any).bluetooth.requestDevice({
-                filters: [{ services: ['heart_rate'] }],
-                optionalServices: ['battery_service']
-            });
+      try {
+        // Request device with Heart Rate Service
+        const device = await (navigator as any).bluetooth.requestDevice({
+          filters: [{ services: ['heart_rate'] }],
+          optionalServices: ['battery_service']
+        });
 
-            if (device) {
-                // Connect to GATT Server
-                const server = await device.gatt.connect();
-                console.log("Connected to GATT Server", server);
-                
-                // Construct device object for app state
-                const newDevice: Device = {
-                    id: device.id || `ble_${Date.now()}`,
-                    name: device.name || 'Unknown Heart Rate Monitor',
-                    type: 'chest-strap', // Assuming chest strap for generic HR
-                    lastSync: 'Now',
-                    status: 'connected',
-                    battery: 100 // Placeholder, would need to read Battery Service
-                };
-                
-                onConnect(newDevice);
-            }
-        } catch (error: any) {
-            console.error("Bluetooth Error:", error);
-            if (error.name !== 'NotFoundError') { // Ignore user cancelled
-                setErrorMsg("Connection failed. Ensure device is in pairing mode.");
-            }
-        } finally {
-            setIsScanning(false);
+        if (device) {
+          // Connect to GATT Server
+          const server = await device.gatt.connect();
+          console.log("Connected to GATT Server", server);
+
+          // Construct device object for app state
+          const newDevice: Device = {
+            id: device.id || `ble_${Date.now()}`,
+            name: device.name || 'Unknown Heart Rate Monitor',
+            type: 'chest-strap', // Assuming chest strap for generic HR
+            lastSync: 'Now',
+            status: 'connected',
+            battery: 100 // Placeholder, would need to read Battery Service
+          };
+
+          onConnect(newDevice);
         }
+      } catch (error: any) {
+        console.error("Bluetooth Error:", error);
+        if (error.name !== 'NotFoundError') { // Ignore user cancelled
+          setErrorMsg("Connection failed. Ensure device is in pairing mode.");
+        }
+      } finally {
+        setIsScanning(false);
+      }
     } else {
-        // Fallback for browsers without Web Bluetooth
-        setTimeout(() => {
-            setErrorMsg("Web Bluetooth is not supported in this browser. Showing simulated device.");
-            // Simulate finding a device for demo purposes
-             onConnect({ 
-                id: `d_sim_${Date.now()}`, name: 'Simulated HR Monitor', type: 'watch', lastSync: 'Now', status: 'connected', battery: 88 
-            });
-            setIsScanning(false);
-        }, 1500);
+      // Fallback for browsers without Web Bluetooth
+      setTimeout(() => {
+        setErrorMsg("Web Bluetooth is not supported in this browser. Showing simulated device.");
+        // Simulate finding a device for demo purposes
+        onConnect({
+          id: `d_sim_${Date.now()}`, name: 'Simulated HR Monitor', type: 'watch', lastSync: 'Now', status: 'connected', battery: 88
+        });
+        setIsScanning(false);
+      }, 1500);
     }
   };
 
@@ -105,9 +117,9 @@ const DevicesModal = ({
             <div key={device.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 animate-in slide-in-from-right">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                    <span className="material-symbols-outlined">
+                  <span className="material-symbols-outlined">
                     {device.type === 'watch' ? 'watch' : device.type === 'chest-strap' ? 'monitor_heart' : 'ring_volume'}
-                    </span>
+                  </span>
                 </div>
                 <div>
                   <p className="text-sm font-bold dark:text-white">{device.name}</p>
@@ -117,7 +129,7 @@ const DevicesModal = ({
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => onDisconnect(device.id)}
                 className="text-xs text-red-500 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded-lg transition-colors"
               >
@@ -130,34 +142,34 @@ const DevicesModal = ({
         </div>
 
         <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-            {errorMsg && (
-                <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">error</span>
-                    {errorMsg}
-                </div>
+          {errorMsg && (
+            <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {errorMsg}
+            </div>
+          )}
+
+          <button
+            onClick={startScan}
+            disabled={isScanning}
+            className={`w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 ${isScanning ? 'opacity-70 cursor-wait' : ''}`}
+          >
+            {isScanning ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+                Scanning...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">bluetooth_searching</span>
+                {t('settings.pair_device')}
+              </>
             )}
-            
-            <button 
-                onClick={startScan}
-                disabled={isScanning}
-                className={`w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 ${isScanning ? 'opacity-70 cursor-wait' : ''}`}
-            >
-                {isScanning ? (
-                    <>
-                        <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
-                        Scanning...
-                    </>
-                ) : (
-                    <>
-                        <span className="material-symbols-outlined">bluetooth_searching</span>
-                        {t('settings.pair_device')}
-                    </>
-                )}
-            </button>
-            
-            <p className="text-[10px] text-slate-400 text-center mt-2">
-                Make sure your device is in pairing mode.
-            </p>
+          </button>
+
+          <p className="text-[10px] text-slate-400 text-center mt-2">
+            Make sure your device is in pairing mode.
+          </p>
         </div>
       </div>
     </div>
@@ -165,8 +177,8 @@ const DevicesModal = ({
 };
 
 const PasswordModal = ({ onClose }: { onClose: () => void }) => {
-  const [step, setStep] = useState('form'); 
-  
+  const [step, setStep] = useState('form');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -217,7 +229,7 @@ const FeedbackModal = ({ onClose }: { onClose: () => void }) => {
           <>
             <h3 className="text-xl font-bold dark:text-white mb-2">Send Feedback</h3>
             <p className="text-slate-500 text-sm mb-4">Let us know how we can improve your experience.</p>
-            <textarea 
+            <textarea
               className="w-full h-32 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white resize-none mb-4 placeholder:text-slate-400 focus:ring-2 focus:ring-primary"
               placeholder="Type your message here..."
             ></textarea>
@@ -242,55 +254,424 @@ const FeedbackModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 const HelpModal = ({ onClose }: { onClose: () => void }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-        <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 shrink-0">
-                <h3 className="text-xl font-bold dark:text-white">Help Center</h3>
-                <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
-                    <span className="material-symbols-outlined">close</span>
-                </button>
-            </div>
-            <div className="overflow-y-auto pr-2 space-y-4">
-                {[
-                    { q: "How is my risk score calculated?", a: "Your score is based on the vitals you enter (BP, Cholesterol) combined with lifestyle factors like smoking and activity level." },
-                    { q: "Is my data private?", a: "Yes, all data is stored locally on your device. We do not share your personal health info." },
-                    { q: "Can I connect my Fitbit?", a: "Yes! Use the 'Manage Connected Devices' option to scan and pair your Bluetooth trackers." },
-                    { q: "How do I book an appointment?", a: "Go to the 'Book' tab, search for a specialist, and select an available time slot." }
-                ].map((faq, i) => (
-                    <details key={i} className="group bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-                        <summary className="flex justify-between items-center cursor-pointer font-bold text-sm dark:text-white list-none">
-                            {faq.q}
-                            <span className="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
-                        </summary>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-2 leading-relaxed">
-                            {faq.a}
-                        </p>
-                    </details>
-                ))}
-            </div>
-            <button className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors">
-                Contact Support
-            </button>
-        </div>
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="flex justify-between items-center mb-4 shrink-0">
+        <h3 className="text-xl font-bold dark:text-white">Help Center</h3>
+        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+          <span className="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div className="overflow-y-auto pr-2 space-y-4">
+        {[
+          { q: "How is my risk score calculated?", a: "Your score is based on the vitals you enter (BP, Cholesterol) combined with lifestyle factors like smoking and activity level." },
+          { q: "Is my data private?", a: "Yes, all data is stored locally on your device. We do not share your personal health info." },
+          { q: "Can I connect my Fitbit?", a: "Yes! Use the 'Manage Connected Devices' option to scan and pair your Bluetooth trackers." },
+          { q: "How do I book an appointment?", a: "Go to the 'Book' tab, search for a specialist, and select an available time slot." }
+        ].map((faq, i) => (
+          <details key={i} className="group bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+            <summary className="flex justify-between items-center cursor-pointer font-bold text-sm dark:text-white list-none">
+              {faq.q}
+              <span className="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
+            </summary>
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-2 leading-relaxed">
+              {faq.a}
+            </p>
+          </details>
+        ))}
+      </div>
+      <button className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors">
+        Contact Support
+      </button>
     </div>
+  </div>
 );
 
 const TermsModal = ({ onClose }: { onClose: () => void }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-        <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold dark:text-white mb-4 shrink-0">Terms of Service</h3>
-            <div className="overflow-y-auto pr-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-3">
-                <p><strong>1. Acceptance of Terms</strong><br/>By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.</p>
-                <p><strong>2. Medical Disclaimer</strong><br/>This app provides information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician.</p>
-                <p><strong>3. User Data</strong><br/>We are committed to protecting your privacy. Your personal health data is processed in accordance with our Privacy Policy.</p>
-                <p><strong>4. Modifications</strong><br/>We reserve the right to modify these terms at any time.</p>
-            </div>
-            <button onClick={onClose} className="w-full mt-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                I Agree
-            </button>
-        </div>
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+    <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+      <h3 className="text-xl font-bold dark:text-white mb-4 shrink-0">Terms of Service</h3>
+      <div className="overflow-y-auto pr-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-3">
+        <p><strong>1. Acceptance of Terms</strong><br />By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.</p>
+        <p><strong>2. Medical Disclaimer</strong><br />This app provides information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician.</p>
+        <p><strong>3. User Data</strong><br />We are committed to protecting your privacy. Your personal health data is processed in accordance with our Privacy Policy.</p>
+        <p><strong>4. Modifications</strong><br />We reserve the right to modify these terms at any time.</p>
+      </div>
+      <button onClick={onClose} className="w-full mt-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+        I Agree
+      </button>
     </div>
+  </div>
 );
+
+// --- Calendar Connections Modal ---
+const CalendarModal = ({ onClose }: { onClose: () => void }) => {
+  const [connections, setConnections] = useState<CalendarConnection[]>(() => {
+    const saved = localStorage.getItem('calendar_connections');
+    return saved ? JSON.parse(saved) : [
+      { provider: 'google' as CalendarProvider, connected: false },
+      { provider: 'outlook' as CalendarProvider, connected: false },
+    ];
+  });
+  const [isConnecting, setIsConnecting] = useState<CalendarProvider | null>(null);
+  const [isSyncing, setIsSyncing] = useState<CalendarProvider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConnect = async (provider: CalendarProvider) => {
+    setIsConnecting(provider);
+    setError(null);
+
+    try {
+      // In production, this would trigger OAuth flow
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      await calendarService.storeCalendarCredentials(USER_ID, {
+        provider,
+        access_token: 'demo_token_' + Date.now(),
+      });
+
+      const updated = connections.map(c =>
+        c.provider === provider
+          ? { ...c, connected: true, email: `user@${provider}.com`, lastSync: 'Never' }
+          : c
+      );
+      setConnections(updated);
+      localStorage.setItem('calendar_connections', JSON.stringify(updated));
+
+    } catch (err) {
+      if (err instanceof CalendarServiceError) {
+        setError(err.userMessage);
+      } else {
+        setError('Failed to connect. Please try again.');
+      }
+    } finally {
+      setIsConnecting(null);
+    }
+  };
+
+  const handleDisconnect = async (provider: CalendarProvider) => {
+    try {
+      await calendarService.revokeCalendarCredentials(USER_ID, provider);
+
+      const updated = connections.map(c =>
+        c.provider === provider
+          ? { ...c, connected: false, email: undefined, lastSync: undefined }
+          : c
+      );
+      setConnections(updated);
+      localStorage.setItem('calendar_connections', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Disconnect error:', err);
+    }
+  };
+
+  const handleSync = async (provider: CalendarProvider) => {
+    setIsSyncing(provider);
+    setError(null);
+
+    try {
+      await calendarService.syncCalendar(USER_ID, {
+        provider,
+        days_ahead: 30,
+        include_reminders: true,
+      });
+
+      const updated = connections.map(c =>
+        c.provider === provider
+          ? { ...c, lastSync: 'Just now' }
+          : c
+      );
+      setConnections(updated);
+      localStorage.setItem('calendar_connections', JSON.stringify(updated));
+
+    } catch (err) {
+      if (err instanceof CalendarServiceError) {
+        setError(err.userMessage);
+      } else {
+        setError('Sync failed. Please try again.');
+      }
+    } finally {
+      setIsSyncing(null);
+    }
+  };
+
+  const getProviderColor = (provider: CalendarProvider) => {
+    return provider === 'google'
+      ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+      : 'text-blue-500 bg-blue-50 dark:bg-blue-900/20';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold dark:text-white">Calendar Connections</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          Connect your calendars to sync appointments and set reminders.
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <p className="text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>
+              {error}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {connections.map(conn => (
+            <div key={conn.provider} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getProviderColor(conn.provider)}`}>
+                    <span className="material-symbols-outlined">{conn.provider === 'google' ? 'event' : 'calendar_month'}</span>
+                  </div>
+                  <div>
+                    <p className="font-medium dark:text-white capitalize">{conn.provider}</p>
+                    {conn.connected && conn.email && (
+                      <p className="text-xs text-slate-500">{conn.email}</p>
+                    )}
+                  </div>
+                </div>
+                {conn.connected ? (
+                  <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Not connected</span>
+                )}
+              </div>
+
+              {conn.connected ? (
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleSync(conn.provider)}
+                    disabled={isSyncing === conn.provider}
+                    className="flex-1 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium flex items-center justify-center gap-1 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                  >
+                    {isSyncing === conn.provider ? (
+                      <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <span className="material-symbols-outlined text-sm">sync</span>
+                    )}
+                    {conn.lastSync ? `Last: ${conn.lastSync}` : 'Sync Now'}
+                  </button>
+                  <button
+                    onClick={() => handleDisconnect(conn.provider)}
+                    className="py-2 px-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleConnect(conn.provider)}
+                  disabled={isConnecting === conn.provider}
+                  className="w-full mt-3 py-2 bg-primary text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {isConnecting === conn.provider ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">link</span>
+                      Connect {conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1)}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Weekly Summary Modal ---
+const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
+  const [preferences, setPreferences] = useState<WeeklySummaryPreferences>({
+    enabled: false,
+    delivery_channels: [
+      { channel: 'email', enabled: true, destination: 'user@example.com' },
+      { channel: 'push', enabled: false },
+      { channel: 'whatsapp', enabled: false },
+    ],
+    preferred_day: 0,
+    preferred_time: '09:00',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadPrefs = async () => {
+      try {
+        const prefs = await notificationService.getWeeklySummaryPreferences(USER_ID);
+        setPreferences(prefs);
+      } catch (err) {
+        console.log('Using default weekly summary preferences');
+      }
+    };
+    loadPrefs();
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await notificationService.updateWeeklySummaryPreferences(USER_ID, preferences);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      if (err instanceof NotificationServiceError) {
+        setError(err.userMessage);
+      } else {
+        setError('Failed to save. Please try again.');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleChannel = (channel: 'push' | 'email' | 'whatsapp') => {
+    setPreferences(prev => ({
+      ...prev,
+      delivery_channels: prev.delivery_channels.map(c =>
+        c.channel === channel ? { ...c, enabled: !c.enabled } : c
+      ),
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4 shrink-0">
+          <h3 className="text-xl font-bold dark:text-white">Weekly Summary</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 space-y-4">
+          {/* Enable Toggle */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600">
+                <span className="material-symbols-outlined">summarize</span>
+              </div>
+              <div>
+                <p className="font-medium dark:text-white">Enable Weekly Summary</p>
+                <p className="text-xs text-slate-500">Get a personalized health recap</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={preferences.enabled}
+                onChange={() => setPreferences(prev => ({ ...prev, enabled: !prev.enabled }))}
+              />
+              <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+
+          {preferences.enabled && (
+            <>
+              {/* Delivery Channels */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delivery Channels</label>
+                <div className="space-y-2">
+                  {preferences.delivery_channels.map(dc => (
+                    <div key={dc.channel} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-slate-400">
+                          {dc.channel === 'email' ? 'mail' : dc.channel === 'push' ? 'notifications' : 'chat'}
+                        </span>
+                        <span className="text-sm font-medium dark:text-white capitalize">{dc.channel}</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={dc.enabled}
+                          onChange={() => toggleChannel(dc.channel as 'push' | 'email' | 'whatsapp')}
+                        />
+                        <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Day Selector */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delivery Day</label>
+                <select
+                  value={preferences.preferred_day}
+                  onChange={e => setPreferences(prev => ({ ...prev, preferred_day: parseInt(e.target.value) }))}
+                  className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white appearance-none cursor-pointer"
+                >
+                  {notificationService.DAYS_OF_WEEK.map(day => (
+                    <option key={day.value} value={day.value}>{day.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time Selector */}
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delivery Time</label>
+                <input
+                  type="time"
+                  value={preferences.preferred_time}
+                  onChange={e => setPreferences(prev => ({ ...prev, preferred_time: e.target.value }))}
+                  className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white"
+                />
+              </div>
+            </>
+          )}
+
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+              <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {isSaving ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+              Saving...
+            </>
+          ) : saved ? (
+            <>
+              <span className="material-symbols-outlined">check</span>
+              Saved!
+            </>
+          ) : (
+            'Save Preferences'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // --- Main Screen Component ---
 
@@ -336,13 +717,13 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   const toggleNotification = (key: keyof AppSettings['notifications']) => {
     // Request Permission for All Notifications
     if (key === 'all' && !settings.notifications.all) {
-        if ('Notification' in window) {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    console.log('Notification permission granted.');
-                }
-            });
-        }
+      if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            console.log('Notification permission granted.');
+          }
+        });
+      }
     }
 
     setSettings(prev => ({
@@ -374,7 +755,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   const closeModal = () => setActiveModal(null);
 
   const handleConnectDevice = (newDevice: Device) => {
-      setDevices(prev => [...prev, newDevice]);
+    setDevices(prev => [...prev, newDevice]);
   };
 
   const handleDisconnectDevice = (id: string) => {
@@ -383,11 +764,11 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
 
   const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange?: () => void }) => (
     <label className="relative inline-flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
-      <input 
-        type="checkbox" 
-        className="sr-only peer" 
-        checked={checked} 
-        onChange={onChange || (() => {})} 
+      <input
+        type="checkbox"
+        className="sr-only peer"
+        checked={checked}
+        onChange={onChange || (() => { })}
       />
       <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
     </label>
@@ -397,7 +778,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
     <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-sans pb-24">
       {/* Top App Bar */}
       <div className="flex items-center p-4 pb-2 justify-between bg-background-light dark:bg-background-dark sticky top-0 z-10">
-        <button 
+        <button
           onClick={() => navigate('/profile')}
           className="flex w-10 h-10 items-center justify-center text-slate-700 dark:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
@@ -415,10 +796,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
             <div className="text-slate-400 dark:text-slate-500 flex border-none bg-slate-100 dark:bg-slate-800 items-center justify-center pl-4 rounded-l-lg border-r-0">
               <span className="material-symbols-outlined">search</span>
             </div>
-            <input 
-              className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-slate-100 dark:bg-slate-800 focus:border-none h-full placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" 
-              placeholder={t('settings.search_placeholder')} 
-              defaultValue="" 
+            <input
+              className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-slate-100 dark:bg-slate-800 focus:border-none h-full placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal"
+              placeholder={t('settings.search_placeholder')}
+              defaultValue=""
             />
           </div>
         </label>
@@ -434,7 +815,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-6">
             {t('settings.account')}
           </h3>
-          <div 
+          <div
             onClick={() => navigate('/profile')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -448,7 +829,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => setActiveModal('password')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -462,7 +843,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => setActiveModal('devices')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -473,8 +854,8 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <p className="text-slate-900 dark:text-white text-base font-normal leading-normal flex-1 truncate">{t('settings.devices')}</p>
             </div>
             <div className="shrink-0 flex items-center gap-2">
-                <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">{devices.length}</span>
-                <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">chevron_right</span>
+              <span className="bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">{devices.length}</span>
+              <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">chevron_right</span>
             </div>
           </div>
         </div>
@@ -484,7 +865,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.preferences')}
           </h3>
-          <div 
+          <div
             onClick={cycleLanguage}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -499,7 +880,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">sync_alt</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={toggleUnits}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -514,7 +895,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">swap_horiz</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={toggleTheme}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -531,12 +912,53 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           </div>
         </div>
 
+        {/* Integrations Section */}
+        <div>
+          <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
+            Integrations
+          </h3>
+          <div
+            onClick={() => setActiveModal('calendar')}
+            className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-slate-700 dark:text-slate-200 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0 size-10">
+                <span className="material-symbols-outlined">calendar_month</span>
+              </div>
+              <div>
+                <p className="text-slate-900 dark:text-white text-base font-normal leading-normal truncate">Calendar Connections</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs">Connect Google & Outlook</p>
+              </div>
+            </div>
+            <div className="shrink-0 text-slate-400 dark:text-slate-500">
+              <span className="material-symbols-outlined">chevron_right</span>
+            </div>
+          </div>
+          <div
+            onClick={() => setActiveModal('weeklySummary')}
+            className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-slate-700 dark:text-slate-200 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0 size-10">
+                <span className="material-symbols-outlined">summarize</span>
+              </div>
+              <div>
+                <p className="text-slate-900 dark:text-white text-base font-normal leading-normal truncate">Weekly Summary</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs">Configure your health recap</p>
+              </div>
+            </div>
+            <div className="shrink-0 text-slate-400 dark:text-slate-500">
+              <span className="material-symbols-outlined">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
         {/* Notifications Section */}
         <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.notifications')}
           </h3>
-          <div 
+          <div
             onClick={() => toggleNotification('all')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -550,7 +972,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <ToggleSwitch checked={settings.notifications.all} onChange={() => toggleNotification('all')} />
             </div>
           </div>
-          <div 
+          <div
             onClick={() => toggleNotification('meds')}
             className={`flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${!settings.notifications.all ? 'opacity-50 pointer-events-none' : ''}`}
           >
@@ -564,7 +986,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <ToggleSwitch checked={settings.notifications.meds} onChange={() => toggleNotification('meds')} />
             </div>
           </div>
-          <div 
+          <div
             onClick={() => toggleNotification('insights')}
             className={`flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${!settings.notifications.all ? 'opacity-50 pointer-events-none' : ''}`}
           >
@@ -585,7 +1007,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             Data Management
           </h3>
-          <div 
+          <div
             onClick={() => {
               pdfExportService.exportQuickSummary();
             }}
@@ -604,7 +1026,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">download</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => {
               // Get chat messages from localStorage
               const messages = JSON.parse(localStorage.getItem('chat_messages') || '[]');
@@ -639,7 +1061,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.support')}
           </h3>
-          <div 
+          <div
             onClick={() => setActiveModal('help')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -653,7 +1075,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => setActiveModal('feedback')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -685,7 +1107,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="text-sm text-slate-500 dark:text-slate-400">1.0.2</span>
             </div>
           </div>
-          <div 
+          <div
             onClick={() => setActiveModal('terms')}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -705,16 +1127,18 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
       {/* Render Active Modal */}
       {activeModal === 'password' && <PasswordModal onClose={closeModal} />}
       {activeModal === 'devices' && (
-          <DevicesModal 
-            onClose={closeModal} 
-            devices={devices} 
-            onDisconnect={handleDisconnectDevice}
-            onConnect={handleConnectDevice}
-          />
+        <DevicesModal
+          onClose={closeModal}
+          devices={devices}
+          onDisconnect={handleDisconnectDevice}
+          onConnect={handleConnectDevice}
+        />
       )}
       {activeModal === 'help' && <HelpModal onClose={closeModal} />}
       {activeModal === 'feedback' && <FeedbackModal onClose={closeModal} />}
       {activeModal === 'terms' && <TermsModal onClose={closeModal} />}
+      {activeModal === 'calendar' && <CalendarModal onClose={closeModal} />}
+      {activeModal === 'weeklySummary' && <WeeklySummaryModal onClose={closeModal} />}
     </div>
   );
 };

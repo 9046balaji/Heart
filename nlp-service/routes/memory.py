@@ -617,8 +617,8 @@ async def delete_session(
     Returns:
         Confirmation of deletion
     """
-    // TODO: Add session ownership validation
-    // This would require checking if the session belongs to the current user
+    # TODO: Add session ownership validation
+    # This would require checking if the session belongs to the current user
     
     try:
         chat_history_manager.clear(session_id)

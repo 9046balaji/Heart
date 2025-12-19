@@ -13,6 +13,9 @@ import logging
 from datetime import datetime
 import os
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import app dependencies for cleaner dependency injection
 from core.app_dependencies import get_nlp_service
@@ -30,7 +33,7 @@ from core.models import IntentEnum
 from core.services.nlp_service import NLPService, NLPAnalysisResult
 
 # Feature flag for LangChain Gateway
-import os
+# Feature flag for LangChain Gateway
 USE_LANGCHAIN_GATEWAY = os.getenv("USE_LANGCHAIN_GATEWAY", "false").lower() == "true"
 
 # Initialize LangChain Gateway if enabled
@@ -43,7 +46,7 @@ try:
 except ImportError as e:
     logger.warning(f"LLM Gateway not available: {e}")
 
-logger = logging.getLogger(__name__)
+
 
 # Create router
 router = APIRouter(prefix="/api/nlp", tags=["agents"])

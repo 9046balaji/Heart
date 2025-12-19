@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, Column, String, DateTime, JSON, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Union
 import logging
 
 from ..models.health import HealthRecord
@@ -549,6 +549,3 @@ def reset_health_service() -> None:
     global _health_service
     _health_service = None
 
-
-# Type hint import
-from typing import Union

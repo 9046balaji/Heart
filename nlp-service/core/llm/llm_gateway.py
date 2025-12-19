@@ -1,12 +1,12 @@
 """
-LLM Gateway - Unified implementation combining LangChain, Langfuse, and Guardrails.
+LLM Gateway - Unified implementation combining LangChain, LangFuse, and Guardrails.
 
 This is the ONLY module that should directly call LLM providers (Gemini, Ollama).
 All AI generation in the system MUST flow through this gateway.
 
 Features:
 - ✅ LangChain (for stability)
-- ✅ Langfuse (for debugging)
+- ✅ LangFuse (for debugging)
 - ✅ Guardrails (for safety)
 
 Usage:
@@ -26,7 +26,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# Langfuse imports
+# LangFuse imports
 try:
     from langfuse.decorators import observe
     LANGFUSE_AVAILABLE = True
@@ -39,7 +39,7 @@ except ImportError:
         return decorator
 
 # Import guardrails for safety processing
-from core.guardrails import SafetyGuardrail
+from .guardrails import SafetyGuardrail
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +47,24 @@ logger = logging.getLogger(__name__)
 class LLMGateway:
     """
     The Single Source of Truth for LLM interactions.
-    Combines LangChain execution with Langfuse observability and Safety Guardrails.
+    Combines LangChain execution with LangFuse observability and Safety Guardrails.
     """
     
     def __init__(self):
-        self.primary_provider = os.getenv("LLM_PROVIDER", "gemini")
+        self.primary_provider = os.getenv("LLM_PROVIDER", "ollama")
         self.guardrails = SafetyGuardrail()
+        self.use_gemini = os.getenv("USE_GEMINI", "false").lower() == "true"
         
         # Initialize Models via LangChain
-        self.gemini = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
-            convert_system_message_to_human=True
-        )
+        if self.use_gemini:
+            self.gemini = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=os.getenv("GOOGLE_API_KEY"),
+                convert_system_message_to_human=True
+            )
+        else:
+            self.gemini = None
+            
         self.ollama = ChatOllama(
             model=os.getenv("OLLAMA_MODEL", "gemma3:1b"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -68,9 +73,12 @@ class LLMGateway:
     def _get_model(self, provider: str):
         if provider == "ollama":
             return self.ollama
-        return self.gemini
+        elif provider == "gemini" and self.gemini:
+            return self.gemini
+        # Fallback to Ollama if Gemini is not available
+        return self.ollama
 
-    @observe(name="llm-generation")  # ✅ Langfuse Observability
+    @observe(name="llm-generation")  # ✅ LangFuse Observability
     async def generate(self, prompt: str, content_type: str = "general", user_id: Optional[str] = None) -> str:
         """
         Generate text with automatic fallback and safety checks.

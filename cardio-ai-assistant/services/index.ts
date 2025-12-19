@@ -26,7 +26,21 @@ export type {
 } from './apiCache';
 
 // Memory / State Persistence
-export * from './memory';
+// Note: Using selective exports to avoid naming conflicts with apiClient.ts
+export {
+  EnhancedMemoryService,
+  memoryService,
+} from './memoryService';
+
+export type {
+  UserPreference,
+  ContextItem,
+  ChatSession,
+  ChatMessage,
+  AIQueryResponse,
+  MemoryHealthStatus,
+  MemoryChunk,
+} from './memoryService';
 
 // PDF Export
 export {
@@ -57,3 +71,19 @@ export {
 } from './serviceWorker';
 // Firebase
 export { db } from './firebase';
+
+// Document Processing
+export * from './documentService';
+
+// Vision Analysis
+export * from './visionService';
+
+// Calendar Integration
+export * from './calendarService';
+
+// Notification Services
+export * from './notificationService';
+
+// Note: api.types exports are intentionally NOT re-exported here
+// to avoid naming conflicts with apiClient.ts.
+// Import directly from './api.types' when needed.

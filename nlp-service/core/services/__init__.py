@@ -6,13 +6,13 @@ Provides unified access to all service layer functionality:
 - Health service (database CRUD)
 """
 
-from services.encryption_service import (
+from core.services.encryption_service import (
     EncryptionService,
     get_encryption_service,
     reset_encryption_service,
 )
 
-from services.health_service import (
+from core.services.health_service import (
     HealthService,
     HealthRecordDB,
     get_health_service,

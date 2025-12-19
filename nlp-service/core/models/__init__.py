@@ -145,6 +145,10 @@ class RiskAssessmentResponse(BaseModel):
     consultation_urgency: str = Field(..., description="Consultation urgency")
 
 
+# Alias for compatibility with NLP service
+RiskAssessmentResult = RiskAssessmentResponse
+
+
 class OllamaResponseRequest(BaseModel):
     """Request for Ollama response"""
     prompt: str = Field(..., description="Prompt for generation")
@@ -201,6 +205,7 @@ __all__ = [
     "OllamaHealthCheckResponse",
     "RiskAssessmentRequest",
     "RiskAssessmentResponse",
+    "RiskAssessmentResult",
     "HealthMetrics",
     # Health models (stubs)
     "HealthRecord",

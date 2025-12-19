@@ -19,6 +19,8 @@ const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 const RecipeDetailScreen = lazy(() => import('./screens/RecipeDetailScreen'));
 const WorkoutDetailScreen = lazy(() => import('./screens/WorkoutDetailScreen'));
 const MedicationScreen = lazy(() => import('./screens/MedicationScreen'));
+const DocumentScanner = lazy(() => import('./screens/DocumentScanner'));
+const VisionAnalysis = lazy(() => import('./screens/VisionAnalysis'));
 
 import BottomNav from './components/BottomNav';
 import VoiceControl from './components/VoiceControl';
@@ -65,7 +67,7 @@ const AppContent: React.FC = () => {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/signup" element={<SignUpScreen />} />
-            
+
             <Route path="/dashboard" element={
               <Suspense fallback={<DashboardFallback />}>
                 <DashboardScreen />
@@ -121,9 +123,19 @@ const AppContent: React.FC = () => {
                 <ProfileScreen />
               </Suspense>
             } />
+            <Route path="/scan-document" element={
+              <Suspense fallback={<ListFallback />}>
+                <DocumentScanner />
+              </Suspense>
+            } />
+            <Route path="/vision" element={
+              <Suspense fallback={<ListFallback />}>
+                <VisionAnalysis />
+              </Suspense>
+            } />
           </Routes>
         </div>
-        
+
         <VoiceControl />
         {showBottomNav && <BottomNav />}
       </ErrorBoundary>
@@ -134,9 +146,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <LanguageProvider>
-        <HashRouter>
-            <AppContent />
-        </HashRouter>
+      <HashRouter>
+        <AppContent />
+      </HashRouter>
     </LanguageProvider>
   );
 };

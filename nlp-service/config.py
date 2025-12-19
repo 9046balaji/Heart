@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     SENTIMENT_THRESHOLD_DISTRESSED: float = -0.7
     SENTIMENT_THRESHOLD_URGENT: float = 0.8
 
-    # Ollama Configuration
+    # LLM Configuration
     OLLAMA_HOST: str = Field(default_factory=_get_ollama_host)
     OLLAMA_MODEL: str = "gemma3:1b"
     OLLAMA_TEMPERATURE: float = 0.7
@@ -116,6 +116,9 @@ class Settings(BaseSettings):
     OLLAMA_MAX_TOKENS: int = 256
     OLLAMA_CONTEXT_WINDOW: int = 2048
     OLLAMA_TIMEOUT_SECONDS: int = 60
+
+    # Disable Gemini integration by default
+    USE_GEMINI: bool = Field(default=False, env="USE_GEMINI")
 
     # Feature Flags
     RAG_ENABLED: bool = Field(default=True, env="FEATURE_RAG")

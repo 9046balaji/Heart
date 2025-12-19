@@ -101,8 +101,19 @@ from medical_ai.model_versioning import ModelVersionManager
 # Import Routes
 # PHASE 1: Core Routes
 from routes.health import router as health_router
-from medical_ai.smart_watch.router import router as smartwatch_router
-from medical_ai.smart_watch.router import init_smartwatch_module, shutdown_smartwatch_module
+
+# Try to import smartwatch router, but handle if it fails
+try:
+    from medical_ai.smart_watch.router import router as smartwatch_router
+    from medical_ai.smart_watch.router import init_smartwatch_module, shutdown_smartwatch_module
+    SMARTWATCH_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Smartwatch module not available: {e}")
+    SMARTWATCH_AVAILABLE = False
+    smartwatch_router = None
+    init_smartwatch_module = None
+    shutdown_smartwatch_module = None
+
 from routes.generation import router as generation_router, chat_router
 from routes.structured_outputs import router as structured_outputs_router
 
@@ -332,8 +343,13 @@ async def lifespan(app: FastAPI):
         
         NLPState.memory_observability = memory_observability
         
-        # Initialize Smart Watch Module
-        await init_smartwatch_module()
+        # Initialize Smart Watch Module if available
+        if SMARTWATCH_AVAILABLE and init_smartwatch_module:
+            await init_smartwatch_module()
+        elif SMARTWATCH_AVAILABLE:
+            logger.info("Smartwatch module available but no init function found")
+        else:
+            logger.info("Smartwatch module not available")
         
         logger.info("All AI components initialized successfully")
         
@@ -347,7 +363,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Shutting down {SERVICE_NAME}...")
     logger.info(f"Shutting down {SERVICE_NAME}...")
     # Cleanup resources
-    await shutdown_smartwatch_module()
+    if SMARTWATCH_AVAILABLE and shutdown_smartwatch_module:
+        await shutdown_smartwatch_module()
 
 # Create FastAPI app
 app = FastAPI(
@@ -368,7 +385,13 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
-app.include_router(smartwatch_router)  # Already has prefix /api/smartwatch
+
+# Only include smartwatch router if available
+if smartwatch_router:
+    app.include_router(smartwatch_router)  # Already has prefix /api/smartwatch
+else:
+    logger.info("Smartwatch router not available, skipping")
+
 app.include_router(generation_router, tags=["Generation"])
 app.include_router(chat_router, tags=["Chat"])
 app.include_router(structured_outputs_router, tags=["Structured Outputs"])

@@ -1,4 +1,4 @@
- """
+"""
 MedGemma Integration Service.
 
 Provides medical document understanding using Google's MedGemma model.
@@ -144,11 +144,6 @@ class MedGemmaService:
             }
         
         return response
-        
-        if self.mock_mode:
-            logger.info("MedGemma service initialized in MOCK mode")
-        else:
-            logger.info(f"MedGemma service initialized: {model.value}")
     
     async def extract_medical_entities(
         self,

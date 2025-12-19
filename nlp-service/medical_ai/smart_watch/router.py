@@ -10,7 +10,14 @@ import asyncio
 from typing import List, Literal, Optional, Dict, Any
 from contextlib import asynccontextmanager
 
-import asyncpg
+# Only import asyncpg if it's available
+try:
+    import asyncpg
+    ASYNCPG_AVAILABLE = True
+except ImportError:
+    ASYNCPG_AVAILABLE = False
+    asyncpg = None
+
 import pandas as pd
 from dateutil import parser as dt_parser
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request, status, Depends, Query, WebSocket, WebSocketDisconnect
@@ -48,7 +55,7 @@ MAX_SAMPLES_PER_REQUEST = int(os.getenv("MAX_SAMPLES_PER_REQUEST", "1000"))
 # --------- Global State ----------
 # In a router, we rely on the main app's lifespan or dependency injection for DB pools.
 # For now, we'll keep a local pool reference but it should ideally be injected.
-db_pool: Optional[asyncpg.pool.Pool] = None
+db_pool = None
 health_explainer: Optional[HealthExplainer] = None
 
 # --------- Pydantic Models ----------
@@ -113,6 +120,11 @@ async def _persist_samples(device_id: str, samples: List[TimeSeriesDataPoint], i
     """
     Background task: Bulk insert samples into PostgreSQL using efficient executemany.
     """
+    # Skip if asyncpg is not available
+    if not ASYNCPG_AVAILABLE:
+        logger.debug("Skipping sample persistence - asyncpg not available")
+        return
+    
     # We need to access the DB pool. In a router, this is tricky without DI.
     # For this refactor, we will assume a global pool is available or passed.
     # TODO: Refactor to use dependency injection for DB connection
@@ -156,23 +168,25 @@ async def ingest_timeseries_data(
         x_idempotency_key: Idempotency key for duplicate prevention
         current_user: Authenticated user from JWT token
     """
-    # ✅ CRITICAL: Validate device ownership before accepting vitals
-    # Check if device is registered to the current user
-    if not db_pool:
-        raise HTTPException(status_code=500, detail="Database not initialized")
-    
-    query = """
-        SELECT user_id FROM user_devices 
-        WHERE device_id = $1 AND is_active = TRUE
-    """
-    
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(query, payload.device_id)
-        if not row or row['user_id'] != current_user.get("user_id"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Device not registered to your account"
-            )
+    # Skip database check if asyncpg is not available
+    if ASYNCPG_AVAILABLE:
+        # ✅ CRITICAL: Validate device ownership before accepting vitals
+        # Check if device is registered to the current user
+        if not db_pool:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
+        query = """
+            SELECT user_id FROM user_devices 
+            WHERE device_id = $1 AND is_active = TRUE
+        """
+        
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(query, payload.device_id)
+            if not row or row['user_id'] != current_user.get("user_id"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Device not registered to your account"
+                )
     
     logger.info(f"Received {len(payload.samples)} samples from {payload.device_id}")
     background.add_task(_persist_samples, payload.device_id, payload.samples, x_idempotency_key)
@@ -200,23 +214,25 @@ async def ingest_vitals_with_schema(
         x_idempotency_key: Idempotency key for duplicate prevention
         current_user: Authenticated user from JWT token
     """
-    # ✅ CRITICAL: Validate device ownership before accepting vitals
-    # Check if device is registered to the current user
-    if not db_pool:
-        raise HTTPException(status_code=500, detail="Database not initialized")
-    
-    query = """
-        SELECT user_id FROM user_devices 
-        WHERE device_id = $1 AND is_active = TRUE
-    """
-    
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(query, submission.device_id)
-        if not row or row['user_id'] != current_user.get("user_id"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Device not registered to your account"
-            )
+    # Skip database check if asyncpg is not available
+    if ASYNCPG_AVAILABLE:
+        # ✅ CRITICAL: Validate device ownership before accepting vitals
+        # Check if device is registered to the current user
+        if not db_pool:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
+        query = """
+            SELECT user_id FROM user_devices 
+            WHERE device_id = $1 AND is_active = TRUE
+        """
+        
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(query, submission.device_id)
+            if not row or row['user_id'] != current_user.get("user_id"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Device not registered to your account"
+                )
     
     # Convert Pydantic model to dict for storage
     reading_dict = submission.reading.dict()
@@ -282,6 +298,10 @@ async def aggregate_device_timeseries(
     """
     Returns aggregated metrics. Uses asyncio.to_thread to prevent blocking.
     """
+    # Skip if asyncpg is not available
+    if not ASYNCPG_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Database functionality not available")
+    
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     try:
         end_dt = dt_parser.isoparse(end).astimezone(datetime.timezone.utc) if end else now_utc
@@ -446,6 +466,10 @@ async def register_device(
     Returns:
         Confirmation of device registration
     """
+    # Skip if asyncpg is not available
+    if not ASYNCPG_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Database functionality not available")
+    
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database not initialized")
     
@@ -505,6 +529,12 @@ async def init_smartwatch_module():
     """Initialize resources for the smart watch module."""
     global db_pool
     logger.info("Initializing Smart Watch module...")
+    
+    # Skip database initialization if asyncpg is not available
+    if not ASYNCPG_AVAILABLE:
+        logger.warning("asyncpg not available, skipping database initialization")
+        return
+    
     try:
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
         logger.info("Smart Watch DB pool created.")
@@ -573,7 +603,7 @@ async def init_smartwatch_module():
 async def shutdown_smartwatch_module():
     """Cleanup resources."""
     global db_pool
-    if db_pool:
+    if db_pool and ASYNCPG_AVAILABLE:
         await db_pool.close()
         logger.info("Smart Watch DB pool closed.")
 

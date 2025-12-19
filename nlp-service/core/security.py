@@ -14,6 +14,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
+logger = logging.getLogger(__name__)
+
 # Import Argon2 for secure password hashing
 try:
     from argon2 import PasswordHasher
@@ -23,7 +25,7 @@ except ImportError:
     ARGON2_AVAILABLE = False
     logger.warning("argon2-cffi not available - falling back to SHA-256")
 
-logger = logging.getLogger(__name__)
+
 
 # Password hashing using Argon2 (OWASP recommended) or fallback to SHA-256
 def hash_password(password: str) -> str:

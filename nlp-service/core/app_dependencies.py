@@ -7,7 +7,7 @@ Extracted from main.py to improve modularity and testability.
 
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, Request, status
-from core.models import PatientMemory
+from nlp.memory_manager import PatientMemory
 
 # Import state manager (will be defined in main.py)
 # These are forward references that get resolved at runtime
