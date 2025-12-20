@@ -80,8 +80,6 @@ class EntityExtractor:
                 # Initialize PhraseMatcher (highly optimized for large lists)
                 self.matcher = PhraseMatcher(self.nlp.vocab, attr="LOWER")
 
-                # Batch add patterns for performance
-                self._add_patterns()
             except Exception as e:
                 logger.error(f"Failed to load SpaCy model: {e}")
                 # Fallback to regex if spacy load fails despite import success
@@ -123,7 +121,7 @@ class EntityExtractor:
                 logger.warning(f"Skipping empty label '{label}' or empty terms list")
                 return
 
-            if not self.nlp or not self.matcher:
+            if self.nlp is None or self.matcher is None:
                 logger.warning(
                     f"SpaCy components not available, skipping patterns for '{label}'"
                 )
@@ -243,8 +241,8 @@ class EntityExtractor:
         # Extract entities if not in cache
         entities: List[Entity] = []
 
-        # 1. Run SpaCy PhraseMatcher (Fast keyword extraction - O(N))
-        if self.nlp and self.matcher:
+        # 1. Run SpaCy PhraseMatcher (Fast keyword extraction  - O(N))
+        if self.nlp is not None and self.matcher is not None:
             try:
                 doc = self.nlp(text)
                 matches = self.matcher(doc)

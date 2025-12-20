@@ -1,0 +1,318 @@
+# ============================================================================
+# Cardio AI Assistant - Root .gitignore
+# ============================================================================
+# This file specifies which files and directories Git should ignore.
+# SECURITY: All sensitive files like credentials, API keys, and secrets
+# must be excluded from version control.
+# ============================================================================
+
+# ===================
+# Environment Files (CRITICAL - Contains Secrets)
+# ===================
+# Environment files contain API keys, passwords, and other secrets
+# NEVER commit these files to version control
+
+logs/
+
+backups
+docs/memory
+file_list.txt
+FUTURE_WORK_PLAN.md
+REMEDIATION_REPORT.md
+structure_reference.txt
+structure.md
+
+.gitignore
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+*.env
+!.env.example
+!.env.local.example
+
+# ===================
+# Credentials & Secrets (CRITICAL)
+# ===================
+# Google Cloud / Firebase credentials
+credentials.json
+*-credentials.json
+firebase-credentials.json
+service-account*.json
+*.pem
+*.p12
+*.key
+
+# OAuth tokens
+tokens/
+token.json
+*_token.json
+
+# JWT secrets
+jwt_secret*
+
+# SSH keys
+*.rsa
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+
+# ===================
+# Logs (May Contain Sensitive Data)
+# ===================
+
+
+# ===================
+# Databases (Development Data)
+# ===================
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.sql
+*.dump
+
+# ===================
+# Python
+# ===================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+virtualenv/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# ===================
+# Node.js
+# ===================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# npm
+package-lock.json
+npm-debug.log*
+.npm
+
+# yarn
+yarn.lock
+.yarn/
+.pnp.*
+
+# ===================
+# IDE / Editor
+# ===================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ===================
+# OS Files
+# ===================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ===================
+# Cache
+# ===================
+nlp-service/cache/
+.cache/
+*.pkl
+
+# ===================
+# Backup Files
+# ===================
+backup/
+*.bak
+*.backup
+*~
+
+# ===================
+# Temporary Files
+# ===================
+*.tmp
+*.temp
+*.swp
+*.swo
+tmp/
+temp/
+
+# ===================
+# ML Model Files (Large Binary Files)
+# ===================
+*.joblib
+*.h5
+*.hdf5
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.pb
+# Exception: Allow pre-trained models in specific directory
+!cardio-ai-assistant/backend/models/*.joblib
+
+# ===================
+# Uploads & User Data
+# ===================
+uploads/
+user_uploads/
+attachments/
+documents/
+
+# ===================
+# OCR & Image Processing Temp Files
+# ===================
+ocr_temp/
+*.pdf.tmp
+*.png.tmp
+*.jpg.tmp
+
+# ===================
+# Health/Medical Data (HIPAA Compliance)
+# ===================
+patient_data/
+health_records/
+*.hl7
+*.ccda
+
+# ===================
+# Test Artifacts & Debug Files
+# ===================
+test-results/
+test-reports/
+playwright-report/
+
+# Unwanted test and debug scripts
+scripts/test_*.py
+scripts/debug_*.py
+scripts/*_debug.py
+scripts/test_*.ps1
+scripts
+# ===================
+# Temporary Documentation (Internal/Drafts)
+# ===================
+# Development phase files and internal documentation
+files/
+report.md
+CRITICAL_GAPS_REPORT.md
+DETAILED-SOLUTION_REPORT.md
+remaining
+
+
+# Phase completion reports (kept during development, excluded from release)
+*_COMPLETION.md
+*_QUICK_REFERENCE.md
+*_AUDIT_REPORT.md
+*_IMPLEMENTATION_*.md
+*_IMPLEMENTATION_REPORT.md
+
+# Temporary fix and guide documents
+*_FIX_*.md
+*FAST_STARTUP_*.md
+*VERIFICATION_*.md
+*500_ERROR_*.md
+
+# Analysis and reference documents
+*ANALYSIS_*.md
+*COMPETITIVE_*.md
+
+
+# Technical reports (development artifacts)
+TECHNICAL_REPORT_*.md
+WATCH_PREDICTION_*.md
+SMARTWATCH_*.md
+MEDICAL_MD_REPORT_*.md
+docs/guides/
+docs/api
+docs/README.md
+# Additional documentation and test files to exclude
+UNWANTED_FILES_EXCLUDED.md
+GITIGNORE_DOCUMENTATION.md
+MEMORI_FEATURES_AUDIT.md
+SECURITY.md
+not-sure/
+
+
+# Test files (unit/integration tests)
+nlp-service/test_*.py
+nlp-service/tests_*.py
+nlp-service/tests/
+test_*.py
+tests_*.py
+
+# Local analysis reports
+*_report.txt
+flake8_report.txt
+bandit_report.txt
+backups/
+remaining/
+files/
+
+pre_commit_output.txt
+
+# Pre-commit configuration files
+.pre-commit-config.yaml
+.secrets.baseline
