@@ -7,7 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Message, HealthAssessment, Medication, Appointment } from '../types';
 import { memoryService } from '../services/memoryService';
 import { ChatMessageMarkdown } from '../components/MarkdownRenderer';
-import { useChatStore, ChatSession } from '../store/useChatStore';
+import { useChatStore, ChatSession, chatActions } from '../store/useChatStore';
 
 // --- Audio Helpers ---
 function base64ToUint8Array(base64: string) {
@@ -143,8 +143,6 @@ const ChatScreen: React.FC = () => {
   const location = useLocation();
   const [input, setInput] = useState('');
   const [attachment, setAttachment] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSearchingMemories, setIsSearchingMemories] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
@@ -152,13 +150,13 @@ const ChatScreen: React.FC = () => {
   // UI State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini' | 'ollama'>('gemini');
 
   // Feature States
-  const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlayingId, setIsPlayingId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -166,23 +164,34 @@ const ChatScreen: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  // Chat Store (for conversation history persistence)
+  // Chat Store
   const {
+    messages,
     sessions,
+    currentSessionId,
+    isLoading,
+    isStreaming,
+    isSearchingMemories,
+    selectedModel,
     createSession,
     loadSession,
-    deleteSession
+    deleteSession,
+    loadSessions,
+    updateSessionTitle,
+    setSelectedModel,
+    setMessages
   } = useChatStore();
 
-  const [messages, setMessages] = useState<ExtendedMessage[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'I am ready to help. You can ask me to log your vitals, add medications, book appointments, or analyze your trends.',
-      timestamp: new Date().toISOString(),
-      type: 'text'
+  // Load sessions on mount
+  useEffect(() => {
+    const userId = localStorage.getItem('user_id') || 'user_123';
+    loadSessions(userId);
+
+    // Create a new session if none exists
+    if (!currentSessionId && sessions.length === 0) {
+      createSession();
     }
-  ]);
+  }, [loadSessions, createSession, currentSessionId, sessions.length]);
 
   // Init Memory Service & Handle Voice Commands
   useEffect(() => {
@@ -225,88 +234,9 @@ const ChatScreen: React.FC = () => {
     scrollToBottom();
   }, [messages, isLoading, attachment]);
 
-  // --- Tool Execution Logic ---
-  const executeLogBiometrics = (args: any) => {
-    const saved = localStorage.getItem('last_assessment');
-    let assessment: HealthAssessment = saved ? JSON.parse(saved) : { date: new Date().toISOString(), score: 80, risk: 'Unknown', details: 'Auto-generated', vitals: { systolic: 120, cholesterol: 200 } };
-
-    assessment.vitals.systolic = args.systolic;
-    if (args.diastolic) (assessment as any).vitals.diastolic = args.diastolic;
-    if (args.heartRate) (assessment as any).vitals.heartRate = args.heartRate;
-    assessment.date = new Date().toISOString();
-
-    localStorage.setItem('last_assessment', JSON.stringify(assessment));
-    // Re-sync memory after update
-    memoryService.syncContext();
-    return { result: "Success", details: `Logged BP: ${args.systolic}/${args.diastolic}, HR: ${args.heartRate}` };
-  };
-
-  const executeAddMedication = (args: any) => {
-    const newMed: Medication = {
-      id: `med_${Date.now()}`,
-      name: args.name,
-      dosage: args.dosage,
-      frequency: args.frequency || 'Daily',
-      times: [args.time || '08:00'],
-      takenToday: [false],
-      quantity: 30
-    };
-
-    const savedMeds = JSON.parse(localStorage.getItem('user_medications') || '[]');
-    const updatedMeds = [...savedMeds, newMed];
-    localStorage.setItem('user_medications', JSON.stringify(updatedMeds));
-    memoryService.syncContext();
-    return { result: "Success", details: `Added ${newMed.name} ${newMed.dosage}` };
-  };
-
-  const executeScheduleAppointment = (args: any) => {
-    const newAppt: Appointment = {
-      id: `apt_${Date.now()}`,
-      doctorName: args.doctorName,
-      specialty: args.specialty || 'General',
-      date: args.date,
-      time: args.time || '09:00',
-      type: 'in-person',
-      location: 'Main Clinic'
-    };
-
-    const savedAppts = JSON.parse(localStorage.getItem('user_appointments') || '[]');
-    const updatedAppts = [...savedAppts, newAppt];
-    localStorage.setItem('user_appointments', JSON.stringify(updatedAppts));
-    return { result: "Success", details: `Booked Dr. ${args.doctorName} for ${args.date}` };
-  };
-
-  const executeNavigate = (args: any) => {
-    const map: Record<string, string> = {
-      'dashboard': '/dashboard',
-      'nutrition': '/nutrition',
-      'diet': '/nutrition',
-      'exercise': '/exercise',
-      'workouts': '/exercise',
-      'assessment': '/assessment',
-      'medications': '/medications',
-      'profile': '/profile',
-      'settings': '/settings',
-      'ecg': '/assessment'
-    };
-
-    const path = map[args.screen.toLowerCase()];
-    if (path) {
-      navigate(path);
-      return { result: "Success", details: `Navigated to ${args.screen}` };
-    }
-    return { result: "Error", details: "Screen not found" };
-  };
-
-  const executeShowWidget = (args: any) => {
-    // This helper just validates and parses to ensure safe JSON
-    try {
-      const parsedData = JSON.parse(args.data);
-      return { result: "Success", widget: { type: args.type, title: args.title, data: parsedData } };
-    } catch (e) {
-      return { result: "Error", details: "Invalid Widget Data" };
-    }
-  };
+  // --- Tool Execution Logic (Placeholder for future implementation) ---
+  // Tools are currently handled by the backend agent, but we keep these for reference
+  // or client-side specific actions if needed.
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -331,117 +261,13 @@ const ChatScreen: React.FC = () => {
     // Allow sending if there's text OR an attachment
     if ((!messageText.trim() && !attachment) || isLoading) return;
 
-    const userMessage: ExtendedMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: messageText,
-      timestamp: new Date().toISOString(),
-      type: 'text',
-      image: attachment || undefined
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    // Clear input immediately
     setInput('');
     setAttachment(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
-    setIsLoading(true);
-
-    try {
-      // Use streaming for Ollama, regular API for Gemini
-      if (selectedModel === 'ollama') {
-        // Create placeholder message for streaming response
-        const aiMessageId = `msg_${Date.now()}`;
-        const aiMessage: ExtendedMessage = {
-          id: aiMessageId,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date().toISOString(),
-          type: 'text'
-        };
-        setMessages(prev => [...prev, aiMessage]);
-
-        // Stream response from Ollama
-        let fullResponse = '';
-        const stream = apiClient.streamOllamaResponse({
-          message: messageText,
-          model: 'gemma3:1b',
-          conversation_history: messages.slice(-10).map(m => ({
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.content
-          }))
-        });
-
-        for await (const chunk of stream) {
-          if (chunk.type === 'token') {
-            fullResponse += chunk.data;
-            // Update the message with new content
-            setMessages(prev => prev.map(msg =>
-              msg.id === aiMessageId
-                ? { ...msg, content: fullResponse }
-                : msg
-            ));
-          } else if (chunk.type === 'done') {
-            console.log('Streaming complete:', chunk.data);
-          } else if (chunk.type === 'error') {
-            console.error('Streaming error:', chunk.data);
-            setMessages(prev => prev.map(msg =>
-              msg.id === aiMessageId
-                ? { ...msg, content: fullResponse || 'Error: Failed to get response from Ollama.' }
-                : msg
-            ));
-          }
-        }
-      } else {
-        // Use regular NLP service for Gemini
-        const result = await apiClient.processNLP({
-          message: messageText,
-          session_id: 'chat-session-1',
-          user_id: 'user-1',
-          model: selectedModel
-        });
-
-        // Add AI response message
-        const aiMessage: ExtendedMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'assistant',
-          content: result.suggested_response || "I processed that but didn't get a response.",
-          timestamp: new Date().toISOString(),
-          type: 'text'
-        };
-
-        // Optional: Add intent debug info if available
-        if (result.intent && result.intent !== 'unknown') {
-          aiMessage.content += `\n\n(Detected Intent: ${result.intent})`;
-        }
-
-        setMessages(prev => [...prev, aiMessage]);
-
-        // Handle specific intents if needed (basic mapping)
-        if (result.intent === 'emergency' || result.requires_escalation) {
-          setMessages(prev => [...prev, {
-            id: `alert_${Date.now()}`,
-            role: 'assistant',
-            content: "⚠️ This sounds serious. Please contact emergency services if you are in danger.",
-            timestamp: new Date().toISOString(),
-            type: 'text'
-          }]);
-        }
-      }
-
-    } catch (error) {
-      console.error("Chat Error:", error);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "I'm having trouble connecting to the NLP service. Please ensure the backend is running.",
-        timestamp: new Date().toISOString(),
-        type: 'text'
-      }]);
-    } finally {
-      setIsLoading(false);
-      setIsSearchingMemories(false);
-    }
+    // Send to store
+    await chatActions.sendMessage(messageText, selectedModel);
   };
 
   // --- Audio Recording & Transcription ---
@@ -480,18 +306,15 @@ const ChatScreen: React.FC = () => {
   };
 
   const transcribeAudio = async (audioBlob: Blob) => {
-    setIsLoading(true);
+    // In a real app, we would use setLoading(true) here
+    // But since we are just setting input, we don't strictly need to block UI
     try {
       const base64Audio = await blobToBase64(audioBlob);
-
       // For now, use a simple transcription placeholder
-      // In production, this would call a dedicated audio transcription API
       setInput("Audio message received. Please type your response.");
     } catch (error) {
       console.error("Transcription error:", error);
       alert("Failed to transcribe audio.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -506,12 +329,9 @@ const ChatScreen: React.FC = () => {
     setIsPlayingId(messageId);
 
     try {
-      // Text-to-speech is disabled in simplified version
-      // In production, this would call a dedicated TTS API endpoint
       console.log("Text-to-speech requested for:", text);
-      alert("Text-to-speech feature is currently disabled. Please upgrade the backend API to enable this feature.");
+      alert("Text-to-speech feature is currently disabled.");
       setIsPlayingId(null);
-      return;
     } catch (error) {
       console.error("TTS Error:", error);
       setIsPlayingId(null);
@@ -528,35 +348,20 @@ const ChatScreen: React.FC = () => {
     }
   };
 
+  const handleRenameSession = async (sessionId: string) => {
+    if (editTitle.trim()) {
+      await updateSessionTitle(sessionId, editTitle);
+    }
+    setEditingSessionId(null);
+  };
+
   // Regenerate an AI response
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
 
   const regenerateMessage = async (messageId: string) => {
-    // Find the message index
-    const msgIndex = messages.findIndex(m => m.id === messageId);
-    if (msgIndex < 0) return;
-
-    // Find the preceding user message
-    let userMsgIndex = msgIndex - 1;
-    while (userMsgIndex >= 0 && messages[userMsgIndex].role !== 'user') {
-      userMsgIndex--;
-    }
-
-    if (userMsgIndex < 0) {
-      console.warn("No user message found to regenerate from");
-      return;
-    }
-
-    const userMessage = messages[userMsgIndex];
-
     setRegeneratingId(messageId);
-
-    // Remove the AI response we're regenerating
-    setMessages(prev => prev.filter(m => m.id !== messageId));
-
-    // Re-send the user message to get a new response
     try {
-      await handleSend(userMessage.content);
+      await chatActions.regenerateLastResponse();
     } finally {
       setRegeneratingId(null);
     }
@@ -629,27 +434,58 @@ const ChatScreen: React.FC = () => {
                         key={session.id}
                         className="group flex items-center gap-2 p-2 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors cursor-pointer"
                         onClick={() => {
+                          if (editingSessionId === session.id) return;
                           loadSession(session.id);
                           setIsMenuOpen(false);
                         }}
                       >
                         <span className="material-symbols-outlined text-sm text-slate-500">chat_bubble</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">{session.title}</p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {session.lastMessage || `${session.messageCount} messages`}
-                          </p>
+
+                        {editingSessionId === session.id ? (
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onBlur={() => handleRenameSession(session.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameSession(session.id);
+                            }}
+                            autoFocus
+                            className="flex-1 bg-transparent border-b border-blue-500 text-sm focus:outline-none text-white"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{session.title}</p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {session.lastMessage || `${session.messageCount} messages`}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSessionId(session.id);
+                              setEditTitle(session.title);
+                            }}
+                            className="p-1 text-slate-500 hover:text-blue-400 transition-all"
+                            aria-label="Rename conversation"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSession(session.id);
+                            }}
+                            className="p-1 text-slate-500 hover:text-red-400 transition-all"
+                            aria-label="Delete conversation"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSession(session.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400 transition-all"
-                          aria-label="Delete conversation"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -718,11 +554,10 @@ const ChatScreen: React.FC = () => {
                     setSelectedModel('gemini');
                     setIsModelDropdownOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${
-                    selectedModel === 'gemini'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
+                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${selectedModel === 'gemini'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-300 hover:bg-slate-800'
+                    }`}
                 >
                   <span className="material-symbols-outlined text-base">auto_awesome</span>
                   <div className="flex-1">
@@ -736,11 +571,10 @@ const ChatScreen: React.FC = () => {
                     setSelectedModel('ollama');
                     setIsModelDropdownOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors border-t border-slate-700 ${
-                    selectedModel === 'ollama'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-300 hover:bg-slate-800'
-                  }`}
+                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors border-t border-slate-700 ${selectedModel === 'ollama'
+                    ? 'bg-slate-700 text-white'
+                    : 'text-slate-300 hover:bg-slate-800'
+                    }`}
                 >
                   <span className="material-symbols-outlined text-base">memory</span>
                   <div className="flex-1">
@@ -820,214 +654,211 @@ const ChatScreen: React.FC = () => {
                     <div className={`w-8 h-8 rounded-full bg-opacity-20 ${color.replace('text', 'bg')} flex items-center justify-center mb-2`}>
                       <span className={`material-symbols-outlined ${color}`}>{icon}</span>
                     </div>
-                  <p className="text-xs font-bold text-white mb-1">{msg.content.split(':')[0]}</p>
-                  <p className="text-[10px] text-slate-400 text-center">{msg.content.split(':')[1]}</p>
-                </div>
-              </motion.div>
-            );
-          }
+                    <p className="text-xs font-bold text-white mb-1">{msg.content.split(':')[0]}</p>
+                    <p className="text-[10px] text-slate-400 text-center">{msg.content.split(':')[1]}</p>
+                  </div>
+                </motion.div>
+              );
+            }
 
-          // Render Widgets (Generative UI)
-          if (msg.type === 'widget' && msg.widgetData) {
-            const { type, title, data } = msg.widgetData;
+            // Render Widgets (Generative UI)
+            if (msg.type === 'widget' && msg.widgetData) {
+              const { type, title, data } = msg.widgetData;
 
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-start w-full my-2"
+                >
+                  <div className="w-full max-w-sm bg-[#192633] rounded-2xl border border-slate-700 overflow-hidden shadow-md">
+                    <div className="bg-[#1F2937] p-3 border-b border-slate-700 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</span>
+                      <span className="material-symbols-outlined text-slate-400 text-sm">
+                        {type === 'recipeCard' ? 'restaurant_menu' : 'show_chart'}
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      {type.includes('Chart') && (
+                        <div className="h-40 w-full min-w-0 min-h-0 relative">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+                            <AreaChart data={data}>
+                              <defs>
+                                <linearGradient id={`grad${msg.id}`} x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#137fec" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="#137fec" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <Tooltip
+                                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '10px' }}
+                                itemStyle={{ color: '#fff' }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="value"
+                                stroke="#137fec"
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill={`url(#grad${msg.id})`}
+                              />
+                              <XAxis dataKey="day" hide />
+                              <YAxis hide domain={['auto', 'auto']} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                          <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-2">
+                            {data.length > 0 && <span>{data[0].day}</span>}
+                            {data.length > 0 && <span>{data[data.length - 1].day}</span>}
+                          </div>
+                        </div>
+                      )}
+
+                      {type === 'recipeCard' && (
+                        <div className="flex flex-col gap-3">
+                          {data.image && (
+                            <div className="w-full h-32 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${data.image}')` }}></div>
+                          )}
+                          <div>
+                            <h4 className="font-bold text-white text-sm">{data.title}</h4>
+                            <div className="flex gap-2 text-xs text-slate-400 mt-1">
+                              <span>{data.calories} kcal</span> • <span>{data.time || '15 min'}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/nutrition`)}
+                            className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-colors"
+                          >
+                            View Recipe
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            }
+
+            // Standard Text Message
             return (
               <motion.div
                 key={msg.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex justify-start w-full my-2"
+                transition={{ duration: 0.2 }}
+                className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className="w-full max-w-sm bg-[#192633] rounded-2xl border border-slate-700 overflow-hidden shadow-md">
-                  <div className="bg-[#1F2937] p-3 border-b border-slate-700 flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">{title}</span>
-                    <span className="material-symbols-outlined text-slate-400 text-sm">
-                      {type === 'recipeCard' ? 'restaurant_menu' : 'show_chart'}
-                    </span>
+                <div className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+
+                  <div className="flex items-center gap-2 mb-1 px-1">
+                    <span className="text-xs text-slate-400">{msg.role === 'user' ? 'You' : 'Cardio AI'}</span>
+                    {msg.ragContext && msg.role === 'assistant' && (
+                      <span className="text-[10px] text-blue-400 bg-blue-900/30 px-1 rounded flex items-center gap-0.5" title="Used your past data">
+                        <span className="material-symbols-outlined text-[10px]">history</span> History
+                      </span>
+                    )}
                   </div>
 
-                  <div className="p-4">
-                    {type.includes('Chart') && (
-                      <div className="h-40 w-full min-w-0 min-h-0 relative">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
-                          <AreaChart data={data}>
-                            <defs>
-                              <linearGradient id={`grad${msg.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#137fec" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#137fec" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <Tooltip
-                              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '10px' }}
-                              itemStyle={{ color: '#fff' }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="value"
-                              stroke="#137fec"
-                              strokeWidth={2}
-                              fillOpacity={1}
-                              fill={`url(#grad${msg.id})`}
-                            />
-                            <XAxis dataKey="day" hide />
-                            <YAxis hide domain={['auto', 'auto']} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                        <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-2">
-                          {data.length > 0 && <span>{data[0].day}</span>}
-                          {data.length > 0 && <span>{data[data.length - 1].day}</span>}
+                  <div className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {/* Avatar */}
+                    <div className="shrink-0 mt-1">
+                      {msg.role === 'assistant' ? (
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-600">
+                          <img src="https://img.freepik.com/free-photo/portrait-young-doctor-hospital_23-2148365287.jpg?t=st=1730000000~exp=1730003600~hmac=fakehash" alt="AI" className="w-full h-full object-cover" />
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-sm text-white">person</span>
+                        </div>
+                      )}
+                    </div>
 
-                    {type === 'recipeCard' && (
-                      <div className="flex flex-col gap-3">
-                        {data.image && (
-                          <div className="w-full h-32 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${data.image}')` }}></div>
-                        )}
-                        <div>
-                          <h4 className="font-bold text-white text-sm">{data.title}</h4>
-                          <div className="flex gap-2 text-xs text-slate-400 mt-1">
-                            <span>{data.calories} kcal</span> • <span>{data.time || '15 min'}</span>
-                          </div>
+                    {/* Bubble */}
+                    <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm relative group ${msg.role === 'assistant'
+                      ? 'bg-[#192633] text-slate-100 rounded-tl-none border border-slate-800'
+                      : 'bg-[#4B5563] text-white rounded-tr-none'
+                      }`}>
+                      {msg.image && (
+                        <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
+                          <img src={msg.image} alt="Uploaded content" className="max-w-full h-auto max-h-48 object-cover" />
                         </div>
-                        <button
-                          onClick={() => navigate(`/nutrition`)}
-                          className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-colors"
+                      )}
+
+                      {/* Use ChatMessageMarkdown for model responses, plain text for user */}
+                      {msg.role === 'assistant' ? (
+                        <ChatMessageMarkdown
+                          content={msg.content}
+                          sources={msg.sources}
+                          showHealthAlerts={true}
+                        />
+                      ) : (
+                        <span>{msg.content}</span>
+                      )}
+
+                      {/* Message Actions (TTS, Copy & Regenerate) */}
+                      {msg.role === 'assistant' && (
+                        <div className="absolute -right-10 bottom-0 flex flex-col gap-1">
+                          <button
+                            onClick={() => regenerateMessage(msg.id)}
+                            disabled={regeneratingId === msg.id || isLoading}
+                            className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${regeneratingId === msg.id ? 'text-blue-400 animate-spin' : 'text-slate-500'
+                              } disabled:opacity-50`}
+                            title="Regenerate response"
+                            aria-label="Regenerate AI response"
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              refresh
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => copyMessage(msg.content, msg.id)}
+                            className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${copiedMessageId === msg.id ? 'text-green-400' : 'text-slate-500'
+                              }`}
+                            title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              {copiedMessageId === msg.id ? 'check' : 'content_copy'}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => playTTS(msg.content, msg.id)}
+                            className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${isPlayingId === msg.id ? 'text-red-400' : 'text-slate-500'
+                              }`}
+                            title={isPlayingId === msg.id ? 'Stop' : 'Read aloud'}
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              {isPlayingId === msg.id ? 'stop_circle' : 'volume_up'}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Grounding Data */}
+                  {msg.groundingMetadata?.groundingChunks && (
+                    <div className="mt-2 ml-11 flex flex-wrap gap-2">
+                      {msg.groundingMetadata.groundingChunks.map((chunk: any, i: number) => (
+                        <a
+                          key={i}
+                          href={chunk.web?.uri || chunk.maps?.source?.uri}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 bg-[#192633] border border-slate-700 px-2 py-1 rounded text-xs text-blue-400 hover:text-blue-300"
                         >
-                          View Recipe
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                          <span className="material-symbols-outlined text-[10px]">link</span>
+                          {chunk.web?.title || "Source"}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
-          }
-
-          // Standard Text Message
-          return (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-
-                <div className="flex items-center gap-2 mb-1 px-1">
-                  <span className="text-xs text-slate-400">{msg.role === 'user' ? 'You' : 'Cardio AI'}</span>
-                  {msg.ragContext && msg.role === 'assistant' && (
-                    <span className="text-[10px] text-blue-400 bg-blue-900/30 px-1 rounded flex items-center gap-0.5" title="Used your past data">
-                      <span className="material-symbols-outlined text-[10px]">history</span> History
-                    </span>
-                  )}
-                </div>
-
-                <div className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {/* Avatar */}
-                  <div className="shrink-0 mt-1">
-                    {msg.role === 'assistant' ? (
-                      <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-600">
-                        <img src="https://img.freepik.com/free-photo/portrait-young-doctor-hospital_23-2148365287.jpg?t=st=1730000000~exp=1730003600~hmac=fakehash" alt="AI" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm text-white">person</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bubble */}
-                  <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm relative group ${msg.role === 'assistant'
-                      ? 'bg-[#192633] text-slate-100 rounded-tl-none border border-slate-800'
-                      : 'bg-[#4B5563] text-white rounded-tr-none'
-                    }`}>
-                    {msg.image && (
-                      <div className="mb-2 rounded-lg overflow-hidden border border-white/20">
-                        <img src={msg.image} alt="Uploaded content" className="max-w-full h-auto max-h-48 object-cover" />
-                      </div>
-                    )}
-
-                    {/* Use ChatMessageMarkdown for model responses, plain text for user */}
-                    {msg.role === 'assistant' ? (
-                      <ChatMessageMarkdown
-                        content={msg.content}
-                        sources={msg.sources}
-                        showHealthAlerts={true}
-                      />
-                    ) : (
-                      <span>{msg.content}</span>
-                    )}
-
-                    {/* Message Actions (TTS, Copy & Regenerate) */}
-                    {msg.role === 'assistant' && (
-                      <div className="absolute -right-10 bottom-0 flex flex-col gap-1">
-                        <button
-                          onClick={() => regenerateMessage(msg.id)}
-                          disabled={regeneratingId === msg.id || isLoading}
-                          className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${
-                            regeneratingId === msg.id ? 'text-blue-400 animate-spin' : 'text-slate-500'
-                          } disabled:opacity-50`}
-                          title="Regenerate response"
-                          aria-label="Regenerate AI response"
-                        >
-                          <span className="material-symbols-outlined text-lg">
-                            refresh
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => copyMessage(msg.content, msg.id)}
-                          className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${
-                            copiedMessageId === msg.id ? 'text-green-400' : 'text-slate-500'
-                          }`}
-                          title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
-                        >
-                          <span className="material-symbols-outlined text-lg">
-                            {copiedMessageId === msg.id ? 'check' : 'content_copy'}
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => playTTS(msg.content, msg.id)}
-                          className={`p-1.5 rounded-full hover:bg-slate-800 transition-colors ${
-                            isPlayingId === msg.id ? 'text-red-400' : 'text-slate-500'
-                          }`}
-                          title={isPlayingId === msg.id ? 'Stop' : 'Read aloud'}
-                        >
-                          <span className="material-symbols-outlined text-lg">
-                            {isPlayingId === msg.id ? 'stop_circle' : 'volume_up'}
-                          </span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Grounding Data */}
-                {msg.groundingMetadata?.groundingChunks && (
-                  <div className="mt-2 ml-11 flex flex-wrap gap-2">
-                    {msg.groundingMetadata.groundingChunks.map((chunk: any, i: number) => (
-                      <a
-                        key={i}
-                        href={chunk.web?.uri || chunk.maps?.source?.uri}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 bg-[#192633] border border-slate-700 px-2 py-1 rounded text-xs text-blue-400 hover:text-blue-300"
-                      >
-                        <span className="material-symbols-outlined text-[10px]">link</span>
-                        {chunk.web?.title || "Source"}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          );
-        })}
+          })}
         </AnimatePresence>
 
         {isLoading && (

@@ -73,3 +73,40 @@ async def conversation_response(request: StructuredRequest):
     except Exception as e:
         logger.error(f"Error in structured conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/status")
+async def get_status():
+    """Get status of structured output system."""
+    try:
+        ollama = get_ollama_generator()
+        return {
+            "status": "online",
+            "provider": "ollama",
+            "model": ollama.model_name if ollama else "unknown",
+            "generators": ["health", "intent", "conversation"],
+        }
+    except Exception as e:
+        return {
+            "status": "degraded",
+            "error": str(e),
+            "provider": "unknown",
+        }
+
+
+@router.get("/schema/{name}")
+async def get_schema(name: str):
+    """Get JSON schema for a structured output model."""
+    schema_map = {
+        "health-analysis": CardioHealthAnalysis,
+        "intent": SimpleIntentAnalysis,
+        "conversation": ConversationResponse,
+    }
+
+    if name not in schema_map:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Schema '{name}' not found. Available: {list(schema_map.keys())}",
+        )
+
+    return schema_map[name].model_json_schema()

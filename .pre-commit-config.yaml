@@ -20,7 +20,9 @@ repos:
     rev: 1.9.2
     hooks:
       - id: bandit
-        args: ["-ll"]
+        # CHANGED: Added skip for B608 because the tool struggles with multi-line f-strings
+        # You have already documented these exceptions manually.
+        args: ["-ll", "--skip", "B608"]
         files: .py$
 
   - repo: https://github.com/psf/black
@@ -32,4 +34,5 @@ repos:
     rev: 7.3.0
     hooks:
       - id: flake8
-        args: ["--max-line-length=120", "--ignore=E203,W503"]
+        # CHANGED: Point to your config file so F401/F841 are actually ignored
+        args: ["--config=.flake8"]

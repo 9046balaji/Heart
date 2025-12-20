@@ -15,6 +15,7 @@ import {
     DocumentProcessResponse,
     DocumentDetails,
     ExtractedEntity,
+    ClassificationResult,
     APIErrorResponse,
 } from './api.types';
 
@@ -273,6 +274,42 @@ export async function extractEntities(
 }
 
 /**
+ * Classify a document
+ *
+ * @param documentId - Document identifier
+ * @param userId - User identifier
+ * @param text - Optional text to aid classification
+ * @returns Classification result
+ */
+export async function classifyDocument(
+    documentId: string,
+    userId: string,
+    text?: string
+): Promise<ClassificationResult> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/documents/classify?user_id=${userId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                document_id: documentId,
+                text: text,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw { status: response.status, detail: errorData.detail };
+        }
+
+        return await response.json();
+    } catch (error) {
+        handleError(error, 'classifyDocument');
+    }
+}
+
+/**
  * Upload and process a document in one call
  * Convenience method that chains upload + process
  *
@@ -308,6 +345,7 @@ export const documentService = {
     processDocument,
     getDocument,
     extractEntities,
+    classifyDocument,
     uploadAndProcess,
 
     // Configuration exports for UI components

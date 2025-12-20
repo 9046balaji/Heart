@@ -12,6 +12,8 @@ const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.me
   ? (import.meta as any).env.VITE_NLP_SERVICE_URL
   : 'http://localhost:5001';
 
+import { handleError, retryWithBackoff, ErrorType } from '../utils/errorHandling';
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
@@ -40,6 +42,15 @@ async function apiCall<T>(
     body,
     timeout = 30000,
   } = options;
+
+  // Check for offline status before making request
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new APIError(
+      0,
+      'Device is offline',
+      { type: ErrorType.OFFLINE }
+    );
+  }
 
   const url = `${API_BASE_URL}${endpoint}`;
   const controller = new AbortController();
@@ -177,6 +188,9 @@ export const apiClient = {
     return apiCall<{
       insight: string;
       timestamp: string;
+      disclaimer?: string;
+      context_used?: string[];
+      provider?: string;
     }>('/api/generate-insight', {
       method: 'POST',
       body: params,
@@ -196,6 +210,7 @@ export const apiClient = {
       analysis: string;
       recipe: string;
       timestamp: string;
+      allergen_warnings?: string[];
     }>('/api/analyze-recipe', {
       method: 'POST',
       body: params,
@@ -235,6 +250,8 @@ export const apiClient = {
       meal_plan: string;
       days: number;
       timestamp: string;
+      allergies_considered?: string[];
+      provider?: string;
     }>('/api/generate-meal-plan', {
       method: 'POST',
       body: params,
@@ -321,6 +338,12 @@ export const apiClient = {
     conversation_history?: Array<{ role: string; content: string }>;
     temperature?: number;
   }): AsyncGenerator<{ type: 'token' | 'done' | 'error'; data: string | any }> {
+    // Check for offline status before making request
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      yield { type: 'error', data: { error: 'You are currently offline. Please check your internet connection.' } };
+      return;
+    }
+
     const url = `${API_BASE_URL}/api/chat/stream`;
 
     try {
@@ -590,6 +613,340 @@ export const apiClient = {
   listModels: async (): Promise<ModelsListResponse> => {
     return apiCall<ModelsListResponse>('/api/models/list');
   },
+
+  // ==========================================================================
+  // DOCUMENT API
+  // ==========================================================================
+
+  uploadDocument: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiCall<DocumentUploadResponse>('/api/documents/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  processDocument: async (documentId: string) => {
+    return apiCall<DocumentProcessingResult>(`/api/documents/process/${documentId}`, {
+      method: 'POST',
+    });
+  },
+
+  getDocument: async (documentId: string) => {
+    return apiCall<DocumentResponse>(`/api/documents/${documentId}`);
+  },
+
+  // ==========================================================================
+  // VISION API
+  // ==========================================================================
+
+  analyzeECG: async (file: File, context?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (context) formData.append('patient_context', context);
+    return apiCall<ECGAnalysisResponse>('/api/vision/ecg/analyze', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  recognizeFood: async (file: File, estimatePortions: boolean = true) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('estimate_portions', String(estimatePortions));
+    return apiCall<FoodAnalysisResponse>('/api/vision/food/recognize', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  logMeal: async (userId: string, file: File, mealType: string, notes?: string) => {
+    const formData = new FormData();
+    formData.append('user_id', userId);
+    formData.append('file', file);
+    formData.append('meal_type', mealType);
+    if (notes) formData.append('notes', notes);
+    return apiCall<any>('/api/vision/food/log-meal', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  // ==========================================================================
+  // CALENDAR API
+  // ==========================================================================
+
+  storeCalendarCredentials: async (userId: string, credentials: any) => {
+    return apiCall<any>(`/api/calendar/${userId}/credentials`, {
+      method: 'POST',
+      body: credentials,
+    });
+  },
+
+  syncCalendar: async (userId: string, options: any) => {
+    return apiCall<SyncResponse>(`/api/calendar/${userId}/sync`, {
+      method: 'POST',
+      body: options,
+    });
+  },
+
+  getCalendarEvents: async (userId: string, start?: string, end?: string) => {
+    const params = new URLSearchParams();
+    if (start) params.append('start_date', start);
+    if (end) params.append('end_date', end);
+    return apiCall<CalendarEventResponse[]>(`/api/calendar/${userId}/events?${params.toString()}`);
+  },
+
+  scheduleReminder: async (userId: string, reminder: any) => {
+    return apiCall<ReminderResponse>(`/api/calendar/${userId}/reminder`, {
+      method: 'POST',
+      body: reminder,
+    });
+  },
+
+  // ==========================================================================
+  // NOTIFICATIONS API
+  // ==========================================================================
+
+  sendWhatsApp: async (request: any) => {
+    return apiCall<any>('/api/notifications/whatsapp', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  sendEmail: async (request: any) => {
+    return apiCall<any>('/api/notifications/email', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  registerDevice: async (userId: string, token: string, platform: string) => {
+    return apiCall<any>('/api/notifications/register-device', {
+      method: 'POST',
+      body: { user_id: userId, device_token: token, platform },
+    });
+  },
+
+  sendPushNotification: async (request: {
+    user_id: string;
+    title: string;
+    body: string;
+    data?: any;
+  }) => {
+    return apiCall<any>('/api/notifications/push', {
+      method: 'POST',
+      body: request,
+    });
+  },
+
+  // ==========================================================================
+  // SMARTWATCH API
+  // ==========================================================================
+
+  registerSmartwatch: async (device: any) => {
+    return apiCall<any>('/api/smartwatch/register', {
+      method: 'POST',
+      body: device,
+    });
+  },
+
+  ingestVitals: async (payload: any) => {
+    return apiCall<any>('/api/smartwatch/vitals', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  getAggregatedVitals: async (deviceId: string, metric: string, interval: string) => {
+    return apiCall<any>(`/api/smartwatch/${deviceId}/aggregate?metric_type=${metric}&interval=${interval}`);
+  },
+
+  analyzeHealth: async (data: any) => {
+    return apiCall<any>('/api/smartwatch/analyze', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  // ==========================================================================
+  // KNOWLEDGE GRAPH API
+  // ==========================================================================
+
+  searchGraph: async (query: string, nodeTypes?: string[]) => {
+    return apiCall<GraphSearchResponse>('/api/knowledge-graph/search', {
+      method: 'POST',
+      body: { query, node_types: nodeTypes },
+    });
+  },
+
+  createNode: async (node: any) => {
+    return apiCall<any>('/api/knowledge-graph/node', {
+      method: 'POST',
+      body: node,
+    });
+  },
+
+  ragQuery: async (query: string) => {
+    return apiCall<{ answer: string; context: any[] }>('/api/knowledge-graph/rag-query', {
+      method: 'POST',
+      body: { query },
+    });
+  },
+
+  // ==========================================================================
+  // INTEGRATIONS API
+  // ==========================================================================
+
+  getPatientTimeline: async (userId: string, days: number = 30) => {
+    return apiCall<TimelineEvent[]>(`/api/integrations/timeline/${userId}?days=${days}`);
+  },
+
+  getWeeklySummary: async (userId: string) => {
+    return apiCall<any>(`/api/integrations/weekly-summary/${userId}`);
+  },
+
+  predictFromDocument: async (documentId: string, userId: string, patientProfile: any = {}) => {
+    return apiCall<any>('/api/integrations/predict-from-document', {
+      method: 'POST',
+      body: { document_id: documentId, user_id: userId, patient_profile: patientProfile },
+    });
+  },
+
+  triggerWeeklySummary: async (userId: string) => {
+    return apiCall<any>('/api/weekly-summary/trigger', {
+      method: 'POST',
+      body: { user_id: userId },
+    });
+  },
+
+  // ==========================================================================
+  // MEDICAL AI API
+  // ==========================================================================
+
+  extractMedicalEntities: async (text: string) => {
+    return apiCall<any>('/api/medical-ai/extract-entities', {
+      method: 'POST',
+      body: { text },
+    });
+  },
+
+  getPatientSummary: async (userId: string) => {
+    return apiCall<any>('/api/medical-ai/patient-summary', {
+      method: 'POST',
+      body: { user_id: userId },
+    });
+  },
+
+  expandTerminology: async (term: string) => {
+    return apiCall<any>('/api/medical-ai/terminology', {
+      method: 'POST',
+      body: { term },
+    });
+  },
+
+  // ==========================================================================
+  // TOOLS API
+  // ==========================================================================
+
+  recordBloodPressure: async (systolic: number, diastolic: number, userId: string) => {
+    return apiCall<any>('/api/tools/blood-pressure', {
+      method: 'POST',
+      body: { systolic, diastolic, user_id: userId, timestamp: new Date().toISOString() },
+    });
+  },
+
+  recordHeartRate: async (bpm: number, userId: string) => {
+    return apiCall<any>('/api/tools/heart-rate', {
+      method: 'POST',
+      body: { bpm, user_id: userId, timestamp: new Date().toISOString() },
+    });
+  },
+
+  checkDrugInteractions: async (medications: string[]) => {
+    return apiCall<any>('/api/tools/drug-interactions', {
+      method: 'POST',
+      body: { medications },
+    });
+  },
+
+  symptomTriage: async (symptoms: string[], userId: string) => {
+    return apiCall<any>('/api/tools/symptom-triage', {
+      method: 'POST',
+      body: { symptoms, user_id: userId },
+    });
+  },
+
+  // ==========================================================================
+  // COMPLIANCE API
+  // ==========================================================================
+
+  getDisclaimer: async (type: string) => {
+    return apiCall<any>(`/api/compliance/disclaimer/${type}`);
+  },
+
+  encryptPHI: async (data: any) => {
+    return apiCall<any>('/api/compliance/encrypt-phi', {
+      method: 'POST',
+      body: { data },
+    });
+  },
+
+  getVerificationQueue: async () => {
+    return apiCall<any>('/api/compliance/verification/pending');
+  },
+
+  submitVerification: async (itemId: string, verified: boolean, notes?: string) => {
+    return apiCall<any>('/api/compliance/verification/submit', {
+      method: 'POST',
+      body: { item_id: itemId, verified, notes },
+    });
+  },
+
+  // ==========================================================================
+  // CONSENT MANAGEMENT API
+  // ==========================================================================
+
+  getConsent: async (userId: string) => {
+    return apiCall<any>(`/api/consent/${userId}`);
+  },
+
+  updateConsent: async (userId: string, consents: any) => {
+    return apiCall<any>(`/api/consent/${userId}`, {
+      method: 'PUT',
+      body: consents,
+    });
+  },
+
+  revokeConsent: async (userId: string, consentType: string) => {
+    return apiCall<any>(`/api/consent/${userId}/${consentType}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ==========================================================================
+  // SMARTWATCH ADDITIONAL APIs
+  // ==========================================================================
+
+  // Removed duplicate analyzeHealth function to fix TS1117 error
+
+  // ==========================================================================
+  // EVALUATION APIs (Admin/Developer)
+  // ==========================================================================
+
+  evaluateRAG: async (queries: string[], groundTruth?: any[]) => {
+    return apiCall<any>('/api/evaluation/rag', {
+      method: 'POST',
+      body: { queries, ground_truth: groundTruth },
+    });
+  },
+
+  getWebSocketUrl: (endpoint: string) => {
+    const wsBase = API_BASE_URL.replace('http', 'ws');
+    return `${wsBase}${endpoint}`;
+  },
 };
 
 // ============================================================================
@@ -829,6 +1186,18 @@ export interface AuditLogEntry {
   details?: Record<string, unknown>;
 }
 
+export interface TimelineEvent {
+  id: string;
+  event_type: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  source: string;
+  importance: string;
+  verified: boolean;
+  data: Record<string, any>;
+}
+
 // ============================================================================
 // ANALYTICS TYPES
 // ============================================================================
@@ -956,6 +1325,86 @@ export interface ModelsListResponse {
     status: 'active' | 'deprecated' | 'testing';
     description?: string;
   }>;
+}
+
+// ============================================================================
+// DOCUMENT TYPES
+// ============================================================================
+
+export interface DocumentUploadResponse {
+  document_id: string;
+  filename: string;
+  status: string;
+}
+
+export interface DocumentProcessingResult {
+  text: string;
+  metadata: Record<string, any>;
+  entities: any[];
+}
+
+export interface DocumentResponse {
+  id: string;
+  content: string;
+  processed_at: string;
+}
+
+// ============================================================================
+// VISION TYPES
+// ============================================================================
+
+export interface ECGAnalysisResponse {
+  rhythm: string;
+  heart_rate_bpm?: number;
+  abnormalities: string[];
+  recommendations: string[];
+  confidence: number;
+}
+
+export interface FoodAnalysisResponse {
+  food_items: any[];
+  total_calories?: number;
+  macros: Record<string, number>;
+  health_score?: number;
+  recommendations: string[];
+}
+
+// ============================================================================
+// CALENDAR TYPES
+// ============================================================================
+
+export interface SyncResponse {
+  events_synced: number;
+  reminders_created: number;
+  sync_completed_at: string;
+}
+
+export interface CalendarEventResponse {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  location?: string;
+  description?: string;
+}
+
+export interface ReminderResponse {
+  id: string;
+  appointment_id: string;
+  scheduled_for: string;
+  status: string;
+}
+
+// ============================================================================
+// KNOWLEDGE GRAPH TYPES
+// ============================================================================
+
+export interface GraphSearchResponse {
+  query: string;
+  nodes: any[];
+  relationships: any[];
+  paths: string[][];
+  total_results: number;
 }
 
 export { APIError };

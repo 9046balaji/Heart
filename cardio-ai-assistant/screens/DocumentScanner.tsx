@@ -16,9 +16,9 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { documentService, DocumentServiceError } from '../services/documentService';
-import { DocumentProcessResponse, ExtractedEntity } from '../services/api.types';
+import { DocumentProcessResponse, ExtractedEntity, ClassificationResult } from '../services/api.types';
 
-type ProcessingStage = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+type ProcessingStage = 'idle' | 'uploading' | 'processing' | 'classifying' | 'complete' | 'error';
 
 interface ProcessingState {
     stage: ProcessingStage;
@@ -64,6 +64,7 @@ const DocumentScanner: React.FC = () => {
         message: '',
     });
     const [result, setResult] = useState<DocumentProcessResponse | null>(null);
+    const [classification, setClassification] = useState<ClassificationResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -89,6 +90,7 @@ const DocumentScanner: React.FC = () => {
         setSelectedFile(file);
         setError(null);
         setResult(null);
+        setClassification(null);
 
         // Start processing
         try {
@@ -106,8 +108,18 @@ const DocumentScanner: React.FC = () => {
                 }
             );
 
-            setProcessing({ stage: 'complete', progress: 100, message: 'Processing complete!' });
             setResult(processResult);
+
+            // Classify Document
+            setProcessing({ stage: 'classifying', progress: 90, message: 'Classifying document type...' });
+            const classResult = await documentService.classifyDocument(
+                processResult.document_id,
+                USER_ID,
+                processResult.text
+            );
+            setClassification(classResult);
+
+            setProcessing({ stage: 'complete', progress: 100, message: 'Processing complete!' });
 
         } catch (err) {
             console.error('[DocumentScanner] Processing error:', err);
@@ -161,6 +173,7 @@ const DocumentScanner: React.FC = () => {
     const handleReset = () => {
         setProcessing({ stage: 'idle', progress: 0, message: '' });
         setResult(null);
+        setClassification(null);
         setError(null);
         setSelectedFile(null);
         if (fileInputRef.current) {
@@ -276,7 +289,7 @@ const DocumentScanner: React.FC = () => {
                 )}
 
                 {/* Processing State */}
-                {(processing.stage === 'uploading' || processing.stage === 'processing') && (
+                {(processing.stage === 'uploading' || processing.stage === 'processing' || processing.stage === 'classifying') && (
                     <div className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-lg border border-slate-100 dark:border-slate-800">
                         <div className="flex flex-col items-center gap-4">
                             <div className="relative w-20 h-20">
@@ -311,7 +324,9 @@ const DocumentScanner: React.FC = () => {
                             <div className="text-center">
                                 <p className="font-medium text-slate-700 dark:text-white">{processing.message}</p>
                                 <p className="text-sm text-slate-500 mt-1">
-                                    {processing.stage === 'uploading' ? 'Uploading your document...' : 'Extracting text and entities...'}
+                                    {processing.stage === 'uploading' ? 'Uploading your document...' :
+                                        processing.stage === 'processing' ? 'Extracting text and entities...' :
+                                            'Analyzing document type...'}
                                 </p>
                             </div>
                         </div>
@@ -350,6 +365,34 @@ const DocumentScanner: React.FC = () => {
                                 </p>
                             </div>
                         </div>
+
+                        {/* Classification Result */}
+                        {classification && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-medium text-blue-800 dark:text-blue-400 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm">category</span>
+                                        Document Type
+                                    </h4>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceBadgeClass(classification.confidence)}`}>
+                                        {Math.round(classification.confidence * 100)}% Conf.
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="px-3 py-1 bg-white dark:bg-blue-900/40 rounded-lg text-sm font-medium text-blue-700 dark:text-blue-300 capitalize border border-blue-100 dark:border-blue-800">
+                                        {classification.document_type.replace('_', ' ')}
+                                    </span>
+                                    <span className="px-3 py-1 bg-white dark:bg-blue-900/40 rounded-lg text-sm text-blue-600 dark:text-blue-300 capitalize border border-blue-100 dark:border-blue-800">
+                                        {classification.category}
+                                    </span>
+                                    {classification.subcategories.map((sub, idx) => (
+                                        <span key={idx} className="px-3 py-1 bg-white/50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-500 dark:text-blue-400 capitalize border border-blue-50 dark:border-blue-800/50">
+                                            {sub.replace('_', ' ')}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Extracted Text */}
                         {result.text && (

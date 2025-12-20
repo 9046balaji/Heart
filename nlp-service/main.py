@@ -126,6 +126,7 @@ except ImportError as e:
 
 from routes.generation import router as generation_router, chat_router
 from routes.structured_outputs import router as structured_outputs_router
+from routes.analytics_routes import router as analytics_router
 
 # PHASE 2: RAG & Memory Routes
 if RAG_ENABLED:
@@ -439,6 +440,7 @@ else:
 app.include_router(generation_router, tags=["Generation"])
 app.include_router(chat_router, tags=["Chat"])
 app.include_router(structured_outputs_router, tags=["Structured Outputs"])
+app.include_router(analytics_router)
 
 if document_router:
     app.include_router(document_router, tags=["Documents"])

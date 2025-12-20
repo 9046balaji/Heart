@@ -21,10 +21,20 @@ const WorkoutDetailScreen = lazy(() => import('./screens/WorkoutDetailScreen'));
 const MedicationScreen = lazy(() => import('./screens/MedicationScreen'));
 const DocumentScanner = lazy(() => import('./screens/DocumentScanner'));
 const VisionAnalysis = lazy(() => import('./screens/VisionAnalysis'));
+const KnowledgeGraphScreen = lazy(() => import('./screens/KnowledgeGraphScreen'));
+const NotificationScreen = lazy(() => import('./screens/NotificationScreen'));
+const SmartWatchScreen = lazy(() => import('./screens/SmartWatchScreen'));
+const CalendarScreen = lazy(() => import('./screens/CalendarScreen'));
+const VisionScreen = lazy(() => import('./screens/VisionScreen'));
+const ComplianceScreen = lazy(() => import('./screens/ComplianceScreen'));
+const TimelineScreen = lazy(() => import('./screens/TimelineScreen'));
+const WeeklySummaryScreen = lazy(() => import('./screens/WeeklySummaryScreen'));
+const PatientSummaryScreen = lazy(() => import('./screens/PatientSummaryScreen'));
+const ConsentScreen = lazy(() => import('./screens/ConsentScreen'));
 
 import BottomNav from './components/BottomNav';
 import VoiceControl from './components/VoiceControl';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PageSkeleton, ChatListSkeleton } from './components/Skeleton';
 
@@ -131,6 +141,56 @@ const AppContent: React.FC = () => {
             <Route path="/vision" element={
               <Suspense fallback={<ListFallback />}>
                 <VisionAnalysis />
+              </Suspense>
+            } />
+            <Route path="/knowledge-graph" element={
+              <Suspense fallback={<ListFallback />}>
+                <KnowledgeGraphScreen />
+              </Suspense>
+            } />
+            <Route path="/notifications" element={
+              <Suspense fallback={<ListFallback />}>
+                <NotificationScreen />
+              </Suspense>
+            } />
+            <Route path="/smartwatch" element={
+              <Suspense fallback={<ListFallback />}>
+                <SmartWatchScreen />
+              </Suspense>
+            } />
+            <Route path="/calendar" element={
+              <Suspense fallback={<ListFallback />}>
+                <CalendarScreen />
+              </Suspense>
+            } />
+            <Route path="/vision-screen" element={
+              <Suspense fallback={<ListFallback />}>
+                <VisionScreen />
+              </Suspense>
+            } />
+            <Route path="/compliance" element={
+              <Suspense fallback={<ListFallback />}>
+                <ComplianceScreen />
+              </Suspense>
+            } />
+            <Route path="/timeline" element={
+              <Suspense fallback={<ListFallback />}>
+                <TimelineScreen />
+              </Suspense>
+            } />
+            <Route path="/weekly-summary" element={
+              <Suspense fallback={<ListFallback />}>
+                <WeeklySummaryScreen />
+              </Suspense>
+            } />
+            <Route path="/patient-summary" element={
+              <Suspense fallback={<ListFallback />}>
+                <PatientSummaryScreen />
+              </Suspense>
+            } />
+            <Route path="/consent" element={
+              <Suspense fallback={<ListFallback />}>
+                <ConsentScreen />
               </Suspense>
             } />
           </Routes>

@@ -34,10 +34,47 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+
+  // UI & Extended fields
+  type?: 'text' | 'action_request' | 'action_result' | 'widget';
+  actionData?: any;
+  widgetData?: {
+    type: string;
+    title: string;
+    data: any;
+  };
+  image?: string; // Base64
+
+  isError?: boolean;
+  isStreaming?: boolean;
+  thinkingContent?: string; // Alias for thinkingProcess?
+  thinkingProcess?: string;
+
+  // RAG & Grounding
+  ragContext?: boolean;
+  sources?: Array<{
+    title: string;
+    category?: string;
+    relevance?: number;
+  }>;
+  groundingMetadata?: {
+    groundingChunks?: Array<{
+      web?: {
+        uri?: string;
+        title?: string;
+      };
+    }>;
+  };
+
   citations?: Citation[];
   toolExecutions?: ToolExecution[];
-  thinkingProcess?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> & {
+    model?: string;
+    processingTime?: number;
+    tokens?: number;
+    memoryContext?: string[];
+    citations?: Citation[];
+  };
 }
 
 /**

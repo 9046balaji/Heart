@@ -63,16 +63,8 @@ export {
 export { default as BottomNav } from './BottomNav';
 
 // Error Handling
-export {
-  ErrorBoundary,
-  InlineErrorBoundary,
-  CardErrorBoundary,
-  AsyncErrorBoundary,
-  useErrorBoundary,
-  type ErrorDetails,
-  type FallbackProps,
-  type ErrorBoundaryConfig,
-} from './ErrorBoundary';
+export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as ErrorDisplay } from './ErrorDisplay';
 
 // Voice
 export { default as VoiceControl } from './VoiceControl';

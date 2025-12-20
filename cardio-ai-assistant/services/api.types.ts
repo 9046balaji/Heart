@@ -36,10 +36,25 @@ export interface DocumentProcessResponse {
     confidence: number;
 }
 
+export interface ClassificationRequest {
+    document_id: string;
+    text?: string;
+}
+
+export interface ClassificationResult {
+    document_id: string;
+    document_type: string;
+    category: string;
+    confidence: number;
+    subcategories: string[];
+    suggested_schema: string;
+}
+
 export interface DocumentClassification {
     document_type: string;
     confidence: number;
     sub_type?: string;
+    category?: string;
 }
 
 export interface DocumentDetails {

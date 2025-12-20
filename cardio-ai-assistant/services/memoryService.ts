@@ -352,6 +352,22 @@ class EnhancedMemoryService {
     return data.deleted;
   }
 
+  /**
+   * Update a session (e.g. rename).
+   */
+  async updateSession(sessionId: string, updates: { title?: string }): Promise<ChatSession> {
+    const response = await this.fetch(
+      `${this.config.baseUrl}/sessions/${sessionId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }
+    );
+    const data = await response.json();
+    return data.session;
+  }
+
   // ==========================================================================
   // Context API
   // ==========================================================================
