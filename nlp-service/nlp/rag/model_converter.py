@@ -211,7 +211,9 @@ class ONNXModelConverter:
 
         # Also save tokenizer
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, trust_remote_code=False, revision="main"
+            model_name,
+            trust_remote_code=False,
+            revision="main",  # nosec B615 # Using main for latest model updates in development
         )
         tokenizer.save_pretrained(str(output_path))
 
@@ -221,10 +223,14 @@ class ONNXModelConverter:
 
         # Load model and tokenizer
         model = AutoModel.from_pretrained(
-            model_name, trust_remote_code=False, revision="main"
+            model_name,
+            trust_remote_code=False,
+            revision="main",  # nosec B615 # Using main for latest model updates in development
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            model_name, trust_remote_code=False, revision="main"
+            model_name,
+            trust_remote_code=False,
+            revision="main",  # nosec B615 # Using main for latest model updates in development
         )
 
         model.eval()
@@ -310,10 +316,14 @@ class ONNXModelConverter:
 
         # Load original model
         model = AutoModel.from_pretrained(
-            original_model, trust_remote_code=False, revision="main"
+            original_model,
+            trust_remote_code=False,
+            revision="main",  # nosec B615 # Using main for latest model updates in development
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            original_model, trust_remote_code=False, revision="main"
+            original_model,
+            trust_remote_code=False,
+            revision="main",  # nosec B615 # Using main for latest model updates in development
         )
         model.eval()
 

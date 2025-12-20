@@ -90,8 +90,9 @@ APPOINTMENT_CANCELLATION_ALLOWED_BEFORE_MINUTES: Final[int] = int(
 # ============================================================================
 
 # Health Data Database
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEALTH_DB_URL: Final[str] = os.getenv(
-    "HEALTH_DB_URL", "sqlite:///./health_data.db"  # Default to SQLite for development
+    "HEALTH_DB_URL", f"sqlite:///{os.path.join(BASE_DIR, 'health_data.db')}"
 )
 
 # Connection Pool

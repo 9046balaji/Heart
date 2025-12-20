@@ -6,19 +6,17 @@ Phase 2: Health Data Service
 """
 
 from sqlalchemy import create_engine, Column, String, DateTime, JSON, Boolean
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from typing import Optional, List, Dict, Union
 import logging
 
+from ..database.base import Base
 from ..models.health import HealthRecord
 from ..models.access_log import HealthRecordAccessLog  # Import the new access log model
 from ..services.encryption_service import get_encryption_service
 
 logger = logging.getLogger(__name__)
-
-Base = declarative_base()
 
 
 # ============================================================================
@@ -60,11 +58,14 @@ class HealthRecordDB(Base):
 # ============================================================================
 
 
+import os
+
 # Default to SQLite for development, override with HEALTH_DB_URL in production
-_db_url = "sqlite:///./health_data.db"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_db_url = f"sqlite:///{os.path.join(BASE_DIR, 'health_data.db')}"
 
 try:
-    from agents.config import HEALTH_DB_URL
+    from nlp.agents.config import HEALTH_DB_URL
 
     _db_url = HEALTH_DB_URL
 except ImportError:

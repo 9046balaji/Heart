@@ -115,7 +115,10 @@ class TimeSlotDB(Base):
 # ============================================================================
 
 
-_db_url = "sqlite:///./appointments.db"
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_db_url = f"sqlite:///{os.path.join(BASE_DIR, 'appointments.db')}"
 
 try:
     from agents.config import APPOINTMENTS_DB_URL

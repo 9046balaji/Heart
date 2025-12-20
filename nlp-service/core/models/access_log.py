@@ -3,10 +3,8 @@ Access log model for health record audit trail.
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index
-from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
-
-Base = declarative_base()
+from ..database.base import Base
 
 
 class HealthRecordAccessLog(Base):

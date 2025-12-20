@@ -168,8 +168,10 @@ class UserPreferencesManager:
         """
         # Default to SQLite if no URL provided
         if database_url is None:
+            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            default_db = os.path.join(BASE_DIR, "user_preferences.db")
             database_url = os.environ.get(
-                "USER_PREFERENCES_DB_URL", "sqlite:///user_preferences.db"
+                "USER_PREFERENCES_DB_URL", f"sqlite:///{default_db}"
             )
 
         self.engine = create_engine(database_url, pool_pre_ping=True, echo=False)

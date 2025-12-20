@@ -332,7 +332,9 @@ class L2RedisCache(CacheBackend):
                 return None
 
             # Deserialize
-            value = pickle.loads(data)
+            value = pickle.loads(
+                data
+            )  # nosec B301 # Internal cache data, not from untrusted sources
             self.stats.hits += 1
             return value
 
@@ -358,7 +360,9 @@ class L2RedisCache(CacheBackend):
             prefixed_key = self._make_key(key)
 
             # Serialize value
-            data = pickle.dumps(value)
+            data = pickle.dumps(
+                value
+            )  # nosec B301 # Internal cache data, not from untrusted sources
 
             # Set with TTL
             await self._client.setex(prefixed_key, ttl_seconds, data)

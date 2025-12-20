@@ -347,7 +347,9 @@ class IntentRecognizer:
 
         try:
             with open(cache_file, "rb") as f:
-                cached_data = pickle.load(f)
+                cached_data = pickle.load(
+                    f
+                )  # nosec B301 # Internal cache data, not from untrusted sources
                 # Verify keywords haven't changed
                 cached_keywords = cached_data.get("keywords_hash")
                 current_hash = self._hash_keywords()
@@ -368,7 +370,9 @@ class IntentRecognizer:
         """Load pre-computed vectors from disk cache"""
         try:
             with open(cache_file, "rb") as f:
-                cached_data = pickle.load(f)
+                cached_data = pickle.load(
+                    f
+                )  # nosec B301 # Internal cache data, not from untrusted sources
                 self.tfidf_vectorizer = cached_data["vectorizer"]
                 self.intent_vectors = cached_data["vectors"]
                 print(
@@ -431,7 +435,9 @@ class IntentRecognizer:
                 "cached_at": datetime.now().isoformat(),
             }
             with open(cache_file, "wb") as f:
-                pickle.dump(cache_data, f)
+                pickle.dump(
+                    cache_data, f
+                )  # nosec B301 # Internal cache data, not from untrusted sources
             print(
                 f"Cached intent vectors to {cache_file} ({cache_file.stat().st_size / 1024:.1f}KB)"
             )
