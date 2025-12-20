@@ -1,9 +1,9 @@
 /**
  * PullToRefresh Component
- * 
+ *
  * A reusable pull-to-refresh wrapper component with animated indicator.
  * Integrates with the usePullToRefresh hook for gesture handling.
- * 
+ *
  * @author Cardio AI Team
  * @version 1.0.0
  */
@@ -52,7 +52,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const isReadyToRefresh = progress >= 100;
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`ptr-container relative overflow-hidden ${className}`}
       style={{
@@ -76,14 +76,14 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
               backfaceVisibility: 'hidden',
             }}
             initial={{ height: 0, opacity: 0 }}
-            animate={{ 
+            animate={{
               height: isRefreshing ? threshold : indicatorHeight,
               opacity: 1,
             }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ 
-              type: 'spring', 
-              stiffness: 300, 
+            transition={{
+              type: 'spring',
+              stiffness: 300,
               damping: 30,
               opacity: { duration: 0.2 }
             }}
@@ -94,10 +94,10 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
                   // Refreshing spinner
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ 
-                      repeat: Infinity, 
-                      duration: 1, 
-                      ease: 'linear' 
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1,
+                      ease: 'linear'
                     }}
                   >
                     <RefreshSpinner color={indicatorColor} />
@@ -110,13 +110,13 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
                     }}
                     className={isReadyToRefresh ? 'ptr-heart' : ''}
                   >
-                    <HeartIcon 
-                      color={indicatorColor} 
+                    <HeartIcon
+                      color={indicatorColor}
                       filled={isReadyToRefresh}
                     />
                   </motion.div>
                 )}
-                
+
                 {/* Status text */}
                 <motion.span
                   className="text-xs mt-1 font-medium"
@@ -124,10 +124,10 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: pullDistance > 20 ? 1 : 0 }}
                 >
-                  {isRefreshing 
-                    ? 'Refreshing...' 
-                    : isReadyToRefresh 
-                      ? 'Release to refresh' 
+                  {isRefreshing
+                    ? 'Refreshing...'
+                    : isReadyToRefresh
+                      ? 'Release to refresh'
                       : 'Pull to refresh'
                   }
                 </motion.span>
@@ -170,9 +170,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 };
 
 // Heart icon component for cardio theme
-const HeartIcon: React.FC<{ color: string; filled: boolean }> = ({ 
-  color, 
-  filled 
+const HeartIcon: React.FC<{ color: string; filled: boolean }> = ({
+  color,
+  filled
 }) => (
   <svg
     width="24"

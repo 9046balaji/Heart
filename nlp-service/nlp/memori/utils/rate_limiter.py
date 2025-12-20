@@ -38,13 +38,9 @@ logger = get_logger("rate_limiter")
 class RateLimitExceeded(Exception):
     """Raised when rate limit is exceeded"""
 
-    pass
-
 
 class QuotaExceeded(Exception):
     """Raised when resource quota is exceeded"""
-
-    pass
 
 
 @dataclass

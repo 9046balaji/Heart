@@ -5,22 +5,16 @@ Cardio AI - NLP Service Main Application
 import sys
 import os
 import logging
-import asyncio
-import json
-import time
-from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Depends, status, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
+    handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger("nlp-service")
 
@@ -55,15 +49,14 @@ from config import (
     NEW_AI_FRAMEWORKS_ENABLED,
     EVALUATION_ENABLED,
     STRUCTURED_OUTPUTS_ENABLED,
-    GENERATION_ENABLED,
 )
 
 # Import core dependencies
 from core.dependencies import (
     validate_dependencies,
     get_enabled_features,
-    check_optional_dependency
 )
+
 
 # Global State Holder for Dependency Injection
 class NLPState:
@@ -71,6 +64,7 @@ class NLPState:
     Global state holder for NLP components.
     Used by core.app_dependencies to provide dependencies to routes.
     """
+
     intent_recognizer = None
     entity_extractor = None
     sentiment_analyzer = None
@@ -82,6 +76,7 @@ class NLPState:
     memory_observability = None
     nlp_service = None  # Add NLPService instance
 
+
 # Validate dependencies on startup
 validate_dependencies()
 
@@ -89,8 +84,9 @@ validate_dependencies()
 from nlp.intent_recognizer import IntentRecognizer
 from nlp.entity_extractor import EntityExtractor
 from nlp.sentiment_analyzer import SentimentAnalyzer
-from nlp.ollama_generator import OllamaGenerator, ExternalServiceError
+from nlp.ollama_generator import OllamaGenerator
 from nlp.integrated_ai_service import IntegratedAIService
+
 # Import NLPService
 from core.services.nlp_service import NLPService
 
@@ -105,7 +101,11 @@ from routes.health import router as health_router
 # Try to import smartwatch router, but handle if it fails
 try:
     from medical_ai.smart_watch.router import router as smartwatch_router
-    from medical_ai.smart_watch.router import init_smartwatch_module, shutdown_smartwatch_module
+    from medical_ai.smart_watch.router import (
+        init_smartwatch_module,
+        shutdown_smartwatch_module,
+    )
+
     SMARTWATCH_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Smartwatch module not available: {e}")
@@ -114,12 +114,23 @@ except ImportError as e:
     init_smartwatch_module = None
     shutdown_smartwatch_module = None
 
+# Import XAMPP RAG routes
+try:
+    from routes.xampp_rag_routes import router as xampp_rag_router
+
+    XAMPP_RAG_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"XAMPP RAG module not available: {e}")
+    XAMPP_RAG_AVAILABLE = False
+    xampp_rag_router = None
+
 from routes.generation import router as generation_router, chat_router
 from routes.structured_outputs import router as structured_outputs_router
 
 # PHASE 2: RAG & Memory Routes
 if RAG_ENABLED:
     from routes.document_routes import router as document_router
+
     print("[STARTUP] Document routes loaded successfully")
 else:
     document_router = None
@@ -127,6 +138,7 @@ else:
 
 if MEMORY_ENABLED:
     from routes.memory import router as memory_router
+
     print("[STARTUP] Memory routes loaded successfully")
 else:
     memory_router = None
@@ -135,6 +147,7 @@ else:
 # PHASE 3: Agent Routes
 if AGENTS_ENABLED:
     from routes.agents import router as agents_router
+
     print("[STARTUP] Agent routes loaded successfully")
 else:
     agents_router = None
@@ -143,6 +156,7 @@ else:
 # PHASE 10: Realtime Routes
 if REALTIME_ENABLED:
     from routes.realtime_routes import router as realtime_router
+
     print("[STARTUP] Realtime routes loaded successfully")
 else:
     realtime_router = None
@@ -151,6 +165,7 @@ else:
 # PHASE 11: Medical Routes
 if MEDICAL_ROUTES_ENABLED:
     from routes.medical_routes import router as medical_router
+
     print("[STARTUP] Medical routes loaded successfully")
 else:
     medical_router = None
@@ -159,6 +174,7 @@ else:
 # PHASE 12: Integration Routes
 if INTEGRATIONS_ENABLED:
     from routes.integration_routes import router as integration_router
+
     print("[STARTUP] Integration routes loaded successfully")
 else:
     integration_router = None
@@ -167,6 +183,7 @@ else:
 # PHASE 13: Compliance Routes
 if COMPLIANCE_ENABLED:
     from routes.compliance_routes import router as compliance_router
+
     print("[STARTUP] Compliance routes loaded successfully")
 else:
     compliance_router = None
@@ -175,6 +192,7 @@ else:
 # PHASE 14: Calendar Routes
 if CALENDAR_ENABLED:
     from routes.calendar_routes import router as calendar_router
+
     print("[STARTUP] Calendar routes loaded successfully")
 else:
     calendar_router = None
@@ -183,6 +201,7 @@ else:
 # PHASE 14: Knowledge Graph Routes
 if KNOWLEDGE_GRAPH_ENABLED:
     from routes.knowledge_graph_routes import router as knowledge_graph_router
+
     print("[STARTUP] Knowledge Graph routes loaded successfully")
 else:
     knowledge_graph_router = None
@@ -191,6 +210,7 @@ else:
 # PHASE 14: Notifications Routes
 if NOTIFICATIONS_ENABLED:
     from routes.notifications_routes import router as notifications_router
+
     print("[STARTUP] Notifications routes loaded successfully")
 else:
     notifications_router = None
@@ -199,6 +219,7 @@ else:
 # PHASE 15: Import Tools Routes
 if TOOLS_ENABLED:
     from routes.tools_routes import router as tools_router
+
     print("[STARTUP] Tools routes loaded successfully")
 else:
     tools_router = None
@@ -207,6 +228,7 @@ else:
 # PHASE 16: Import Vision Routes
 if VISION_ENABLED:
     from routes.vision_routes import router as vision_router
+
     print("[STARTUP] Vision routes loaded successfully")
 else:
     vision_router = None
@@ -214,10 +236,10 @@ else:
 
 # PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
 if NEW_AI_FRAMEWORKS_ENABLED:
-    from nlp.agents.langgraph_orchestrator import create_langgraph_orchestrator
+    pass
+
     # Use unified LLM gateway instead of observable_llm_gateway
-    from core.llm.llm_gateway import get_llm_gateway
-    from nlp.agents.crew_simulation import create_healthcare_crew
+
     print("[STARTUP] New AI frameworks loaded successfully")
 else:
     print("[STARTUP] New AI frameworks DISABLED via config")
@@ -225,6 +247,7 @@ else:
 # PHASE 19: Import Evaluation Routes
 if EVALUATION_ENABLED:
     from routes.evaluation_routes import router as evaluation_router
+
     print("[STARTUP] Evaluation routes loaded successfully")
 else:
     evaluation_router = None
@@ -249,16 +272,17 @@ if STRUCTURED_OUTPUTS_ENABLED:
 else:
     print("[STARTUP] Structured outputs DISABLED via config")
 
-from nlp.memory_manager import MemoryManager, PatientMemory, MemoryManagerException
+from nlp.memory_manager import MemoryManager
+
 # from nlp.memory_middleware import (
-#     # MemoryMiddleware, 
-#     # MemoryContext, 
+#     # MemoryMiddleware,
+#     # MemoryContext,
 #     # MemoryOperation,
 # )
 from nlp.memory_observability import (
     MemoriMetricsCollector,
-    # MemoryObservability, 
-    # MemoryMetricType, 
+    # MemoryObservability,
+    # MemoryMetricType,
     # MemoryEvent
 )
 
@@ -273,6 +297,7 @@ model_version_manager = None
 memory_manager = None
 memory_observability = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -281,22 +306,22 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info(f"Starting {SERVICE_NAME} v{SERVICE_VERSION}...")
-    
+
     global intent_recognizer, entity_extractor, sentiment_analyzer, ollama_generator
     global integrated_ai, risk_assessor, model_version_manager, memory_manager
     global memory_observability
-    
+
     try:
         # Initialize Memory Components
         memory_manager = MemoryManager()
         memory_observability = MemoriMetricsCollector()
         logger.info("Memory components initialized")
-        
+
         # Initialize NLP Components
         intent_recognizer = IntentRecognizer()
         entity_extractor = EntityExtractor()
         sentiment_analyzer = SentimentAnalyzer()
-        
+
         # Initialize Ollama Generator with retry logic
         try:
             ollama_generator = OllamaGenerator(
@@ -304,31 +329,31 @@ async def lifespan(app: FastAPI):
                 temperature=OLLAMA_TEMPERATURE,
                 top_p=OLLAMA_TOP_P,
                 top_k=OLLAMA_TOP_K,
-                context_window=OLLAMA_MAX_TOKENS
+                context_window=OLLAMA_MAX_TOKENS,
             )
             logger.info(f"Ollama Generator initialized with model: {OLLAMA_MODEL}")
         except Exception as e:
             logger.warning(f"Failed to initialize Ollama Generator: {e}")
             # Continue without Ollama - will fail gracefully on generation requests
-        
+
         # Initialize Medical AI Components
         risk_assessor = RiskAssessor()
         model_version_manager = ModelVersionManager()
-        
+
         # Initialize NLP Service for parallel processing
         nlp_service = NLPService(
             intent_recognizer=intent_recognizer,
             sentiment_analyzer=sentiment_analyzer,
             entity_extractor=entity_extractor,
-            risk_assessor=risk_assessor
+            risk_assessor=risk_assessor,
         )
-        
+
         # Initialize Integrated AI Service
         integrated_ai = IntegratedAIService(
             ollama_client=ollama_generator,
-            default_ai_provider="ollama" if ollama_generator else "gemini"
+            default_ai_provider="ollama" if ollama_generator else "gemini",
         )
-        
+
         # Populate Global State for Dependency Injection
         NLPState.intent_recognizer = intent_recognizer
         NLPState.entity_extractor = entity_extractor
@@ -340,9 +365,9 @@ async def lifespan(app: FastAPI):
         NLPState.memory_manager = memory_manager
         NLPState.memory_observability = memory_observability
         NLPState.nlp_service = nlp_service  # Add NLPService to global state
-        
+
         NLPState.memory_observability = memory_observability
-        
+
         # Initialize Smart Watch Module if available
         if SMARTWATCH_AVAILABLE and init_smartwatch_module:
             await init_smartwatch_module()
@@ -350,15 +375,27 @@ async def lifespan(app: FastAPI):
             logger.info("Smartwatch module available but no init function found")
         else:
             logger.info("Smartwatch module not available")
-        
+
+        # Initialize XAMPP RAG Service if available
+        if XAMPP_RAG_AVAILABLE:
+            try:
+                from core.rag.xampp_rag import get_rag_service
+
+                rag_service = await get_rag_service()
+                logger.info("XAMPP RAG service initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize XAMPP RAG service: {e}")
+        else:
+            logger.info("XAMPP RAG module not available")
+
         logger.info("All AI components initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         # Don't raise exception to allow service to start in degraded mode
-        
+
     yield
-    
+
     # Shutdown
     logger.info(f"Shutting down {SERVICE_NAME}...")
     logger.info(f"Shutting down {SERVICE_NAME}...")
@@ -366,12 +403,13 @@ async def lifespan(app: FastAPI):
     if SMARTWATCH_AVAILABLE and shutdown_smartwatch_module:
         await shutdown_smartwatch_module()
 
+
 # Create FastAPI app
 app = FastAPI(
     title=SERVICE_NAME,
     description="NLP Service for Cardio AI with Advanced Agentic Capabilities",
     version=SERVICE_VERSION,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -391,6 +429,12 @@ if smartwatch_router:
     app.include_router(smartwatch_router)  # Already has prefix /api/smartwatch
 else:
     logger.info("Smartwatch router not available, skipping")
+
+# Include XAMPP RAG router if available
+if xampp_rag_router:
+    app.include_router(xampp_rag_router)
+else:
+    logger.info("XAMPP RAG router not available, skipping")
 
 app.include_router(generation_router, tags=["Generation"])
 app.include_router(chat_router, tags=["Chat"])
@@ -439,10 +483,12 @@ if evaluation_router:
 llm_gateway = None
 try:
     from core.llm.llm_gateway import get_llm_gateway
+
     llm_gateway = get_llm_gateway()
     logger.info("✅ LLM Gateway (unified) initialized")
 except ImportError as e:
     logger.warning(f"LLM Gateway not available: {e}")
+
 
 # Root endpoint
 @app.get("/")
@@ -451,15 +497,17 @@ async def root():
         "service": SERVICE_NAME,
         "version": SERVICE_VERSION,
         "status": "running",
-        "features": get_enabled_features()
+        "features": get_enabled_features(),
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host=SERVICE_HOST,
         port=SERVICE_PORT,
         reload=True,
-        log_level=LOG_LEVEL.lower()
+        log_level=LOG_LEVEL.lower(),
     )

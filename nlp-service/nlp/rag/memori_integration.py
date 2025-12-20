@@ -27,26 +27,34 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SyncConfig:
     """Configuration for Memori-RAG synchronization."""
+
     sync_on_write: bool = True  # Sync to RAG on every new memory
     sync_interval_seconds: int = 300  # Background sync interval
     batch_size: int = 100  # Number of memories to sync per batch
-    include_categories: List[str] = field(default_factory=lambda: [
-        "health", "symptoms", "medications", "conditions",
-        "appointments", "measurements", "lifestyle"
-    ])
+    include_categories: List[str] = field(
+        default_factory=lambda: [
+            "health",
+            "symptoms",
+            "medications",
+            "conditions",
+            "appointments",
+            "measurements",
+            "lifestyle",
+        ]
+    )
     exclude_sensitive: bool = True  # Exclude highly sensitive data
 
 
 class MemoriRAGBridge:
     """
     Bridge between Memori memory system and RAG vector store.
-    
+
     This class enables:
     - Dual storage: Memori (structured) + RAG (semantic)
     - Unified search with hybrid ranking
     - Automatic synchronization
     - Memory enrichment with embeddings
-    
+
     Architecture:
         ┌─────────────────────────────────────────────┐
         │             MemoriRAGBridge                 │
@@ -65,23 +73,23 @@ class MemoriRAGBridge:
                    ┌────────▼────────┐
                    │  Unified Search │
                    └─────────────────┘
-    
+
     Example:
         from memori import Memori
         from rag import VectorStore
-        
+
         memori = Memori(database_connect="sqlite:///memories.db")
         vector_store = VectorStore()
-        
+
         bridge = MemoriRAGBridge(memori, vector_store)
-        
+
         # Add memory (syncs to both)
         bridge.add_memory("user123", "Patient has history of high blood pressure")
-        
+
         # Unified search
         results = await bridge.search("blood pressure history", user_id="user123")
     """
-    
+
     def __init__(
         self,
         memori: Optional[Any] = None,
@@ -90,7 +98,7 @@ class MemoriRAGBridge:
     ):
         """
         Initialize Memori-RAG Bridge.
-        
+
         Args:
             memori: Memori instance (optional, can be set later)
             vector_store: VectorStore instance (optional, can be set later)
@@ -99,7 +107,7 @@ class MemoriRAGBridge:
         self.memori = memori
         self.vector_store = vector_store
         self.config = config or SyncConfig()
-        
+
         self._sync_task: Optional[asyncio.Task] = None
         self._sync_lock = asyncio.Lock()
         self._last_sync_time: Optional[datetime] = None
@@ -108,23 +116,23 @@ class MemoriRAGBridge:
             "last_batch_count": 0,
             "errors": 0,
         }
-        
+
         logger.info("✅ MemoriRAGBridge initialized")
-    
+
     def set_memori(self, memori: Any) -> None:
         """Set or update Memori instance."""
         self.memori = memori
         logger.info("Memori instance connected to bridge")
-    
+
     def set_vector_store(self, vector_store: Any) -> None:
         """Set or update VectorStore instance."""
         self.vector_store = vector_store
         logger.info("VectorStore instance connected to bridge")
-    
+
     # =========================================================================
     # MEMORY OPERATIONS (Write)
     # =========================================================================
-    
+
     async def add_memory(
         self,
         user_id: str,
@@ -135,19 +143,19 @@ class MemoriRAGBridge:
     ) -> Dict[str, Any]:
         """
         Add a memory through the bridge (stores in both systems).
-        
+
         Args:
             user_id: User identifier
             content: Memory content
             category: Memory category
             metadata: Additional metadata
             sync_to_rag: Whether to sync to RAG immediately
-            
+
         Returns:
             Dict with memory_id and status
         """
         result = {"memori_id": None, "rag_id": None, "status": "pending"}
-        
+
         # 1. Store in Memori (primary)
         if self.memori:
             try:
@@ -164,13 +172,14 @@ class MemoriRAGBridge:
             except Exception as e:
                 logger.error(f"Failed to store in Memori: {e}")
                 result["memori_error"] = str(e)
-        
+
         # 2. Store in RAG (semantic search)
         if self.vector_store and sync_to_rag:
             try:
                 rag_id = self.vector_store.add_user_memory(
                     user_id=user_id,
-                    memory_id=result.get("memori_id") or f"mem_{datetime.now().timestamp()}",
+                    memory_id=result.get("memori_id")
+                    or f"mem_{datetime.now().timestamp()}",
                     content=content,
                     metadata={
                         "category": category,
@@ -183,14 +192,16 @@ class MemoriRAGBridge:
             except Exception as e:
                 logger.error(f"Failed to store in RAG: {e}")
                 result["rag_error"] = str(e)
-        
-        result["status"] = "success" if result.get("memori_id") or result.get("rag_id") else "failed"
+
+        result["status"] = (
+            "success" if result.get("memori_id") or result.get("rag_id") else "failed"
+        )
         return result
-    
+
     # =========================================================================
     # SEARCH OPERATIONS (Read)
     # =========================================================================
-    
+
     async def search(
         self,
         query: str,
@@ -202,11 +213,11 @@ class MemoriRAGBridge:
     ) -> List[Dict]:
         """
         Unified search across Memori and RAG.
-        
+
         Performs hybrid search combining:
         - Memori: Keyword/metadata search (structured)
         - RAG: Semantic/embedding search (similarity)
-        
+
         Args:
             query: Search query
             user_id: Optional user filter
@@ -214,40 +225,40 @@ class MemoriRAGBridge:
             use_memori: Include Memori results
             use_rag: Include RAG results
             hybrid_weight: Weight for RAG vs Memori (0-1)
-            
+
         Returns:
             List of search results with scores
         """
         results = []
-        
+
         # Run both searches in parallel
         tasks = []
-        
+
         if use_memori and self.memori:
             tasks.append(self._search_memori(query, user_id, top_k))
-        
+
         if use_rag and self.vector_store:
             tasks.append(self._search_rag(query, user_id, top_k))
-        
+
         if not tasks:
             return []
-        
+
         search_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Combine results
         memori_results = []
         rag_results = []
-        
+
         idx = 0
         if use_memori and self.memori:
             if not isinstance(search_results[idx], Exception):
                 memori_results = search_results[idx]
             idx += 1
-        
+
         if use_rag and self.vector_store:
             if not isinstance(search_results[idx], Exception):
                 rag_results = search_results[idx]
-        
+
         # Hybrid ranking
         results = self._hybrid_rank(
             memori_results,
@@ -255,9 +266,9 @@ class MemoriRAGBridge:
             hybrid_weight,
             top_k,
         )
-        
+
         return results
-    
+
     async def _search_memori(
         self,
         query: str,
@@ -268,23 +279,25 @@ class MemoriRAGBridge:
         try:
             # Use Memori's built-in search
             results = self.memori.search(query, limit=top_k)
-            
+
             # Normalize results
             normalized = []
             for i, r in enumerate(results):
-                normalized.append({
-                    "content": r.get("content", r.get("message", "")),
-                    "metadata": r.get("metadata", {}),
-                    "score": 1.0 - (i * 0.1),  # Position-based score
-                    "source": "memori",
-                    "id": r.get("id", r.get("memory_id")),
-                })
-            
+                normalized.append(
+                    {
+                        "content": r.get("content", r.get("message", "")),
+                        "metadata": r.get("metadata", {}),
+                        "score": 1.0 - (i * 0.1),  # Position-based score
+                        "source": "memori",
+                        "id": r.get("id", r.get("memory_id")),
+                    }
+                )
+
             return normalized
         except Exception as e:
             logger.error(f"Memori search failed: {e}")
             return []
-    
+
     async def _search_rag(
         self,
         query: str,
@@ -298,19 +311,17 @@ class MemoriRAGBridge:
                     user_id, query, top_k=top_k
                 )
             else:
-                results = self.vector_store.search(
-                    "memories", query, top_k=top_k
-                )
-            
+                results = self.vector_store.search("memories", query, top_k=top_k)
+
             # Already in normalized format from VectorStore
             for r in results:
                 r["source"] = "rag"
-            
+
             return results
         except Exception as e:
             logger.error(f"RAG search failed: {e}")
             return []
-    
+
     def _hybrid_rank(
         self,
         memori_results: List[Dict],
@@ -320,21 +331,23 @@ class MemoriRAGBridge:
     ) -> List[Dict]:
         """
         Hybrid ranking combining Memori and RAG results.
-        
+
         Uses Reciprocal Rank Fusion (RRF) algorithm.
         """
         # RRF constant
         k = 60
-        
+
         # Calculate RRF scores
         scores = {}
-        
+
         # Memori results (weight: 1 - rag_weight)
         memori_weight = 1.0 - rag_weight
         for rank, result in enumerate(memori_results):
-            content_key = result.get("content", "")[:100]  # Use truncated content as key
+            content_key = result.get("content", "")[
+                :100
+            ]  # Use truncated content as key
             rrf_score = memori_weight / (k + rank + 1)
-            
+
             if content_key in scores:
                 scores[content_key]["score"] += rrf_score
                 scores[content_key]["sources"].append("memori")
@@ -344,12 +357,12 @@ class MemoriRAGBridge:
                     "score": rrf_score,
                     "sources": ["memori"],
                 }
-        
+
         # RAG results (weight: rag_weight)
         for rank, result in enumerate(rag_results):
             content_key = result.get("content", "")[:100]
             rrf_score = rag_weight / (k + rank + 1)
-            
+
             if content_key in scores:
                 scores[content_key]["score"] += rrf_score
                 scores[content_key]["sources"].append("rag")
@@ -359,14 +372,14 @@ class MemoriRAGBridge:
                     "score": rrf_score,
                     "sources": ["rag"],
                 }
-        
+
         # Sort by combined score
         ranked = sorted(
             scores.values(),
             key=lambda x: x["score"],
             reverse=True,
         )
-        
+
         # Format results
         results = []
         for item in ranked[:top_k]:
@@ -374,13 +387,13 @@ class MemoriRAGBridge:
             result["hybrid_score"] = item["score"]
             result["found_in"] = item["sources"]
             results.append(result)
-        
+
         return results
-    
+
     # =========================================================================
     # SYNCHRONIZATION
     # =========================================================================
-    
+
     async def sync_memori_to_rag(
         self,
         user_id: Optional[str] = None,
@@ -388,71 +401,76 @@ class MemoriRAGBridge:
     ) -> Dict[str, Any]:
         """
         Sync memories from Memori to RAG vector store.
-        
+
         Args:
             user_id: Optional user filter
             since: Only sync memories since this time
-            
+
         Returns:
             Sync statistics
         """
         async with self._sync_lock:
             if not self.memori or not self.vector_store:
                 return {"error": "Both Memori and VectorStore required"}
-            
+
             stats = {"synced": 0, "errors": 0, "skipped": 0}
-            
+
             try:
                 # Get memories from Memori
                 # Note: This uses Memori's internal API
                 memories = self._get_memori_memories(user_id, since)
-                
+
                 # Batch sync to RAG
                 batch = []
                 for memory in memories:
                     try:
                         # Check if category should be synced
                         category = memory.get("metadata", {}).get("category", "general")
-                        if category not in self.config.include_categories and self.config.include_categories:
+                        if (
+                            category not in self.config.include_categories
+                            and self.config.include_categories
+                        ):
                             stats["skipped"] += 1
                             continue
-                        
-                        batch.append({
-                            "id": memory.get("id", f"mem_{len(batch)}"),
-                            "content": memory.get("content", ""),
-                            "metadata": {
-                                **memory.get("metadata", {}),
-                                "synced_from_memori": True,
-                                "sync_time": datetime.now().isoformat(),
-                            },
-                            "user_id": memory.get("user_id", user_id or "default"),
-                        })
-                        
+
+                        batch.append(
+                            {
+                                "id": memory.get("id", f"mem_{len(batch)}"),
+                                "content": memory.get("content", ""),
+                                "metadata": {
+                                    **memory.get("metadata", {}),
+                                    "synced_from_memori": True,
+                                    "sync_time": datetime.now().isoformat(),
+                                },
+                                "user_id": memory.get("user_id", user_id or "default"),
+                            }
+                        )
+
                         if len(batch) >= self.config.batch_size:
                             self._sync_batch(batch)
                             stats["synced"] += len(batch)
                             batch = []
-                            
+
                     except Exception as e:
                         logger.error(f"Error syncing memory: {e}")
                         stats["errors"] += 1
-                
+
                 # Sync remaining batch
                 if batch:
                     self._sync_batch(batch)
                     stats["synced"] += len(batch)
-                
+
                 self._last_sync_time = datetime.now()
                 self._sync_stats["total_synced"] += stats["synced"]
                 self._sync_stats["last_batch_count"] = stats["synced"]
-                
+
             except Exception as e:
                 logger.error(f"Sync failed: {e}")
                 stats["error"] = str(e)
                 self._sync_stats["errors"] += 1
-            
+
             return stats
-    
+
     def _get_memori_memories(
         self,
         user_id: Optional[str],
@@ -462,9 +480,9 @@ class MemoriRAGBridge:
         # This would need to be implemented based on Memori's internal APIs
         # For now, return empty list as placeholder
         try:
-            if hasattr(self.memori, 'get_all_memories'):
+            if hasattr(self.memori, "get_all_memories"):
                 return self.memori.get_all_memories(user_id=user_id)
-            elif hasattr(self.memori, 'search'):
+            elif hasattr(self.memori, "search"):
                 # Fallback: search for all memories
                 return self.memori.search("", limit=self.config.batch_size)
             else:
@@ -472,7 +490,7 @@ class MemoriRAGBridge:
         except Exception as e:
             logger.error(f"Failed to get memories from Memori: {e}")
             return []
-    
+
     def _sync_batch(self, batch: List[Dict]) -> None:
         """Sync a batch of memories to RAG."""
         for memory in batch:
@@ -485,16 +503,16 @@ class MemoriRAGBridge:
                 )
             except Exception as e:
                 logger.error(f"Failed to sync memory {memory['id']}: {e}")
-    
+
     async def start_background_sync(self) -> None:
         """Start background synchronization task."""
         if self._sync_task and not self._sync_task.done():
             logger.warning("Background sync already running")
             return
-        
+
         self._sync_task = asyncio.create_task(self._background_sync_loop())
         logger.info("Background sync started")
-    
+
     async def stop_background_sync(self) -> None:
         """Stop background synchronization task."""
         if self._sync_task:
@@ -504,27 +522,25 @@ class MemoriRAGBridge:
             except asyncio.CancelledError:
                 pass
             logger.info("Background sync stopped")
-    
+
     async def _background_sync_loop(self) -> None:
         """Background sync loop."""
         while True:
             try:
                 await asyncio.sleep(self.config.sync_interval_seconds)
-                
+
                 logger.debug("Running background sync...")
-                await self.sync_memori_to_rag(
-                    since=self._last_sync_time
-                )
-                
+                await self.sync_memori_to_rag(since=self._last_sync_time)
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Background sync error: {e}")
-    
+
     # =========================================================================
     # CONTEXT RETRIEVAL (for RAG Pipeline)
     # =========================================================================
-    
+
     async def get_context_for_query(
         self,
         query: str,
@@ -534,7 +550,7 @@ class MemoriRAGBridge:
     ) -> str:
         """
         Get formatted context for RAG pipeline.
-        
+
         Returns a formatted string suitable for LLM prompt augmentation.
         """
         results = await self.search(
@@ -542,15 +558,15 @@ class MemoriRAGBridge:
             user_id=user_id,
             top_k=max_memories,
         )
-        
+
         if not results:
             return ""
-        
+
         context_parts = ["**Relevant Patient History:**"]
-        
+
         for i, result in enumerate(results, 1):
             content = result.get("content", "")[:300]
-            
+
             if include_metadata:
                 metadata = result.get("metadata", {})
                 category = metadata.get("category", "general")
@@ -560,18 +576,20 @@ class MemoriRAGBridge:
                     context_parts.append(f"   (Recorded: {timestamp})")
             else:
                 context_parts.append(f"{i}. {content}")
-        
+
         return "\n".join(context_parts)
-    
+
     # =========================================================================
     # STATISTICS AND MONITORING
     # =========================================================================
-    
+
     def get_sync_stats(self) -> Dict[str, Any]:
         """Get synchronization statistics."""
         return {
             **self._sync_stats,
-            "last_sync_time": self._last_sync_time.isoformat() if self._last_sync_time else None,
+            "last_sync_time": (
+                self._last_sync_time.isoformat() if self._last_sync_time else None
+            ),
             "sync_running": self._sync_task is not None and not self._sync_task.done(),
             "config": {
                 "sync_on_write": self.config.sync_on_write,
@@ -579,7 +597,7 @@ class MemoriRAGBridge:
                 "batch_size": self.config.batch_size,
             },
         }
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get bridge status."""
         return {
@@ -593,6 +611,7 @@ class MemoriRAGBridge:
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def create_memori_rag_bridge(
     memori: Any = None,
     vector_store: Any = None,
@@ -600,20 +619,21 @@ def create_memori_rag_bridge(
 ) -> MemoriRAGBridge:
     """
     Factory function to create MemoriRAGBridge.
-    
+
     Args:
         memori: Existing Memori instance
         vector_store: Existing VectorStore instance
         persist_directory: Directory for vector store if creating new
-        
+
     Returns:
         Configured MemoriRAGBridge instance
     """
     # Create VectorStore if not provided
     if vector_store is None and persist_directory:
         from .vector_store import VectorStore
+
         vector_store = VectorStore(persist_directory=persist_directory)
-    
+
     return MemoriRAGBridge(
         memori=memori,
         vector_store=vector_store,
@@ -626,17 +646,18 @@ def create_memori_rag_bridge(
 
 if __name__ == "__main__":
     import tempfile
-    
+
     async def test_bridge():
         print("Testing MemoriRAGBridge...")
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create bridge with just VectorStore (no Memori for this test)
             from .vector_store import VectorStore
+
             vector_store = VectorStore(persist_directory=tmpdir)
-            
+
             bridge = MemoriRAGBridge(vector_store=vector_store)
-            
+
             # Test adding memory
             print("\n📝 Adding test memories...")
             result = await bridge.add_memory(
@@ -645,19 +666,19 @@ if __name__ == "__main__":
                 category="conditions",
             )
             print(f"  Result: {result}")
-            
+
             await bridge.add_memory(
                 user_id="test_user",
                 content="Taking Lisinopril 10mg daily for blood pressure",
                 category="medications",
             )
-            
+
             await bridge.add_memory(
                 user_id="test_user",
                 content="Last blood pressure reading: 135/85",
                 category="measurements",
             )
-            
+
             # Test search
             print("\n🔍 Testing search...")
             results = await bridge.search(
@@ -667,8 +688,10 @@ if __name__ == "__main__":
             )
             print(f"  Found {len(results)} results")
             for r in results:
-                print(f"    - {r['content'][:50]}... (score: {r.get('hybrid_score', r.get('score', 0)):.3f})")
-            
+                print(
+                    f"    - {r['content'][:50]}... (score: {r.get('hybrid_score', r.get('score', 0)):.3f})"
+                )
+
             # Test context retrieval
             print("\n📋 Testing context retrieval...")
             context = await bridge.get_context_for_query(
@@ -676,10 +699,10 @@ if __name__ == "__main__":
                 user_id="test_user",
             )
             print(f"  Context:\n{context}")
-            
+
             # Status
             print(f"\n📊 Status: {bridge.get_status()}")
-            
+
             print("\n✅ MemoriRAGBridge tests passed!")
-    
+
     asyncio.run(test_bridge())

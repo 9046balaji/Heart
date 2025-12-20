@@ -15,11 +15,12 @@ Benefits:
 """
 
 from enum import Enum, Flag, auto
-from typing import Dict, List, Set, FrozenSet
+from typing import Dict, List
 
 
 class KeywordCategory(Flag):
     """Multi-category keyword classification"""
+
     INTENT = auto()
     SENTIMENT = auto()
     ENTITY = auto()
@@ -32,7 +33,7 @@ class KeywordCategory(Flag):
 
 class IntentKeywords(str, Enum):
     """Intent-specific keywords grouped by intent type"""
-    
+
     # GREETING
     HELLO = "hello"
     HI = "hi"
@@ -43,7 +44,7 @@ class IntentKeywords(str, Enum):
     HOWDY = "howdy"
     GREETINGS = "greetings"
     WELCOME = "welcome"
-    
+
     # RISK_ASSESSMENT
     RISK = "risk"
     HEART_DISEASE = "heart disease"
@@ -56,7 +57,7 @@ class IntentKeywords(str, Enum):
     LIKELIHOOD = "likelihood"
     CALCULATE_RISK = "calculate risk"
     EVALUATE_RISK = "evaluate risk"
-    
+
     # NUTRITION_ADVICE
     EAT = "eat"
     FOOD = "food"
@@ -71,7 +72,7 @@ class IntentKeywords(str, Enum):
     FOOD_RECOMMENDATIONS = "food recommendations"
     DIETARY = "dietary"
     NUTRITION_PLAN = "nutrition plan"
-    
+
     # EXERCISE_COACHING
     EXERCISE = "exercise"
     WORKOUT = "workout"
@@ -86,7 +87,7 @@ class IntentKeywords(str, Enum):
     CYCLING = "cycling"
     SPORTS = "sports"
     ACTIVITY = "activity"
-    
+
     # MEDICATION_REMINDER
     MEDICATION = "medication"
     PILL = "pill"
@@ -99,7 +100,7 @@ class IntentKeywords(str, Enum):
     REFILL = "refill"
     PHARMACY = "pharmacy"
     DRUG = "drug"
-    
+
     # SYMPTOM_CHECK
     PAIN = "pain"
     SYMPTOM = "symptom"
@@ -111,7 +112,7 @@ class IntentKeywords(str, Enum):
     EXPERIENCE = "experience"
     HAVING = "having"
     CHEST = "chest"
-    
+
     # HEALTH_GOAL
     GOAL = "goal"
     TARGET = "target"
@@ -124,7 +125,7 @@ class IntentKeywords(str, Enum):
     PROGRESS = "progress"
     TRACK = "track"
     MONITOR = "monitor"
-    
+
     # HEALTH_EDUCATION
     LEARN = "learn"
     TEACH = "teach"
@@ -138,7 +139,7 @@ class IntentKeywords(str, Enum):
     HOW_DOES = "how does"
     EDUCATIONAL = "educational"
     FACTS = "facts"
-    
+
     # APPOINTMENT_BOOKING
     APPOINTMENT = "appointment"
     DOCTOR = "doctor"
@@ -154,7 +155,7 @@ class IntentKeywords(str, Enum):
 
 class SentimentKeywords(str, Enum):
     """Sentiment analysis keywords"""
-    
+
     # POSITIVE
     GOOD = "good"
     GREAT = "great"
@@ -172,7 +173,7 @@ class SentimentKeywords(str, Enum):
     GRATEFUL = "grateful"
     THANKS = "thanks"
     APPRECIATE = "appreciate"
-    
+
     # NEGATIVE
     BAD = "bad"
     TERRIBLE = "terrible"
@@ -188,7 +189,7 @@ class SentimentKeywords(str, Enum):
     FRUSTRATED = "frustrated"
     DISAPPOINTED = "disappointed"
     ANXIOUS = "anxious"
-    
+
     # NEUTRAL/DISTRESSED
     OKAY = "okay"
     FINE = "fine"
@@ -203,25 +204,25 @@ class SentimentKeywords(str, Enum):
 
 class SymptomKeywords(str, Enum):
     """Cardiovascular symptom keywords"""
-    
+
     # CHEST SYMPTOMS
     CHEST_PAIN = "chest pain"
     CHEST_PRESSURE = "chest pressure"
     CHEST_TIGHTNESS = "chest tightness"
     CHEST_DISCOMFORT = "chest discomfort"
-    
+
     # BREATHING
     SHORTNESS_OF_BREATH = "shortness of breath"
     DIFFICULTY_BREATHING = "difficulty breathing"
     BREATHLESSNESS = "breathlessness"
     DYSPNEA = "dyspnea"
-    
+
     # HEART RATE
     PALPITATIONS = "palpitations"
     IRREGULAR_HEARTBEAT = "irregular heartbeat"
     HEART_RACING = "heart racing"
     RAPID_HEART_RATE = "rapid heart rate"
-    
+
     # GENERAL
     FATIGUE = "fatigue"
     WEAKNESS = "weakness"
@@ -234,7 +235,7 @@ class SymptomKeywords(str, Enum):
 
 class MedicationKeywords(str, Enum):
     """Medication and drug-related keywords"""
-    
+
     STATIN = "statin"
     ASPIRIN = "aspirin"
     BETA_BLOCKER = "beta blocker"
@@ -248,7 +249,7 @@ class MedicationKeywords(str, Enum):
 
 class FoodKeywords(str, Enum):
     """Heart-healthy and unhealthy foods"""
-    
+
     # HEALTHY
     SALMON = "salmon"
     SARDINES = "sardines"
@@ -262,7 +263,7 @@ class FoodKeywords(str, Enum):
     WHOLE_WHEAT = "whole wheat"
     BEANS = "beans"
     LENTILS = "lentils"
-    
+
     # UNHEALTHY
     SATURATED_FAT = "saturated fat"
     TRANS_FAT = "trans fat"
@@ -278,7 +279,7 @@ class FoodKeywords(str, Enum):
 
 class ActivityKeywords(str, Enum):
     """Physical activity keywords"""
-    
+
     WALKING = "walking"
     JOGGING = "jogging"
     RUNNING = "running"
@@ -296,7 +297,7 @@ class ActivityKeywords(str, Enum):
 class UnifiedKeywordDatabase:
     """
     Unified keyword database for all NLP components.
-    
+
     Provides centralized keyword management with:
     - Intent keywords (9 categories)
     - Sentiment keywords (positive, negative, distressed)
@@ -308,22 +309,208 @@ class UnifiedKeywordDatabase:
 
     # Intent keyword groups
     INTENT_GROUPS: Dict[str, List[str]] = {
-        "GREETING": [kw.value for kw in IntentKeywords if kw.name.isupper() and any(c in kw.name for c in "HELLO HI HEY GOOD HOWDY GREETINGS WELCOME".split())],
-        "RISK_ASSESSMENT": [kw.value for kw in IntentKeywords if "RISK" in kw.name or "ASSESSMENT" in kw.name or "CHANCE" in kw.name or "PROBABILITY" in kw.name],
-        "NUTRITION_ADVICE": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["EAT", "FOOD", "MEAL", "NUTRITION", "DIET", "CALORIES", "EATING", "RECIPES"])],
-        "EXERCISE_COACHING": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["EXERCISE", "WORKOUT", "FITNESS", "TRAINING", "CARDIO", "ACTIVITY", "GYM", "RUNNING", "CYCLING", "SPORTS"])],
-        "MEDICATION_REMINDER": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["MEDICATION", "PILL", "MEDICINE", "DOSE", "PRESCRIPTION", "DOSAGE", "REFILL", "PHARMACY", "DRUG"])],
-        "SYMPTOM_CHECK": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["PAIN", "SYMPTOM", "FEEL", "HURT", "DISCOMFORT", "ACHE", "FEELING", "EXPERIENCE", "HAVING", "CHEST"])],
-        "HEALTH_GOAL": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["GOAL", "TARGET", "ACHIEVE", "IMPROVE", "WEIGHT_LOSS", "FITNESS_GOAL", "HEALTH_GOAL", "PROGRESS", "TRACK", "MONITOR"])],
-        "HEALTH_EDUCATION": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["LEARN", "TEACH", "EDUCATION", "INFORMATION", "KNOW", "UNDERSTAND", "EXPLAIN", "TELL", "WHAT", "HOW", "EDUCATIONAL", "FACTS"])],
-        "APPOINTMENT_BOOKING": [kw.value for kw in IntentKeywords if any(x in kw.name for x in ["APPOINTMENT", "DOCTOR", "BOOKING", "SCHEDULE", "VISIT", "MEETING", "CONSULTATION", "HEALTHCARE_PROVIDER", "BOOK"])],
+        "GREETING": [
+            kw.value
+            for kw in IntentKeywords
+            if kw.name.isupper()
+            and any(
+                c in kw.name
+                for c in "HELLO HI HEY GOOD HOWDY GREETINGS WELCOME".split()
+            )
+        ],
+        "RISK_ASSESSMENT": [
+            kw.value
+            for kw in IntentKeywords
+            if "RISK" in kw.name
+            or "ASSESSMENT" in kw.name
+            or "CHANCE" in kw.name
+            or "PROBABILITY" in kw.name
+        ],
+        "NUTRITION_ADVICE": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "EAT",
+                    "FOOD",
+                    "MEAL",
+                    "NUTRITION",
+                    "DIET",
+                    "CALORIES",
+                    "EATING",
+                    "RECIPES",
+                ]
+            )
+        ],
+        "EXERCISE_COACHING": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "EXERCISE",
+                    "WORKOUT",
+                    "FITNESS",
+                    "TRAINING",
+                    "CARDIO",
+                    "ACTIVITY",
+                    "GYM",
+                    "RUNNING",
+                    "CYCLING",
+                    "SPORTS",
+                ]
+            )
+        ],
+        "MEDICATION_REMINDER": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "MEDICATION",
+                    "PILL",
+                    "MEDICINE",
+                    "DOSE",
+                    "PRESCRIPTION",
+                    "DOSAGE",
+                    "REFILL",
+                    "PHARMACY",
+                    "DRUG",
+                ]
+            )
+        ],
+        "SYMPTOM_CHECK": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "PAIN",
+                    "SYMPTOM",
+                    "FEEL",
+                    "HURT",
+                    "DISCOMFORT",
+                    "ACHE",
+                    "FEELING",
+                    "EXPERIENCE",
+                    "HAVING",
+                    "CHEST",
+                ]
+            )
+        ],
+        "HEALTH_GOAL": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "GOAL",
+                    "TARGET",
+                    "ACHIEVE",
+                    "IMPROVE",
+                    "WEIGHT_LOSS",
+                    "FITNESS_GOAL",
+                    "HEALTH_GOAL",
+                    "PROGRESS",
+                    "TRACK",
+                    "MONITOR",
+                ]
+            )
+        ],
+        "HEALTH_EDUCATION": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "LEARN",
+                    "TEACH",
+                    "EDUCATION",
+                    "INFORMATION",
+                    "KNOW",
+                    "UNDERSTAND",
+                    "EXPLAIN",
+                    "TELL",
+                    "WHAT",
+                    "HOW",
+                    "EDUCATIONAL",
+                    "FACTS",
+                ]
+            )
+        ],
+        "APPOINTMENT_BOOKING": [
+            kw.value
+            for kw in IntentKeywords
+            if any(
+                x in kw.name
+                for x in [
+                    "APPOINTMENT",
+                    "DOCTOR",
+                    "BOOKING",
+                    "SCHEDULE",
+                    "VISIT",
+                    "MEETING",
+                    "CONSULTATION",
+                    "HEALTHCARE_PROVIDER",
+                    "BOOK",
+                ]
+            )
+        ],
     }
 
     # Sentiment keyword groups
     SENTIMENT_GROUPS: Dict[str, List[str]] = {
-        "POSITIVE": [kw.value for kw in SentimentKeywords if kw.name in ["GOOD", "GREAT", "EXCELLENT", "AMAZING", "WONDERFUL", "FANTASTIC", "AWESOME", "PERFECT", "BETTER", "BEST", "LOVE", "HAPPY", "GLAD", "GRATEFUL", "THANKS", "APPRECIATE"]],
-        "NEGATIVE": [kw.value for kw in SentimentKeywords if kw.name in ["BAD", "TERRIBLE", "AWFUL", "HORRIBLE", "POOR", "WORSE", "WORST", "HATE", "ANGRY", "SAD", "DEPRESSED", "FRUSTRATED", "DISAPPOINTED", "WORRIED", "ANXIOUS"]],
-        "DISTRESSED": [kw.value for kw in SentimentKeywords if kw.name in ["URGENT", "EMERGENCY", "CRITICAL", "SEVERE", "SERIOUS"]],
+        "POSITIVE": [
+            kw.value
+            for kw in SentimentKeywords
+            if kw.name
+            in [
+                "GOOD",
+                "GREAT",
+                "EXCELLENT",
+                "AMAZING",
+                "WONDERFUL",
+                "FANTASTIC",
+                "AWESOME",
+                "PERFECT",
+                "BETTER",
+                "BEST",
+                "LOVE",
+                "HAPPY",
+                "GLAD",
+                "GRATEFUL",
+                "THANKS",
+                "APPRECIATE",
+            ]
+        ],
+        "NEGATIVE": [
+            kw.value
+            for kw in SentimentKeywords
+            if kw.name
+            in [
+                "BAD",
+                "TERRIBLE",
+                "AWFUL",
+                "HORRIBLE",
+                "POOR",
+                "WORSE",
+                "WORST",
+                "HATE",
+                "ANGRY",
+                "SAD",
+                "DEPRESSED",
+                "FRUSTRATED",
+                "DISAPPOINTED",
+                "WORRIED",
+                "ANXIOUS",
+            ]
+        ],
+        "DISTRESSED": [
+            kw.value
+            for kw in SentimentKeywords
+            if kw.name in ["URGENT", "EMERGENCY", "CRITICAL", "SEVERE", "SERIOUS"]
+        ],
     }
 
     @classmethod
@@ -360,9 +547,18 @@ class UnifiedKeywordDatabase:
     def get_healthy_foods(cls) -> List[str]:
         """Get healthy food keywords"""
         healthy = [
-            "salmon", "sardines", "mackerel", "almonds", "walnuts",
-            "berries", "apple", "orange", "olive oil", "whole wheat",
-            "beans", "lentils"
+            "salmon",
+            "sardines",
+            "mackerel",
+            "almonds",
+            "walnuts",
+            "berries",
+            "apple",
+            "orange",
+            "olive oil",
+            "whole wheat",
+            "beans",
+            "lentils",
         ]
         return healthy
 
@@ -370,8 +566,16 @@ class UnifiedKeywordDatabase:
     def get_unhealthy_foods(cls) -> List[str]:
         """Get unhealthy food keywords"""
         unhealthy = [
-            "saturated fat", "trans fat", "fried", "fast food",
-            "salt", "sodium", "sugar", "soda", "candy", "processed"
+            "saturated fat",
+            "trans fat",
+            "fried",
+            "fast food",
+            "salt",
+            "sodium",
+            "sugar",
+            "soda",
+            "candy",
+            "processed",
         ]
         return unhealthy
 

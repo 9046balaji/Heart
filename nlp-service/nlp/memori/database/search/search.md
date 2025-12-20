@@ -11,7 +11,7 @@ Memori v1.0 uses SQLite's FTS5 for advanced text search capabilities:
 ```sql
 -- Search across all memory content
 SELECT memory_id, memory_type, searchable_content, summary, category_primary
-FROM memory_search_fts 
+FROM memory_search_fts
 WHERE memory_search_fts MATCH ?
 ORDER BY rank;
 ```
@@ -47,8 +47,8 @@ Filter memories by primary categories:
 ```sql
 -- Search within specific memory categories
 SELECT memory_id, processed_data, importance_score, created_at
-FROM long_term_memory 
-WHERE category_primary = ? 
+FROM long_term_memory
+WHERE category_primary = ?
   AND searchable_content LIKE ?
 ORDER BY importance_score DESC, created_at DESC;
 ```
@@ -66,9 +66,9 @@ Prioritize high-importance memories:
 
 ```sql
 -- Get high-importance memories first
-SELECT memory_id, processed_data, importance_score, 
+SELECT memory_id, processed_data, importance_score,
        novelty_score, relevance_score, actionability_score
-FROM long_term_memory 
+FROM long_term_memory
 WHERE importance_score > 0.7
   AND (searchable_content LIKE ? OR summary LIKE ?)
 ORDER BY importance_score DESC, novelty_score DESC;
@@ -81,14 +81,14 @@ Search memories within specific time ranges:
 ```sql
 -- Recent memories (last 30 days)
 SELECT memory_id, processed_data, created_at, last_accessed
-FROM long_term_memory 
+FROM long_term_memory
 WHERE created_at >= datetime('now', '-30 days')
   AND searchable_content LIKE ?
 ORDER BY created_at DESC;
 
 -- Frequently accessed memories
 SELECT memory_id, processed_data, access_count, last_accessed
-FROM long_term_memory 
+FROM long_term_memory
 WHERE access_count > 5
   AND searchable_content LIKE ?
 ORDER BY access_count DESC, last_accessed DESC;
@@ -102,14 +102,14 @@ Combine multiple search strategies for better results:
 -- Multi-dimensional search
 WITH ranked_memories AS (
   -- FTS search results
-  SELECT m.memory_id, m.processed_data, m.importance_score, 
+  SELECT m.memory_id, m.processed_data, m.importance_score,
          m.category_primary, m.created_at, 1.0 as search_score
   FROM memory_search_fts fts
   JOIN long_term_memory m ON fts.memory_id = m.memory_id AND fts.memory_type = 'long_term'
   WHERE fts MATCH ?
-  
+
   UNION ALL
-  
+
   -- Entity-based results
   SELECT m.memory_id, m.processed_data, m.importance_score,
          m.category_primary, m.created_at, e.relevance_score as search_score
@@ -117,7 +117,7 @@ WITH ranked_memories AS (
   JOIN memory_entities e ON m.memory_id = e.memory_id
   WHERE e.entity_value LIKE ?
 )
-SELECT DISTINCT memory_id, processed_data, importance_score, 
+SELECT DISTINCT memory_id, processed_data, importance_score,
        category_primary, created_at, MAX(search_score) as final_score
 FROM ranked_memories
 GROUP BY memory_id
@@ -134,9 +134,9 @@ Memori v1.0 includes optimized indexes for fast searches:
 ```sql
 -- Leveraging composite indexes
 EXPLAIN QUERY PLAN
-SELECT memory_id FROM long_term_memory 
-WHERE category_primary = 'skill' 
-  AND importance_score > 0.5 
+SELECT memory_id FROM long_term_memory
+WHERE category_primary = 'skill'
+  AND importance_score > 0.5
 ORDER BY created_at DESC;
 ```
 
@@ -144,9 +144,9 @@ ORDER BY created_at DESC;
 
 **Use LIMIT for pagination:**
 ```sql
-SELECT memory_id, summary FROM long_term_memory 
+SELECT memory_id, summary FROM long_term_memory
 WHERE searchable_content LIKE '%python%'
-ORDER BY importance_score DESC 
+ORDER BY importance_score DESC
 LIMIT 10 OFFSET ?;
 ```
 
@@ -154,7 +154,7 @@ LIMIT 10 OFFSET ?;
 ```sql
 -- Faster
 WHERE entity_value = 'Python'
--- Slower  
+-- Slower
 WHERE entity_value LIKE '%Python%'
 ```
 
@@ -164,11 +164,11 @@ Combine multiple relevance factors:
 
 ```sql
 SELECT memory_id, processed_data,
-       (importance_score * 0.4 + 
-        novelty_score * 0.2 + 
-        relevance_score * 0.3 + 
+       (importance_score * 0.4 +
+        novelty_score * 0.2 +
+        relevance_score * 0.3 +
         actionability_score * 0.1) as composite_score
-FROM long_term_memory 
+FROM long_term_memory
 WHERE searchable_content LIKE ?
 ORDER BY composite_score DESC;
 ```
@@ -181,12 +181,12 @@ Get relevant context for new queries:
 
 ```sql
 -- Get recent short-term memories for context
-SELECT processed_data, created_at FROM short_term_memory 
-WHERE namespace = ? 
+SELECT processed_data, created_at FROM short_term_memory
+WHERE namespace = ?
 ORDER BY created_at DESC LIMIT 5;
 
 -- Get relevant rules and preferences
-SELECT rule_text, rule_type, priority FROM rules_memory 
+SELECT rule_text, rule_type, priority FROM rules_memory
 WHERE active = 1 AND namespace = ?
 ORDER BY priority DESC;
 ```
@@ -198,15 +198,15 @@ Start broad, then narrow down:
 ```sql
 -- 1. Quick category check
 SELECT COUNT(*) as memory_count, category_primary
-FROM long_term_memory 
+FROM long_term_memory
 WHERE searchable_content LIKE ?
 GROUP BY category_primary
 ORDER BY memory_count DESC;
 
 -- 2. Focused search in top categories
 SELECT memory_id, summary, importance_score
-FROM long_term_memory 
-WHERE category_primary IN (?, ?) 
+FROM long_term_memory
+WHERE category_primary IN (?, ?)
   AND searchable_content LIKE ?
 ORDER BY importance_score DESC;
 ```
@@ -218,7 +218,7 @@ Use memory relationships for expanded results:
 ```sql
 -- Find related memories through relationships
 WITH target_memories AS (
-  SELECT memory_id FROM long_term_memory 
+  SELECT memory_id FROM long_term_memory
   WHERE searchable_content LIKE ? LIMIT 5
 )
 SELECT DISTINCT m.memory_id, m.summary, m.importance_score,

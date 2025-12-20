@@ -9,10 +9,10 @@ Provides weekly health summary generation and delivery:
 
 Usage:
     from weekly_summary import WeeklyDataAggregator, WeeklySummaryMessageGenerator
-    
+
     aggregator = WeeklyDataAggregator(...)
     data = aggregator.aggregate_weekly_data(user_id)
-    
+
     generator = WeeklySummaryMessageGenerator()
     summary = generator.generate_summary(data)
 """
@@ -23,33 +23,26 @@ from .data_aggregator import (
     VitalsAggregate,
     NutritionAggregate,
     MedicationAggregate,
-    ExerciseAggregate
+    ExerciseAggregate,
 )
 
-from .message_generator import (
-    WeeklySummaryMessageGenerator,
-    GeneratedSummary
-)
+from .message_generator import WeeklySummaryMessageGenerator, GeneratedSummary
 
-from .scheduler_job import (
-    WeeklySummaryJob,
-    DeliveryResult,
-    register_weekly_summary_job
-)
+from .scheduler_job import WeeklySummaryJob, DeliveryResult, register_weekly_summary_job
 
 __all__ = [
     # Data Aggregation
-    'WeeklyDataAggregator',
-    'WeeklyHealthData',
-    'VitalsAggregate',
-    'NutritionAggregate',
-    'MedicationAggregate',
-    'ExerciseAggregate',
+    "WeeklyDataAggregator",
+    "WeeklyHealthData",
+    "VitalsAggregate",
+    "NutritionAggregate",
+    "MedicationAggregate",
+    "ExerciseAggregate",
     # Message Generation
-    'WeeklySummaryMessageGenerator',
-    'GeneratedSummary',
+    "WeeklySummaryMessageGenerator",
+    "GeneratedSummary",
     # Scheduler
-    'WeeklySummaryJob',
-    'DeliveryResult',
-    'register_weekly_summary_job',
+    "WeeklySummaryJob",
+    "DeliveryResult",
+    "register_weekly_summary_job",
 ]

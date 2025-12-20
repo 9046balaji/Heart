@@ -1,9 +1,9 @@
 /**
  * usePullToRefresh Hook
- * 
+ *
  * Provides pull-to-refresh functionality with haptic feedback integration.
  * Designed for mobile-first healthcare applications.
- * 
+ *
  * @author Cardio AI Team
  * @version 1.0.0
  */
@@ -78,7 +78,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
   // Calculate pull distance with resistance
   const calculatePullDistance = useCallback((deltaY: number): number => {
     if (deltaY <= 0) return 0;
-    
+
     // Apply resistance formula: distance = maxPull * (1 - e^(-resistance * deltaY / maxPull))
     const resistedPull = maxPull * (1 - Math.exp(-resistance * deltaY / maxPull));
     return Math.min(resistedPull, maxPull);
@@ -93,7 +93,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
 
     // Check if at top of scrollable area
     isAtTop.current = container.scrollTop <= 0;
-    
+
     if (isAtTop.current) {
       startY.current = e.touches[0].clientY;
       hasTriggeredHaptic.current = false;
@@ -233,7 +233,7 @@ export function usePullToRefresh(options: PullToRefreshOptions): PullToRefreshRe
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
-      
+
       // Cleanup RAF on unmount
       if (rafId.current) {
         cancelAnimationFrame(rafId.current);

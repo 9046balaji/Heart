@@ -1,6 +1,6 @@
 // Firebase configuration - uses environment variables for security
 // The application will fallback to LocalStorage if Firebase is not configured
-// 
+//
 // IMPORTANT: Never commit real API keys to source control!
 // Set these values in your .env.local file or deployment environment
 

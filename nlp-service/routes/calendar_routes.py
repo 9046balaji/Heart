@@ -7,7 +7,7 @@ Integrates Google Calendar, Outlook Calendar, and notification services.
 
 from typing import Optional, List
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 import logging
 
@@ -18,42 +18,48 @@ router = APIRouter(prefix="/calendar", tags=["Calendar Integration"])
 
 # ==================== Request/Response Models ====================
 
+
 class CalendarCredentialsRequest(BaseModel):
     """Request to store calendar credentials."""
+
     provider: str = Field(..., description="Calendar provider: google or outlook")
     access_token: str = Field(..., description="OAuth access token")
     refresh_token: Optional[str] = Field(None, description="OAuth refresh token")
     expires_at: Optional[datetime] = None
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "provider": "google",
                 "access_token": "ya29.xxx",
                 "refresh_token": "1//xxx",
-                "expires_at": "2025-01-15T10:30:00Z"
+                "expires_at": "2025-01-15T10:30:00Z",
             }
         }
 
 
 class SyncRequest(BaseModel):
     """Request to sync appointments with calendar."""
+
     provider: str = Field("google", description="Calendar provider")
     days_ahead: int = Field(30, ge=1, le=90, description="Days to sync ahead")
-    include_reminders: bool = Field(True, description="Create reminders for appointments")
-    
+    include_reminders: bool = Field(
+        True, description="Create reminders for appointments"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "provider": "google",
                 "days_ahead": 30,
-                "include_reminders": True
+                "include_reminders": True,
             }
         }
 
 
 class CalendarEventResponse(BaseModel):
     """Calendar event information."""
+
     id: str
     title: str
     start_time: datetime
@@ -67,6 +73,7 @@ class CalendarEventResponse(BaseModel):
 
 class SyncResponse(BaseModel):
     """Response for calendar sync operation."""
+
     user_id: str
     provider: str
     events_synced: int
@@ -79,24 +86,28 @@ class SyncResponse(BaseModel):
 
 class ReminderRequest(BaseModel):
     """Request to schedule a reminder."""
+
     appointment_id: str
     reminder_type: str = Field("push", description="Reminder type: push, email, sms")
-    minutes_before: int = Field(30, ge=5, le=1440, description="Minutes before appointment")
+    minutes_before: int = Field(
+        30, ge=5, le=1440, description="Minutes before appointment"
+    )
     message: Optional[str] = Field(None, description="Custom reminder message")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "appointment_id": "apt_123",
                 "reminder_type": "push",
                 "minutes_before": 30,
-                "message": "Don't forget your cardiology appointment!"
+                "message": "Don't forget your cardiology appointment!",
             }
         }
 
 
 class ReminderResponse(BaseModel):
     """Reminder information."""
+
     id: str
     appointment_id: str
     reminder_type: str
@@ -108,14 +119,14 @@ class ReminderResponse(BaseModel):
 
 # ==================== Calendar Credentials Endpoints ====================
 
+
 @router.post("/{user_id}/credentials", response_model=dict)
 async def store_calendar_credentials(
-    user_id: str,
-    credentials: CalendarCredentialsRequest
+    user_id: str, credentials: CalendarCredentialsRequest
 ):
     """
     Store OAuth credentials for calendar provider.
-    
+
     Securely stores credentials for Google or Outlook calendar access.
     """
     try:
@@ -125,7 +136,7 @@ async def store_calendar_credentials(
             get_google_calendar_service,
             get_outlook_calendar_service,
         )
-        
+
         provider = CalendarProvider(credentials.provider)
         creds = CalendarCredentials(
             user_id=user_id,
@@ -134,7 +145,7 @@ async def store_calendar_credentials(
             refresh_token=credentials.refresh_token,
             expires_at=credentials.expires_at,
         )
-        
+
         # Store credentials based on provider
         if provider == CalendarProvider.GOOGLE:
             service = get_google_calendar_service()
@@ -142,19 +153,18 @@ async def store_calendar_credentials(
         else:
             service = get_outlook_calendar_service()
             await service.store_credentials(user_id, creds)
-        
+
         return {
             "status": "stored",
             "user_id": user_id,
             "provider": credentials.provider,
-            "stored_at": datetime.utcnow().isoformat()
+            "stored_at": datetime.utcnow().isoformat(),
         }
-        
+
     except ImportError as e:
         logger.warning(f"Calendar integration not available: {e}")
         raise HTTPException(
-            status_code=503,
-            detail="Calendar integration service not available"
+            status_code=503, detail="Calendar integration service not available"
         )
     except Exception as e:
         logger.error(f"Error storing credentials: {e}")
@@ -172,23 +182,23 @@ async def revoke_calendar_credentials(user_id: str, provider: str):
             get_google_calendar_service,
             get_outlook_calendar_service,
         )
-        
+
         prov = CalendarProvider(provider)
-        
+
         if prov == CalendarProvider.GOOGLE:
             service = get_google_calendar_service()
         else:
             service = get_outlook_calendar_service()
-        
+
         await service.revoke_credentials(user_id)
-        
+
         return {
             "status": "revoked",
             "user_id": user_id,
             "provider": provider,
-            "revoked_at": datetime.utcnow().isoformat()
+            "revoked_at": datetime.utcnow().isoformat(),
         }
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Calendar service not available")
     except Exception as e:
@@ -198,17 +208,18 @@ async def revoke_calendar_credentials(user_id: str, provider: str):
 
 # ==================== Calendar Sync Endpoints ====================
 
+
 @router.post("/{user_id}/sync", response_model=SyncResponse)
 async def sync_calendar(user_id: str, request: SyncRequest):
     """
     Sync appointments with external calendar.
-    
+
     Creates calendar events for scheduled appointments and optionally
     sets up reminders.
     """
     try:
         from calendar_integration import CalendarSyncAgent, CalendarProvider
-        
+
         agent = CalendarSyncAgent()
         result = await agent.sync_appointments(
             user_id=user_id,
@@ -216,7 +227,7 @@ async def sync_calendar(user_id: str, request: SyncRequest):
             days_ahead=request.days_ahead,
             create_reminders=request.include_reminders,
         )
-        
+
         return SyncResponse(
             user_id=user_id,
             provider=request.provider,
@@ -227,9 +238,11 @@ async def sync_calendar(user_id: str, request: SyncRequest):
             next_sync_at=result.next_sync_at,
             errors=result.errors,
         )
-        
+
     except ImportError:
-        raise HTTPException(status_code=503, detail="Calendar sync service not available")
+        raise HTTPException(
+            status_code=503, detail="Calendar sync service not available"
+        )
     except Exception as e:
         logger.error(f"Error syncing calendar: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -241,7 +254,7 @@ async def get_calendar_events(
     provider: str = Query("google", description="Calendar provider"),
     start_date: Optional[datetime] = Query(None, description="Start date filter"),
     end_date: Optional[datetime] = Query(None, description="End date filter"),
-    limit: int = Query(50, ge=1, le=200, description="Max events to return")
+    limit: int = Query(50, ge=1, le=200, description="Max events to return"),
 ):
     """
     Get calendar events for a user.
@@ -252,21 +265,21 @@ async def get_calendar_events(
             get_google_calendar_service,
             get_outlook_calendar_service,
         )
-        
+
         prov = CalendarProvider(provider)
-        
+
         if prov == CalendarProvider.GOOGLE:
             service = get_google_calendar_service()
         else:
             service = get_outlook_calendar_service()
-        
+
         events = await service.get_events(
             user_id=user_id,
             start_date=start_date,
             end_date=end_date,
             limit=limit,
         )
-        
+
         return [
             CalendarEventResponse(
                 id=e.id,
@@ -281,7 +294,7 @@ async def get_calendar_events(
             )
             for e in events
         ]
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Calendar service not available")
     except Exception as e:
@@ -291,6 +304,7 @@ async def get_calendar_events(
 
 # ==================== Reminder Endpoints ====================
 
+
 @router.post("/{user_id}/reminders", response_model=ReminderResponse)
 async def schedule_reminder(user_id: str, request: ReminderRequest):
     """
@@ -298,7 +312,7 @@ async def schedule_reminder(user_id: str, request: ReminderRequest):
     """
     try:
         from calendar_integration import ReminderScheduleAgent, NotificationType
-        
+
         agent = ReminderScheduleAgent()
         reminder = await agent.schedule_reminder(
             user_id=user_id,
@@ -307,7 +321,7 @@ async def schedule_reminder(user_id: str, request: ReminderRequest):
             minutes_before=request.minutes_before,
             custom_message=request.message,
         )
-        
+
         return ReminderResponse(
             id=reminder.id,
             appointment_id=reminder.appointment_id,
@@ -317,7 +331,7 @@ async def schedule_reminder(user_id: str, request: ReminderRequest):
             message=reminder.message,
             created_at=reminder.created_at,
         )
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Reminder service not available")
     except Exception as e:
@@ -329,21 +343,21 @@ async def schedule_reminder(user_id: str, request: ReminderRequest):
 async def get_reminders(
     user_id: str,
     status: Optional[str] = Query(None, description="Filter by status"),
-    limit: int = Query(50, ge=1, le=200)
+    limit: int = Query(50, ge=1, le=200),
 ):
     """
     Get scheduled reminders for a user.
     """
     try:
         from calendar_integration import get_reminder_scheduler
-        
+
         scheduler = get_reminder_scheduler()
         reminders = await scheduler.get_user_reminders(
             user_id=user_id,
             status=status,
             limit=limit,
         )
-        
+
         return [
             ReminderResponse(
                 id=r.id,
@@ -356,7 +370,7 @@ async def get_reminders(
             )
             for r in reminders
         ]
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Reminder service not available")
     except Exception as e:
@@ -371,16 +385,16 @@ async def cancel_reminder(user_id: str, reminder_id: str):
     """
     try:
         from calendar_integration import get_reminder_scheduler
-        
+
         scheduler = get_reminder_scheduler()
         await scheduler.cancel_reminder(user_id, reminder_id)
-        
+
         return {
             "status": "cancelled",
             "reminder_id": reminder_id,
-            "cancelled_at": datetime.utcnow().isoformat()
+            "cancelled_at": datetime.utcnow().isoformat(),
         }
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Reminder service not available")
     except Exception as e:

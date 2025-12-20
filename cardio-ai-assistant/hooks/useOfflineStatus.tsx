@@ -1,6 +1,6 @@
 /**
  * useOfflineStatus Hook
- * 
+ *
  * React hook for tracking online/offline status
  * with UI feedback components
  */

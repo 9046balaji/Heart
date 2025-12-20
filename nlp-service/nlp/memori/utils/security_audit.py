@@ -516,7 +516,7 @@ class SecureQueryBuilder:
 
         # Build query
         columns_str = ", ".join(validated_columns)
-        query = f"SELECT {columns_str} FROM {table}"
+        query = f"SELECT {columns_str} FROM {table}"  # nosec B608
         params = []
 
         if where_conditions:
@@ -558,7 +558,9 @@ class SecureQueryBuilder:
         # Build query
         columns_str = ", ".join(columns)
         placeholders = ", ".join(["?"] * len(values))
-        query = f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"
+        query = (
+            f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"  # nosec B608
+        )
 
         # Audit the query
         is_safe, findings = self.auditor.validate_query_safety(

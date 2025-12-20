@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "PredictionIntegrationService",
-    "PatientTimelineService", 
+    "PatientTimelineService",
     "DoctorDashboardService",
     "ChatbotDocumentContextService",
     "WeeklyAggregationService",

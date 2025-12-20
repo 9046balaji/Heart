@@ -23,7 +23,7 @@ const MOCK_AVAILABILITY: Record<string, Record<string, string[]>> = {
 const getAvailability = (providerId: string, dateStr: string): string[] => {
   const specific = MOCK_AVAILABILITY[providerId]?.[dateStr];
   if (specific) return specific;
-  
+
   // Return generic slots for future weekdays for demo continuity
   const date = new Date(dateStr);
   const day = date.getDay();
@@ -34,14 +34,14 @@ const getAvailability = (providerId: string, dateStr: string): string[] => {
 };
 
 // --- New Intake Modal Component ---
-const IntakeModal = ({ 
-    doctorName, 
-    onComplete, 
-    onCancel 
-}: { 
-    doctorName: string, 
-    onComplete: (reason: string, urgency: string, summary: string) => void, 
-    onCancel: () => void 
+const IntakeModal = ({
+    doctorName,
+    onComplete,
+    onCancel
+}: {
+    doctorName: string,
+    onComplete: (reason: string, urgency: string, summary: string) => void,
+    onCancel: () => void
 }) => {
     const [symptoms, setSymptoms] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -101,8 +101,8 @@ const IntakeModal = ({
                     <h3 className="text-xl font-bold dark:text-white">Reason for Visit</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Tell Dr. {doctorName} why you are booking this appointment.</p>
                 </div>
-                
-                <textarea 
+
+                <textarea
                     value={symptoms}
                     onChange={(e) => setSymptoms(e.target.value)}
                     placeholder="e.g. I've been feeling dizzy after workouts..."
@@ -114,7 +114,7 @@ const IntakeModal = ({
                     <p className="text-xs text-yellow-700 dark:text-yellow-400">AI will analyze your input to ensure this isn't an emergency.</p>
                 </div>
 
-                <button 
+                <button
                     onClick={handleAnalyze}
                     disabled={!symptoms.trim() || isAnalyzing}
                     className="w-full py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
@@ -149,7 +149,7 @@ const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
                     <h3 className="text-xl font-bold dark:text-white">Reception Desk</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">How can we help you today?</p>
                 </div>
-                
+
                 <div className="space-y-3">
                     <button className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
@@ -160,7 +160,7 @@ const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
                             <p className="text-xs text-slate-500 dark:text-slate-400">+1 (800) 123-4567</p>
                         </div>
                     </button>
-                    
+
                     <button className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
                             <span className="material-symbols-outlined">chat</span>
@@ -195,7 +195,7 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
     const [summary, setSummary] = useState<string | null>(null);
     const userVideoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    
+
     // Web Speech API
     const recognitionRef = useRef<any>(null);
 
@@ -316,14 +316,14 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
             {/* Main Video Area (Doctor) */}
             <div className="flex-1 relative overflow-hidden">
                 {/* Loop a stock video of a doctor */}
-                <video 
-                    src="https://videos.pexels.com/video-files/5452203/5452203-hd_1920_1080_25fps.mp4" 
-                    autoPlay 
-                    loop 
-                    muted 
+                <video
+                    src="https://videos.pexels.com/video-files/5452203/5452203-hd_1920_1080_25fps.mp4"
+                    autoPlay
+                    loop
+                    muted
                     className="w-full h-full object-cover"
                 />
-                
+
                 <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="text-white text-sm font-bold">Dr. {appointment.doctorName}</span>
@@ -347,7 +347,7 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
                             <p key={i} className="text-xs text-white/90 mb-1">
                                 <span className={`font-bold ${line.startsWith('You') ? 'text-blue-300' : 'text-green-300'}`}>
                                     {line.split(':')[0]}:
-                                </span> 
+                                </span>
                                 {line.split(':')[1]}
                             </p>
                         ))}
@@ -360,25 +360,25 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
 
             {/* Controls Bar */}
             <div className="h-20 bg-slate-900 flex items-center justify-center gap-6 px-4 shrink-0">
-                <button 
+                <button
                     onClick={toggleMute}
                     className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isMuted ? 'bg-red-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
                 >
                     <span className="material-symbols-outlined">{isMuted ? 'mic_off' : 'mic'}</span>
                 </button>
-                <button 
+                <button
                     onClick={endCall}
                     className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg hover:bg-red-500 transition-transform hover:scale-105"
                 >
                     <span className="material-symbols-outlined text-3xl">call_end</span>
                 </button>
-                <button 
+                <button
                     onClick={toggleVideo}
                     className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isVideoOff ? 'bg-red-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
                 >
                     <span className="material-symbols-outlined">{isVideoOff ? 'videocam_off' : 'videocam'}</span>
                 </button>
-                <button 
+                <button
                     onClick={() => setShowScribe(!showScribe)}
                     className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${showScribe ? 'bg-blue-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
                     title="Toggle Transcription"
@@ -400,19 +400,19 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
 
 const AppointmentScreen: React.FC = () => {
   const navigate = useNavigate();
-  
+
   // --- State ---
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('All');
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
-  
+
   // Booking State
   const [appointmentType, setAppointmentType] = useState<'in-person' | 'video'>('in-person');
   const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
-  
+
   // Intake & Triage State
   const [showIntakeModal, setShowIntakeModal] = useState(false);
   const [intakeData, setIntakeData] = useState<{reason: string, summary: string} | null>(null);
@@ -427,7 +427,7 @@ const AppointmentScreen: React.FC = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showReceptionist, setShowReceptionist] = useState(false);
   const [activeVideoCall, setActiveVideoCall] = useState<Appointment | null>(null);
-  
+
   // Appointments Data
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [latestBooking, setLatestBooking] = useState<Appointment | null>(null);
@@ -502,7 +502,7 @@ const AppointmentScreen: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = async () => {
           const base64Data = (reader.result as string).split(',')[1];
-          
+
           try {
               // Simplified insurance scan - would integrate with backend API in production
               setInsuranceDetails({
@@ -539,7 +539,7 @@ const AppointmentScreen: React.FC = () => {
     if (!selectedProvider || !selectedDate || !selectedTime) return;
 
     let finalSummary = medicalSummary || '';
-    
+
     // Append shared chart data if enabled
     if (shareChart) {
         const savedAssessment = localStorage.getItem('last_assessment');
@@ -566,7 +566,7 @@ const AppointmentScreen: React.FC = () => {
 
     setAppointments(updatedList);
     setLatestBooking(newAppt);
-    
+
     localStorage.setItem('user_appointments', JSON.stringify(updatedList));
 
     const newNotification = {
@@ -578,7 +578,7 @@ const AppointmentScreen: React.FC = () => {
         color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
         path: '/appointment'
     };
-    
+
     const existingNotifs = JSON.parse(localStorage.getItem('user_notifications') || '[]');
     localStorage.setItem('user_notifications', JSON.stringify([newNotification, ...existingNotifs]));
 
@@ -625,7 +625,7 @@ const AppointmentScreen: React.FC = () => {
                 </div>
                 <h2 className="text-xl font-bold text-center mb-2 dark:text-white">Booking Confirmed!</h2>
                 <p className="text-slate-500 dark:text-slate-400 text-center mb-6 text-sm">Your appointment has been successfully scheduled.</p>
-                
+
                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-4 space-y-3 border border-slate-100 dark:border-slate-700">
                     <div className="flex justify-between items-center">
                         <span className="text-slate-500 dark:text-slate-400 text-sm">Specialist</span>
@@ -647,22 +647,22 @@ const AppointmentScreen: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                    <button 
+                    <button
                         onClick={addToGoogleCalendar}
                         className="w-full py-3 bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 text-slate-700 dark:text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                         <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg" alt="GCal" className="w-5 h-5" />
                         Add to Google Calendar
                     </button>
-                    
+
                     <div className="flex gap-3">
-                        <button 
+                        <button
                             onClick={resetFlow}
                             className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold transition-colors"
                         >
                             Home
                         </button>
-                        <button 
+                        <button
                             onClick={() => { setShowSuccessModal(false); navigate('/appointment'); }}
                             className="flex-1 py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors shadow-lg shadow-primary/20"
                         >
@@ -713,11 +713,11 @@ const AppointmentScreen: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-3">
                         {selectedProvider.bio}
                     </p>
-                    
+
                     <div className="flex flex-wrap gap-2 pt-1">
                          {selectedProvider.telehealthAvailable && (
                              <span className="px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs rounded-md font-medium flex items-center gap-1">
@@ -734,21 +734,21 @@ const AppointmentScreen: React.FC = () => {
                 <div>
                     <h3 className="font-bold text-lg mb-3 dark:text-white">Appointment Type</h3>
                     <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
-                        <button 
+                        <button
                             onClick={() => setAppointmentType('in-person')}
                             className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                                appointmentType === 'in-person' 
-                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm' 
+                                appointmentType === 'in-person'
+                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
                                 : 'text-slate-500 dark:text-slate-400'
                             }`}
                         >
                             <span className="material-symbols-outlined text-sm">local_hospital</span> In-person
                         </button>
-                        <button 
+                        <button
                              onClick={() => setAppointmentType('video')}
                              className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                                appointmentType === 'video' 
-                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm' 
+                                appointmentType === 'video'
+                                ? 'bg-white dark:bg-card-dark text-slate-900 dark:text-white shadow-sm'
                                 : 'text-slate-500 dark:text-slate-400'
                             }`}
                              disabled={!selectedProvider.telehealthAvailable}
@@ -773,11 +773,11 @@ const AppointmentScreen: React.FC = () => {
                                 <span className="material-symbols-outlined">chevron_right</span>
                             </button>
                         </div>
-                        
+
                         <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-2 font-medium">
                             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d}>{d}</div>)}
                         </div>
-                        
+
                         <div className="grid grid-cols-7 gap-1">
                             {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`}></div>)}
                             {days.map(day => {
@@ -820,8 +820,8 @@ const AppointmentScreen: React.FC = () => {
                                             key={time}
                                             onClick={() => setSelectedTime(time)}
                                             className={`py-2 px-1 rounded-xl text-sm font-medium border transition-all ${
-                                                selectedTime === time 
-                                                ? 'bg-primary border-primary text-white shadow-md' 
+                                                selectedTime === time
+                                                ? 'bg-primary border-primary text-white shadow-md'
                                                 : 'bg-white dark:bg-card-dark border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-primary/50'
                                             }`}
                                         >
@@ -844,7 +844,7 @@ const AppointmentScreen: React.FC = () => {
                                         <span className="material-symbols-outlined text-blue-500">credit_card</span>
                                         Payment & Insurance
                                     </h3>
-                                    <button 
+                                    <button
                                         onClick={() => insuranceInputRef.current?.click()}
                                         disabled={isScanningInsurance}
                                         className="text-xs font-bold text-primary flex items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors"
@@ -856,33 +856,33 @@ const AppointmentScreen: React.FC = () => {
                                         )}
                                         Scan Card
                                     </button>
-                                    <input 
-                                        type="file" 
-                                        ref={insuranceInputRef} 
-                                        accept="image/*" 
-                                        className="hidden" 
-                                        onChange={handleInsuranceScan} 
+                                    <input
+                                        type="file"
+                                        ref={insuranceInputRef}
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleInsuranceScan}
                                     />
                                 </div>
                                 <div className="space-y-3">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Provider (e.g. Aetna)" 
+                                    <input
+                                        type="text"
+                                        placeholder="Provider (e.g. Aetna)"
                                         value={insuranceDetails.provider}
                                         onChange={(e) => setInsuranceDetails({...insuranceDetails, provider: e.target.value})}
                                         className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none outline-none focus:ring-2 focus:ring-primary dark:text-white text-sm"
                                     />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Member ID" 
+                                        <input
+                                            type="text"
+                                            placeholder="Member ID"
                                             value={insuranceDetails.memberId}
                                             onChange={(e) => setInsuranceDetails({...insuranceDetails, memberId: e.target.value})}
                                             className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none outline-none focus:ring-2 focus:ring-primary dark:text-white text-sm"
                                         />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Group ID" 
+                                        <input
+                                            type="text"
+                                            placeholder="Group ID"
                                             value={insuranceDetails.groupId}
                                             onChange={(e) => setInsuranceDetails({...insuranceDetails, groupId: e.target.value})}
                                             className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none outline-none focus:ring-2 focus:ring-primary dark:text-white text-sm"
@@ -890,7 +890,7 @@ const AppointmentScreen: React.FC = () => {
                                     </div>
                                     {insuranceDetails.provider && (
                                         <p className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                                            <span className="material-symbols-outlined text-xs">check_circle</span> 
+                                            <span className="material-symbols-outlined text-xs">check_circle</span>
                                             Details verified
                                         </p>
                                     )}
@@ -912,7 +912,7 @@ const AppointmentScreen: React.FC = () => {
                                     </label>
                                 </div>
                                 <p className="text-xs text-slate-500 mb-3">Allow Dr. {selectedProvider.name} to view your recent vitals and assessment history.</p>
-                                
+
                                 {shareChart && healthData && (
                                     <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 animate-in fade-in">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Preview of Shared Data</p>
@@ -935,7 +935,7 @@ const AppointmentScreen: React.FC = () => {
                     <div className="text-xs text-slate-500">Total Estimated Cost</div>
                     <div className="text-lg font-bold dark:text-white">$150.00</div>
                 </div>
-                <button 
+                <button
                     onClick={initiateBooking}
                     disabled={!selectedDate || !selectedTime}
                     className="w-full py-4 bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-dark text-white rounded-xl font-bold shadow-lg shadow-primary/30 transition-all flex items-center justify-center gap-2"
@@ -958,7 +958,7 @@ const AppointmentScreen: React.FC = () => {
             </button>
             <h2 className="text-lg font-bold dark:text-white ml-2">Find a Specialist</h2>
         </div>
-        <button 
+        <button
             onClick={() => setShowReceptionist(true)}
             className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
         >
@@ -996,9 +996,9 @@ const AppointmentScreen: React.FC = () => {
                                     <span className="material-symbols-outlined text-[10px]">schedule</span>
                                     <span className="font-bold text-xs">{appt.time}</span>
                                 </div>
-                                
+
                                 {appt.type === 'video' && new Date(`${appt.date}T${appt.time}`).getTime() > Date.now() && (
-                                    <button 
+                                    <button
                                         onClick={() => setActiveVideoCall(appt)}
                                         className="ml-auto bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-1 flex items-center gap-1 transition-colors shadow-sm"
                                     >
@@ -1021,9 +1021,9 @@ const AppointmentScreen: React.FC = () => {
         {/* Search */}
         <div className="relative">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-            <input 
-                type="text" 
-                placeholder="Search by name or specialty" 
+            <input
+                type="text"
+                placeholder="Search by name or specialty"
                 className="w-full pl-12 pr-4 h-12 rounded-xl bg-white dark:bg-slate-800 border-none focus:ring-2 focus:ring-primary outline-none dark:text-white shadow-sm"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1050,8 +1050,8 @@ const AppointmentScreen: React.FC = () => {
         {/* Provider List */}
         <div className="space-y-4 pt-2">
             {filteredProviders.length > 0 ? filteredProviders.map(provider => (
-                <div 
-                    key={provider.id} 
+                <div
+                    key={provider.id}
                     onClick={() => { setSelectedProvider(provider); setView('detail'); }}
                     className="bg-white dark:bg-card-dark p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 cursor-pointer hover:border-primary/50 transition-colors group"
                 >
@@ -1067,7 +1067,7 @@ const AppointmentScreen: React.FC = () => {
                                 {provider.rating}
                             </div>
                         </div>
-                        
+
                         <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                              <span className="truncate flex-1">{provider.clinicName}</span>
                              {provider.telehealthAvailable && (
@@ -1100,8 +1100,8 @@ const AppointmentScreen: React.FC = () => {
         {renderSuccessModal()}
         {showReceptionist && <ReceptionistModal onClose={() => setShowReceptionist(false)} />}
         {showIntakeModal && selectedProvider && (
-            <IntakeModal 
-                doctorName={selectedProvider.name} 
+            <IntakeModal
+                doctorName={selectedProvider.name}
                 onCancel={() => setShowIntakeModal(false)}
                 onComplete={handleIntakeComplete}
             />

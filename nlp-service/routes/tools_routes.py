@@ -10,7 +10,7 @@ FastAPI routes for LLM function calling and health tools:
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
 import logging
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 try:
     from memori.tools.memory_tool import MemoryTool
     from memori.core.memory import Memori
+
     MEMORI_TOOL_AVAILABLE = True
 except ImportError:
     MEMORI_TOOL_AVAILABLE = False
@@ -29,6 +30,7 @@ except ImportError:
 # Import MemoryManager for tool integration
 try:
     from nlp.memory_manager import MemoryManager
+
     MEMORY_MANAGER_AVAILABLE = True
 except ImportError:
     MEMORY_MANAGER_AVAILABLE = False
@@ -39,27 +41,27 @@ router = APIRouter(prefix="/tools", tags=["Tools & Function Calling"])
 
 # ==================== Request/Response Models ====================
 
+
 class ToolExecutionRequest(BaseModel):
     """Request to execute a tool."""
+
     tool_name: str = Field(..., description="Name of the tool to execute")
     parameters: Dict[str, Any] = Field(..., description="Tool parameters")
     user_id: Optional[str] = Field(None, description="User ID for context")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "tool_name": "blood_pressure_analyzer",
-                "parameters": {
-                    "systolic": 140,
-                    "diastolic": 90
-                },
-                "user_id": "user_123"
+                "parameters": {"systolic": 140, "diastolic": 90},
+                "user_id": "user_123",
             }
         }
 
 
 class ToolResponse(BaseModel):
     """Tool execution response."""
+
     tool_name: str
     success: bool
     result: Any
@@ -70,8 +72,10 @@ class ToolResponse(BaseModel):
 
 # ==================== Memory Tool Models ====================
 
+
 class MemoryToolSchemaResponse(BaseModel):
     """Response containing MemoryTool schema for LLM function calling."""
+
     available: bool
     tool_name: str
     description: str
@@ -81,22 +85,24 @@ class MemoryToolSchemaResponse(BaseModel):
 
 class MemoryToolExecuteRequest(BaseModel):
     """Request to execute MemoryTool search."""
+
     query: str = Field(..., description="Search query for memory retrieval")
     user_id: str = Field(..., description="User ID for memory scope")
     session_id: str = Field("default", description="Session ID")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "query": "What medications am I taking?",
                 "user_id": "patient_123",
-                "session_id": "session_abc"
+                "session_id": "session_abc",
             }
         }
 
 
 class MemoryToolExecuteResponse(BaseModel):
     """Response from MemoryTool execution."""
+
     success: bool
     query: str
     result: str
@@ -106,6 +112,7 @@ class MemoryToolExecuteResponse(BaseModel):
 
 class ToolSchemaResponse(BaseModel):
     """Tool schema for LLM function calling."""
+
     name: str
     description: str
     parameters: Dict[str, Any]
@@ -115,6 +122,7 @@ class ToolSchemaResponse(BaseModel):
 
 class BPAnalysisRequest(BaseModel):
     """Blood pressure analysis request."""
+
     systolic: int = Field(..., ge=60, le=250, description="Systolic pressure (mmHg)")
     diastolic: int = Field(..., ge=40, le=150, description="Diastolic pressure (mmHg)")
     pulse: Optional[int] = Field(None, ge=30, le=220, description="Pulse rate (bpm)")
@@ -123,19 +131,24 @@ class BPAnalysisRequest(BaseModel):
 
 class HeartRateAnalysisRequest(BaseModel):
     """Heart rate analysis request."""
+
     heart_rate: int = Field(..., ge=30, le=220, description="Heart rate (bpm)")
-    activity: str = Field("resting", description="Activity: resting, light, moderate, intense")
+    activity: str = Field(
+        "resting", description="Activity: resting, light, moderate, intense"
+    )
     age: Optional[int] = Field(None, ge=1, le=120)
 
 
 class DrugInteractionRequest(BaseModel):
     """Drug interaction check request."""
+
     medications: List[str] = Field(..., min_length=2, description="List of medications")
     include_foods: bool = Field(False, description="Include food interactions")
 
 
 class SymptomTriageRequest(BaseModel):
     """Symptom triage request."""
+
     symptoms: List[str] = Field(..., min_length=1)
     duration_hours: Optional[int] = Field(None)
     severity: int = Field(5, ge=1, le=10)
@@ -145,6 +158,7 @@ class SymptomTriageRequest(BaseModel):
 
 # ==================== Tool Registry Endpoints ====================
 
+
 @router.get("/", response_model=List[Dict[str, Any]])
 async def list_tools():
     """
@@ -152,10 +166,10 @@ async def list_tools():
     """
     try:
         from tools import get_tool_registry
-        
+
         registry = get_tool_registry()
         tools = registry.list_tools()
-        
+
         return [
             {
                 "name": t.name,
@@ -165,16 +179,40 @@ async def list_tools():
             }
             for t in tools
         ]
-        
+
     except ImportError:
         # Return built-in tools list if module not available
         return [
-            {"name": "blood_pressure_analyzer", "description": "Analyze blood pressure readings", "category": "vitals"},
-            {"name": "heart_rate_analyzer", "description": "Analyze heart rate", "category": "vitals"},
-            {"name": "drug_interaction_checker", "description": "Check drug interactions", "category": "medication"},
-            {"name": "symptom_triage", "description": "Triage symptoms for urgency", "category": "triage"},
-            {"name": "bmi_calculator", "description": "Calculate BMI", "category": "metrics"},
-            {"name": "cardiovascular_risk_calculator", "description": "Calculate CV risk", "category": "risk"},
+            {
+                "name": "blood_pressure_analyzer",
+                "description": "Analyze blood pressure readings",
+                "category": "vitals",
+            },
+            {
+                "name": "heart_rate_analyzer",
+                "description": "Analyze heart rate",
+                "category": "vitals",
+            },
+            {
+                "name": "drug_interaction_checker",
+                "description": "Check drug interactions",
+                "category": "medication",
+            },
+            {
+                "name": "symptom_triage",
+                "description": "Triage symptoms for urgency",
+                "category": "triage",
+            },
+            {
+                "name": "bmi_calculator",
+                "description": "Calculate BMI",
+                "category": "metrics",
+            },
+            {
+                "name": "cardiovascular_risk_calculator",
+                "description": "Calculate CV risk",
+                "category": "risk",
+            },
         ]
 
 
@@ -185,13 +223,13 @@ async def get_tool_schema(tool_name: str):
     """
     try:
         from tools import get_tool_registry
-        
+
         registry = get_tool_registry()
         tool = registry.get_tool(tool_name)
-        
+
         if not tool:
             raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
-        
+
         return ToolSchemaResponse(
             name=tool.name,
             description=tool.description,
@@ -199,7 +237,7 @@ async def get_tool_schema(tool_name: str):
             returns=tool.return_schema,
             examples=tool.examples,
         )
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Tools module not available")
     except HTTPException:
@@ -213,32 +251,34 @@ async def get_tool_schema(tool_name: str):
 async def get_all_schemas():
     """
     Get all tool schemas for LLM function calling setup.
-    
+
     Returns schemas in OpenAI function calling format.
     """
     try:
         from tools import get_tool_registry
-        
+
         registry = get_tool_registry()
         tools = registry.list_tools()
-        
+
         schemas = []
         for tool in tools:
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.get_json_schema(),
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.get_json_schema(),
+                    },
                 }
-            })
-        
+            )
+
         return {
             "tools": schemas,
             "count": len(schemas),
             "format": "openai_function_calling",
         }
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Tools module not available")
     except Exception as e:
@@ -248,25 +288,27 @@ async def get_all_schemas():
 
 # ==================== Generic Tool Execution ====================
 
+
 @router.post("/execute", response_model=ToolResponse)
 async def execute_tool(request: ToolExecutionRequest):
     """
     Execute any registered tool by name.
     """
     import time
+
     start_time = time.time()
-    
+
     try:
         from tools import execute_tool as run_tool
-        
+
         result = await run_tool(
             tool_name=request.tool_name,
             parameters=request.parameters,
             user_id=request.user_id,
         )
-        
+
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         return ToolResponse(
             tool_name=request.tool_name,
             success=result.success,
@@ -275,11 +317,13 @@ async def execute_tool(request: ToolExecutionRequest):
             warnings=result.warnings,
             recommendations=result.recommendations,
         )
-        
+
     except ImportError:
         raise HTTPException(status_code=503, detail="Tools module not available")
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"Tool not found: {request.tool_name}")
+        raise HTTPException(
+            status_code=404, detail=f"Tool not found: {request.tool_name}"
+        )
     except Exception as e:
         logger.error(f"Tool execution error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -287,23 +331,24 @@ async def execute_tool(request: ToolExecutionRequest):
 
 # ==================== Health Tool Endpoints ====================
 
+
 @router.post("/analyze/blood-pressure")
 async def analyze_blood_pressure(request: BPAnalysisRequest):
     """
     Analyze blood pressure reading.
-    
+
     Returns classification, risk assessment, and recommendations.
     """
     try:
         from tools import blood_pressure_analyzer
-        
+
         result = blood_pressure_analyzer(
             systolic=request.systolic,
             diastolic=request.diastolic,
             pulse=request.pulse,
             context=request.context,
         )
-        
+
         return {
             "classification": result.classification,
             "risk_level": result.risk_level,
@@ -311,14 +356,17 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
             "pulse_pressure": request.systolic - request.diastolic,
             "recommendations": result.recommendations,
             "warning": result.warning,
-            "disclaimer": "This analysis is for informational purposes only. Consult your healthcare provider for medical advice.",
+            "disclaimer": (
+                "This analysis is for informational purposes only. "
+                "Consult your healthcare provider for medical advice."
+            ),
         }
-        
+
     except ImportError:
         # Fallback implementation
         systolic = request.systolic
         diastolic = request.diastolic
-        
+
         if systolic < 120 and diastolic < 80:
             classification = "Normal"
             risk_level = "Low"
@@ -334,11 +382,11 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
         else:
             classification = "Unknown"
             risk_level = "Unknown"
-        
+
         if systolic >= 180 or diastolic >= 120:
             classification = "Hypertensive Crisis"
             risk_level = "Critical"
-        
+
         return {
             "classification": classification,
             "risk_level": risk_level,
@@ -349,7 +397,9 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
                 "Maintain a healthy diet low in sodium",
                 "Exercise regularly",
             ],
-            "warning": "Seek immediate medical attention" if risk_level == "Critical" else None,
+            "warning": (
+                "Seek immediate medical attention" if risk_level == "Critical" else None
+            ),
             "disclaimer": "This analysis is for informational purposes only.",
         }
 
@@ -361,20 +411,20 @@ async def analyze_heart_rate(request: HeartRateAnalysisRequest):
     """
     try:
         from tools import heart_rate_analyzer
-        
+
         result = heart_rate_analyzer(
             heart_rate=request.heart_rate,
             activity=request.activity,
             age=request.age,
         )
-        
+
         return result.__dict__
-        
+
     except ImportError:
         # Fallback implementation
         hr = request.heart_rate
         activity = request.activity
-        
+
         if activity == "resting":
             if hr < 60:
                 classification = "Bradycardia (slow)"
@@ -397,7 +447,7 @@ async def analyze_heart_rate(request: HeartRateAnalysisRequest):
                     classification = "Maximum effort"
             else:
                 classification = "Active"
-        
+
         return {
             "heart_rate": hr,
             "classification": classification,
@@ -411,17 +461,17 @@ async def analyze_heart_rate(request: HeartRateAnalysisRequest):
 async def check_drug_interactions(request: DrugInteractionRequest):
     """
     Check for potential drug interactions.
-    
+
     ⚠️ This is for informational purposes only - always consult a pharmacist.
     """
     try:
         from tools import drug_interaction_checker
-        
+
         result = drug_interaction_checker(
             medications=request.medications,
             include_foods=request.include_foods,
         )
-        
+
         return {
             "medications_checked": request.medications,
             "interactions": result.interactions,
@@ -429,7 +479,7 @@ async def check_drug_interactions(request: DrugInteractionRequest):
             "recommendations": result.recommendations,
             "disclaimer": "⚠️ Always consult a pharmacist or healthcare provider about drug interactions.",
         }
-        
+
     except ImportError:
         # Return basic response
         return {
@@ -445,12 +495,12 @@ async def check_drug_interactions(request: DrugInteractionRequest):
 async def triage_symptoms(request: SymptomTriageRequest):
     """
     Triage symptoms for urgency level.
-    
+
     ⚠️ This is not a substitute for professional medical evaluation.
     """
     try:
         from tools import symptom_triage
-        
+
         result = symptom_triage(
             symptoms=request.symptoms,
             duration_hours=request.duration_hours,
@@ -458,7 +508,7 @@ async def triage_symptoms(request: SymptomTriageRequest):
             age=request.age,
             medical_history=request.medical_history,
         )
-        
+
         return {
             "urgency_level": result.urgency_level,
             "recommended_action": result.recommended_action,
@@ -467,15 +517,21 @@ async def triage_symptoms(request: SymptomTriageRequest):
             "next_steps": result.next_steps,
             "disclaimer": result.disclaimer,
         }
-        
+
     except ImportError:
         # Basic triage logic
         urgency = "routine"
         action = "Schedule appointment with your doctor"
-        
-        emergency_symptoms = ["chest pain", "difficulty breathing", "stroke", "severe bleeding", "unconscious"]
+
+        emergency_symptoms = [
+            "chest pain",
+            "difficulty breathing",
+            "stroke",
+            "severe bleeding",
+            "unconscious",
+        ]
         urgent_symptoms = ["high fever", "severe pain", "head injury", "broken bone"]
-        
+
         for symptom in request.symptoms:
             symptom_lower = symptom.lower()
             if any(e in symptom_lower for e in emergency_symptoms):
@@ -485,39 +541,49 @@ async def triage_symptoms(request: SymptomTriageRequest):
             if any(u in symptom_lower for u in urgent_symptoms):
                 urgency = "urgent"
                 action = "Seek medical attention within 24 hours"
-        
+
         if request.severity >= 8:
             urgency = "urgent" if urgency != "emergency" else urgency
-        
+
         return {
             "urgency_level": urgency,
             "recommended_action": action,
-            "possible_conditions": ["Multiple conditions possible - professional evaluation needed"],
-            "red_flags": [s for s in request.symptoms if any(e in s.lower() for e in emergency_symptoms)],
+            "possible_conditions": [
+                "Multiple conditions possible - professional evaluation needed"
+            ],
+            "red_flags": [
+                s
+                for s in request.symptoms
+                if any(e in s.lower() for e in emergency_symptoms)
+            ],
             "next_steps": [
                 "Document your symptoms",
                 "Note when symptoms started",
                 action,
             ],
-            "disclaimer": "⚠️ This triage is for guidance only. If in doubt, seek professional medical help immediately.",
+            "disclaimer": (
+                "⚠️ This triage is for guidance only. "
+                "If in doubt, seek professional medical help immediately."
+            ),
         }
 
 
 @router.post("/calculate/bmi")
 async def calculate_bmi(
     weight_kg: float = Body(..., ge=20, le=500),
-    height_cm: float = Body(..., ge=50, le=300)
+    height_cm: float = Body(..., ge=50, le=300),
 ):
     """
     Calculate BMI and provide classification.
     """
     try:
         from tools import bmi_calculator
+
         return bmi_calculator(weight_kg=weight_kg, height_cm=height_cm).__dict__
     except ImportError:
         height_m = height_cm / 100
-        bmi = weight_kg / (height_m ** 2)
-        
+        bmi = weight_kg / (height_m**2)
+
         if bmi < 18.5:
             category = "Underweight"
         elif bmi < 25:
@@ -526,13 +592,13 @@ async def calculate_bmi(
             category = "Overweight"
         else:
             category = "Obese"
-        
+
         return {
             "bmi": round(bmi, 1),
             "category": category,
             "healthy_weight_range_kg": {
-                "min": round(18.5 * (height_m ** 2), 1),
-                "max": round(24.9 * (height_m ** 2), 1),
+                "min": round(18.5 * (height_m**2), 1),
+                "max": round(24.9 * (height_m**2), 1),
             },
             "recommendations": [
                 "Maintain a balanced diet",
@@ -551,14 +617,14 @@ async def calculate_cv_risk(
     hdl_cholesterol: int = Body(..., ge=20, le=100),
     smoker: bool = Body(...),
     diabetic: bool = Body(False),
-    on_bp_meds: bool = Body(False)
+    on_bp_meds: bool = Body(False),
 ):
     """
     Calculate 10-year cardiovascular risk using Framingham algorithm.
     """
     try:
         from tools import cardiovascular_risk_calculator
-        
+
         return cardiovascular_risk_calculator(
             age=age,
             gender=gender,
@@ -569,11 +635,11 @@ async def calculate_cv_risk(
             diabetic=diabetic,
             on_bp_meds=on_bp_meds,
         ).__dict__
-        
+
     except ImportError:
         # Simplified risk calculation
         risk_score = 0
-        
+
         # Age factor
         if age >= 65:
             risk_score += 15
@@ -581,20 +647,20 @@ async def calculate_cv_risk(
             risk_score += 10
         elif age >= 45:
             risk_score += 5
-        
+
         # Blood pressure
         if systolic_bp >= 160:
             risk_score += 10
         elif systolic_bp >= 140:
             risk_score += 5
-        
+
         # Cholesterol
         ratio = total_cholesterol / hdl_cholesterol
         if ratio > 5:
             risk_score += 10
         elif ratio > 4:
             risk_score += 5
-        
+
         # Risk factors
         if smoker:
             risk_score += 10
@@ -602,17 +668,17 @@ async def calculate_cv_risk(
             risk_score += 10
         if gender == "M":
             risk_score += 5
-        
+
         # Calculate percentage (simplified)
         risk_percent = min(risk_score, 30)
-        
+
         if risk_percent < 10:
             category = "Low"
         elif risk_percent < 20:
             category = "Moderate"
         else:
             category = "High"
-        
+
         return {
             "risk_percent": risk_percent,
             "risk_category": category,
@@ -636,14 +702,15 @@ async def calculate_cv_risk(
 
 # ==================== Memory Tool Endpoints (Memori Integration) ====================
 
+
 @router.get("/memory/schema", response_model=MemoryToolSchemaResponse)
 async def get_memory_tool_schema():
     """
     Get the MemoryTool schema for LLM function calling.
-    
+
     Returns the tool schema compatible with OpenAI function calling format,
     allowing LLMs to search and retrieve conversation memory.
-    
+
     This enables LLMs to:
     - Search conversation history
     - Retrieve patient context
@@ -655,9 +722,9 @@ async def get_memory_tool_schema():
             tool_name="memori_memory",
             description="Memory tool not available - Memori package not installed",
             schema={},
-            usage_example={}
+            usage_example={},
         )
-    
+
     # Create schema without actual Memori instance
     schema = {
         "name": "memori_memory",
@@ -667,13 +734,16 @@ async def get_memory_tool_schema():
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query to find relevant memories, conversations, or personal information about the user",
+                    "description": (
+                        "Search query to find relevant memories, conversations, "
+                        "or personal information about the user"
+                    ),
                 },
             },
             "required": ["query"],
         },
     }
-    
+
     return MemoryToolSchemaResponse(
         available=True,
         tool_name="memori_memory",
@@ -682,82 +752,80 @@ async def get_memory_tool_schema():
         usage_example={
             "function_call": {
                 "name": "memori_memory",
-                "arguments": '{"query": "What medications is the patient taking?"}'
+                "arguments": '{"query": "What medications is the patient taking?"}',
             },
-            "openai_format": {
-                "type": "function",
-                "function": schema
-            }
-        }
+            "openai_format": {"type": "function", "function": schema},
+        },
     )
 
 
 @router.post("/memory/execute", response_model=MemoryToolExecuteResponse)
-async def execute_memory_tool(
-    request: MemoryToolExecuteRequest
-):
+async def execute_memory_tool(request: MemoryToolExecuteRequest):
     """
     Execute a MemoryTool search query.
-    
+
     This endpoint allows executing memory searches that would typically
     be invoked by an LLM through function calling.
-    
+
     Args:
         request: Search query and user context
-    
+
     Returns:
         Search results from memory
     """
     import time
+
     start_time = time.time()
-    
+
     if not MEMORI_TOOL_AVAILABLE:
         raise HTTPException(
             status_code=503,
-            detail="MemoryTool not available - Memori package not installed"
+            detail="MemoryTool not available - Memori package not installed",
         )
-    
+
     if not MEMORY_MANAGER_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Memory manager not available"
-        )
-    
+        raise HTTPException(status_code=503, detail="Memory manager not available")
+
     try:
         memory_mgr = MemoryManager.get_instance()
-        
+
         # Search memory using memory manager
         results = await memory_mgr.search_memory(
             patient_id=request.user_id,
             query=request.query,
             session_id=request.session_id,
-            limit=10
+            limit=10,
         )
-        
+
         # Format results as string (as MemoryTool would return)
         if results:
-            result_text = "\n".join([
-                f"- [{r.memory_type}] {r.content[:200]}..." if len(r.content) > 200 else f"- [{r.memory_type}] {r.content}"
-                for r in results
-            ])
+            result_text = "\n".join(
+                [
+                    (
+                        f"- [{r.memory_type}] {r.content[:200]}..."
+                        if len(r.content) > 200
+                        else f"- [{r.memory_type}] {r.content}"
+                    )
+                    for r in results
+                ]
+            )
         else:
             result_text = "No relevant memories found for the query."
-        
+
         elapsed_ms = (time.time() - start_time) * 1000
-        
+
         return MemoryToolExecuteResponse(
             success=True,
             query=request.query,
             result=result_text,
             memories_found=len(results),
-            execution_time_ms=round(elapsed_ms, 2)
+            execution_time_ms=round(elapsed_ms, 2),
         )
-        
+
     except Exception as e:
         logger.error(f"MemoryTool execution error: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Memory tool execution failed: {str(e)}"
+            status_code=500, detail=f"Memory tool execution failed: {str(e)}"
         )
 
 
@@ -765,7 +833,7 @@ async def execute_memory_tool(
 async def get_memory_tool_status():
     """
     Get status of MemoryTool integration.
-    
+
     Returns availability and configuration status.
     """
     return {
@@ -774,7 +842,7 @@ async def get_memory_tool_status():
         "capabilities": {
             "semantic_search": MEMORI_TOOL_AVAILABLE,
             "conversation_memory": MEMORY_MANAGER_AVAILABLE,
-            "llm_function_calling": MEMORI_TOOL_AVAILABLE
+            "llm_function_calling": MEMORI_TOOL_AVAILABLE,
         },
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }

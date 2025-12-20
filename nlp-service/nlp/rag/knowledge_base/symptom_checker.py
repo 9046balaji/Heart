@@ -9,7 +9,7 @@ health information only. Always consult a healthcare provider for medical advice
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional
 from enum import Enum
 import logging
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class Urgency(Enum):
     """Urgency levels for symptom triage."""
+
     EMERGENCY = "emergency"  # Call 911 immediately
     URGENT = "urgent"  # Seek care within hours
     SOON = "soon"  # See doctor within days
@@ -26,6 +27,7 @@ class Urgency(Enum):
 
 class SymptomCategory(Enum):
     """Categories of symptoms."""
+
     CHEST = "chest"
     BREATHING = "breathing"
     HEART_RHYTHM = "heart_rhythm"
@@ -38,6 +40,7 @@ class SymptomCategory(Enum):
 @dataclass
 class SymptomMapping:
     """Maps a symptom to possible conditions and recommendations."""
+
     id: str
     symptom: str
     description: str
@@ -49,7 +52,7 @@ class SymptomMapping:
     recommendations: List[str]
     related_symptoms: List[str] = field(default_factory=list)
     keywords: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -63,7 +66,7 @@ class SymptomMapping:
             "recommendations": self.recommendations,
             "related_symptoms": self.related_symptoms,
         }
-    
+
     def to_content(self) -> str:
         """Convert to text content for embedding."""
         parts = [
@@ -79,29 +82,29 @@ class SymptomMapping:
 class SymptomChecker:
     """
     Cardiovascular symptom checker with triage guidance.
-    
+
     Features:
     - Symptom-to-condition mapping
     - Urgency triage
     - Follow-up questions
     - Red flag detection
-    
+
     DISCLAIMER: This is for informational purposes only and should
     not replace professional medical advice.
-    
+
     Example:
         checker = SymptomChecker()
-        
+
         # Check a symptom
         result = checker.check_symptom("chest pain")
         print(f"Urgency: {result['urgency']}")
         print(f"Possible conditions: {result['possible_conditions']}")
-        
+
         # Check for red flags
         if checker.has_red_flags(["chest pain", "arm pain", "sweating"]):
             print("EMERGENCY - Call 911")
     """
-    
+
     # Emergency red flag combinations
     EMERGENCY_COMBINATIONS = [
         {"chest pain", "arm pain"},
@@ -115,13 +118,13 @@ class SymptomChecker:
         {"unable to breathe"},
         {"severe chest pressure"},
     ]
-    
+
     def __init__(self):
         """Initialize the symptom checker."""
         self._symptoms: Dict[str, SymptomMapping] = {}
         self._keyword_index: Dict[str, List[str]] = {}
         self._load_symptoms()
-    
+
     def _load_symptoms(self) -> None:
         """Load symptom mappings."""
         symptoms = [
@@ -166,10 +169,20 @@ class SymptomChecker:
                     "Rest and try to stay calm",
                     "For mild, non-cardiac chest pain, see doctor soon",
                 ],
-                related_symptoms=["shortness of breath", "arm pain", "jaw pain", "sweating"],
-                keywords=["chest pain", "chest pressure", "chest tightness", "angina", "heart pain"],
+                related_symptoms=[
+                    "shortness of breath",
+                    "arm pain",
+                    "jaw pain",
+                    "sweating",
+                ],
+                keywords=[
+                    "chest pain",
+                    "chest pressure",
+                    "chest tightness",
+                    "angina",
+                    "heart pain",
+                ],
             ),
-            
             SymptomMapping(
                 id="chest_pressure",
                 symptom="Chest Pressure or Tightness",
@@ -200,9 +213,13 @@ class SymptomChecker:
                     "Call 911 if not improving within 5 minutes",
                 ],
                 related_symptoms=["chest pain", "shortness of breath"],
-                keywords=["chest pressure", "tight chest", "chest squeezing", "heavy chest"],
+                keywords=[
+                    "chest pressure",
+                    "tight chest",
+                    "chest squeezing",
+                    "heavy chest",
+                ],
             ),
-            
             # BREATHING SYMPTOMS
             SymptomMapping(
                 id="shortness_of_breath",
@@ -244,9 +261,14 @@ class SymptomChecker:
                     "Weigh yourself daily if heart failure suspected",
                 ],
                 related_symptoms=["chest pain", "fatigue", "leg swelling", "cough"],
-                keywords=["shortness of breath", "dyspnea", "breathless", "can't breathe", "breathing difficulty"],
+                keywords=[
+                    "shortness of breath",
+                    "dyspnea",
+                    "breathless",
+                    "can't breathe",
+                    "breathing difficulty",
+                ],
             ),
-            
             SymptomMapping(
                 id="orthopnea",
                 symptom="Difficulty Breathing When Lying Down",
@@ -279,7 +301,6 @@ class SymptomChecker:
                 related_symptoms=["shortness of breath", "leg swelling", "fatigue"],
                 keywords=["orthopnea", "can't lie flat", "sleeping upright", "PND"],
             ),
-            
             # HEART RHYTHM SYMPTOMS
             SymptomMapping(
                 id="palpitations",
@@ -320,9 +341,14 @@ class SymptomChecker:
                     "If persistent/frequent, see cardiologist",
                 ],
                 related_symptoms=["dizziness", "shortness of breath", "anxiety"],
-                keywords=["palpitations", "racing heart", "heart fluttering", "skipped beats", "heart pounding"],
+                keywords=[
+                    "palpitations",
+                    "racing heart",
+                    "heart fluttering",
+                    "skipped beats",
+                    "heart pounding",
+                ],
             ),
-            
             SymptomMapping(
                 id="fast_heart_rate",
                 symptom="Fast Heart Rate (Tachycardia)",
@@ -356,9 +382,13 @@ class SymptomChecker:
                     "Avoid caffeine and stimulants",
                 ],
                 related_symptoms=["palpitations", "dizziness", "shortness of breath"],
-                keywords=["fast heart rate", "tachycardia", "racing pulse", "rapid heartbeat"],
+                keywords=[
+                    "fast heart rate",
+                    "tachycardia",
+                    "racing pulse",
+                    "rapid heartbeat",
+                ],
             ),
-            
             SymptomMapping(
                 id="slow_heart_rate",
                 symptom="Slow Heart Rate (Bradycardia)",
@@ -389,9 +419,13 @@ class SymptomChecker:
                     "May need pacemaker evaluation",
                 ],
                 related_symptoms=["fatigue", "dizziness", "fainting"],
-                keywords=["slow heart rate", "bradycardia", "slow pulse", "low heart rate"],
+                keywords=[
+                    "slow heart rate",
+                    "bradycardia",
+                    "slow pulse",
+                    "low heart rate",
+                ],
             ),
-            
             # CIRCULATION SYMPTOMS
             SymptomMapping(
                 id="leg_swelling",
@@ -430,9 +464,14 @@ class SymptomChecker:
                     "See doctor if persistent or with other symptoms",
                 ],
                 related_symptoms=["shortness of breath", "weight gain", "fatigue"],
-                keywords=["leg swelling", "edema", "ankle swelling", "swollen feet", "fluid retention"],
+                keywords=[
+                    "leg swelling",
+                    "edema",
+                    "ankle swelling",
+                    "swollen feet",
+                    "fluid retention",
+                ],
             ),
-            
             SymptomMapping(
                 id="dizziness",
                 symptom="Dizziness or Lightheadedness",
@@ -469,9 +508,14 @@ class SymptomChecker:
                     "Review medications with doctor",
                 ],
                 related_symptoms=["palpitations", "fainting", "fatigue"],
-                keywords=["dizziness", "lightheaded", "woozy", "vertigo", "faint feeling"],
+                keywords=[
+                    "dizziness",
+                    "lightheaded",
+                    "woozy",
+                    "vertigo",
+                    "faint feeling",
+                ],
             ),
-            
             SymptomMapping(
                 id="syncope",
                 symptom="Fainting (Syncope)",
@@ -511,9 +555,14 @@ class SymptomChecker:
                     "Avoid triggers if vasovagal identified",
                 ],
                 related_symptoms=["dizziness", "palpitations", "chest pain"],
-                keywords=["fainting", "syncope", "passed out", "blacked out", "loss of consciousness"],
+                keywords=[
+                    "fainting",
+                    "syncope",
+                    "passed out",
+                    "blacked out",
+                    "loss of consciousness",
+                ],
             ),
-            
             # FATIGUE
             SymptomMapping(
                 id="fatigue",
@@ -554,7 +603,6 @@ class SymptomChecker:
                 related_symptoms=["shortness of breath", "dizziness", "weight changes"],
                 keywords=["fatigue", "tiredness", "weakness", "exhausted", "no energy"],
             ),
-            
             # NEUROLOGICAL (Stroke-related)
             SymptomMapping(
                 id="stroke_symptoms",
@@ -590,10 +638,17 @@ class SymptomChecker:
                     "Do NOT give aspirin (could be bleeding stroke)",
                 ],
                 related_symptoms=["face drooping", "arm weakness", "speech difficulty"],
-                keywords=["stroke", "face drooping", "arm weakness", "speech slurred", "TIA", "mini stroke"],
+                keywords=[
+                    "stroke",
+                    "face drooping",
+                    "arm weakness",
+                    "speech slurred",
+                    "TIA",
+                    "mini stroke",
+                ],
             ),
         ]
-        
+
         for symptom in symptoms:
             self._symptoms[symptom.id] = symptom
             # Build keyword index
@@ -602,19 +657,19 @@ class SymptomChecker:
                 if kw_lower not in self._keyword_index:
                     self._keyword_index[kw_lower] = []
                 self._keyword_index[kw_lower].append(symptom.id)
-    
+
     def check_symptom(self, symptom_query: str) -> Optional[Dict[str, Any]]:
         """
         Check a symptom and get information.
-        
+
         Args:
             symptom_query: Symptom description
-            
+
         Returns:
             Symptom information dict or None
         """
         query_lower = symptom_query.lower()
-        
+
         # Try keyword index first
         for keyword, ids in self._keyword_index.items():
             if keyword in query_lower:
@@ -623,91 +678,95 @@ class SymptomChecker:
                     **symptom.to_dict(),
                     "matched_keyword": keyword,
                 }
-        
+
         # Fuzzy search in symptoms
         results = self.search_symptoms(symptom_query)
         if results:
             return results[0].to_dict()
-        
+
         return None
-    
+
     def search_symptoms(self, query: str, max_results: int = 5) -> List[SymptomMapping]:
         """
         Search symptoms by query.
-        
+
         Args:
             query: Search query
             max_results: Maximum results
-            
+
         Returns:
             List of matching symptoms
         """
         query_lower = query.lower()
         query_words = set(query_lower.split())
         scored = []
-        
+
         for symptom in self._symptoms.values():
             score = 0
-            
+
             # Symptom name match
             if query_lower in symptom.symptom.lower():
                 score += 10
-            
+
             # Keyword match
             for keyword in symptom.keywords:
                 if keyword.lower() in query_lower:
                     score += 5
                 elif any(w in keyword.lower() for w in query_words):
                     score += 2
-            
+
             # Description match
             if any(w in symptom.description.lower() for w in query_words):
                 score += 1
-            
+
             if score > 0:
                 scored.append((score, symptom))
-        
+
         scored.sort(key=lambda x: x[0], reverse=True)
         return [s for _, s in scored[:max_results]]
-    
+
     def has_red_flags(self, symptoms: List[str]) -> bool:
         """
         Check if symptom combination indicates emergency.
-        
+
         Args:
             symptoms: List of symptoms to check
-            
+
         Returns:
             True if emergency red flags detected
         """
         symptom_set = {s.lower() for s in symptoms}
-        
+
         # Check for emergency combinations
         for combo in self.EMERGENCY_COMBINATIONS:
             if combo.issubset(symptom_set):
                 return True
-        
+
         # Check individual high-urgency symptoms
         emergency_keywords = [
-            "severe chest pain", "can't breathe", "passing out",
-            "heart attack", "stroke", "face drooping",
+            "severe chest pain",
+            "can't breathe",
+            "passing out",
+            "heart attack",
+            "stroke",
+            "face drooping",
         ]
-        
+
         for symptom in symptoms:
             symptom_lower = symptom.lower()
             for keyword in emergency_keywords:
                 if keyword in symptom_lower:
                     return True
-        
+
         return False
-    
+
     def triage_symptoms(self, symptoms: List[str]) -> Dict[str, Any]:
         """
         Triage a list of symptoms and determine urgency.
-        
+
         Args:
             symptoms: List of symptoms
-            
+
         Returns:
             Triage result with urgency and recommendations
         """
@@ -719,7 +778,7 @@ class SymptomChecker:
                 "action": "These symptoms may indicate a medical emergency. Call emergency services now.",
                 "symptoms_analyzed": symptoms,
             }
-        
+
         # Find matching symptoms
         matched_symptoms = []
         highest_urgency = Urgency.ROUTINE
@@ -729,9 +788,9 @@ class SymptomChecker:
             Urgency.SOON: 2,
             Urgency.ROUTINE: 3,
         }
-        
+
         all_recommendations = []
-        
+
         for symptom_query in symptoms:
             result = self.check_symptom(symptom_query)
             if result:
@@ -740,7 +799,7 @@ class SymptomChecker:
                 if urgency_order[symptom_urgency] < urgency_order[highest_urgency]:
                     highest_urgency = symptom_urgency
                 all_recommendations.extend(result["recommendations"])
-        
+
         # Generate message based on urgency
         messages = {
             Urgency.EMERGENCY: "Seek immediate emergency care",
@@ -748,7 +807,7 @@ class SymptomChecker:
             Urgency.SOON: "See your doctor within a few days",
             Urgency.ROUTINE: "Schedule a regular appointment",
         }
-        
+
         return {
             "urgency": highest_urgency.value,
             "message": messages[highest_urgency],
@@ -757,7 +816,7 @@ class SymptomChecker:
             "recommendations": list(set(all_recommendations))[:5],
             "disclaimer": "This is not a diagnosis. Always consult a healthcare provider.",
         }
-    
+
     def get_follow_up_questions(self, symptom: str) -> List[str]:
         """Get follow-up questions for a symptom."""
         result = self.check_symptom(symptom)
@@ -769,28 +828,30 @@ class SymptomChecker:
             "What makes it better or worse?",
             "Do you have any other symptoms?",
         ]
-    
+
     def to_rag_documents(self) -> List[Dict[str, Any]]:
         """
         Convert symptoms to format suitable for RAG indexing.
-        
+
         Returns:
             List of documents ready for vector store
         """
         documents = []
-        
+
         for symptom in self._symptoms.values():
-            documents.append({
-                "id": f"symptom_{symptom.id}",
-                "content": symptom.to_content(),
-                "metadata": {
-                    "symptom": symptom.symptom,
-                    "category": symptom.category.value,
-                    "urgency": symptom.urgency.value,
-                    "type": "symptom_info",
-                },
-            })
-        
+            documents.append(
+                {
+                    "id": f"symptom_{symptom.id}",
+                    "content": symptom.to_content(),
+                    "metadata": {
+                        "symptom": symptom.symptom,
+                        "category": symptom.category.value,
+                        "urgency": symptom.urgency.value,
+                        "type": "symptom_info",
+                    },
+                }
+            )
+
         return documents
 
 
@@ -815,17 +876,19 @@ def get_symptom_checker() -> SymptomChecker:
 
 if __name__ == "__main__":
     print("Testing SymptomChecker...")
-    
+
     checker = get_symptom_checker()
-    
+
     # Test symptom lookup
     print("\n🩺 Checking 'chest pain':")
     result = checker.check_symptom("chest pain")
     if result:
         print(f"  Symptom: {result['symptom']}")
         print(f"  Urgency: {result['urgency']}")
-        print(f"  Possible conditions: {', '.join(result['possible_conditions'][:3])}...")
-    
+        print(
+            f"  Possible conditions: {', '.join(result['possible_conditions'][:3])}..."
+        )
+
     # Test red flag detection
     print("\n🚨 Red flag detection:")
     test_cases = [
@@ -838,21 +901,21 @@ if __name__ == "__main__":
         is_emergency = checker.has_red_flags(symptoms)
         status = "🔴 EMERGENCY" if is_emergency else "🟢 Not emergency"
         print(f"  {symptoms} -> {status}")
-    
+
     # Test triage
     print("\n📋 Triage test:")
     triage = checker.triage_symptoms(["shortness of breath", "leg swelling"])
     print(f"  Urgency: {triage['urgency']}")
     print(f"  Message: {triage['message']}")
-    
+
     # Test follow-up questions
     print("\n❓ Follow-up questions for 'palpitations':")
     questions = checker.get_follow_up_questions("palpitations")
     for q in questions[:3]:
         print(f"  - {q}")
-    
+
     # Test RAG documents
     rag_docs = checker.to_rag_documents()
     print(f"\n📄 RAG documents ready: {len(rag_docs)}")
-    
+
     print("\n✅ SymptomChecker tests passed!")

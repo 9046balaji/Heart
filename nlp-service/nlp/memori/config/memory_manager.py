@@ -16,6 +16,7 @@ from loguru import logger
 # Redis for distributed caching (optional)
 try:
     import aioredis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -29,19 +30,19 @@ class MemoryPersistenceBackend:
     Abstract base for memory persistence backends.
     Supports multiple storage options: Redis, File, or custom backends.
     """
-    
+
     def save_snapshot(self, user_id: str, data: dict[str, Any]) -> bool:
         """Save a memory snapshot."""
         raise NotImplementedError
-    
+
     def load_snapshot(self, user_id: str) -> Optional[dict[str, Any]]:
         """Load a memory snapshot."""
         raise NotImplementedError
-    
+
     def delete_snapshot(self, user_id: str) -> bool:
         """Delete a memory snapshot."""
         raise NotImplementedError
-    
+
     def list_snapshots(self) -> list[str]:
         """List all available snapshot user IDs."""
         raise NotImplementedError
@@ -49,17 +50,17 @@ class MemoryPersistenceBackend:
 
 class FileSystemPersistence(MemoryPersistenceBackend):
     """File-based memory persistence backend."""
-    
+
     def __init__(self, storage_dir: str = "./memory_snapshots"):
         self.storage_dir = storage_dir
         os.makedirs(storage_dir, exist_ok=True)
         logger.debug(f"FileSystemPersistence initialized at {storage_dir}")
-    
+
     def _get_filepath(self, user_id: str) -> str:
         """Get the file path for a user's snapshot."""
         safe_user_id = user_id.replace("/", "_").replace("\\", "_")
         return os.path.join(self.storage_dir, f"{safe_user_id}_snapshot.json")
-    
+
     def save_snapshot(self, user_id: str, data: dict[str, Any]) -> bool:
         """Save a memory snapshot to file."""
         try:
@@ -67,7 +68,7 @@ class FileSystemPersistence(MemoryPersistenceBackend):
             snapshot = {
                 "user_id": user_id,
                 "timestamp": datetime.now().isoformat(),
-                "data": data
+                "data": data,
             }
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(snapshot, f, indent=2, default=str)
@@ -76,7 +77,7 @@ class FileSystemPersistence(MemoryPersistenceBackend):
         except Exception as e:
             logger.error(f"Failed to save snapshot for {user_id}: {e}")
             return False
-    
+
     def load_snapshot(self, user_id: str) -> Optional[dict[str, Any]]:
         """Load a memory snapshot from file."""
         try:
@@ -91,7 +92,7 @@ class FileSystemPersistence(MemoryPersistenceBackend):
         except Exception as e:
             logger.error(f"Failed to load snapshot for {user_id}: {e}")
             return None
-    
+
     def delete_snapshot(self, user_id: str) -> bool:
         """Delete a memory snapshot file."""
         try:
@@ -104,7 +105,7 @@ class FileSystemPersistence(MemoryPersistenceBackend):
         except Exception as e:
             logger.error(f"Failed to delete snapshot for {user_id}: {e}")
             return False
-    
+
     def list_snapshots(self) -> list[str]:
         """List all available snapshot user IDs."""
         try:
@@ -122,12 +123,12 @@ class FileSystemPersistence(MemoryPersistenceBackend):
 
 class RedisPersistence(MemoryPersistenceBackend):
     """Redis-based memory persistence backend with async support."""
-    
+
     def __init__(
         self,
         redis_url: str = "redis://localhost:6379",
         key_prefix: str = "memori:snapshot:",
-        ttl: int = 86400 * 30  # 30 days default
+        ttl: int = 86400 * 30,  # 30 days default
     ):
         self.redis_url = redis_url
         self.key_prefix = key_prefix
@@ -135,25 +136,23 @@ class RedisPersistence(MemoryPersistenceBackend):
         self._redis: Optional[aioredis.Redis] = None
         self._sync_mode = True  # Will use sync wrappers for compatibility
         logger.debug(f"RedisPersistence initialized with prefix {key_prefix}")
-    
+
     async def _get_redis(self) -> "aioredis.Redis":
         """Get or create Redis connection."""
         if self._redis is None:
             self._redis = await aioredis.from_url(
-                self.redis_url,
-                encoding="utf-8",
-                decode_responses=True
+                self.redis_url, encoding="utf-8", decode_responses=True
             )
         return self._redis
-    
+
     def _get_key(self, user_id: str) -> str:
         """Generate Redis key for a user."""
         return f"{self.key_prefix}{user_id}"
-    
+
     def save_snapshot(self, user_id: str, data: dict[str, Any]) -> bool:
         """Save a memory snapshot to Redis (sync wrapper)."""
         import asyncio
-        
+
         async def _async_save():
             try:
                 redis = await self._get_redis()
@@ -161,7 +160,7 @@ class RedisPersistence(MemoryPersistenceBackend):
                 snapshot = {
                     "user_id": user_id,
                     "timestamp": datetime.now().isoformat(),
-                    "data": data
+                    "data": data,
                 }
                 await redis.set(key, json.dumps(snapshot, default=str), ex=self.ttl)
                 logger.info(f"Memory snapshot saved to Redis for user {user_id}")
@@ -169,7 +168,7 @@ class RedisPersistence(MemoryPersistenceBackend):
             except Exception as e:
                 logger.error(f"Failed to save snapshot to Redis for {user_id}: {e}")
                 return False
-        
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -181,11 +180,11 @@ class RedisPersistence(MemoryPersistenceBackend):
         except RuntimeError:
             # No event loop, create new one
             return asyncio.run(_async_save())
-    
+
     def load_snapshot(self, user_id: str) -> Optional[dict[str, Any]]:
         """Load a memory snapshot from Redis (sync wrapper)."""
         import asyncio
-        
+
         async def _async_load():
             try:
                 redis = await self._get_redis()
@@ -200,34 +199,38 @@ class RedisPersistence(MemoryPersistenceBackend):
             except Exception as e:
                 logger.error(f"Failed to load snapshot from Redis for {user_id}: {e}")
                 return None
-        
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Cannot run sync in async context, return None
-                logger.warning("Cannot load Redis snapshot synchronously in async context")
+                logger.warning(
+                    "Cannot load Redis snapshot synchronously in async context"
+                )
                 return None
             else:
                 return loop.run_until_complete(_async_load())
         except RuntimeError:
             return asyncio.run(_async_load())
-    
+
     def delete_snapshot(self, user_id: str) -> bool:
         """Delete a memory snapshot from Redis (sync wrapper)."""
         import asyncio
-        
+
         async def _async_delete():
             try:
                 redis = await self._get_redis()
                 key = self._get_key(user_id)
                 result = await redis.delete(key)
                 if result:
-                    logger.info(f"Memory snapshot deleted from Redis for user {user_id}")
+                    logger.info(
+                        f"Memory snapshot deleted from Redis for user {user_id}"
+                    )
                 return bool(result)
             except Exception as e:
                 logger.error(f"Failed to delete snapshot from Redis for {user_id}: {e}")
                 return False
-        
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -237,11 +240,11 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return loop.run_until_complete(_async_delete())
         except RuntimeError:
             return asyncio.run(_async_delete())
-    
+
     def list_snapshots(self) -> list[str]:
         """List all available snapshot user IDs from Redis."""
         import asyncio
-        
+
         async def _async_list():
             try:
                 redis = await self._get_redis()
@@ -253,7 +256,7 @@ class RedisPersistence(MemoryPersistenceBackend):
             except Exception as e:
                 logger.error(f"Failed to list snapshots from Redis: {e}")
                 return []
-        
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -262,7 +265,7 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return loop.run_until_complete(_async_list())
         except RuntimeError:
             return asyncio.run(_async_list())
-    
+
     async def close(self):
         """Close Redis connection."""
         if self._redis:
@@ -275,52 +278,55 @@ class MemoryCache:
     In-memory LRU cache for frequently accessed memories.
     Provides fast access layer before hitting persistence backend.
     """
-    
+
     def __init__(self, max_size: int = 1000, ttl: int = 300):
         self.max_size = max_size
         self.ttl = ttl
         self._cache: dict[str, tuple[Any, float]] = {}
         self._access_order: list[str] = []
         import threading
+
         self._lock = threading.Lock()
-    
+
     def get(self, key: str) -> Optional[Any]:
         """Get item from cache if not expired."""
         with self._lock:
             if key not in self._cache:
                 return None
-            
+
             value, timestamp = self._cache[key]
             import time
+
             if time.time() - timestamp > self.ttl:
                 # Expired
                 del self._cache[key]
                 if key in self._access_order:
                     self._access_order.remove(key)
                 return None
-            
+
             # Update access order (LRU)
             if key in self._access_order:
                 self._access_order.remove(key)
             self._access_order.append(key)
-            
+
             return value
-    
+
     def set(self, key: str, value: Any) -> None:
         """Set item in cache with LRU eviction."""
         import time
+
         with self._lock:
             # Evict if at capacity
             while len(self._cache) >= self.max_size and self._access_order:
                 oldest_key = self._access_order.pop(0)
                 if oldest_key in self._cache:
                     del self._cache[oldest_key]
-            
+
             self._cache[key] = (value, time.time())
             if key in self._access_order:
                 self._access_order.remove(key)
             self._access_order.append(key)
-    
+
     def delete(self, key: str) -> bool:
         """Delete item from cache."""
         with self._lock:
@@ -330,13 +336,13 @@ class MemoryCache:
                     self._access_order.remove(key)
                 return True
             return False
-    
+
     def clear(self) -> None:
         """Clear all cached items."""
         with self._lock:
             self._cache.clear()
             self._access_order.clear()
-    
+
     def stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         with self._lock:
@@ -344,7 +350,9 @@ class MemoryCache:
                 "size": len(self._cache),
                 "max_size": self.max_size,
                 "ttl": self.ttl,
-                "utilization": len(self._cache) / self.max_size if self.max_size > 0 else 0
+                "utilization": (
+                    len(self._cache) / self.max_size if self.max_size > 0 else 0
+                ),
             }
 
 
@@ -355,7 +363,7 @@ class MemoryManager:
 
     This class provides a clean interface for memory operations while
     maintaining backward compatibility with the existing Memori system.
-    
+
     Supports multiple persistence backends:
     - FileSystem: Local file-based persistence (default)
     - Redis: Distributed caching with TTL support
@@ -445,27 +453,27 @@ class MemoryManager:
 
         # LiteLLM native callback manager
         self.litellm_callback_manager = None
-        
+
         # Initialize persistence backend
         self._persistence_backend: Optional[MemoryPersistenceBackend] = None
         self._init_persistence_backend(persistence_backend, persistence_config or {})
-        
+
         # Initialize in-memory cache
         self._memory_cache: Optional[MemoryCache] = None
         if enable_cache:
             self._memory_cache = MemoryCache(max_size=cache_max_size, ttl=cache_ttl)
-            logger.debug(f"Memory cache enabled (max_size={cache_max_size}, ttl={cache_ttl})")
+            logger.debug(
+                f"Memory cache enabled (max_size={cache_max_size}, ttl={cache_ttl})"
+            )
 
         logger.info(f"MemoryManager initialized with session: {self._session_id}")
-    
+
     def _init_persistence_backend(
-        self,
-        backend_type: str,
-        config: dict[str, Any]
+        self, backend_type: str, config: dict[str, Any]
     ) -> None:
         """
         Initialize the persistence backend based on type.
-        
+
         Args:
             backend_type: "filesystem", "redis", or "none"
             config: Backend-specific configuration
@@ -474,27 +482,32 @@ class MemoryManager:
             self._persistence_backend = None
             logger.debug("Memory persistence disabled")
             return
-        
+
         if backend_type == "redis":
             if not REDIS_AVAILABLE:
-                logger.warning("Redis requested but aioredis not available, falling back to filesystem")
+                logger.warning(
+                    "Redis requested but aioredis not available, falling back to filesystem"
+                )
                 backend_type = "filesystem"
             else:
                 try:
-                    redis_url = config.get("redis_url", os.environ.get("REDIS_URL", "redis://localhost:6379"))
+                    redis_url = config.get(
+                        "redis_url",
+                        os.environ.get("REDIS_URL", "redis://localhost:6379"),
+                    )
                     key_prefix = config.get("key_prefix", "memori:snapshot:")
                     ttl = config.get("ttl", 86400 * 30)
                     self._persistence_backend = RedisPersistence(
-                        redis_url=redis_url,
-                        key_prefix=key_prefix,
-                        ttl=ttl
+                        redis_url=redis_url, key_prefix=key_prefix, ttl=ttl
                     )
                     logger.info(f"Redis persistence backend initialized")
                     return
                 except Exception as e:
-                    logger.error(f"Failed to initialize Redis backend: {e}, falling back to filesystem")
+                    logger.error(
+                        f"Failed to initialize Redis backend: {e}, falling back to filesystem"
+                    )
                     backend_type = "filesystem"
-        
+
         if backend_type == "filesystem":
             storage_dir = config.get("storage_dir", "./memory_snapshots")
             self._persistence_backend = FileSystemPersistence(storage_dir=storage_dir)
@@ -503,29 +516,29 @@ class MemoryManager:
     def save_memory_snapshot(self, data: Optional[dict[str, Any]] = None) -> bool:
         """
         Save a snapshot of current memory state for the user.
-        
+
         Args:
             data: Optional explicit data to save. If None, collects current state.
-        
+
         Returns:
             True if successful, False otherwise
         """
         if self._persistence_backend is None:
             logger.warning("No persistence backend configured, snapshot not saved")
             return False
-        
+
         snapshot_data = data or self._collect_memory_state()
-        
+
         # Update cache if enabled
         if self._memory_cache:
             self._memory_cache.set(f"snapshot:{self.user_id}", snapshot_data)
-        
+
         return self._persistence_backend.save_snapshot(self.user_id, snapshot_data)
-    
+
     def load_memory_snapshot(self) -> Optional[dict[str, Any]]:
         """
         Load a previously saved memory snapshot for the user.
-        
+
         Returns:
             Snapshot data dict or None if not found
         """
@@ -533,72 +546,76 @@ class MemoryManager:
         if self._memory_cache:
             cached = self._memory_cache.get(f"snapshot:{self.user_id}")
             if cached is not None:
-                logger.debug(f"Memory snapshot loaded from cache for user {self.user_id}")
+                logger.debug(
+                    f"Memory snapshot loaded from cache for user {self.user_id}"
+                )
                 return cached
-        
+
         if self._persistence_backend is None:
             logger.warning("No persistence backend configured, cannot load snapshot")
             return None
-        
+
         data = self._persistence_backend.load_snapshot(self.user_id)
-        
+
         # Populate cache if enabled
         if data and self._memory_cache:
             self._memory_cache.set(f"snapshot:{self.user_id}", data)
-        
+
         return data
-    
-    def restore_memory_from_snapshot(self, snapshot: Optional[dict[str, Any]] = None) -> bool:
+
+    def restore_memory_from_snapshot(
+        self, snapshot: Optional[dict[str, Any]] = None
+    ) -> bool:
         """
         Restore memory state from a snapshot.
-        
+
         Args:
             snapshot: Explicit snapshot to restore. If None, loads from backend.
-        
+
         Returns:
             True if successful, False otherwise
         """
         if snapshot is None:
             snapshot = self.load_memory_snapshot()
-        
+
         if snapshot is None:
             logger.warning("No snapshot available to restore")
             return False
-        
+
         return self._apply_memory_state(snapshot)
-    
+
     def delete_memory_snapshot(self) -> bool:
         """
         Delete the memory snapshot for the current user.
-        
+
         Returns:
             True if successful, False otherwise
         """
         # Clear from cache
         if self._memory_cache:
             self._memory_cache.delete(f"snapshot:{self.user_id}")
-        
+
         if self._persistence_backend is None:
             return False
-        
+
         return self._persistence_backend.delete_snapshot(self.user_id)
-    
+
     def list_available_snapshots(self) -> list[str]:
         """
         List all available memory snapshots.
-        
+
         Returns:
             List of user IDs with available snapshots
         """
         if self._persistence_backend is None:
             return []
-        
+
         return self._persistence_backend.list_snapshots()
-    
+
     def _collect_memory_state(self) -> dict[str, Any]:
         """
         Collect the current memory state for snapshotting.
-        
+
         Returns:
             Dict containing serializable memory state
         """
@@ -614,67 +631,73 @@ class MemoryManager:
                 "auto_ingest": self.auto_ingest,
                 "shared_memory": self.shared_memory,
                 "memory_filters": self.memory_filters,
-            }
+            },
         }
-        
+
         # Add memori instance state if available
         if hasattr(self, "memori_instance") and self.memori_instance:
             try:
                 # Collect recent conversation history
                 if hasattr(self.memori_instance, "get_conversation_history"):
-                    state["conversation_history"] = self.memori_instance.get_conversation_history(limit=100)
-                
+                    state["conversation_history"] = (
+                        self.memori_instance.get_conversation_history(limit=100)
+                    )
+
                 # Collect recent memories if search is available
                 if hasattr(self.memori_instance, "search"):
                     recent_memories = self.memori_instance.search("", limit=50)
                     state["recent_memories"] = recent_memories
             except Exception as e:
                 logger.error(f"Error collecting memory state: {e}")
-        
+
         return state
-    
+
     def _apply_memory_state(self, state: dict[str, Any]) -> bool:
         """
         Apply a memory state from a snapshot.
-        
+
         Args:
             state: Memory state dict to apply
-        
+
         Returns:
             True if successful
         """
         try:
-            logger.info(f"Restoring memory state from snapshot dated {state.get('timestamp', 'unknown')}")
-            
+            logger.info(
+                f"Restoring memory state from snapshot dated {state.get('timestamp', 'unknown')}"
+            )
+
             # Restore configuration
             config = state.get("config", {})
             if config:
-                self.conscious_ingest = config.get("conscious_ingest", self.conscious_ingest)
+                self.conscious_ingest = config.get(
+                    "conscious_ingest", self.conscious_ingest
+                )
                 self.auto_ingest = config.get("auto_ingest", self.auto_ingest)
                 self.shared_memory = config.get("shared_memory", self.shared_memory)
                 self.memory_filters = config.get("memory_filters", self.memory_filters)
-            
+
             # Note: Actual memory/conversation restoration would need
             # integration with the Memori instance database layer
-            
+
             logger.info("Memory state restored from snapshot")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to apply memory state: {e}")
             return False
-    
+
     def get_cache_stats(self) -> Optional[dict[str, Any]]:
         """
         Get memory cache statistics.
-        
+
         Returns:
             Cache stats dict or None if cache disabled
         """
         if self._memory_cache is None:
             return None
         return self._memory_cache.stats()
-    
+
     def clear_cache(self) -> None:
         """Clear the in-memory cache."""
         if self._memory_cache:
@@ -818,7 +841,7 @@ class MemoryManager:
             persistence_type = "redis"
         elif isinstance(self._persistence_backend, FileSystemPersistence):
             persistence_type = "filesystem"
-        
+
         health_info = {
             "session_id": self._session_id,
             "enabled": self._enabled,
@@ -837,11 +860,15 @@ class MemoryManager:
             "persistence": {
                 "backend": persistence_type,
                 "enabled": self._persistence_backend is not None,
-                "available_snapshots": len(self.list_available_snapshots()) if self._persistence_backend else 0,
+                "available_snapshots": (
+                    len(self.list_available_snapshots())
+                    if self._persistence_backend
+                    else 0
+                ),
             },
             "cache": self.get_cache_stats(),
         }
-        
+
         return health_info
 
     # === BACKWARD COMPATIBILITY PROPERTIES ===
@@ -901,22 +928,23 @@ class MemoryManager:
             if self.litellm_callback_manager:
                 self.litellm_callback_manager.unregister_callbacks()
                 self.litellm_callback_manager = None
-            
+
             # Clean up cache
             if self._memory_cache:
                 self._memory_cache.clear()
                 self._memory_cache = None
-            
+
             # Clean up Redis persistence if applicable
             if isinstance(self._persistence_backend, RedisPersistence):
                 import asyncio
+
                 try:
                     loop = asyncio.get_event_loop()
                     if not loop.is_running():
                         loop.run_until_complete(self._persistence_backend.close())
                 except Exception as e:
                     logger.debug(f"Error closing Redis connection: {e}")
-            
+
             self._persistence_backend = None
 
             logger.info("MemoryManager cleanup completed")

@@ -1,6 +1,6 @@
 /**
  * Chat Store - Zustand slice for chat state management
- * 
+ *
  * Centralizes all chat-related state:
  * - Messages
  * - Sessions
@@ -22,7 +22,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  
+
   // Extended fields
   isError?: boolean;
   isStreaming?: boolean;
@@ -61,49 +61,49 @@ export interface ChatState {
   messages: Message[];
   currentSessionId: string | null;
   sessions: ChatSession[];
-  
+
   // UI State
   isLoading: boolean;
   isStreaming: boolean;
   isSearchingMemories: boolean;
   error: string | null;
-  
+
   // Preferences
   selectedModel: ModelType;
   isThinkingEnabled: boolean;
   autoSaveEnabled: boolean;
-  
+
   // Voice
   isRecording: boolean;
   isPlayingId: string | null;
-  
+
   // Actions
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   removeMessage: (id: string) => void;
   clearMessages: () => void;
-  
+
   // Session actions
   createSession: (title?: string) => string;
   loadSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
   updateSessionTitle: (sessionId: string, title: string) => void;
-  
+
   // State setters
   setLoading: (loading: boolean) => void;
   setStreaming: (streaming: boolean) => void;
   setSearchingMemories: (searching: boolean) => void;
   setError: (error: string | null) => void;
-  
+
   // Preference setters
   setSelectedModel: (model: ModelType) => void;
   setThinkingEnabled: (enabled: boolean) => void;
-  
+
   // Voice actions
   setRecording: (recording: boolean) => void;
   setPlayingId: (id: string | null) => void;
-  
+
   // Computed
   getCurrentSession: () => ChatSession | null;
   getSessionMessages: (sessionId: string) => Message[];
@@ -150,14 +150,14 @@ export const useChatStore = create<ChatState>()(
 
         // Message actions
         setMessages: (messages) => set({ messages }),
-        
+
         addMessage: (message) => set((state) => {
           state.messages.push({
             ...message,
             id: message.id || generateId(),
             timestamp: message.timestamp || new Date().toISOString(),
           });
-          
+
           // Update session
           if (state.currentSessionId) {
             const session = state.sessions.find(s => s.id === state.currentSessionId);
@@ -168,18 +168,18 @@ export const useChatStore = create<ChatState>()(
             }
           }
         }),
-        
+
         updateMessage: (id, updates) => set((state) => {
           const index = state.messages.findIndex(m => m.id === id);
           if (index !== -1) {
             state.messages[index] = { ...state.messages[index], ...updates };
           }
         }),
-        
+
         removeMessage: (id) => set((state) => {
           state.messages = state.messages.filter(m => m.id !== id);
         }),
-        
+
         clearMessages: () => set((state) => {
           state.messages = [defaultMessage];
         }),
@@ -188,7 +188,7 @@ export const useChatStore = create<ChatState>()(
         createSession: (title) => {
           const sessionId = generateSessionId();
           const now = new Date().toISOString();
-          
+
           set((state) => {
             state.sessions.unshift({
               id: sessionId,
@@ -201,10 +201,10 @@ export const useChatStore = create<ChatState>()(
             state.currentSessionId = sessionId;
             state.messages = [defaultMessage];
           });
-          
+
           return sessionId;
         },
-        
+
         loadSession: (sessionId) => set((state) => {
           // In real implementation, would load from backend/storage
           const session = state.sessions.find(s => s.id === sessionId);
@@ -213,7 +213,7 @@ export const useChatStore = create<ChatState>()(
             // Messages would be loaded from persistent storage
           }
         }),
-        
+
         deleteSession: (sessionId) => set((state) => {
           state.sessions = state.sessions.filter(s => s.id !== sessionId);
           if (state.currentSessionId === sessionId) {
@@ -221,7 +221,7 @@ export const useChatStore = create<ChatState>()(
             state.messages = [defaultMessage];
           }
         }),
-        
+
         updateSessionTitle: (sessionId, title) => set((state) => {
           const session = state.sessions.find(s => s.id === sessionId);
           if (session) {
@@ -248,7 +248,7 @@ export const useChatStore = create<ChatState>()(
           const state = get();
           return state.sessions.find(s => s.id === state.currentSessionId) || null;
         },
-        
+
         getSessionMessages: (sessionId) => {
           // In real implementation, would fetch from storage
           const state = get();
@@ -278,7 +278,7 @@ export const selectIsLoading = (state: ChatState) => state.isLoading;
 export const selectIsStreaming = (state: ChatState) => state.isStreaming;
 export const selectSelectedModel = (state: ChatState) => state.selectedModel;
 export const selectSessions = (state: ChatState) => state.sessions;
-export const selectCurrentSession = (state: ChatState) => 
+export const selectCurrentSession = (state: ChatState) =>
   state.sessions.find(s => s.id === state.currentSessionId);
 
 // ============================================================================
@@ -288,7 +288,7 @@ export const selectCurrentSession = (state: ChatState) =>
 export const chatActions = {
   sendMessage: async (content: string, model?: ModelType) => {
     const store = useChatStore.getState();
-    
+
     // Add user message
     const userMessage: Message = {
       id: generateId(),
@@ -299,10 +299,10 @@ export const chatActions = {
     store.addMessage(userMessage);
     store.setLoading(true);
     store.setError(null);
-    
+
     try {
       const selectedModel = model || store.selectedModel;
-      
+
       // Create assistant message placeholder
       const assistantId = generateId();
       store.addMessage({
@@ -312,20 +312,20 @@ export const chatActions = {
         timestamp: new Date().toISOString(),
         isStreaming: true,
       });
-      
+
       store.setStreaming(true);
-      
+
       // API call would go here
       // For now, simulate response
       const response = await simulateApiCall(content, selectedModel);
-      
+
       // Update assistant message with response
       store.updateMessage(assistantId, {
         content: response.content,
         isStreaming: false,
         metadata: response.metadata,
       });
-      
+
     } catch (error) {
       store.setError(error instanceof Error ? error.message : 'Failed to send message');
     } finally {
@@ -333,23 +333,23 @@ export const chatActions = {
       store.setStreaming(false);
     }
   },
-  
+
   regenerateLastResponse: async () => {
     const store = useChatStore.getState();
     const messages = store.messages;
-    
+
     // Find last user message
     const lastUserMsgIndex = [...messages].reverse().findIndex(m => m.role === 'user');
     if (lastUserMsgIndex === -1) return;
-    
+
     const lastUserMsg = messages[messages.length - 1 - lastUserMsgIndex];
-    
+
     // Remove last assistant message
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role === 'assistant') {
       store.removeMessage(lastMsg.id);
     }
-    
+
     // Resend
     await chatActions.sendMessage(lastUserMsg.content);
   },
@@ -357,7 +357,7 @@ export const chatActions = {
 
 // Simulate API call (replace with actual implementation)
 async function simulateApiCall(
-  content: string, 
+  content: string,
   model: ModelType
 ): Promise<{ content: string; metadata: Message['metadata'] }> {
   await new Promise(r => setTimeout(r, 1000));

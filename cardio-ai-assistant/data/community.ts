@@ -257,7 +257,7 @@ export const communityFeed: CommunityPost[] = [
     likes: 92,
     comments: 9
   },
-  
+
   {
     id: 'post_13',
     user: { name: 'Kevin Hart', avatar: 'https://randomuser.me/api/portraits/men/14.jpg' },
@@ -757,20 +757,3 @@ export const communityGoals: CommunityGoal[] = [
   }
 
 ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-
-

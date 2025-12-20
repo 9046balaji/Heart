@@ -7,15 +7,16 @@ appropriate health-related responses based on anomaly type and severity.
 """
 
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 from dataclasses import dataclass, field
 
 
 class ResponseTone(Enum):
     """Tone for chatbot responses based on severity."""
-    CALM = "calm"           # Normal readings
+
+    CALM = "calm"  # Normal readings
     CONCERNED = "concerned"  # Minor anomalies
-    URGENT = "urgent"       # Warning level
+    URGENT = "urgent"  # Warning level
     EMERGENCY = "emergency"  # Critical - direct to help
 
 
@@ -23,26 +24,27 @@ class ResponseTone(Enum):
 class PromptContext:
     """
     Context for generating prompts.
-    
+
     Contains all the information needed to generate appropriate
     prompts for the chatbot.
     """
+
     # Anomaly Data
     anomaly_type: str
     severity: str
     current_value: float
     threshold: float
-    
+
     # User Context
     user_name: str = "there"
     user_age: Optional[int] = None
     is_resting: bool = True
     recent_activity: str = "unknown"
-    
+
     # Medical History (if available)
     has_heart_condition: bool = False
     medications: list = field(default_factory=list)
-    
+
     # Response Settings
     language: str = "en"
     tone: ResponseTone = ResponseTone.CALM
@@ -121,9 +123,8 @@ TASK:
 5. If no symptoms, recommend resting and monitoring
 
 Be direct but not panic-inducing. Prioritize their safety.
-"""
+""",
     },
-    
     # Bradycardia (Low Heart Rate)
     "bradycardia": {
         "warning": """
@@ -161,9 +162,8 @@ TASK:
 4. Do NOT dismiss this reading
 
 Be calm but clear about the importance of follow-up.
-"""
+""",
     },
-    
     # Hypoxemia (Low Blood Oxygen)
     "hypoxemia": {
         "warning": """
@@ -200,9 +200,8 @@ TASK:
 5. Do not minimize - SpO2 below 90% requires immediate attention
 
 Be direct. This could be life-threatening.
-"""
+""",
     },
-    
     # Resting Tachycardia
     "resting_tachy": {
         "warning": """
@@ -226,7 +225,6 @@ TASK:
 Be supportive and curious about potential causes.
 """
     },
-    
     # Low HRV
     "low_hrv": {
         "warning": """
@@ -248,7 +246,6 @@ TASK:
 Be educational and encouraging about lifestyle factors.
 """
     },
-    
     # General Health Summary
     "daily_summary": """
 Generate a friendly daily health summary for the user.
@@ -274,7 +271,6 @@ Create a brief, encouraging summary that:
 
 Keep it conversational and motivating.
 """,
-    
     # Symptom Check
     "symptom_check": """
 The user reported symptoms along with their vitals.
@@ -301,32 +297,30 @@ TASK:
 5. NEVER diagnose - only provide guidance
 
 Be caring and thorough but not alarming.
-"""
+""",
 }
 
 
 def get_prompt_for_anomaly(
-    anomaly_type: str,
-    severity: str,
-    context: PromptContext
+    anomaly_type: str, severity: str, context: PromptContext
 ) -> Tuple[str, str]:
     """
     Get system prompt and user prompt for a specific anomaly.
-    
+
     Args:
         anomaly_type: Type of anomaly (e.g., "tachycardia", "hypoxemia")
         severity: Severity level (e.g., "WARNING", "CRITICAL")
         context: PromptContext with all relevant information
-    
+
     Returns:
         Tuple of (system_prompt, user_prompt)
     """
     system_prompt = SYSTEM_PROMPT_HEALTH_ASSISTANT
-    
+
     # Get template
     template_key = anomaly_type.lower().replace("_", "_")
     severity_key = "critical" if severity in ["CRITICAL", "EMERGENCY"] else "warning"
-    
+
     if template_key in PROMPT_TEMPLATES:
         template = PROMPT_TEMPLATES[template_key]
         if isinstance(template, dict):
@@ -343,10 +337,10 @@ VALUE: {current_value}
 THRESHOLD: {threshold}
 SEVERITY: {severity}
 
-Provide a helpful, calm response explaining what this might mean 
+Provide a helpful, calm response explaining what this might mean
 and what actions they should consider.
 """
-    
+
     # Format the template
     user_prompt = user_template.format(
         current_value=context.current_value,
@@ -372,9 +366,9 @@ and what actions they should consider.
         avg_spo2=97,
         total_steps=5000,
         anomaly_count=0,
-        health_goal="Stay healthy"
+        health_goal="Stay healthy",
     )
-    
+
     return system_prompt, user_prompt
 
 
@@ -382,11 +376,11 @@ def get_quick_response(anomaly_type: str, value: float) -> str:
     """
     Get a quick pre-written response for common scenarios.
     Use when LLM is unavailable or for instant feedback.
-    
+
     Args:
         anomaly_type: Type of anomaly
         value: The anomalous value
-        
+
     Returns:
         Pre-written response string
     """
@@ -425,29 +419,33 @@ def get_quick_response(anomaly_type: str, value: float) -> str:
             f"This may indicate stress or fatigue. Consider getting more rest and managing stress."
         ),
     }
-    
+
     # Determine severity based on value
-    severity = "critical" if (
-        (anomaly_type == "tachycardia" and value > 150) or
-        (anomaly_type == "hypoxemia" and value < 90) or
-        (anomaly_type == "bradycardia" and value < 45)
-    ) else "warning"
-    
+    severity = (
+        "critical"
+        if (
+            (anomaly_type == "tachycardia" and value > 150)
+            or (anomaly_type == "hypoxemia" and value < 90)
+            or (anomaly_type == "bradycardia" and value < 45)
+        )
+        else "warning"
+    )
+
     return quick_responses.get(
         (anomaly_type, severity),
-        f"Your health reading shows {anomaly_type}. Please monitor and consult a healthcare provider if concerned."
+        f"Your health reading shows {anomaly_type}. Please monitor and consult a healthcare provider if concerned.",
     )
 
 
 def get_normal_response(user_name: str, hr: float, spo2: float) -> str:
     """
     Get a positive response for normal readings.
-    
+
     Args:
         user_name: User's name for personalization
         hr: Current heart rate
         spo2: Current SpO2
-        
+
     Returns:
         Encouraging message string
     """

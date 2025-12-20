@@ -1,9 +1,9 @@
 /**
  * Vision Service
- * 
+ *
  * Handles AI vision analysis including ECG, food recognition, and document analysis.
  * Follows modular service architecture per integration requirements.
- * 
+ *
  * Healthcare-grade error handling:
  * - Medical disclaimers always included in responses
  * - Confidence indicators for all analysis results
@@ -219,7 +219,7 @@ export function parseMedicationFromVisionResult(
 
 /**
  * Analyze an ECG image
- * 
+ *
  * @param file - ECG image file
  * @param patientContext - Optional patient context for better analysis
  * @returns ECG analysis with rhythm, abnormalities, and recommendations
@@ -260,7 +260,7 @@ export async function analyzeECG(
 
 /**
  * Analyze an ECG from base64 encoded image data
- * 
+ *
  * @param base64Image - Base64 encoded ECG image
  * @param patientContext - Optional patient context
  * @returns ECG analysis results
@@ -301,7 +301,7 @@ export async function analyzeECGBase64(
 
 /**
  * Recognize food items in an image
- * 
+ *
  * @param file - Food/meal image file
  * @param estimatePortions - Whether to estimate portion sizes
  * @param dietaryGoals - Optional user dietary goals for recommendations
@@ -345,7 +345,7 @@ export async function recognizeFood(
 
 /**
  * Log a meal with image analysis
- * 
+ *
  * @param userId - User identifier
  * @param file - Meal image file
  * @param mealType - Type of meal (breakfast, lunch, dinner, snack)
@@ -393,7 +393,7 @@ export async function logMeal(
 /**
  * Generic vision analysis endpoint
  * Automatically detects image type if not specified
- * 
+ *
  * @param imageBase64 - Base64 encoded image
  * @param imageType - Type of analysis (ecg, food, document, auto)
  * @param context - Optional context for analysis
@@ -439,7 +439,7 @@ export async function analyzeVision(
 
 /**
  * Get list of supported vision analysis types
- * 
+ *
  * @returns Supported types with descriptions and format requirements
  */
 export async function getSupportedTypes(): Promise<SupportedTypesResponse> {

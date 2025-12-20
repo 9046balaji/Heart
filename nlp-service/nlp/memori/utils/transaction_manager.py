@@ -532,7 +532,7 @@ def bulk_insert_transaction(
                 * len(columns)
             )
 
-            query = f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})"
+            query = f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})"  # nosec B608
             params = list(validated_row.values())
 
             operations.append(

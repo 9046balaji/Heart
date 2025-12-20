@@ -1,9 +1,9 @@
 /**
  * DocumentScanner Screen
- * 
+ *
  * Medical document upload and OCR processing screen.
  * Supports camera capture (mobile) and file upload (desktop).
- * 
+ *
  * Features:
  * - Drag-and-drop file upload
  * - Camera capture with capture="environment"

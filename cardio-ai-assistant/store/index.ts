@@ -1,26 +1,26 @@
 /**
  * Zustand Store - Central State Management
- * 
+ *
  * This module provides a comprehensive state management solution using Zustand.
  * It replaces scattered localStorage usage with centralized, type-safe stores.
- * 
+ *
  * Features:
  * - Modular store slices (chat, user, vitals, appointments, medications)
  * - Automatic persistence with zustand/persist
  * - DevTools integration for debugging
  * - Immer for immutable updates
  * - Type-safe selectors and hooks
- * 
+ *
  * Usage:
  * ```tsx
  * import { useChatStore, useVitalsStore, useUserStore } from './store';
- * 
+ *
  * function MyComponent() {
  *   // Use individual stores
  *   const messages = useChatStore(state => state.messages);
  *   const { readings, add } = useBloodPressure();
  *   const user = useUserStore(state => state.user);
- *   
+ *
  *   // Or use the combined store
  *   const { user, vitals, appointments } = useStore();
  * }
@@ -145,7 +145,7 @@ import { useMedicationsStore } from './useMedicationsStore';
 
 /**
  * Combined store hook for components that need access to multiple stores
- * 
+ *
  * @example
  * ```tsx
  * const { user, vitals, appointments } = useStore();
@@ -155,39 +155,39 @@ export const useStore = () => {
   const user = useUserStore(state => state.user);
   const isAuthenticated = useUserStore(state => state.isAuthenticated);
   const preferences = useUserStore(state => state.preferences);
-  
+
   const messages = useChatStore(state => state.messages);
   const isLoading = useChatStore(state => state.isLoading);
   const selectedModel = useChatStore(state => state.selectedModel);
-  
+
   const vitals = useVitalsStore(state => state.readings);
   const vitalStats = useVitalsStore(state => state.stats);
-  
+
   const appointments = useAppointmentsStore(state => state.appointments);
   const providers = useAppointmentsStore(state => state.providers);
-  
+
   const medications = useMedicationsStore(state => state.medications);
   const adherenceLogs = useMedicationsStore(state => state.adherenceLogs);
-  
+
   return {
     // User
     user,
     isAuthenticated,
     preferences,
-    
+
     // Chat
     messages,
     isLoading,
     selectedModel,
-    
+
     // Vitals
     vitals,
     vitalStats,
-    
+
     // Appointments
     appointments,
     providers,
-    
+
     // Medications
     medications,
     adherenceLogs,
@@ -211,7 +211,7 @@ export const resetAllStores = () => {
   localStorage.removeItem('appointments-store');
   localStorage.removeItem('medications-store');
   localStorage.removeItem('health-store');
-  
+
   // Reload to reset in-memory state
   if (typeof window !== 'undefined') {
     window.location.reload();
@@ -227,29 +227,29 @@ import { useEffect, useState } from 'react';
 /**
  * Hook to ensure stores are hydrated from localStorage
  * Use this at the app root to prevent hydration mismatches
- * 
+ *
  * @example
  * ```tsx
  * function App() {
  *   const isHydrated = useStoreHydration();
- *   
+ *
  *   if (!isHydrated) {
  *     return <LoadingScreen />;
  *   }
- *   
+ *
  *   return <MainApp />;
  * }
  * ```
  */
 export const useStoreHydration = () => {
   const [isHydrated, setIsHydrated] = useState(false);
-  
+
   useEffect(() => {
     // Zustand persist middleware hydrates automatically
     // This hook just provides a way to wait for it
     setIsHydrated(true);
   }, []);
-  
+
   return isHydrated;
 };
 

@@ -16,9 +16,9 @@ interface FoodLogItem {
   time: string;
 }
 
-const ShoppingListModal: React.FC<{ 
-    list: { name: string, items: string[] }[], 
-    onClose: () => void 
+const ShoppingListModal: React.FC<{
+    list: { name: string, items: string[] }[],
+    onClose: () => void
 }> = ({ list, onClose }) => {
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
@@ -43,7 +43,7 @@ const ShoppingListModal: React.FC<{
                         <span className="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-4 space-y-6">
                     {list.map((category, idx) => (
                         <div key={idx}>
@@ -52,18 +52,18 @@ const ShoppingListModal: React.FC<{
                                 {category.items.map((item, i) => {
                                     const isChecked = checkedItems.has(item);
                                     return (
-                                        <div 
-                                            key={i} 
+                                        <div
+                                            key={i}
                                             onClick={() => toggleItem(item)}
                                             className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
-                                                isChecked 
-                                                ? 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-60' 
+                                                isChecked
+                                                ? 'bg-slate-50 dark:bg-slate-800/50 border-transparent opacity-60'
                                                 : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
                                             }`}
                                         >
                                             <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                                isChecked 
-                                                ? 'bg-green-500 border-green-500 text-white' 
+                                                isChecked
+                                                ? 'bg-green-500 border-green-500 text-white'
                                                 : 'border-slate-300 dark:border-slate-600'
                                             }`}>
                                                 {isChecked && <span className="material-symbols-outlined text-sm">check</span>}
@@ -78,7 +78,7 @@ const ShoppingListModal: React.FC<{
                 </div>
 
                 <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-                    <button 
+                    <button
                         onClick={() => {
                             const text = list.map(c => `${c.name}:\n${c.items.join('\n')}`).join('\n\n');
                             navigator.clipboard.writeText(text);
@@ -112,7 +112,7 @@ const EmptyState: React.FC<{ message: string, icon?: string, actionLabel?: strin
         </div>
         <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 max-w-[250px]">{message}</p>
         {actionLabel && onAction && (
-            <button 
+            <button
                 onClick={onAction}
                 className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-lg text-sm font-semibold transition-colors dark:text-white"
             >
@@ -126,7 +126,7 @@ const EmptyState: React.FC<{ message: string, icon?: string, actionLabel?: strin
 const RecipeCard: React.FC<{ recipe: any }> = ({ recipe }) => {
     const navigate = useNavigate();
     return (
-    <div 
+    <div
         onClick={() => {
             navigate(`/recipe/${recipe.id}`);
         }}
@@ -162,7 +162,7 @@ const NutritionScreen: React.FC = () => {
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [dailyLog, setDailyLog] = useState<FoodLogItem[]>([]);
-  
+
   // Custom/AI Recipes State
   const [customRecipes, setCustomRecipes] = useState<any[]>([]);
   const [isCreatingRecipe, setIsCreatingRecipe] = useState(false);
@@ -189,7 +189,7 @@ const NutritionScreen: React.FC = () => {
     // Load Saved Recipes
     const saved = JSON.parse(localStorage.getItem('saved_recipes') || '[]');
     setSavedIds(saved);
-    
+
     // Load Custom Recipes
     const savedCustom = JSON.parse(localStorage.getItem('custom_recipes') || '[]');
     setCustomRecipes(savedCustom);
@@ -204,9 +204,9 @@ const NutritionScreen: React.FC = () => {
 
   // Mock initial state for meal plan (ensure we use IDs that exist either in static or custom)
   const initialMealPlan = [
-    { type: 'Breakfast', ...allRecipes.find(r => r.id === 'r_010') || allRecipes[0], time: '8:00 AM' }, 
-    { type: 'Lunch', ...allRecipes.find(r => r.id === 'r_001') || allRecipes[1], time: '1:00 PM' }, 
-    { type: 'Dinner', ...allRecipes.find(r => r.id === 'r_005') || allRecipes[2], time: '7:00 PM' }, 
+    { type: 'Breakfast', ...allRecipes.find(r => r.id === 'r_010') || allRecipes[0], time: '8:00 AM' },
+    { type: 'Lunch', ...allRecipes.find(r => r.id === 'r_001') || allRecipes[1], time: '1:00 PM' },
+    { type: 'Dinner', ...allRecipes.find(r => r.id === 'r_005') || allRecipes[2], time: '7:00 PM' },
   ];
 
   const [mealPlan, setMealPlan] = useState(initialMealPlan);
@@ -228,8 +228,8 @@ const NutritionScreen: React.FC = () => {
     { title: "Hydration for Heart Health", sub: "Why water is essential for your heart.", read: "4 min", img: "https://picsum.photos/id/325/100/100" }
   ];
 
-  const filteredRecipes = allRecipes.filter(r => 
-    r.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredRecipes = allRecipes.filter(r =>
+    r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -250,7 +250,7 @@ const NutritionScreen: React.FC = () => {
     try {
         const savedAssessment = localStorage.getItem('last_assessment');
         const assessmentContext = savedAssessment ? JSON.parse(savedAssessment) : { risk: 'General', vitals: { systolic: 120 } };
-        
+
         // Call backend API proxy
         const response = await apiClient.generateMealPlan({
             dietary_preferences: assessmentContext.risk === 'High Risk' ? ['heart-healthy', 'low-sodium'] : ['balanced'],
@@ -300,14 +300,14 @@ const NutritionScreen: React.FC = () => {
               ratings: { avg: 4.5, count: 1 },
               image: `https://source.unsplash.com/800x600/?${encodeURIComponent(searchQuery)}`
           };
-          
+
           // 1. Update State
           const updatedCustom = [newRecipe, ...customRecipes];
           setCustomRecipes(updatedCustom);
-          
+
           // 2. Persist to LocalStorage
           localStorage.setItem('custom_recipes', JSON.stringify(updatedCustom));
-          
+
           setSearchQuery(''); // Clear search to show the new recipe
 
       } catch (error) {
@@ -322,7 +322,7 @@ const NutritionScreen: React.FC = () => {
       setIsGeneratingList(true);
       try {
           // Flatten ingredients from all meals
-          const allIngredients = mealPlan.flatMap(meal => 
+          const allIngredients = mealPlan.flatMap(meal =>
               meal.ingredients.map((i: any) => `${i.amount} ${i.name}`)
           ).join(', ');
 
@@ -445,9 +445,9 @@ const NutritionScreen: React.FC = () => {
        <div className="px-4 pb-4">
          <div className="relative">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-            <input 
-                type="text" 
-                placeholder="Search foods, recipes..." 
+            <input
+                type="text"
+                placeholder="Search foods, recipes..."
                 className="w-full pl-12 h-12 rounded-xl bg-white dark:bg-slate-800 border-none shadow-sm dark:text-white outline-none focus:ring-2 focus:ring-green-500"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -462,8 +462,8 @@ const NutritionScreen: React.FC = () => {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex-none px-4 text-center py-3 text-sm font-bold cursor-pointer transition-colors relative whitespace-nowrap ${
-                    activeTab === tab 
-                        ? 'text-green-600 dark:text-green-500' 
+                    activeTab === tab
+                        ? 'text-green-600 dark:text-green-500'
                         : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
              >
@@ -485,7 +485,7 @@ const NutritionScreen: React.FC = () => {
                         <h2 className="font-bold text-lg dark:text-white">Daily Summary</h2>
                         <span className="text-xs text-slate-400">{new Date().toLocaleDateString()}</span>
                     </div>
-                    
+
                     <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
                             <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wider">Calories</div>
@@ -540,9 +540,9 @@ const NutritionScreen: React.FC = () => {
             <div className="px-4 space-y-4">
                 <div className="flex items-center justify-between mb-2">
                     <h2 className="font-bold text-lg dark:text-white">Suggested Plan</h2>
-                    
+
                     {/* Grocery List Button */}
-                    <button 
+                    <button
                         onClick={handleGenerateShoppingList}
                         disabled={isGeneratingList}
                         className="text-xs font-bold bg-green-500 text-white px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-green-600 transition-colors"
@@ -555,11 +555,11 @@ const NutritionScreen: React.FC = () => {
                         Shopping List
                     </button>
                 </div>
-                
+
                 {mealPlan && mealPlan.length > 0 ? (
                     mealPlan.map((meal, idx) => (
-                        <div 
-                            key={idx} 
+                        <div
+                            key={idx}
                             onClick={() => navigate(`/recipe/${meal.id}`)}
                             className="bg-white dark:bg-card-dark rounded-xl p-3 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden cursor-pointer hover:shadow-md transition-all group"
                         >
@@ -588,7 +588,7 @@ const NutritionScreen: React.FC = () => {
                 )}
             </div>
 
-            <button 
+            <button
                 onClick={handleRegeneratePlan}
                 disabled={isGenerating}
                 className="mx-4 mt-6 w-[calc(100%-32px)] py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
@@ -649,7 +649,7 @@ const NutritionScreen: React.FC = () => {
          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* AI Fridge Scan Banner */}
             <div className="px-4 mb-6">
-                <button 
+                <button
                     onClick={() => fridgeInputRef.current?.click()}
                     className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 text-white p-4 rounded-xl shadow-md flex items-center justify-between group hover:scale-[1.02] transition-transform"
                 >
@@ -664,12 +664,12 @@ const NutritionScreen: React.FC = () => {
                     </div>
                     <span className="material-symbols-outlined">photo_camera</span>
                 </button>
-                <input 
-                    type="file" 
-                    ref={fridgeInputRef} 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleFridgeFileChange} 
+                <input
+                    type="file"
+                    ref={fridgeInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFridgeFileChange}
                 />
             </div>
 
@@ -685,9 +685,9 @@ const NutritionScreen: React.FC = () => {
                 <div className="px-4 py-8 text-center">
                     <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">search_off</span>
                     <p className="text-slate-500 mb-4">No recipes found for "{searchQuery}".</p>
-                    
+
                     {/* AI Chef Generator Button */}
-                    <button 
+                    <button
                         onClick={handleCreateRecipe}
                         disabled={isCreatingRecipe}
                         className="w-full py-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2"
@@ -719,8 +719,8 @@ const NutritionScreen: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <EmptyState 
-                    message="No saved recipes yet. Bookmark your favorites to see them here." 
+                <EmptyState
+                    message="No saved recipes yet. Bookmark your favorites to see them here."
                     icon="bookmark_border"
                     actionLabel="Browse Recipes"
                     onAction={() => setActiveTab('Recipes')}
@@ -730,14 +730,14 @@ const NutritionScreen: React.FC = () => {
        )}
 
        {/* Scan Meal FAB */}
-       <input 
-            type="file" 
-            ref={fileInputRef} 
-            accept="image/*" 
-            className="hidden" 
-            onChange={handleFileChange} 
+       <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
        />
-       <button 
+       <button
             onClick={() => fileInputRef.current?.click()}
             className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-transform hover:scale-105 z-20"
             title="Log Meal"
@@ -751,14 +751,14 @@ const NutritionScreen: React.FC = () => {
                <div className="bg-white dark:bg-card-dark rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl relative">
                    <div className="relative aspect-video bg-black">
                        {scannedImage && <img src={scannedImage} alt="Scanned Food" className="w-full h-full object-cover" />}
-                       <button 
+                       <button
                             onClick={() => { setShowScanModal(false); setScannedImage(null); setScannedData(null); }}
                             className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white"
                        >
                            <span className="material-symbols-outlined text-sm">close</span>
                        </button>
                    </div>
-                   
+
                    <div className="p-5">
                        {isAnalyzing ? (
                            <div className="flex flex-col items-center justify-center py-8">
@@ -770,7 +770,7 @@ const NutritionScreen: React.FC = () => {
                            <div className="animate-in slide-in-from-bottom duration-300">
                                <h3 className="text-xl font-bold dark:text-white mb-1">{scannedData.name}</h3>
                                <p className="text-green-600 dark:text-green-400 font-bold mb-4">{scannedData.calories} Calories</p>
-                               
+
                                <div className="grid grid-cols-3 gap-3 mb-6">
                                    <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl text-center">
                                        <span className="block text-xs text-slate-500 uppercase font-bold">Protein</span>
@@ -785,8 +785,8 @@ const NutritionScreen: React.FC = () => {
                                        <span className="block font-bold text-red-500">{scannedData.sodium}mg</span>
                                    </div>
                                </div>
-                               
-                               <button 
+
+                               <button
                                     onClick={() => addToLog(scannedData)}
                                     className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 hover:bg-primary-dark transition-colors"
                                 >
@@ -809,14 +809,14 @@ const NutritionScreen: React.FC = () => {
                <div className="bg-white dark:bg-card-dark rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl relative flex flex-col max-h-[85vh]">
                    <div className="relative aspect-video bg-black shrink-0">
                        {scannedImage && <img src={scannedImage} alt="Scanned Fridge" className="w-full h-full object-cover" />}
-                       <button 
+                       <button
                             onClick={() => { setShowFridgeModal(false); setScannedImage(null); setFridgeRecipes([]); }}
                             className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white"
                        >
                            <span className="material-symbols-outlined text-sm">close</span>
                        </button>
                    </div>
-                   
+
                    <div className="p-5 flex-1 overflow-y-auto">
                        {isAnalyzing ? (
                            <div className="flex flex-col items-center justify-center py-8">

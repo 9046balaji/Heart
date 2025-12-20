@@ -13,8 +13,7 @@ Features:
 """
 
 import logging
-import asyncio
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -25,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class NodeLabel(Enum):
     """Standard node labels for medical knowledge graph."""
+
     SYMPTOM = "Symptom"
     CONDITION = "Condition"
     MEDICATION = "Medication"
@@ -43,6 +43,7 @@ class NodeLabel(Enum):
 
 class RelationType(Enum):
     """Standard relationship types."""
+
     CAUSES = "CAUSES"
     TREATS = "TREATS"
     INDICATES = "INDICATES"
@@ -62,17 +63,19 @@ class RelationType(Enum):
 @dataclass
 class Neo4jConfig:
     """Neo4j connection configuration."""
+
     uri: str = "bolt://localhost:7687"
     user: str = "neo4j"
     password: str = "password"
     database: str = "neo4j"
     max_connection_pool_size: int = 50
     connection_timeout: int = 30
-    
+
     @classmethod
     def from_env(cls) -> "Neo4jConfig":
         """Create config from environment variables."""
         import os
+
         return cls(
             uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
             user=os.getenv("NEO4J_USER", "neo4j"),
@@ -84,24 +87,26 @@ class Neo4jConfig:
 @dataclass
 class GraphNode:
     """Represents a graph node."""
+
     id: Optional[str] = None
     labels: List[str] = field(default_factory=list)
     properties: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         if not self.id:
             import uuid
+
             self.id = str(uuid.uuid4())
         if not self.properties.get("created_at"):
             self.properties["created_at"] = datetime.utcnow().isoformat()
-    
+
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
             "labels": self.labels,
             "properties": self.properties,
         }
-    
+
     @property
     def label_string(self) -> str:
         """Get labels as Cypher label string."""
@@ -111,17 +116,19 @@ class GraphNode:
 @dataclass
 class GraphRelationship:
     """Represents a graph relationship."""
+
     id: Optional[str] = None
     type: str = ""
     start_node_id: str = ""
     end_node_id: str = ""
     properties: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         if not self.id:
             import uuid
+
             self.id = str(uuid.uuid4())
-    
+
     def to_dict(self) -> Dict:
         return {
             "id": self.id,
@@ -135,6 +142,7 @@ class GraphRelationship:
 @dataclass
 class QueryResult:
     """Result from a Cypher query."""
+
     records: List[Dict[str, Any]]
     summary: Dict[str, Any]
     execution_time_ms: float = 0
@@ -143,27 +151,27 @@ class QueryResult:
 class Neo4jService:
     """
     Neo4j graph database service.
-    
+
     Provides CRUD operations for nodes and relationships,
     with support for complex graph queries.
-    
+
     Example:
         config = Neo4jConfig.from_env()
         service = Neo4jService(config)
-        
+
         # Create node
         node = GraphNode(
             labels=["Symptom"],
             properties={"name": "chest pain", "severity": "high"}
         )
         await service.create_node(node)
-        
+
         # Query
         results = await service.query(
             "MATCH (s:Symptom)-[:INDICATES]->(c:Condition) RETURN s, c"
         )
     """
-    
+
     def __init__(
         self,
         config: Optional[Neo4jConfig] = None,
@@ -171,7 +179,7 @@ class Neo4jService:
     ):
         """
         Initialize Neo4j service.
-        
+
         Args:
             config: Neo4j connection config
             mock_mode: Use mock implementation
@@ -181,31 +189,31 @@ class Neo4jService:
         self._driver = None
         self._mock_nodes: Dict[str, GraphNode] = {}
         self._mock_relationships: Dict[str, GraphRelationship] = {}
-        
+
         if mock_mode:
             logger.info("Neo4j service running in mock mode")
             self._initialize_mock_data()
-    
+
     async def connect(self):
         """Establish database connection."""
         if self.mock_mode:
             return
-        
+
         try:
             from neo4j import AsyncGraphDatabase
-            
+
             self._driver = AsyncGraphDatabase.driver(
                 self.config.uri,
                 auth=(self.config.user, self.config.password),
                 max_connection_pool_size=self.config.max_connection_pool_size,
             )
-            
+
             # Verify connection
             async with self._driver.session(database=self.config.database) as session:
                 await session.run("RETURN 1")
-            
+
             logger.info(f"Connected to Neo4j at {self.config.uri}")
-            
+
         except ImportError:
             logger.warning("neo4j package not installed, using mock mode")
             self.mock_mode = True
@@ -215,71 +223,71 @@ class Neo4jService:
             logger.info("Falling back to mock mode")
             self.mock_mode = True
             self._initialize_mock_data()
-    
+
     async def close(self):
         """Close database connection."""
         if self._driver:
             await self._driver.close()
             self._driver = None
-    
+
     @asynccontextmanager
     async def session(self):
         """Get a database session."""
         if self.mock_mode:
             yield None
             return
-        
+
         if not self._driver:
             await self.connect()
-        
+
         async with self._driver.session(database=self.config.database) as session:
             yield session
-    
+
     # Node operations
-    
+
     async def create_node(self, node: GraphNode) -> GraphNode:
         """
         Create a node in the graph.
-        
+
         Args:
             node: Node to create
-        
+
         Returns:
             Created node with ID
         """
         if self.mock_mode:
             self._mock_nodes[node.id] = node
             return node
-        
+
         labels = ":".join(node.labels) if node.labels else "Node"
         props = {**node.properties, "id": node.id}
-        
+
         query = f"""
         CREATE (n:{labels} $props)
         RETURN n
         """
-        
+
         result = await self.query(query, {"props": props})
         return node
-    
+
     async def get_node(self, node_id: str) -> Optional[GraphNode]:
         """
         Get a node by ID.
-        
+
         Args:
             node_id: Node ID
-        
+
         Returns:
             Node or None
         """
         if self.mock_mode:
             return self._mock_nodes.get(node_id)
-        
+
         query = """
         MATCH (n {id: $node_id})
         RETURN n, labels(n) as labels
         """
-        
+
         result = await self.query(query, {"node_id": node_id})
         if result.records:
             record = result.records[0]
@@ -289,7 +297,7 @@ class Neo4jService:
                 properties=dict(record.get("n", {})),
             )
         return None
-    
+
     async def update_node(
         self,
         node_id: str,
@@ -297,11 +305,11 @@ class Neo4jService:
     ) -> Optional[GraphNode]:
         """
         Update node properties.
-        
+
         Args:
             node_id: Node ID
             properties: Properties to update
-        
+
         Returns:
             Updated node
         """
@@ -310,13 +318,13 @@ class Neo4jService:
                 self._mock_nodes[node_id].properties.update(properties)
                 return self._mock_nodes[node_id]
             return None
-        
+
         query = """
         MATCH (n {id: $node_id})
         SET n += $props
         RETURN n, labels(n) as labels
         """
-        
+
         result = await self.query(query, {"node_id": node_id, "props": properties})
         if result.records:
             record = result.records[0]
@@ -326,14 +334,14 @@ class Neo4jService:
                 properties=dict(record.get("n", {})),
             )
         return None
-    
+
     async def delete_node(self, node_id: str) -> bool:
         """
         Delete a node and its relationships.
-        
+
         Args:
             node_id: Node ID
-        
+
         Returns:
             True if deleted
         """
@@ -342,55 +350,59 @@ class Neo4jService:
                 del self._mock_nodes[node_id]
                 # Remove related relationships
                 self._mock_relationships = {
-                    k: v for k, v in self._mock_relationships.items()
+                    k: v
+                    for k, v in self._mock_relationships.items()
                     if v.start_node_id != node_id and v.end_node_id != node_id
                 }
                 return True
             return False
-        
+
         query = """
         MATCH (n {id: $node_id})
         DETACH DELETE n
         RETURN count(n) as deleted
         """
-        
+
         result = await self.query(query, {"node_id": node_id})
         return result.records[0].get("deleted", 0) > 0 if result.records else False
-    
+
     # Relationship operations
-    
+
     async def create_relationship(
         self,
         relationship: GraphRelationship,
     ) -> GraphRelationship:
         """
         Create a relationship between nodes.
-        
+
         Args:
             relationship: Relationship to create
-        
+
         Returns:
             Created relationship
         """
         if self.mock_mode:
             self._mock_relationships[relationship.id] = relationship
             return relationship
-        
+
         query = f"""
         MATCH (a {{id: $start_id}}), (b {{id: $end_id}})
         CREATE (a)-[r:{relationship.type} $props]->(b)
         RETURN r
         """
-        
+
         props = {**relationship.properties, "id": relationship.id}
-        await self.query(query, {
-            "start_id": relationship.start_node_id,
-            "end_id": relationship.end_node_id,
-            "props": props,
-        })
-        
+        await self.query(
+            query,
+            {
+                "start_id": relationship.start_node_id,
+                "end_id": relationship.end_node_id,
+                "props": props,
+            },
+        )
+
         return relationship
-    
+
     async def get_relationships(
         self,
         node_id: str,
@@ -399,12 +411,12 @@ class Neo4jService:
     ) -> List[GraphRelationship]:
         """
         Get relationships for a node.
-        
+
         Args:
             node_id: Node ID
             direction: "in", "out", or "both"
             rel_type: Optional relationship type filter
-        
+
         Returns:
             List of relationships
         """
@@ -422,9 +434,9 @@ class Neo4jService:
                         if not rel_type or rel.type == rel_type:
                             relationships.append(rel)
             return relationships
-        
+
         type_filter = f":{rel_type}" if rel_type else ""
-        
+
         if direction == "out":
             query = f"""
             MATCH (n {{id: $node_id}})-[r{type_filter}]->(m)
@@ -440,9 +452,9 @@ class Neo4jService:
             MATCH (n {{id: $node_id}})-[r{type_filter}]-(m)
             RETURN r, type(r) as type, startNode(r).id as start, endNode(r).id as end
             """
-        
+
         result = await self.query(query, {"node_id": node_id})
-        
+
         return [
             GraphRelationship(
                 id=record.get("r", {}).get("id"),
@@ -453,9 +465,9 @@ class Neo4jService:
             )
             for record in result.records
         ]
-    
+
     # Query operations
-    
+
     async def query(
         self,
         cypher: str,
@@ -463,17 +475,18 @@ class Neo4jService:
     ) -> QueryResult:
         """
         Execute a Cypher query.
-        
+
         Args:
             cypher: Cypher query string
             params: Query parameters
-        
+
         Returns:
             QueryResult with records
         """
         import time
+
         start = time.perf_counter()
-        
+
         if self.mock_mode:
             # Return mock result
             return QueryResult(
@@ -481,12 +494,12 @@ class Neo4jService:
                 summary={"mock": True},
                 execution_time_ms=(time.perf_counter() - start) * 1000,
             )
-        
+
         async with self.session() as session:
             result = await session.run(cypher, params or {})
             records = [dict(record) async for record in result]
             summary = await result.consume()
-            
+
             return QueryResult(
                 records=records,
                 summary={
@@ -495,9 +508,9 @@ class Neo4jService:
                 },
                 execution_time_ms=(time.perf_counter() - start) * 1000,
             )
-    
+
     # Graph traversal
-    
+
     async def find_path(
         self,
         start_id: str,
@@ -506,32 +519,35 @@ class Neo4jService:
     ) -> List[Dict]:
         """
         Find shortest path between nodes.
-        
+
         Args:
             start_id: Start node ID
             end_id: End node ID
             max_hops: Maximum path length
-        
+
         Returns:
             List of path segments
         """
         if self.mock_mode:
             return []
-        
+
         query = f"""
         MATCH path = shortestPath(
             (a {{id: $start_id}})-[*..{max_hops}]-(b {{id: $end_id}})
         )
         RETURN path
         """
-        
-        result = await self.query(query, {
-            "start_id": start_id,
-            "end_id": end_id,
-        })
-        
+
+        result = await self.query(
+            query,
+            {
+                "start_id": start_id,
+                "end_id": end_id,
+            },
+        )
+
         return result.records
-    
+
     async def get_neighbors(
         self,
         node_id: str,
@@ -540,12 +556,12 @@ class Neo4jService:
     ) -> List[GraphNode]:
         """
         Get neighboring nodes.
-        
+
         Args:
             node_id: Center node ID
             depth: How many hops
             labels: Filter by labels
-        
+
         Returns:
             List of neighbor nodes
         """
@@ -563,17 +579,17 @@ class Neo4jService:
                         if not labels or any(l in node.labels for l in labels):
                             neighbors.append(node)
             return neighbors
-        
+
         label_filter = f":{':'.join(labels)}" if labels else ""
-        
+
         query = f"""
         MATCH (n {{id: $node_id}})-[*1..{depth}]-(m{label_filter})
         WHERE m.id <> $node_id
         RETURN DISTINCT m, labels(m) as labels
         """
-        
+
         result = await self.query(query, {"node_id": node_id})
-        
+
         return [
             GraphNode(
                 id=record.get("m", {}).get("id"),
@@ -582,19 +598,19 @@ class Neo4jService:
             )
             for record in result.records
         ]
-    
+
     # Specialized medical queries
-    
+
     async def find_related_conditions(
         self,
         symptom_name: str,
     ) -> List[Dict]:
         """
         Find conditions related to a symptom.
-        
+
         Args:
             symptom_name: Name of symptom
-        
+
         Returns:
             List of conditions with relevance
         """
@@ -612,30 +628,30 @@ class Neo4jService:
                     "relationship": "INDICATES",
                 },
             ]
-        
+
         query = """
         MATCH (s:Symptom)-[r:INDICATES|ASSOCIATED_WITH]->(c:Condition)
         WHERE toLower(s.name) CONTAINS toLower($symptom)
-        RETURN c.name as condition, 
+        RETURN c.name as condition,
                type(r) as relationship,
                r.strength as relevance
         ORDER BY r.strength DESC
         LIMIT 10
         """
-        
+
         result = await self.query(query, {"symptom": symptom_name})
         return result.records
-    
+
     async def find_treatments(
         self,
         condition_name: str,
     ) -> List[Dict]:
         """
         Find treatments for a condition.
-        
+
         Args:
             condition_name: Name of condition
-        
+
         Returns:
             List of treatments
         """
@@ -652,7 +668,7 @@ class Neo4jService:
                     "effectiveness": 0.75,
                 },
             ]
-        
+
         query = """
         MATCH (c:Condition)<-[:TREATS]-(t:Treatment|Medication)
         WHERE toLower(c.name) CONTAINS toLower($condition)
@@ -662,26 +678,26 @@ class Neo4jService:
         ORDER BY t.effectiveness DESC
         LIMIT 10
         """
-        
+
         result = await self.query(query, {"condition": condition_name})
         return result.records
-    
+
     async def find_drug_interactions(
         self,
         medications: List[str],
     ) -> List[Dict]:
         """
         Find interactions between medications.
-        
+
         Args:
             medications: List of medication names
-        
+
         Returns:
             List of interactions
         """
         if self.mock_mode:
             return []
-        
+
         query = """
         MATCH (m1:Medication)-[r:INTERACTS_WITH]->(m2:Medication)
         WHERE m1.name IN $meds AND m2.name IN $meds
@@ -690,26 +706,30 @@ class Neo4jService:
                r.severity as severity,
                r.description as description
         """
-        
+
         result = await self.query(query, {"meds": medications})
         return result.records
-    
+
     # Mock data initialization
-    
+
     def _initialize_mock_data(self):
         """Initialize mock medical knowledge graph."""
         # Create symptom nodes
         symptoms = [
             ("s1", "Symptom", {"name": "chest pain", "severity_range": "low-high"}),
-            ("s2", "Symptom", {"name": "shortness of breath", "severity_range": "low-high"}),
+            (
+                "s2",
+                "Symptom",
+                {"name": "shortness of breath", "severity_range": "low-high"},
+            ),
             ("s3", "Symptom", {"name": "fatigue", "severity_range": "low-moderate"}),
             ("s4", "Symptom", {"name": "dizziness", "severity_range": "low-moderate"}),
             ("s5", "Symptom", {"name": "palpitations", "severity_range": "low-high"}),
         ]
-        
+
         for sid, label, props in symptoms:
             self._mock_nodes[sid] = GraphNode(id=sid, labels=[label], properties=props)
-        
+
         # Create condition nodes
         conditions = [
             ("c1", "Condition", {"name": "Hypertension", "icd10": "I10"}),
@@ -718,10 +738,10 @@ class Neo4jService:
             ("c4", "Condition", {"name": "Atrial Fibrillation", "icd10": "I48.91"}),
             ("c5", "Condition", {"name": "Myocardial Infarction", "icd10": "I21.9"}),
         ]
-        
+
         for cid, label, props in conditions:
             self._mock_nodes[cid] = GraphNode(id=cid, labels=[label], properties=props)
-        
+
         # Create medication nodes
         medications = [
             ("m1", "Medication", {"name": "Metoprolol", "class": "Beta Blocker"}),
@@ -729,10 +749,10 @@ class Neo4jService:
             ("m3", "Medication", {"name": "Aspirin", "class": "Antiplatelet"}),
             ("m4", "Medication", {"name": "Atorvastatin", "class": "Statin"}),
         ]
-        
+
         for mid, label, props in medications:
             self._mock_nodes[mid] = GraphNode(id=mid, labels=[label], properties=props)
-        
+
         # Create relationships
         relationships = [
             ("r1", "INDICATES", "s1", "c2", {"strength": 0.85}),
@@ -745,7 +765,7 @@ class Neo4jService:
             ("r8", "TREATS", "m3", "c2", {"effectiveness": 0.7}),
             ("r9", "TREATS", "m4", "c2", {"effectiveness": 0.75}),
         ]
-        
+
         for rid, rtype, start, end, props in relationships:
             self._mock_relationships[rid] = GraphRelationship(
                 id=rid,
@@ -754,7 +774,7 @@ class Neo4jService:
                 end_node_id=end,
                 properties=props,
             )
-        
+
         logger.info(
             f"Initialized mock graph with {len(self._mock_nodes)} nodes "
             f"and {len(self._mock_relationships)} relationships"

@@ -68,13 +68,13 @@ export interface VitalsData {
   // Blood pressure
   systolic?: number;
   diastolic?: number;
-  
+
   // Cholesterol
   cholesterol?: number;
   ldl?: number;
   hdl?: number;
   triglycerides?: number;
-  
+
   // Other vitals
   bloodGlucose?: number;
   heartRate?: number;

@@ -1,17 +1,17 @@
 /**
  * Optimized Components
- * 
+ *
  * Higher-order components and wrappers for performance optimization:
  * - React.memo with custom comparison
  * - Code splitting with React.lazy
  * - Render optimization patterns
  */
 
-import React, { 
-  memo, 
-  lazy, 
-  Suspense, 
-  ComponentType, 
+import React, {
+  memo,
+  lazy,
+  Suspense,
+  ComponentType,
   ReactNode,
   useMemo,
   useCallback,
@@ -90,9 +90,9 @@ function deepEqual(a: unknown, b: unknown): boolean {
     const keysA = Object.keys(a as object);
     const keysB = Object.keys(b as object);
     if (keysA.length !== keysB.length) return false;
-    return keysA.every(key => 
+    return keysA.every(key =>
       deepEqual(
-        (a as Record<string, unknown>)[key], 
+        (a as Record<string, unknown>)[key],
         (b as Record<string, unknown>)[key]
       )
     );
@@ -167,15 +167,15 @@ const DefaultLoadingFallback: React.FC = () => (
 
 /**
  * Lazy load screens with route-based code splitting
- * 
+ *
  * NOTE: These lazy imports are configured for screens that will be implemented.
  * Currently, only AnalyticsDashboard exists. As screens are added, uncomment
  * the corresponding lazy loader.
- * 
+ *
  * Usage:
  * ```tsx
  * import { LazyScreens } from './components/OptimizedComponents';
- * 
+ *
  * // In router or component:
  * <LazyScreens.Analytics />
  * ```
@@ -193,7 +193,7 @@ const AnalyticsScreen = lazyWithFallback(
 export const LazyScreens = {
   // Currently implemented
   Analytics: AnalyticsScreen,
-  
+
   // Future screens (add as implemented):
   // Dashboard: DashboardScreen,
   // Chat: ChatScreen,
@@ -256,7 +256,7 @@ export const DeferredRender: React.FC<OptimizedProps & { delay?: number }> = ({
 /**
  * Renders children only when visible in viewport
  */
-export const ViewportRender: React.FC<OptimizedProps & { 
+export const ViewportRender: React.FC<OptimizedProps & {
   rootMargin?: string;
   placeholder?: ReactNode;
 }> = ({
@@ -324,7 +324,7 @@ export function OptimizedList<T>({
 }: OptimizedListProps<T>): React.ReactElement {
   const memoizedRender = useCallback(renderItem, [renderItem]);
 
-  const listItems = useMemo(() => 
+  const listItems = useMemo(() =>
     items.map((item, index) => (
       <MemoizedListItem
         key={keyExtractor(item, index)}
@@ -479,13 +479,13 @@ export const PerformanceBoundary: React.FC<PerformanceBoundaryProps> = ({
   componentName = 'Unknown',
 }) => {
   const renderStart = React.useRef(performance.now());
-  
+
   // Update render start time
   renderStart.current = performance.now();
 
   useEffect(() => {
     const renderTime = performance.now() - renderStart.current;
-    
+
     if (process.env.NODE_ENV === 'development' && renderTime > warnThreshold) {
       console.warn(
         `[Performance] ${componentName} render took ${renderTime.toFixed(2)}ms ` +

@@ -34,10 +34,9 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-import uvicorn
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -63,22 +62,18 @@ request_id_context: ContextVar[str] = ContextVar("request_id", default="")
 
 class MemoryManagerException(Exception):
     """Base exception for memory manager errors."""
-    pass
 
 
 class MemoryOperationTimeout(MemoryManagerException):
     """Raised when memory operation exceeds timeout."""
-    pass
 
 
 class MemoryCircuitBreakerOpen(MemoryManagerException):
     """Raised when circuit breaker is open (service unavailable)."""
-    pass
 
 
 class PatientMemoryNotFound(MemoryManagerException):
     """Raised when patient memory cannot be initialized."""
-    pass
 
 
 # ============================================================================
@@ -89,6 +84,7 @@ class PatientMemoryNotFound(MemoryManagerException):
 @dataclass
 class MemoryResult:
     """Result from memory search operation."""
+
     id: str
     content: str
     memory_type: str
@@ -112,6 +108,7 @@ class MemoryResult:
 @dataclass
 class MemoryManagerMetrics:
     """Metrics for memory manager operations."""
+
     searches_total: int = 0
     searches_successful: int = 0
     searches_failed: int = 0
@@ -143,7 +140,8 @@ class MemoryManagerMetrics:
         """Calculate average search latency."""
         return (
             sum(self.searches_latency_ms) / len(self.searches_latency_ms)
-            if self.searches_latency_ms else 0.0
+            if self.searches_latency_ms
+            else 0.0
         )
 
     @property
@@ -151,7 +149,8 @@ class MemoryManagerMetrics:
         """Calculate average store latency."""
         return (
             sum(self.stores_latency_ms) / len(self.stores_latency_ms)
-            if self.stores_latency_ms else 0.0
+            if self.stores_latency_ms
+            else 0.0
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -444,9 +443,7 @@ class PatientMemory:
                 f"Memory search timeout: query='{query}', "
                 f"timeout={timeout}s, patient_id={self.patient_id}"
             )
-            raise MemoryOperationTimeout(
-                f"Memory search exceeded {timeout}s timeout"
-            )
+            raise MemoryOperationTimeout(f"Memory search exceeded {timeout}s timeout")
         except Exception as e:
             logger.error(f"Error searching memory: {e}", exc_info=True)
             raise
@@ -475,9 +472,7 @@ class PatientMemory:
                 timeout=30,
             )
 
-            conversations = [
-                json.loads(r.content) for r in results if r.content
-            ]
+            conversations = [json.loads(r.content) for r in results if r.content]
 
             return {
                 "recent_conversations": conversations,
@@ -757,8 +752,7 @@ class MemoryManager:
                 from memori import Memori
             except ImportError:
                 raise MemoryManagerException(
-                    "Memori library not installed. "
-                    "Install with: pip install memori"
+                    "Memori library not installed. " "Install with: pip install memori"
                 )
 
             # Create Memori instance with patient isolation
@@ -776,7 +770,9 @@ class MemoryManager:
 
             # Cache for future access
             self._cache.put(cache_key, patient_memory)
-            self.metrics.cache_evictions += self._cache.evictions - self.metrics.cache_evictions
+            self.metrics.cache_evictions += (
+                self._cache.evictions - self.metrics.cache_evictions
+            )
 
             logger.info(f"Patient memory initialized: {cache_key}")
             return patient_memory
@@ -840,9 +836,9 @@ class MemoryManager:
 
             # Keep only recent metrics
             if len(self.metrics.searches_latency_ms) > 1000:
-                self.metrics.searches_latency_ms = (
-                    self.metrics.searches_latency_ms[-500:]
-                )
+                self.metrics.searches_latency_ms = self.metrics.searches_latency_ms[
+                    -500:
+                ]
 
             logger.debug(
                 f"Memory search: patient_id={patient_id}, "
@@ -918,7 +914,9 @@ class MemoryManager:
             elif memory_type == "health_data":
                 data = json.loads(content)
                 await patient_memory.add_health_data(
-                    data_type=metadata.get("data_type", "unknown") if metadata else "unknown",
+                    data_type=(
+                        metadata.get("data_type", "unknown") if metadata else "unknown"
+                    ),
                     data=data,
                     severity=metadata.get("severity") if metadata else None,
                     metadata=metadata,
@@ -940,9 +938,7 @@ class MemoryManager:
 
             # Keep only recent metrics
             if len(self.metrics.stores_latency_ms) > 1000:
-                self.metrics.stores_latency_ms = (
-                    self.metrics.stores_latency_ms[-500:]
-                )
+                self.metrics.stores_latency_ms = self.metrics.stores_latency_ms[-500:]
 
             logger.debug(
                 f"Memory stored: patient_id={patient_id}, "

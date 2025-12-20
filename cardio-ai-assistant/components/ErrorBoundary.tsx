@@ -125,7 +125,7 @@ async function defaultErrorReporter(details: ErrorDetails): Promise<void> {
 
   // In production, you would send to an error tracking service
   // Example: await fetch('/api/error-reports', { method: 'POST', body: JSON.stringify(errorReport) });
-  
+
   // Store in sessionStorage for debugging
   try {
     const existingErrors = JSON.parse(sessionStorage.getItem('errorBoundaryReports') || '[]');
@@ -184,7 +184,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     const { onError, reportErrors, errorReporter, name } = this.props;
-    
+
     // Update state with error info
     this.setState({ errorInfo });
 
@@ -279,9 +279,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     const { hasError, error, retryCount } = this.state;
-    const { 
-      children, 
-      fallback: FallbackComponent, 
+    const {
+      children,
+      fallback: FallbackComponent,
       fallbackRender,
       maxRetries = 3,
       showDevInfo,

@@ -5,7 +5,6 @@ This package provides a unified interface for importing all models.
 The actual model definitions are in the root models.py file.
 """
 
-import sys
 import os
 
 # Debug: Show where models are loading from
@@ -14,7 +13,6 @@ print(f"[MODELS] Loading from: {_models_dir}")
 
 # Import directly from the root models.py file (sibling to this package)
 # Using importlib to avoid circular import issues
-import importlib.util
 
 # Get the path to the root models.py
 _root_models_path = os.path.join(os.path.dirname(_models_dir), "models.py")
@@ -33,8 +31,10 @@ from pydantic import BaseModel, Field
 # Define IntentEnum and SentimentEnum inline to avoid circular imports
 # ============================================================================
 
+
 class IntentEnum(str, Enum):
     """Intent types"""
+
     GREETING = "greeting"
     RISK_ASSESSMENT = "risk_assessment"
     NUTRITION_ADVICE = "nutrition_advice"
@@ -50,6 +50,7 @@ class IntentEnum(str, Enum):
 
 class SentimentEnum(str, Enum):
     """Sentiment types"""
+
     POSITIVE = "positive"
     NEUTRAL = "neutral"
     NEGATIVE = "negative"
@@ -59,6 +60,7 @@ class SentimentEnum(str, Enum):
 
 class Entity(BaseModel):
     """Extracted entity"""
+
     type: str = Field(..., description="Entity type")
     value: str = Field(..., description="Entity value")
     start_index: int = Field(..., description="Start index")
@@ -68,13 +70,17 @@ class Entity(BaseModel):
 
 class IntentResult(BaseModel):
     """Intent recognition result"""
+
     intent: IntentEnum = Field(..., description="Identified intent")
     confidence: float = Field(..., ge=0, le=1, description="Confidence score")
-    keywords_matched: List[str] = Field(default_factory=list, description="Matched keywords")
+    keywords_matched: List[str] = Field(
+        default_factory=list, description="Matched keywords"
+    )
 
 
 class SentimentResult(BaseModel):
     """Sentiment analysis result"""
+
     sentiment: SentimentEnum = Field(..., description="Detected sentiment")
     score: float = Field(..., ge=-1, le=1, description="Sentiment score")
     intensity: str = Field(..., description="Intensity level")
@@ -82,6 +88,7 @@ class SentimentResult(BaseModel):
 
 class NLPProcessRequest(BaseModel):
     """Request for NLP processing"""
+
     message: str = Field(..., description="User message to process", max_length=10000)
     user_id: Optional[str] = Field(None, description="User ID")
     session_id: Optional[str] = Field(None, description="Session ID")
@@ -90,34 +97,45 @@ class NLPProcessRequest(BaseModel):
 
 class NLPProcessResponse(BaseModel):
     """Response from NLP processing"""
+
     intent: IntentEnum = Field(..., description="Identified intent")
     intent_confidence: float = Field(..., description="Intent confidence")
     sentiment: SentimentEnum = Field(..., description="Detected sentiment")
     sentiment_score: float = Field(..., description="Sentiment score")
-    entities: List[Entity] = Field(default_factory=list, description="Extracted entities")
+    entities: List[Entity] = Field(
+        default_factory=list, description="Extracted entities"
+    )
     requires_escalation: bool = Field(False, description="Requires human escalation")
     confidence_overall: float = Field(..., description="Overall confidence")
 
 
 class EntityExtractionRequest(BaseModel):
     """Request for entity extraction"""
+
     text: str = Field(..., description="Text to extract entities from")
-    entity_types: Optional[List[str]] = Field(None, description="Entity types to extract")
+    entity_types: Optional[List[str]] = Field(
+        None, description="Entity types to extract"
+    )
 
 
 class EntityExtractionResponse(BaseModel):
     """Response from entity extraction"""
-    entities: List[Entity] = Field(default_factory=list, description="Extracted entities")
+
+    entities: List[Entity] = Field(
+        default_factory=list, description="Extracted entities"
+    )
 
 
 class HealthCheckResponse(BaseModel):
     """Health check response"""
+
     status: str = Field(..., description="Service status")
     version: str = Field(..., description="Service version")
 
 
 class HealthMetrics(BaseModel):
     """User health metrics for risk assessment"""
+
     age: int = Field(..., ge=18, le=120)
     gender: str = Field(..., pattern="^(M|F|Other)$")
     blood_pressure_systolic: Optional[int] = Field(None, ge=60, le=300)
@@ -132,16 +150,20 @@ class HealthMetrics(BaseModel):
 
 class RiskAssessmentRequest(BaseModel):
     """Request for risk assessment"""
+
     metrics: HealthMetrics = Field(..., description="User health metrics")
     user_id: Optional[str] = Field(None, description="User ID")
 
 
 class RiskAssessmentResponse(BaseModel):
     """Response from risk assessment"""
+
     risk_level: str = Field(..., description="Risk level")
     risk_score: float = Field(..., ge=0, le=100, description="Risk score")
     risk_interpretation: str = Field(..., description="Interpretation")
-    recommendations: List[str] = Field(default_factory=list, description="Recommendations")
+    recommendations: List[str] = Field(
+        default_factory=list, description="Recommendations"
+    )
     consultation_urgency: str = Field(..., description="Consultation urgency")
 
 
@@ -151,6 +173,7 @@ RiskAssessmentResult = RiskAssessmentResponse
 
 class OllamaResponseRequest(BaseModel):
     """Request for Ollama response"""
+
     prompt: str = Field(..., description="Prompt for generation")
     model: Optional[str] = Field(None, description="Model name")
     temperature: Optional[float] = Field(None, ge=0, le=2, description="Temperature")
@@ -159,6 +182,7 @@ class OllamaResponseRequest(BaseModel):
 
 class OllamaResponseResponse(BaseModel):
     """Response from Ollama"""
+
     response: str = Field(..., description="Generated response")
     model: str = Field(..., description="Model used")
     tokens_used: Optional[int] = Field(None, description="Tokens used")
@@ -166,6 +190,7 @@ class OllamaResponseResponse(BaseModel):
 
 class OllamaHealthCheckResponse(BaseModel):
     """Ollama health check response"""
+
     status: str = Field(..., description="Ollama status")
     model: str = Field(..., description="Model name")
     available: bool = Field(..., description="Whether Ollama is available")
@@ -175,17 +200,48 @@ print("[MODELS] [OK] NLP models defined successfully")
 
 
 # Health Models - stubs (optional)
-class HealthRecord: pass
-class VitalSigns: pass
-class MedicationRecord: pass
-class Allergy: pass
-class HealthRecordCreate: pass
-class HealthRecordUpdate: pass
-class HealthRecordResponse: pass
-class MedicationFrequency: pass
-class AllergyReactionSeverity: pass
-class SleepQuality: pass
-class SmokingStatus: pass
+class HealthRecord:
+    pass
+
+
+class VitalSigns:
+    pass
+
+
+class MedicationRecord:
+    pass
+
+
+class Allergy:
+    pass
+
+
+class HealthRecordCreate:
+    pass
+
+
+class HealthRecordUpdate:
+    pass
+
+
+class HealthRecordResponse:
+    pass
+
+
+class MedicationFrequency:
+    pass
+
+
+class AllergyReactionSeverity:
+    pass
+
+
+class SleepQuality:
+    pass
+
+
+class SmokingStatus:
+    pass
 
 
 __all__ = [

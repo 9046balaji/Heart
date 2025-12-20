@@ -21,7 +21,7 @@ const SignUpScreen: React.FC = () => {
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">person</span>
             <input type="text" placeholder="Full Name" className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-4 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500" />
         </div>
-        
+
         <div className="relative">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">mail</span>
             <input type="email" placeholder="Email Address" className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-4 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500" />
@@ -34,12 +34,12 @@ const SignUpScreen: React.FC = () => {
 
         <div className="relative">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock</span>
-            <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="Password" 
-                className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-12 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500" 
+            <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-12 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500"
             />
-            <span 
+            <span
                 className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors select-none"
                 onClick={() => setShowPassword(!showPassword)}
             >
@@ -49,12 +49,12 @@ const SignUpScreen: React.FC = () => {
 
         <div className="relative">
             <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock_reset</span>
-            <input 
-                type={showConfirmPassword ? "text" : "password"} 
-                placeholder="Confirm Password" 
-                className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-12 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500" 
+            <input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                className="w-full h-14 bg-slate-800/30 border border-slate-700 rounded-xl pl-12 pr-12 outline-none focus:border-blue-500 transition-colors text-white placeholder:text-slate-500"
             />
-            <span 
+            <span
                 className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 cursor-pointer hover:text-slate-300 transition-colors select-none"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             >

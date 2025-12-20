@@ -41,13 +41,13 @@ const CoachScreen: React.FC = () => {
         // Context from LocalStorage
         const history = JSON.parse(localStorage.getItem('workout_history') || '[]').slice(-5);
         const plan = JSON.parse(localStorage.getItem('user_exercise_plan') || '{}');
-        
+
         const result = await apiClient.generateInsight({
             user_name: 'User',
             vitals: {},
             activities: history
         });
-        
+
         const reply = result.insight || "I'm focusing on my breathing... try again in a moment.";
         setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: reply }]);
 
@@ -72,8 +72,8 @@ const CoachScreen: React.FC = () => {
             {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                        msg.role === 'user' 
-                        ? 'bg-primary text-white rounded-br-none' 
+                        msg.role === 'user'
+                        ? 'bg-primary text-white rounded-br-none'
                         : 'bg-white dark:bg-card-dark text-slate-700 dark:text-slate-200 rounded-bl-none border border-slate-100 dark:border-slate-800'
                     }`}>
                         {msg.text}
@@ -96,8 +96,8 @@ const CoachScreen: React.FC = () => {
             {messages.length < 3 && (
                 <div className="flex gap-2 overflow-x-auto no-scrollbar mb-3">
                     {suggestions.map((s, i) => (
-                        <button 
-                            key={i} 
+                        <button
+                            key={i}
                             onClick={() => handleSend(s)}
                             className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300 hover:border-primary hover:text-primary transition-colors"
                         >
@@ -106,17 +106,17 @@ const CoachScreen: React.FC = () => {
                     ))}
                 </div>
             )}
-            
+
             <div className="flex gap-2 relative">
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask your coach..." 
+                    placeholder="Ask your coach..."
                     className="flex-1 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary outline-none dark:text-white shadow-sm"
                 />
-                <button 
+                <button
                     onClick={() => handleSend()}
                     disabled={!input.trim() || isLoading}
                     className="w-12 h-12 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 disabled:opacity-50 hover:bg-primary-dark transition-colors"

@@ -7,12 +7,12 @@ import os
 import logging
 import datetime
 import asyncio
-from typing import List, Literal, Optional, Dict, Any
-from contextlib import asynccontextmanager
+from typing import List, Literal, Optional, Dict
 
 # Only import asyncpg if it's available
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     ASYNCPG_AVAILABLE = False
@@ -20,24 +20,31 @@ except ImportError:
 
 import pandas as pd
 from dateutil import parser as dt_parser
-from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request, status, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Header,
+    HTTPException,
+    BackgroundTasks,
+    status,
+    Depends,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field, validator
 
 # Import configuration
-from config import (
-    DATABASE_URL,
-    LOG_LEVEL
-)
+from config import DATABASE_URL
 
 # Import schemas
-from schemas.vitals import VitalsSubmission, VitalsReading
+from schemas.vitals import VitalsSubmission
 
 # Import dependencies
 from core.security import get_current_user
 
 # Import ML components (will be moved to this package)
-from .anomaly_detector import AnomalyDetector
 from .health_explainer import HealthExplainer, AlertChannel
+
 # from .feature_extractor import FeatureExtractor # If needed directly
 # from .rule_engine import RuleEngine # If needed directly
 
@@ -58,17 +65,23 @@ MAX_SAMPLES_PER_REQUEST = int(os.getenv("MAX_SAMPLES_PER_REQUEST", "1000"))
 db_pool = None
 health_explainer: Optional[HealthExplainer] = None
 
+
 # --------- Pydantic Models ----------
 class TimeSeriesDataPoint(BaseModel):
-    metric_type: Literal["hr", "ppg", "steps", "spo2"] = Field(..., description="Metric type")
+    metric_type: Literal["hr", "ppg", "steps", "spo2"] = Field(
+        ..., description="Metric type"
+    )
     value: float = Field(..., description="Metric value")
     timestamp: datetime.datetime = Field(..., description="UTC timestamp when recorded")
 
     @validator("timestamp")
     def ensure_timezone_aware(cls, v: datetime.datetime):
         if v.tzinfo is None or v.tzinfo.utcoffset(v) is None:
-            raise ValueError("timestamp must be timezone-aware (e.g. include +00:00). Use UTC.")
+            raise ValueError(
+                "timestamp must be timezone-aware (e.g. include +00:00). Use UTC."
+            )
         return v
+
 
 class TimeSeriesPayload(BaseModel):
     device_id: str = Field(..., description="Unique identifier for the device")
@@ -82,41 +95,55 @@ class TimeSeriesPayload(BaseModel):
             raise ValueError(f"too many samples: limit is {MAX_SAMPLES_PER_REQUEST}")
         return v
 
+
 class HealthAnalyzeRequest(BaseModel):
     device_id: str = Field(..., description="Device identifier")
     hr: float = Field(..., description="Heart rate in BPM")
     spo2: float = Field(98.0, description="Blood oxygen percentage")
     steps: int = Field(0, description="Step count")
 
+
 class HealthQuestionRequest(BaseModel):
     question: str = Field(..., description="Health question to ask")
     include_vitals: bool = Field(True, description="Include vitals in context")
 
+
 class DeviceRegistrationRequest(BaseModel):
     """Request model for device registration."""
+
     device_id: str = Field(..., description="Unique device identifier")
     device_type: str = Field(..., description="Device type (e.g., apple_watch, fitbit)")
     name: Optional[str] = Field(None, description="User-friendly device name")
 
+
 class DeviceRegistrationResponse(BaseModel):
     """Response model for device registration."""
+
     device_id: str
     user_id: str
     device_type: str
     registered_at: datetime.datetime
     is_active: bool
 
+
 # --------- Dependencies ----------
 def verify_device_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")):
     """Dependency to enforce API Key auth on routes."""
     if not x_api_key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key"
+        )
     if x_api_key not in DEVICE_API_KEYS:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+        )
     return True
 
+
 # --------- Core Logic: Ingestion (Write) ----------
-async def _persist_samples(device_id: str, samples: List[TimeSeriesDataPoint], idempotency_key: Optional[str]):
+async def _persist_samples(
+    device_id: str, samples: List[TimeSeriesDataPoint], idempotency_key: Optional[str]
+):
     """
     Background task: Bulk insert samples into PostgreSQL using efficient executemany.
     """
@@ -124,7 +151,7 @@ async def _persist_samples(device_id: str, samples: List[TimeSeriesDataPoint], i
     if not ASYNCPG_AVAILABLE:
         logger.debug("Skipping sample persistence - asyncpg not available")
         return
-    
+
     # We need to access the DB pool. In a router, this is tricky without DI.
     # For this refactor, we will assume a global pool is available or passed.
     # TODO: Refactor to use dependency injection for DB connection
@@ -150,17 +177,18 @@ async def _persist_samples(device_id: str, samples: List[TimeSeriesDataPoint], i
         except Exception as e:
             logger.exception(f"Failed to persist samples: {e}")
 
+
 @router.post("/vitals", status_code=201)
 async def ingest_timeseries_data(
     payload: TimeSeriesPayload,
     background: BackgroundTasks,
     authorized: bool = Depends(verify_device_api_key),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Accepts high-frequency data from devices and offloads writing to background.
-    
+
     Args:
         payload: Time series data from device
         background: Background tasks handler
@@ -174,27 +202,30 @@ async def ingest_timeseries_data(
         # Check if device is registered to the current user
         if not db_pool:
             raise HTTPException(status_code=500, detail="Database not initialized")
-        
+
         query = """
-            SELECT user_id FROM user_devices 
+            SELECT user_id FROM user_devices
             WHERE device_id = $1 AND is_active = TRUE
         """
-        
+
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(query, payload.device_id)
-            if not row or row['user_id'] != current_user.get("user_id"):
+            if not row or row["user_id"] != current_user.get("user_id"):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Device not registered to your account"
+                    detail="Device not registered to your account",
                 )
-    
+
     logger.info(f"Received {len(payload.samples)} samples from {payload.device_id}")
-    background.add_task(_persist_samples, payload.device_id, payload.samples, x_idempotency_key)
+    background.add_task(
+        _persist_samples, payload.device_id, payload.samples, x_idempotency_key
+    )
     return {
         "status": "accepted",
         "device_id": payload.device_id,
-        "count": len(payload.samples)
+        "count": len(payload.samples),
     }
+
 
 @router.post("/vitals/schema", status_code=201)
 async def ingest_vitals_with_schema(
@@ -202,11 +233,11 @@ async def ingest_vitals_with_schema(
     background: BackgroundTasks,
     authorized: bool = Depends(verify_device_api_key),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Accepts validated vitals data from devices using Pydantic schema validation.
-    
+
     Args:
         submission: Validated vitals submission with device ID
         background: Background tasks handler
@@ -220,41 +251,49 @@ async def ingest_vitals_with_schema(
         # Check if device is registered to the current user
         if not db_pool:
             raise HTTPException(status_code=500, detail="Database not initialized")
-        
+
         query = """
-            SELECT user_id FROM user_devices 
+            SELECT user_id FROM user_devices
             WHERE device_id = $1 AND is_active = TRUE
         """
-        
+
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(query, submission.device_id)
-            if not row or row['user_id'] != current_user.get("user_id"):
+            if not row or row["user_id"] != current_user.get("user_id"):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Device not registered to your account"
+                    detail="Device not registered to your account",
                 )
-    
+
     # Convert Pydantic model to dict for storage
     reading_dict = submission.reading.dict()
-    
+
     logger.info(f"Received vitals reading from {submission.device_id}")
-    
+
     # Store in Redis using the existing RedisVitalsStore
     # Note: This is a simplified approach - in production, you'd want to integrate this better
     from core.services.redis_vitals_store import RedisVitalsStore
+
     vitals_store = RedisVitalsStore()
     vitals_store.add_reading(submission.device_id, reading_dict)
-    
+
     return {
         "status": "accepted",
         "device_id": submission.device_id,
-        "timestamp": reading_dict.get("timestamp")
+        "timestamp": reading_dict.get("timestamp"),
     }
+
 
 # --------- Core Logic: Aggregation (Read) ----------
 INTERVAL_MAP = {
-    "1min": "T", "5min": "5T", "15min": "15T", "30min": "30T", "hour": "H", "day": "D",
+    "1min": "T",
+    "5min": "5T",
+    "15min": "15T",
+    "30min": "30T",
+    "hour": "H",
+    "day": "D",
 }
+
 
 def _calculate_aggregates(rows, interval: str):
     """
@@ -277,14 +316,17 @@ def _calculate_aggregates(rows, interval: str):
     for ts, row in agg.iterrows():
         if row["samples"] == 0:
             continue
-        buckets.append({
-            "bucket_start": ts.isoformat(),
-            "samples": int(row["samples"]),
-            "avg": row["avg"] if not pd.isna(row["avg"]) else None,
-            "min": row["min"] if not pd.isna(row["min"]) else None,
-            "max": row["max"] if not pd.isna(row["max"]) else None,
-        })
+        buckets.append(
+            {
+                "bucket_start": ts.isoformat(),
+                "samples": int(row["samples"]),
+                "avg": row["avg"] if not pd.isna(row["avg"]) else None,
+                "min": row["min"] if not pd.isna(row["min"]) else None,
+                "max": row["max"] if not pd.isna(row["max"]) else None,
+            }
+        )
     return buckets
+
 
 @router.get("/{device_id}/aggregate")
 async def aggregate_device_timeseries(
@@ -300,17 +342,29 @@ async def aggregate_device_timeseries(
     """
     # Skip if asyncpg is not available
     if not ASYNCPG_AVAILABLE:
-        raise HTTPException(status_code=501, detail="Database functionality not available")
-    
+        raise HTTPException(
+            status_code=501, detail="Database functionality not available"
+        )
+
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     try:
-        end_dt = dt_parser.isoparse(end).astimezone(datetime.timezone.utc) if end else now_utc
-        start_dt = dt_parser.isoparse(start).astimezone(datetime.timezone.utc) if start else end_dt - datetime.timedelta(hours=24)
+        end_dt = (
+            dt_parser.isoparse(end).astimezone(datetime.timezone.utc)
+            if end
+            else now_utc
+        )
+        start_dt = (
+            dt_parser.isoparse(start).astimezone(datetime.timezone.utc)
+            if start
+            else end_dt - datetime.timedelta(hours=24)
+        )
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid timestamp format")
 
     if start_dt >= end_dt:
-        raise HTTPException(status_code=400, detail="start time must be before end time")
+        raise HTTPException(
+            status_code=400, detail="start time must be before end time"
+        )
 
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database not initialized")
@@ -320,7 +374,7 @@ async def aggregate_device_timeseries(
         WHERE device_id = $1 AND metric_type = $2 AND ts >= $3 AND ts <= $4
         ORDER BY ts ASC
     """
-    
+
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(query, device_id, metric_type, start_dt, end_dt)
 
@@ -335,8 +389,10 @@ async def aggregate_device_timeseries(
         "buckets": buckets,
     }
 
+
 # --------- WebSocket: Real-Time Streaming ----------
 active_connections: Dict[str, WebSocket] = {}
+
 
 @router.websocket("/ws/{device_id}")
 async def websocket_health_stream(websocket: WebSocket, device_id: str):
@@ -346,7 +402,7 @@ async def websocket_health_stream(websocket: WebSocket, device_id: str):
     await websocket.accept()
     active_connections[device_id] = websocket
     logger.info(f"WebSocket connected: {device_id}")
-    
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -361,49 +417,47 @@ async def websocket_health_stream(websocket: WebSocket, device_id: str):
 # ML-POWERED HEALTH ANALYSIS ENDPOINTS
 # =====================================================================
 
+
 @router.post("/analyze")
 async def analyze_health_data(
-    request: HealthAnalyzeRequest,
-    authorized: bool = Depends(verify_device_api_key)
+    request: HealthAnalyzeRequest, authorized: bool = Depends(verify_device_api_key)
 ):
     """
     Analyze health data with ML prediction and chatbot explanation.
     """
     if not health_explainer:
         raise HTTPException(status_code=503, detail="Health analyzer not initialized")
-    
+
     result = await health_explainer.analyze(
         device_id=request.device_id,
         hr=request.hr,
         spo2=request.spo2,
-        steps=request.steps
+        steps=request.steps,
     )
-    
+
     return {
         "status": result.status,
         "explanation": result.explanation,
         "alert": result.alert,
         "prediction": result.prediction,
-        "processing_time_ms": result.processing_time_ms
+        "processing_time_ms": result.processing_time_ms,
     }
 
 
 @router.post("/ask")
 async def ask_health_question(
-    request: HealthQuestionRequest,
-    authorized: bool = Depends(verify_device_api_key)
+    request: HealthQuestionRequest, authorized: bool = Depends(verify_device_api_key)
 ):
     """
     Ask the health chatbot a question.
     """
     if not health_explainer:
         raise HTTPException(status_code=503, detail="Health analyzer not initialized")
-    
+
     response = await health_explainer.ask_question(
-        question=request.question, 
-        include_vitals=request.include_vitals
+        question=request.question, include_vitals=request.include_vitals
     )
-    
+
     return {"response": response}
 
 
@@ -414,36 +468,35 @@ async def get_system_status():
     """
     if not health_explainer:
         return {"status": "not_initialized"}
-    
+
     return health_explainer.get_status()
 
 
 @router.get("/alerts")
 async def get_recent_alerts(
     limit: int = Query(10, le=100, description="Maximum alerts to return"),
-    authorized: bool = Depends(verify_device_api_key)
+    authorized: bool = Depends(verify_device_api_key),
 ):
     """
     Get recent health alerts.
     """
     if not health_explainer:
         raise HTTPException(status_code=503, detail="Health analyzer not initialized")
-    
+
     alerts = health_explainer.get_recent_alerts(limit)
     return {"alerts": alerts, "count": len(alerts)}
 
 
 @router.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
-    alert_id: str,
-    authorized: bool = Depends(verify_device_api_key)
+    alert_id: str, authorized: bool = Depends(verify_device_api_key)
 ):
     """
     Acknowledge a health alert.
     """
     if not health_explainer:
         raise HTTPException(status_code=503, detail="Health analyzer not initialized")
-    
+
     success = health_explainer.acknowledge_alert(alert_id)
     if success:
         return {"status": "acknowledged", "alert_id": alert_id}
@@ -453,49 +506,49 @@ async def acknowledge_alert(
 
 @router.post("/register", response_model=DeviceRegistrationResponse)
 async def register_device(
-    request: DeviceRegistrationRequest,
-    current_user: dict = Depends(get_current_user)
+    request: DeviceRegistrationRequest, current_user: dict = Depends(get_current_user)
 ):
     """
     Register a smartwatch device to a user account.
-    
+
     Args:
         request: Device registration details
         current_user: Authenticated user from JWT token
-        
+
     Returns:
         Confirmation of device registration
     """
     # Skip if asyncpg is not available
     if not ASYNCPG_AVAILABLE:
-        raise HTTPException(status_code=501, detail="Database functionality not available")
-    
+        raise HTTPException(
+            status_code=501, detail="Database functionality not available"
+        )
+
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database not initialized")
-    
+
     user_id = current_user.get("user_id")
-    
+
     # Check if device is already registered
     check_query = """
-        SELECT id FROM user_devices 
+        SELECT id FROM user_devices
         WHERE device_id = $1
     """
-    
+
     insert_query = """
         INSERT INTO user_devices (user_id, device_id, device_type, registered_at, is_active)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, user_id, device_id, device_type, registered_at, is_active
     """
-    
+
     async with db_pool.acquire() as conn:
         # Check if device already exists
         existing = await conn.fetchrow(check_query, request.device_id)
         if existing:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Device already registered"
+                status_code=status.HTTP_409_CONFLICT, detail="Device already registered"
             )
-        
+
         # Register new device
         try:
             row = await conn.fetchrow(
@@ -504,41 +557,43 @@ async def register_device(
                 request.device_id,
                 request.device_type,
                 datetime.datetime.now(datetime.timezone.utc),
-                True
+                True,
             )
-            
+
             return DeviceRegistrationResponse(
-                device_id=row['device_id'],
-                user_id=row['user_id'],
-                device_type=row['device_type'],
-                registered_at=row['registered_at'],
-                is_active=row['is_active']
+                device_id=row["device_id"],
+                user_id=row["user_id"],
+                device_type=row["device_type"],
+                registered_at=row["registered_at"],
+                is_active=row["is_active"],
             )
         except Exception as e:
             logger.error(f"Failed to register device: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to register device"
+                detail="Failed to register device",
             )
+
 
 # --------- Startup/Shutdown Logic for Router ----------
 # Routers don't have lifespan, so we need a way to initialize the DB pool.
 # We can expose an init function to be called by main.py's lifespan.
 
+
 async def init_smartwatch_module():
     """Initialize resources for the smart watch module."""
     global db_pool
     logger.info("Initializing Smart Watch module...")
-    
+
     # Skip database initialization if asyncpg is not available
     if not ASYNCPG_AVAILABLE:
         logger.warning("asyncpg not available, skipping database initialization")
         return
-    
+
     try:
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
         logger.info("Smart Watch DB pool created.")
-        
+
         # Create user_devices table if it doesn't exist
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS user_devices (
@@ -549,56 +604,55 @@ async def init_smartwatch_module():
             registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             is_active BOOLEAN DEFAULT TRUE
         );
-        
+
         CREATE INDEX IF NOT EXISTS user_devices_user_id_idx ON user_devices (user_id);
         CREATE INDEX IF NOT EXISTS user_devices_device_id_idx ON user_devices (device_id);
         """
-        
+
         async with db_pool.acquire() as conn:
             await conn.execute(create_table_sql)
             logger.info("User devices table ensured")
-            
+
     except Exception as e:
         logger.error(f"Failed to connect to DB or create tables: {e}")
         # Don't raise, allow partial startup? Or raise?
         # For now, log error.
-    
+
     # Initialize Health Explainer
     global health_explainer
     logger.info("Initializing health explainer...")
     try:
         health_explainer = HealthExplainer(
-            user_profile={'name': 'User'},  # Default profile
-            enable_chatbot=True
+            user_profile={"name": "User"}, enable_chatbot=True  # Default profile
         )
-        
+
         # Register WebSocket handler for real-time alerts
         async def websocket_alert_handler(alert):
             """Send alerts to connected WebSocket clients."""
             for device_id, ws in active_connections.items():
                 try:
                     alert_data = {
-                        'id': alert.id,
-                        'timestamp': alert.timestamp,
-                        'anomaly_type': alert.anomaly_type,
-                        'severity': alert.severity,
-                        'title': alert.title,
-                        'message': alert.message,
-                        'recommendation': alert.recommendation,
-                        'chatbot_explanation': alert.chatbot_explanation,
-                        'channels': [c.value for c in alert.channels]
+                        "id": alert.id,
+                        "timestamp": alert.timestamp,
+                        "anomaly_type": alert.anomaly_type,
+                        "severity": alert.severity,
+                        "title": alert.title,
+                        "message": alert.message,
+                        "recommendation": alert.recommendation,
+                        "chatbot_explanation": alert.chatbot_explanation,
+                        "channels": [c.value for c in alert.channels],
                     }
-                    await ws.send_json({
-                        "type": "health_alert",
-                        "alert": alert_data
-                    })
+                    await ws.send_json({"type": "health_alert", "alert": alert_data})
                 except Exception as e:
                     logger.error(f"Failed to send alert to {device_id}: {e}")
-        
-        health_explainer.register_alert_handler(AlertChannel.WEBSOCKET, websocket_alert_handler)
+
+        health_explainer.register_alert_handler(
+            AlertChannel.WEBSOCKET, websocket_alert_handler
+        )
         logger.info("Health explainer initialized")
     except Exception as e:
         logger.error(f"Failed to initialize Health Explainer: {e}")
+
 
 async def shutdown_smartwatch_module():
     """Cleanup resources."""
@@ -606,4 +660,3 @@ async def shutdown_smartwatch_module():
     if db_pool and ASYNCPG_AVAILABLE:
         await db_pool.close()
         logger.info("Smart Watch DB pool closed.")
-

@@ -11,17 +11,14 @@ class BaseQueries(ABC):
     @abstractmethod
     def get_table_creation_queries(self) -> dict[str, str]:
         """Return dictionary of table creation SQL statements"""
-        pass
 
     @abstractmethod
     def get_index_creation_queries(self) -> dict[str, str]:
         """Return dictionary of index creation SQL statements"""
-        pass
 
     @abstractmethod
     def get_trigger_creation_queries(self) -> dict[str, str]:
         """Return dictionary of trigger creation SQL statements"""
-        pass
 
 
 class SchemaQueries:

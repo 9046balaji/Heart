@@ -1,6 +1,6 @@
 /**
  * Components Index
- * 
+ *
  * Central export for all reusable UI components
  */
 

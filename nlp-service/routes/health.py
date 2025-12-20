@@ -3,6 +3,7 @@ from datetime import datetime
 
 router = APIRouter(prefix="/api")
 
+
 @router.get("/health", status_code=status.HTTP_200_OK)
 async def health_check():
     """
@@ -12,5 +13,5 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "nlp-service"
+        "service": "nlp-service",
     }

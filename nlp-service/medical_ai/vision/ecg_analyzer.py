@@ -13,12 +13,11 @@ Features:
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Optional, Union
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-import asyncio
 import os
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ECGRhythm(Enum):
     """ECG rhythm classifications."""
+
     NORMAL_SINUS = "normal_sinus_rhythm"
     SINUS_TACHYCARDIA = "sinus_tachycardia"
     SINUS_BRADYCARDIA = "sinus_bradycardia"
@@ -44,6 +44,7 @@ class ECGRhythm(Enum):
 
 class Severity(Enum):
     """Finding severity levels."""
+
     NORMAL = "normal"
     MILD = "mild"
     MODERATE = "moderate"
@@ -54,11 +55,12 @@ class Severity(Enum):
 @dataclass
 class ECGInterval:
     """ECG interval measurements."""
+
     name: str
     value_ms: Optional[float]
     normal_range: str
     status: str  # "normal", "prolonged", "shortened"
-    
+
     def to_dict(self) -> Dict:
         return {
             "name": self.name,
@@ -71,11 +73,12 @@ class ECGInterval:
 @dataclass
 class ECGFinding:
     """Individual ECG finding."""
+
     description: str
     severity: Severity
     location: Optional[str] = None  # Lead(s) where finding is present
     clinical_significance: Optional[str] = None
-    
+
     def to_dict(self) -> Dict:
         return {
             "description": self.description,
@@ -88,6 +91,7 @@ class ECGFinding:
 @dataclass
 class ECGAnalysis:
     """Complete ECG analysis result."""
+
     rhythm: ECGRhythm
     rhythm_confidence: float
     heart_rate_bpm: Optional[int]
@@ -101,7 +105,7 @@ class ECGAnalysis:
     quality_score: float  # 0-1 indicating image quality
     leads_analyzed: List[str]
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    
+
     def to_dict(self) -> Dict:
         return {
             "rhythm": self.rhythm.value,
@@ -123,17 +127,17 @@ class ECGAnalysis:
 class ECGAnalyzer:
     """
     Specialized ECG image analyzer.
-    
+
     Provides detailed analysis of ECG/EKG images including
     rhythm classification, interval measurements, and
     abnormality detection.
-    
+
     Example:
         analyzer = ECGAnalyzer()
         result = await analyzer.analyze(ecg_image_bytes)
         print(result.overall_interpretation)
     """
-    
+
     # Normal interval ranges (in milliseconds)
     NORMAL_INTERVALS = {
         "PR": {"min": 120, "max": 200, "name": "PR Interval"},
@@ -141,7 +145,7 @@ class ECGAnalyzer:
         "QT": {"min": 350, "max": 450, "name": "QT Interval"},
         "QTc": {"min": 350, "max": 450, "name": "QTc Interval"},
     }
-    
+
     # Heart rate classifications
     HR_CLASSIFICATIONS = {
         "severe_bradycardia": (0, 40),
@@ -150,37 +154,58 @@ class ECGAnalyzer:
         "tachycardia": (100, 150),
         "severe_tachycardia": (150, 300),
     }
-    
+
     def __init__(
         self,
         gemini_api_key: Optional[str] = None,
         use_mock: bool = False,
     ):
-        """
-        Initialize ECG analyzer.
+        """Initialize ECG analyzer."""
+        self.gemini_api_key = gemini_api_key or os.getenv("GOOGLE_API_KEY")
+        self.use_mock = use_mock
+        self._llm_gateway = None
+
+    async def initialize(self):
+        """Initialize the analyzer and LLM gateway."""
+        if not self.use_mock:
+            try:
+                from core.llm_gateway import get_llm_gateway
+
+                self._llm_gateway = get_llm_gateway()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gateway for ECG: {e}")
+                self.use_mock = True
+
+    async def analyze(
+        self, image_bytes: bytes, patient_context: Optional[Dict] = None
+    ) -> ECGAnalysis:
+        """Analyze ECG image."""
+        if self.use_mock or not self._llm_gateway:
+            return self._mock_analysis(patient_context)
+
         try:
             # Build analysis prompt
             prompt = self._build_analysis_prompt(patient_context)
-            
+
             # Call Gemini Vision via Gateway
             # Note: Gateway handles the disclaimer via content_type="medical"
             response_text = await self._llm_gateway.generate(
                 prompt=prompt,
                 images=[{"mime_type": "image/jpeg", "data": image_bytes}],
-                content_type="medical"
+                content_type="medical",
             )
-            
+
             # Parse response
             return self._parse_gemini_response(response_text)
-            
+
         except Exception as e:
             logger.error(f"ECG analysis error: {e}")
             return self._mock_analysis(patient_context)
-    
+
     def _build_analysis_prompt(self, patient_context: Optional[Dict]) -> str:
         """Build the analysis prompt for Gemini."""
         prompt = """You are an expert cardiologist analyzing an ECG/EKG image.
-        
+
 Provide a detailed analysis including:
 
 1. **Rhythm Identification**: Identify the cardiac rhythm (e.g., normal sinus rhythm, atrial fibrillation, sinus tachycardia, etc.)
@@ -208,7 +233,7 @@ Provide a detailed analysis including:
 Format your response clearly with these sections.
 
 IMPORTANT: This analysis is for educational purposes. Always recommend professional interpretation."""
-        
+
         if patient_context:
             prompt += f"""
 
@@ -219,19 +244,19 @@ Patient Context:
 - Medical History: {patient_context.get('history', 'None provided')}
 - Current Medications: {patient_context.get('medications', 'None provided')}
 """
-        
+
         return prompt
-    
+
     def _parse_gemini_response(self, response_text: str) -> ECGAnalysis:
         """Parse Gemini response into ECGAnalysis."""
         # Default values
         rhythm = ECGRhythm.UNKNOWN
         heart_rate = None
         urgency = Severity.NORMAL
-        
+
         # Simple parsing (in production, use more robust parsing)
         text_lower = response_text.lower()
-        
+
         # Detect rhythm
         rhythm_mapping = {
             "normal sinus": ECGRhythm.NORMAL_SINUS,
@@ -247,18 +272,19 @@ Patient Context:
             "svt": ECGRhythm.SVT,
             "supraventricular tachycardia": ECGRhythm.SVT,
         }
-        
+
         for pattern, rhythm_type in rhythm_mapping.items():
             if pattern in text_lower:
                 rhythm = rhythm_type
                 break
-        
+
         # Extract heart rate
         import re
-        hr_match = re.search(r'(\d{2,3})\s*(?:bpm|beats per minute)', text_lower)
+
+        hr_match = re.search(r"(\d{2,3})\s*(?:bpm|beats per minute)", text_lower)
         if hr_match:
             heart_rate = int(hr_match.group(1))
-        
+
         # Detect urgency
         if any(word in text_lower for word in ["critical", "emergency", "immediate"]):
             urgency = Severity.CRITICAL
@@ -268,7 +294,7 @@ Patient Context:
             urgency = Severity.MODERATE
         elif any(word in text_lower for word in ["mild", "minor"]):
             urgency = Severity.MILD
-        
+
         # Build findings
         findings = []
         finding_patterns = [
@@ -282,14 +308,16 @@ Patient Context:
             ("pvc", "Premature Ventricular Contraction", Severity.MILD),
             ("pac", "Premature Atrial Contraction", Severity.MILD),
         ]
-        
+
         for pattern, description, severity in finding_patterns:
             if pattern in text_lower:
-                findings.append(ECGFinding(
-                    description=description,
-                    severity=severity,
-                ))
-        
+                findings.append(
+                    ECGFinding(
+                        description=description,
+                        severity=severity,
+                    )
+                )
+
         return ECGAnalysis(
             rhythm=rhythm,
             rhythm_confidence=0.75,
@@ -316,7 +344,7 @@ Patient Context:
             quality_score=0.80,
             leads_analyzed=["I", "II", "III", "aVR", "aVL", "aVF", "V1-V6"],
         )
-    
+
     def _mock_analysis(self, patient_context: Optional[Dict]) -> ECGAnalysis:
         """Generate mock ECG analysis."""
         # Vary mock based on context
@@ -324,9 +352,9 @@ Patient Context:
             symptoms = patient_context.get("symptoms", "").lower()
             if "chest pain" in symptoms or "pain" in symptoms:
                 return self._mock_concerning_ecg()
-        
+
         return self._mock_normal_ecg()
-    
+
     def _mock_normal_ecg(self) -> ECGAnalysis:
         """Mock normal ECG analysis."""
         return ECGAnalysis(
@@ -353,10 +381,10 @@ Patient Context:
             ],
             overall_interpretation="""Normal ECG Analysis:
 
-The ECG shows a regular normal sinus rhythm at 72 beats per minute. 
+The ECG shows a regular normal sinus rhythm at 72 beats per minute.
 All intervals are within normal limits:
 - PR interval: 160ms (normal)
-- QRS duration: 88ms (normal)  
+- QRS duration: 88ms (normal)
 - QT/QTc: 400/412ms (normal)
 
 No ST-segment abnormalities are detected. T waves appear normal.
@@ -376,9 +404,22 @@ Overall, this is a normal electrocardiogram.""",
                 "If experiencing symptoms, seek medical attention regardless of this analysis",
             ],
             quality_score=0.88,
-            leads_analyzed=["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            leads_analyzed=[
+                "I",
+                "II",
+                "III",
+                "aVR",
+                "aVL",
+                "aVF",
+                "V1",
+                "V2",
+                "V3",
+                "V4",
+                "V5",
+                "V6",
+            ],
         )
-    
+
     def _mock_concerning_ecg(self) -> ECGAnalysis:
         """Mock concerning ECG analysis for symptomatic patient."""
         return ECGAnalysis(
@@ -439,13 +480,26 @@ Recommend:
                 "Call 911 if experiencing severe chest pain, shortness of breath, or other concerning symptoms",
             ],
             quality_score=0.82,
-            leads_analyzed=["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"],
+            leads_analyzed=[
+                "I",
+                "II",
+                "III",
+                "aVR",
+                "aVL",
+                "aVF",
+                "V1",
+                "V2",
+                "V3",
+                "V4",
+                "V5",
+                "V6",
+            ],
         )
-    
+
     def _get_image_bytes(self, image: Union[bytes, str, Path]) -> bytes:
         """Convert image input to bytes."""
         import base64
-        
+
         if isinstance(image, bytes):
             return image
         elif isinstance(image, Path):
@@ -457,14 +511,14 @@ Recommend:
                 return Path(image).read_bytes()
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
-    
+
     def classify_heart_rate(self, bpm: int) -> str:
         """Classify heart rate."""
         for classification, (min_hr, max_hr) in self.HR_CLASSIFICATIONS.items():
             if min_hr <= bpm < max_hr:
                 return classification
         return "unknown"
-    
+
     def check_interval(
         self,
         interval_name: str,
@@ -473,16 +527,16 @@ Recommend:
         """Check if an interval is within normal range."""
         if interval_name not in self.NORMAL_INTERVALS:
             return ECGInterval(interval_name, value_ms, "unknown", "unknown")
-        
+
         normal = self.NORMAL_INTERVALS[interval_name]
-        
+
         if value_ms < normal["min"]:
             status = "shortened"
         elif value_ms > normal["max"]:
             status = "prolonged"
         else:
             status = "normal"
-        
+
         return ECGInterval(
             name=normal["name"],
             value_ms=value_ms,

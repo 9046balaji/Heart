@@ -48,12 +48,12 @@ const FAMILY_MEMBERS: FamilyMember[] = [
 
 // --- Modal Components ---
 
-const PhotoEditModal = ({ 
-  onSave, 
-  onClose 
-}: { 
-  onSave: (photoUrl: string) => void, 
-  onClose: () => void 
+const PhotoEditModal = ({
+  onSave,
+  onClose
+}: {
+  onSave: (photoUrl: string) => void,
+  onClose: () => void
 }) => {
   const [mode, setMode] = useState<'menu' | 'camera'>('menu');
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -106,21 +106,21 @@ const PhotoEditModal = ({
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
+
       // Set canvas dimensions to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       const ctx = canvas.getContext('2d');
       if (ctx) {
         // Flip horizontally for mirror effect if using front camera (optional, usually expected)
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
-        
+
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         onSave(dataUrl);
-        
+
         // Stop stream
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
@@ -140,12 +140,12 @@ const PhotoEditModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={stopAndClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        
+
         {mode === 'menu' && (
             <>
                 <h3 className="text-xl font-bold dark:text-white mb-6 text-center">Change Profile Photo</h3>
                 <div className="space-y-3">
-                    <button 
+                    <button
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors"
                     >
@@ -154,15 +154,15 @@ const PhotoEditModal = ({
                         </div>
                         <span className="font-bold text-slate-700 dark:text-white">Choose from Gallery</span>
                     </button>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={handleFileChange} 
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleFileChange}
                     />
 
-                    <button 
+                    <button
                         onClick={startCamera}
                         className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors"
                     >
@@ -201,14 +201,14 @@ const PhotoEditModal = ({
   );
 };
 
-const EditPersonalModal = ({ 
-  profile, 
-  onSave, 
-  onClose 
-}: { 
-  profile: UserProfile, 
-  onSave: (p: UserProfile) => void, 
-  onClose: () => void 
+const EditPersonalModal = ({
+  profile,
+  onSave,
+  onClose
+}: {
+  profile: UserProfile,
+  onSave: (p: UserProfile) => void,
+  onClose: () => void
 }) => {
   const [formData, setFormData] = useState(profile);
 
@@ -223,48 +223,48 @@ const EditPersonalModal = ({
             <h3 className="text-xl font-bold dark:text-white">Edit Personal Details</h3>
             <button onClick={onClose}><span className="material-symbols-outlined text-slate-500">close</span></button>
         </div>
-        
+
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Full Name</label>
-                <input 
-                    type="text" 
-                    value={formData.name} 
+                <input
+                    type="text"
+                    value={formData.name}
                     onChange={e => handleChange('name', e.target.value)}
-                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
                 />
             </div>
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
-                <input 
-                    type="email" 
-                    value={formData.email} 
+                <input
+                    type="email"
+                    value={formData.email}
                     onChange={e => handleChange('email', e.target.value)}
-                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
                 />
             </div>
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
-                <input 
-                    type="tel" 
-                    value={formData.phone} 
+                <input
+                    type="tel"
+                    value={formData.phone}
                     onChange={e => handleChange('phone', e.target.value)}
-                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
                 />
             </div>
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="text-xs font-bold text-slate-500 uppercase">Date of Birth</label>
-                    <input 
-                        type="date" 
-                        value={formData.dob} 
+                    <input
+                        type="date"
+                        value={formData.dob}
                         onChange={e => handleChange('dob', e.target.value)}
-                        className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                        className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
                     />
                 </div>
                 <div>
                     <label className="text-xs font-bold text-slate-500 uppercase">Gender</label>
-                    <select 
+                    <select
                         value={formData.gender}
                         onChange={e => handleChange('gender', e.target.value)}
                         className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary appearance-none"
@@ -277,7 +277,7 @@ const EditPersonalModal = ({
             </div>
         </div>
 
-        <button 
+        <button
             onClick={() => onSave(formData)}
             className="w-full mt-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 hover:bg-primary-dark transition-colors"
         >
@@ -288,29 +288,29 @@ const EditPersonalModal = ({
   );
 };
 
-const AddItemModal = ({ 
-  title, 
-  placeholder, 
-  onSave, 
-  onClose 
-}: { 
-  title: string, 
-  placeholder: string, 
-  onSave: (val: string) => void, 
-  onClose: () => void 
+const AddItemModal = ({
+  title,
+  placeholder,
+  onSave,
+  onClose
+}: {
+  title: string,
+  placeholder: string,
+  onSave: (val: string) => void,
+  onClose: () => void
 }) => {
   const [val, setVal] = useState('');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-bold dark:text-white mb-4">{title}</h3>
-        <input 
-            type="text" 
+        <input
+            type="text"
             placeholder={placeholder}
-            value={val} 
+            value={val}
             autoFocus
             onChange={e => setVal(e.target.value)}
-            className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary mb-4" 
+            className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary mb-4"
         />
         <div className="flex gap-3">
             <button onClick={onClose} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl">Cancel</button>
@@ -321,14 +321,14 @@ const AddItemModal = ({
   );
 };
 
-const EditContactModal = ({ 
-  contact, 
-  onSave, 
-  onClose 
-}: { 
-  contact: UserProfile['emergencyContact'], 
-  onSave: (c: UserProfile['emergencyContact']) => void, 
-  onClose: () => void 
+const EditContactModal = ({
+  contact,
+  onSave,
+  onClose
+}: {
+  contact: UserProfile['emergencyContact'],
+  onSave: (c: UserProfile['emergencyContact']) => void,
+  onClose: () => void
 }) => {
   const [data, setData] = useState(contact);
   return (
@@ -336,29 +336,29 @@ const EditContactModal = ({
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-bold dark:text-white mb-4">Emergency Contact</h3>
         <div className="space-y-3">
-            <input 
-                type="text" 
+            <input
+                type="text"
                 placeholder="Name"
-                value={data.name} 
+                value={data.name}
                 onChange={e => setData({...data, name: e.target.value})}
-                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
             />
-            <input 
-                type="text" 
+            <input
+                type="text"
                 placeholder="Relationship"
-                value={data.relation} 
+                value={data.relation}
                 onChange={e => setData({...data, relation: e.target.value})}
-                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
             />
-            <input 
-                type="tel" 
+            <input
+                type="tel"
                 placeholder="Phone Number"
-                value={data.phone} 
+                value={data.phone}
                 onChange={e => setData({...data, phone: e.target.value})}
-                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" 
+                className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
             />
         </div>
-        <button 
+        <button
             onClick={() => onSave(data)}
             className="w-full mt-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30"
         >
@@ -376,7 +376,7 @@ const ProfileScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Personal' | 'Medical' | 'Achievements' | 'Family' | 'Settings'>('Personal');
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [activeCaretakerId, setActiveCaretakerId] = useState<string | null>(null);
-  
+
   // Modal States
   const [showEditPersonal, setShowEditPersonal] = useState(false);
   const [showAddCondition, setShowAddCondition] = useState(false);
@@ -391,7 +391,7 @@ const ProfileScreen: React.FC = () => {
       const parsed = JSON.parse(saved);
       setProfile({ ...DEFAULT_PROFILE, ...parsed });
     }
-    
+
     const caretakerMode = localStorage.getItem('active_profile_mode');
     if (caretakerMode) {
         setActiveCaretakerId(caretakerMode);
@@ -440,7 +440,7 @@ const ProfileScreen: React.FC = () => {
       {/* Top App Bar */}
       <div className="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
         <div className="flex size-10 shrink-0 items-center justify-center">
-          <button 
+          <button
             onClick={() => navigate('/dashboard')}
             className="flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 w-10 h-10 transition-colors text-gray-800 dark:text-white"
           >
@@ -458,7 +458,7 @@ const ProfileScreen: React.FC = () => {
         <div className="flex w-full flex-col gap-4 @[520px]:flex-row @[520px]:justify-between @[520px]:items-center">
           <div className="flex items-center gap-4">
             <div className="relative group cursor-pointer" onClick={() => setShowPhotoModal(true)}>
-                <div 
+                <div
                   className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-24 w-24 border-4 border-white dark:border-slate-800 shadow-sm transition-opacity group-hover:opacity-90"
                   style={{backgroundImage: `url("${profile.avatar}")`}}
                 ></div>
@@ -466,7 +466,7 @@ const ProfileScreen: React.FC = () => {
                     <span className="material-symbols-outlined text-white text-sm">edit</span>
                 </div>
             </div>
-            
+
             <div className="flex flex-col justify-center">
               <p className="text-gray-900 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em]">
                 {profile.name}
@@ -476,7 +476,7 @@ const ProfileScreen: React.FC = () => {
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setShowEditPersonal(true)}
             className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-gray-200 dark:bg-slate-800 text-gray-800 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] w-full max-w-[480px] @[480px]:w-auto hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors gap-2"
           >
@@ -490,21 +490,21 @@ const ProfileScreen: React.FC = () => {
       <div className="flex px-4 py-3">
         <div className="flex h-10 flex-1 items-center justify-center rounded-lg bg-gray-200 dark:bg-slate-800 p-1 overflow-x-auto no-scrollbar">
           {['Personal', 'Medical', 'Achievements', 'Family', 'Settings'].map((tab) => (
-            <label 
+            <label
               key={tab}
               onClick={() => handleTabChange(tab as any)}
               className={`flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-lg px-2 transition-all duration-200 whitespace-nowrap ${
-                activeTab === tab 
-                  ? 'bg-white dark:bg-slate-700 shadow-[0_1px_3px_rgba(0,0,0,0.1)] text-primary dark:text-primary font-bold' 
+                activeTab === tab
+                  ? 'bg-white dark:bg-slate-700 shadow-[0_1px_3px_rgba(0,0,0,0.1)] text-primary dark:text-primary font-bold'
                   : 'text-gray-600 dark:text-gray-400 font-medium hover:bg-black/5 dark:hover:bg-white/5'
               } text-sm leading-normal`}
             >
               <span className="truncate px-1">{tab}</span>
-              <input 
-                className="invisible w-0 absolute" 
-                name="profile-section" 
-                type="radio" 
-                value={tab} 
+              <input
+                className="invisible w-0 absolute"
+                name="profile-section"
+                type="radio"
+                value={tab}
                 checked={activeTab === tab}
                 readOnly
               />
@@ -556,7 +556,7 @@ const ProfileScreen: React.FC = () => {
                   </div>
                   <span className="material-symbols-outlined text-gray-600 dark:text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
                 </summary>
-                
+
                 <div className="py-2 border-t border-gray-200 dark:border-slate-800 mt-2 space-y-4">
                     {/* Conditions */}
                     <div>
@@ -635,8 +635,8 @@ const ProfileScreen: React.FC = () => {
                         </a>
                     </div>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => setShowEditContact(true)}
                     className="w-full mt-2 py-2 border border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary/5 transition-colors"
                   >
@@ -666,11 +666,11 @@ const ProfileScreen: React.FC = () => {
                                           <p className="text-xs text-slate-500 dark:text-slate-400">{member.relation} • {member.status}</p>
                                       </div>
                                   </div>
-                                  <button 
+                                  <button
                                       onClick={() => toggleCaretakerMode(member)}
                                       className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
-                                          activeCaretakerId === member.id 
-                                          ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                                          activeCaretakerId === member.id
+                                          ? 'bg-orange-500 text-white hover:bg-orange-600'
                                           : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
                                       }`}
                                   >
@@ -724,11 +724,11 @@ const ProfileScreen: React.FC = () => {
               {/* Badges Grid */}
               <div className="grid grid-cols-2 gap-3">
                 {badgesData.map((badge) => (
-                  <div 
-                    key={badge.id} 
+                  <div
+                    key={badge.id}
                     className={`p-4 rounded-xl border flex flex-col items-center text-center transition-all ${
-                      badge.unlocked 
-                      ? 'bg-white dark:bg-card-dark border-slate-100 dark:border-slate-800 shadow-sm' 
+                      badge.unlocked
+                      ? 'bg-white dark:bg-card-dark border-slate-100 dark:border-slate-800 shadow-sm'
                       : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 grayscale'
                     }`}
                   >
@@ -764,7 +764,7 @@ const ProfileScreen: React.FC = () => {
 
       {/* Log Out Button */}
       <div className="p-4 mt-4">
-        <button 
+        <button
           onClick={() => navigate('/login')}
           className="flex w-full min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-base font-bold leading-normal tracking-[0.015em] hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
         >
@@ -778,37 +778,37 @@ const ProfileScreen: React.FC = () => {
 
       {/* --- Modals --- */}
       {showEditPersonal && (
-          <EditPersonalModal 
-            profile={profile} 
-            onClose={() => setShowEditPersonal(false)} 
-            onSave={(updated) => { updateProfile(updated); setShowEditPersonal(false); }} 
+          <EditPersonalModal
+            profile={profile}
+            onClose={() => setShowEditPersonal(false)}
+            onSave={(updated) => { updateProfile(updated); setShowEditPersonal(false); }}
           />
       )}
       {showAddCondition && (
-          <AddItemModal 
-            title="Add Condition" 
-            placeholder="e.g. Type 2 Diabetes" 
-            onClose={() => setShowAddCondition(false)} 
-            onSave={(val) => addItem('conditions', val)} 
+          <AddItemModal
+            title="Add Condition"
+            placeholder="e.g. Type 2 Diabetes"
+            onClose={() => setShowAddCondition(false)}
+            onSave={(val) => addItem('conditions', val)}
           />
       )}
       {showAddAllergy && (
-          <AddItemModal 
-            title="Add Allergy" 
-            placeholder="e.g. Peanuts" 
-            onClose={() => setShowAddAllergy(false)} 
-            onSave={(val) => addItem('allergies', val)} 
+          <AddItemModal
+            title="Add Allergy"
+            placeholder="e.g. Peanuts"
+            onClose={() => setShowAddAllergy(false)}
+            onSave={(val) => addItem('allergies', val)}
           />
       )}
       {showEditContact && (
-          <EditContactModal 
+          <EditContactModal
             contact={profile.emergencyContact}
             onClose={() => setShowEditContact(false)}
             onSave={(contact) => { updateProfile({...profile, emergencyContact: contact}); setShowEditContact(false); }}
           />
       )}
       {showPhotoModal && (
-          <PhotoEditModal 
+          <PhotoEditModal
             onClose={() => setShowPhotoModal(false)}
             onSave={(url) => { updateProfile({...profile, avatar: url}); setShowPhotoModal(false); }}
           />

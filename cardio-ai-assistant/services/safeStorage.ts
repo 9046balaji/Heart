@@ -1,6 +1,6 @@
 /**
  * Safe LocalStorage Utility
- * 
+ *
  * Provides type-safe localStorage access with error handling for:
  * - Private browsing mode (localStorage disabled)
  * - Storage quota exceeded
@@ -135,10 +135,10 @@ export function getStorageUsage(): { used: number; total: number; percentage: nu
         }
       }
     }
-    
+
     // localStorage typically has 5-10MB limit
     const estimatedLimit = 5 * 1024 * 1024; // 5MB
-    
+
     return {
       used: totalSize,
       total: estimatedLimit,
@@ -164,7 +164,7 @@ function tryCleanupStorage(): void {
       'api_cache_',
       'temp_',
     ];
-    
+
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
       if (key && cacheKeys.some(prefix => key.startsWith(prefix))) {
@@ -194,12 +194,12 @@ export function safeGetArray<T>(key: string): T[] {
 export function safeAppendToArray<T>(key: string, item: T, maxLength?: number): boolean {
   const array = safeGetArray<T>(key);
   array.push(item);
-  
+
   // Trim to max length if specified
   if (maxLength && array.length > maxLength) {
     array.splice(0, array.length - maxLength);
   }
-  
+
   return safeSetItem(key, array);
 }
 
@@ -213,11 +213,11 @@ export function safeUpdateArrayItem<T>(
 ): boolean {
   const array = safeGetArray<T>(key);
   const index = array.findIndex(predicate);
-  
+
   if (index === -1) {
     return false;
   }
-  
+
   array[index] = updater(array[index]);
   return safeSetItem(key, array);
 }
@@ -231,11 +231,11 @@ export function safeRemoveFromArray<T>(
 ): boolean {
   const array = safeGetArray<T>(key);
   const filtered = array.filter(item => !predicate(item));
-  
+
   if (filtered.length === array.length) {
     return false; // Nothing removed
   }
-  
+
   return safeSetItem(key, filtered);
 }
 
@@ -250,23 +250,23 @@ export const STORAGE_KEYS = {
   USER_MEDICATIONS: 'user_medications',
   USER_APPOINTMENTS: 'user_appointments',
   USER_NOTIFICATIONS: 'user_notifications',
-  
+
   // Health data
   LAST_ASSESSMENT: 'last_assessment',
   HEALTH_METRICS: 'health_metrics',
   WATER_INTAKE: 'water_intake',
-  
+
   // Device data
   CONNECTED_DEVICES: 'connected_devices',
-  
+
   // Cache
   DAILY_INSIGHT_CACHE: 'daily_insight_cache',
   API_CACHE_PREFIX: 'api_cache_',
-  
+
   // Auth
   AUTH_TOKEN: 'auth_token',
   REFRESH_TOKEN: 'refresh_token',
-  
+
   // Settings
   LANGUAGE: 'language',
   THEME: 'theme',

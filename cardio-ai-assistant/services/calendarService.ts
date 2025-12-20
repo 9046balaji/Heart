@@ -1,9 +1,9 @@
 /**
  * Calendar Service
- * 
+ *
  * Handles calendar integration with Google and Outlook.
  * OAuth credential management, calendar sync, and reminder scheduling.
- * 
+ *
  * Healthcare-grade error handling:
  * - No PHI or stack traces exposed to users
  * - All errors logged for developers
@@ -115,7 +115,7 @@ function handleError(error: unknown, context: string): never {
 
 /**
  * Store OAuth credentials for a calendar provider
- * 
+ *
  * @param userId - User identifier
  * @param credentials - OAuth credentials from the provider
  * @returns Success response
@@ -153,7 +153,7 @@ export async function storeCalendarCredentials(
 
 /**
  * Revoke calendar credentials for a provider
- * 
+ *
  * @param userId - User identifier
  * @param provider - Calendar provider to disconnect
  * @returns Success response
@@ -183,7 +183,7 @@ export async function revokeCalendarCredentials(
 
 /**
  * Trigger calendar sync with provider
- * 
+ *
  * @param userId - User identifier
  * @param request - Sync configuration
  * @returns Sync result with event count
@@ -221,7 +221,7 @@ export async function syncCalendar(
 
 /**
  * Get calendar events from a provider
- * 
+ *
  * @param userId - User identifier
  * @param provider - Calendar provider
  * @param startDate - Optional start date filter
@@ -263,7 +263,7 @@ export async function getCalendarEvents(
 
 /**
  * Schedule a reminder for an event
- * 
+ *
  * @param userId - User identifier
  * @param reminder - Reminder configuration
  * @returns Created reminder ID
@@ -294,7 +294,7 @@ export async function scheduleReminder(
 
 /**
  * Get all reminders for a user
- * 
+ *
  * @param userId - User identifier
  * @returns Array of active reminders
  */
@@ -321,7 +321,7 @@ export async function getReminders(userId: string): Promise<ReminderRequest[]> {
 
 /**
  * Cancel a reminder
- * 
+ *
  * @param userId - User identifier
  * @param reminderId - Reminder to cancel
  * @returns Success response

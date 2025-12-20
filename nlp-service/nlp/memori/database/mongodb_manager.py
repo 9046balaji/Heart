@@ -1495,15 +1495,12 @@ class MongoDBDatabaseManager:
 
                 def commit(self):
                     """Commit transaction (no-op for MongoDB single operations)"""
-                    pass
 
                 def rollback(self):
                     """Rollback transaction (no-op for MongoDB single operations)"""
-                    pass
 
                 def close(self):
                     """Close connection (no-op, connection pooling handled by client)"""
-                    pass
 
                 def scalar(self):
                     """Compatibility method"""

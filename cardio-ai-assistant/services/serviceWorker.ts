@@ -1,6 +1,6 @@
 /**
  * Service Worker Registration
- * 
+ *
  * Manages the registration and lifecycle of the service worker
  * for offline support and PWA functionality.
  */
@@ -83,7 +83,7 @@ function handleRegistration(
   // Check if there's an update available
   registration.onupdatefound = () => {
     const installingWorker = registration.installing;
-    
+
     if (!installingWorker) return;
 
     installingWorker.onstatechange = () => {
@@ -130,12 +130,12 @@ export async function unregisterServiceWorker(): Promise<boolean> {
   try {
     const registration = await navigator.serviceWorker.ready;
     const success = await registration.unregister();
-    
+
     if (success) {
       console.log('[SW Registration] Service Worker unregistered');
       swRegistration = null;
     }
-    
+
     return success;
   } catch (error) {
     console.error('[SW Registration] Failed to unregister:', error);
@@ -201,10 +201,10 @@ export function queueOfflineRequest(
   headers: Record<string, string> = {}
 ): void {
   offlineQueue.push({ url, method, headers, body });
-  
+
   // Store in localStorage as backup
   localStorage.setItem('offline_queue', JSON.stringify(offlineQueue));
-  
+
   console.log('[SW Registration] Request queued for offline sync');
 }
 

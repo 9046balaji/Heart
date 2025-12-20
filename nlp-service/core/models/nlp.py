@@ -12,12 +12,10 @@ from core.models import (
     # Enums
     IntentEnum,
     SentimentEnum,
-    
     # Base models
     Entity,
     IntentResult,
     SentimentResult,
-    
     # Request/Response models
     EntityExtractionRequest,
     EntityExtractionResponse,
@@ -36,12 +34,10 @@ __all__ = [
     # Enums
     "IntentEnum",
     "SentimentEnum",
-    
     # Base models
     "Entity",
     "IntentResult",
     "SentimentResult",
-    
     # Request/Response models
     "EntityExtractionRequest",
     "EntityExtractionResponse",
@@ -54,4 +50,3 @@ __all__ = [
     "RiskAssessmentRequest",
     "RiskAssessmentResponse",
 ]
-

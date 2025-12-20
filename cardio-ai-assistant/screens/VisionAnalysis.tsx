@@ -1,8 +1,8 @@
 /**
  * VisionAnalysis Screen
- * 
+ *
  * AI-powered vision analysis for ECG images and food recognition.
- * 
+ *
  * Features:
  * - ECG Analysis Tab: Upload ECG strip images for rhythm analysis
  * - Food Recognition Tab: Upload meal photos for nutritional analysis

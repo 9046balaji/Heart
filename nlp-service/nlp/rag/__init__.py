@@ -27,11 +27,11 @@ Architecture:
 
 Usage:
     from rag import RAGPipeline, MemoriRAGBridge
-    
+
     # Simple query
     rag = RAGPipeline()
     response = await rag.query("What are symptoms of heart disease?")
-    
+
     # With Memori integration
     bridge = MemoriRAGBridge(memori=memori_instance, vector_store=rag.vector_store)
     results = await bridge.search("blood pressure history", user_id="user123")
@@ -39,7 +39,12 @@ Usage:
 
 from .embedding_service import EmbeddingService, get_embedding_service
 from .vector_store import VectorStore
-from .rag_pipeline import RAGPipeline, RetrievedContext, RAGResponse, create_rag_pipeline
+from .rag_pipeline import (
+    RAGPipeline,
+    RetrievedContext,
+    RAGResponse,
+    create_rag_pipeline,
+)
 from .memori_integration import MemoriRAGBridge, SyncConfig, create_memori_rag_bridge
 
 __all__ = [

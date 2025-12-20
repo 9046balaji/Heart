@@ -1,14 +1,14 @@
 /**
  * Enhanced Memory Service for Healthcare AI
- * 
+ *
  * Integrates with backend memory management API for:
  * - User preferences persistence
  * - Chat session management
  * - Context retrieval preview
  * - GDPR compliance (export, delete)
- * 
+ *
  * Implements chat.md architecture principles on the frontend.
- * 
+ *
  * @version 2.0.0
  */
 
@@ -148,7 +148,7 @@ class EnhancedMemoryService {
   private config: MemoryServiceConfig;
   private preferencesCache: Map<string, CacheEntry<Record<string, any>>> = new Map();
   private sessionsCache: Map<string, CacheEntry<ChatSession[]>> = new Map();
-  
+
   // Legacy support
   private localStore: MemoryChunk[] = [];
   private isInitialized = false;
@@ -186,7 +186,7 @@ class EnhancedMemoryService {
    * Get all preferences for a user.
    */
   async getPreferences(
-    userId: string, 
+    userId: string,
     options: { includeSensitive?: boolean; category?: string } = {}
   ): Promise<Record<string, any>> {
     // Check cache
@@ -205,7 +205,7 @@ class EnhancedMemoryService {
       `${this.config.baseUrl}/preferences/${userId}?${params}`
     );
     const data = await response.json();
-    
+
     // Cache the result
     if (this.config.enableLocalCache) {
       this.preferencesCache.set(userId, {
@@ -213,7 +213,7 @@ class EnhancedMemoryService {
         timestamp: Date.now(),
       });
     }
-    
+
     return data.preferences;
   }
 
@@ -221,8 +221,8 @@ class EnhancedMemoryService {
    * Get a single preference value.
    */
   async getPreference(
-    userId: string, 
-    key: string, 
+    userId: string,
+    key: string,
     defaultValue?: any
   ): Promise<any> {
     const response = await this.fetch(
@@ -279,12 +279,12 @@ class EnhancedMemoryService {
         body: JSON.stringify({ preferences, category }),
       }
     );
-    
+
     const data = await response.json();
-    
+
     // Invalidate cache
     this.preferencesCache.delete(userId);
-    
+
     return data.preferences_set;
   }
 
@@ -296,12 +296,12 @@ class EnhancedMemoryService {
       `${this.config.baseUrl}/preferences/${userId}/${key}`,
       { method: 'DELETE' }
     );
-    
+
     const data = await response.json();
-    
+
     // Invalidate cache
     this.preferencesCache.delete(userId);
-    
+
     return data.deleted;
   }
 
@@ -313,7 +313,7 @@ class EnhancedMemoryService {
    * Get all sessions for a user.
    */
   async getSessions(
-    userId: string, 
+    userId: string,
     options: { limit?: number; includeExpired?: boolean } = {}
   ): Promise<ChatSession[]> {
     const params = new URLSearchParams();
@@ -331,7 +331,7 @@ class EnhancedMemoryService {
    * Get history for a specific session.
    */
   async getSessionHistory(
-    sessionId: string, 
+    sessionId: string,
     limit: number = 100
   ): Promise<{ messages: ChatMessage[]; sessionInfo: any }> {
     const response = await this.fetch(
@@ -476,7 +476,7 @@ class EnhancedMemoryService {
       `${this.config.baseUrl}/gdpr/export/${userId}`,
       { method: 'POST' }
     );
-    
+
     const data = await response.json();
     return {
       userId: data.user_id,
@@ -507,13 +507,13 @@ class EnhancedMemoryService {
       `${this.config.baseUrl}/gdpr/delete/${userId}?confirm=true`,
       { method: 'DELETE' }
     );
-    
+
     const data = await response.json();
-    
+
     // Clear all caches
     this.preferencesCache.delete(userId);
     this.sessionsCache.delete(userId);
-    
+
     return {
       preferencesDeleted: data.preferences_deleted,
       sessionsDeleted: data.sessions_deleted,
@@ -545,7 +545,7 @@ class EnhancedMemoryService {
     const response = await this.fetch(
       `${this.config.baseUrl}/audit/${userId}?${params}`
     );
-    
+
     const data = await response.json();
     return data.audit_logs.map((log: any) => ({
       id: log.id,

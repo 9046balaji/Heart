@@ -33,13 +33,9 @@ from loguru import logger
 class AuthenticationError(Exception):
     """Raised when authentication fails"""
 
-    pass
-
 
 class AuthorizationError(Exception):
     """Raised when authorization check fails"""
-
-    pass
 
 
 class AuthProvider(ABC):
@@ -67,7 +63,6 @@ class AuthProvider(ABC):
             payload = jwt.decode(token, secret, algorithms=["HS256"])
             return payload.get("user_id") == user_id
         """
-        pass
 
     @abstractmethod
     def validate_assistant_access(
@@ -84,7 +79,6 @@ class AuthProvider(ABC):
         Returns:
             True if user has access to this assistant, False otherwise
         """
-        pass
 
     @abstractmethod
     def validate_session_access(
@@ -101,7 +95,6 @@ class AuthProvider(ABC):
         Returns:
             True if user has access to this session, False otherwise
         """
-        pass
 
     def extract_user_id(self, auth_token: str) -> str | None:
         """
@@ -343,22 +336,22 @@ class APIKeyAuthProvider(AuthProvider):
 class OAuth2AuthProvider(AuthProvider):
     """
     OAuth2-based authentication provider.
-    
+
     Validates OAuth2 access tokens by introspecting with the authorization server
     or validating JWT access tokens directly.
-    
+
     Supports:
     - Token introspection endpoint (RFC 7662)
     - JWT access tokens (self-contained)
     - OpenID Connect userinfo endpoint
-    
+
     Environment Variables:
         OAUTH2_ISSUER: OAuth2/OIDC issuer URL
         OAUTH2_CLIENT_ID: Client ID for token introspection
         OAUTH2_CLIENT_SECRET: Client secret for token introspection
         OAUTH2_JWKS_URI: JWKS endpoint for JWT validation
         OAUTH2_USERINFO_URI: OpenID Connect userinfo endpoint
-    
+
     Example:
         auth = OAuth2AuthProvider(
             issuer="https://auth.example.com",
@@ -366,7 +359,7 @@ class OAuth2AuthProvider(AuthProvider):
             client_secret="my-secret"
         )
     """
-    
+
     def __init__(
         self,
         issuer: str = None,
@@ -376,11 +369,11 @@ class OAuth2AuthProvider(AuthProvider):
         userinfo_uri: str = None,
         introspection_uri: str = None,
         audience: str = None,
-        use_jwt_validation: bool = True
+        use_jwt_validation: bool = True,
     ):
         """
         Initialize OAuth2 auth provider.
-        
+
         Args:
             issuer: OAuth2/OIDC issuer URL (used for discovery)
             client_id: Client ID for introspection
@@ -392,35 +385,39 @@ class OAuth2AuthProvider(AuthProvider):
             use_jwt_validation: If True, validate JWT locally; if False, use introspection
         """
         import os
-        
-        self.issuer = issuer or os.getenv('OAUTH2_ISSUER')
-        self.client_id = client_id or os.getenv('OAUTH2_CLIENT_ID')
-        self.client_secret = client_secret or os.getenv('OAUTH2_CLIENT_SECRET')
-        self.jwks_uri = jwks_uri or os.getenv('OAUTH2_JWKS_URI')
-        self.userinfo_uri = userinfo_uri or os.getenv('OAUTH2_USERINFO_URI')
-        self.introspection_uri = introspection_uri or os.getenv('OAUTH2_INTROSPECTION_URI')
-        self.audience = audience or os.getenv('OAUTH2_AUDIENCE')
+
+        self.issuer = issuer or os.getenv("OAUTH2_ISSUER")
+        self.client_id = client_id or os.getenv("OAUTH2_CLIENT_ID")
+        self.client_secret = client_secret or os.getenv("OAUTH2_CLIENT_SECRET")
+        self.jwks_uri = jwks_uri or os.getenv("OAUTH2_JWKS_URI")
+        self.userinfo_uri = userinfo_uri or os.getenv("OAUTH2_USERINFO_URI")
+        self.introspection_uri = introspection_uri or os.getenv(
+            "OAUTH2_INTROSPECTION_URI"
+        )
+        self.audience = audience or os.getenv("OAUTH2_AUDIENCE")
         self.use_jwt_validation = use_jwt_validation
-        
+
         # Cache for JWKS keys
         self._jwks_cache: dict[str, Any] | None = None
         self._jwks_cache_time: float = 0
         self._jwks_cache_ttl: float = 3600  # 1 hour
-        
+
         # Token cache for introspection results
         self._token_cache: dict[str, dict[str, Any]] = {}
-        
+
         # Import required libraries
         try:
             import requests
+
             self._requests = requests
         except ImportError:
             self._requests = None
             logger.warning("requests library not available for OAuth2 introspection")
-        
+
         try:
             from jose import jwt as jose_jwt
             from jose import jwk as jose_jwk
+
             self._jwt = jose_jwt
             self._jwk = jose_jwk
         except ImportError:
@@ -431,45 +428,54 @@ class OAuth2AuthProvider(AuthProvider):
                     "python-jose not available for JWT validation. "
                     "Install with: pip install python-jose[cryptography]"
                 )
-        
+
         # Auto-discover endpoints from issuer
         if self.issuer and not (self.jwks_uri and self.userinfo_uri):
             self._discover_endpoints()
-        
+
         logger.info(f"OAuth2AuthProvider initialized (issuer={self.issuer})")
-    
+
     def _discover_endpoints(self) -> None:
         """Discover OAuth2/OIDC endpoints from issuer."""
         if not self._requests:
             return
-        
+
         try:
             # Try OIDC discovery
-            discovery_url = f"{self.issuer.rstrip('/')}/.well-known/openid-configuration"
+            discovery_url = (
+                f"{self.issuer.rstrip('/')}/.well-known/openid-configuration"
+            )
             response = self._requests.get(discovery_url, timeout=10)
-            
+
             if response.status_code == 200:
                 config = response.json()
-                self.jwks_uri = self.jwks_uri or config.get('jwks_uri')
-                self.userinfo_uri = self.userinfo_uri or config.get('userinfo_endpoint')
-                self.introspection_uri = self.introspection_uri or config.get('introspection_endpoint')
+                self.jwks_uri = self.jwks_uri or config.get("jwks_uri")
+                self.userinfo_uri = self.userinfo_uri or config.get("userinfo_endpoint")
+                self.introspection_uri = self.introspection_uri or config.get(
+                    "introspection_endpoint"
+                )
                 logger.info(f"OAuth2 endpoints discovered from {discovery_url}")
             else:
-                logger.warning(f"Failed to discover OAuth2 endpoints: {response.status_code}")
+                logger.warning(
+                    f"Failed to discover OAuth2 endpoints: {response.status_code}"
+                )
         except Exception as e:
             logger.warning(f"OAuth2 endpoint discovery failed: {e}")
-    
+
     def _get_jwks(self) -> dict[str, Any] | None:
         """Get JWKS (JSON Web Key Set) with caching."""
         import time
-        
+
         # Check cache
-        if self._jwks_cache and (time.time() - self._jwks_cache_time) < self._jwks_cache_ttl:
+        if (
+            self._jwks_cache
+            and (time.time() - self._jwks_cache_time) < self._jwks_cache_ttl
+        ):
             return self._jwks_cache
-        
+
         if not self.jwks_uri or not self._requests:
             return None
-        
+
         try:
             response = self._requests.get(self.jwks_uri, timeout=10)
             if response.status_code == 200:
@@ -478,98 +484,100 @@ class OAuth2AuthProvider(AuthProvider):
                 return self._jwks_cache
         except Exception as e:
             logger.error(f"Failed to fetch JWKS: {e}")
-        
+
         return None
-    
+
     def _validate_jwt_token(self, auth_token: str) -> dict[str, Any] | None:
         """Validate JWT access token using JWKS."""
         if not self._jwt or not self._jwk:
             return None
-        
+
         try:
             # Remove Bearer prefix
             if auth_token.startswith("Bearer "):
                 auth_token = auth_token[7:]
-            
+
             # Get JWKS
             jwks = self._get_jwks()
             if not jwks:
                 logger.warning("No JWKS available for JWT validation")
                 return None
-            
+
             # Get token header to find key ID
             unverified_header = self._jwt.get_unverified_header(auth_token)
-            kid = unverified_header.get('kid')
-            
+            kid = unverified_header.get("kid")
+
             # Find matching key
             rsa_key = None
-            for key in jwks.get('keys', []):
-                if key.get('kid') == kid:
+            for key in jwks.get("keys", []):
+                if key.get("kid") == kid:
                     rsa_key = key
                     break
-            
+
             if not rsa_key:
                 logger.warning(f"No matching key found for kid={kid}")
                 return None
-            
+
             # Validate token
             options = {
-                'verify_aud': bool(self.audience),
-                'verify_iss': bool(self.issuer)
+                "verify_aud": bool(self.audience),
+                "verify_iss": bool(self.issuer),
             }
-            
+
             payload = self._jwt.decode(
                 auth_token,
                 rsa_key,
-                algorithms=['RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512'],
+                algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
                 audience=self.audience,
                 issuer=self.issuer,
-                options=options
+                options=options,
             )
-            
+
             return payload
-            
+
         except Exception as e:
             logger.warning(f"JWT validation failed: {e}")
             return None
-    
+
     def _introspect_token(self, auth_token: str) -> dict[str, Any] | None:
         """Introspect token with authorization server (RFC 7662)."""
         if not self.introspection_uri or not self._requests:
             return None
-        
+
         # Remove Bearer prefix
         if auth_token.startswith("Bearer "):
             auth_token = auth_token[7:]
-        
+
         # Check cache
         if auth_token in self._token_cache:
             cached = self._token_cache[auth_token]
             import time
-            if cached.get('_cached_at', 0) + 300 > time.time():  # 5 min cache
+
+            if cached.get("_cached_at", 0) + 300 > time.time():  # 5 min cache
                 return cached
-        
+
         try:
             response = self._requests.post(
                 self.introspection_uri,
-                data={'token': auth_token},
+                data={"token": auth_token},
                 auth=(self.client_id, self.client_secret) if self.client_id else None,
-                timeout=10
+                timeout=10,
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
-                if result.get('active'):
+                if result.get("active"):
                     import time
-                    result['_cached_at'] = time.time()
+
+                    result["_cached_at"] = time.time()
                     self._token_cache[auth_token] = result
                     return result
-            
+
         except Exception as e:
             logger.error(f"Token introspection failed: {e}")
-        
+
         return None
-    
+
     def _get_token_claims(self, auth_token: str) -> dict[str, Any] | None:
         """Get token claims via JWT validation or introspection."""
         # Try JWT validation first if enabled
@@ -577,65 +585,67 @@ class OAuth2AuthProvider(AuthProvider):
             claims = self._validate_jwt_token(auth_token)
             if claims:
                 return claims
-        
+
         # Fall back to introspection
         return self._introspect_token(auth_token)
-    
+
     def validate_user(self, user_id: str, auth_token: str) -> bool:
         """Validate OAuth2 token matches user_id."""
         claims = self._get_token_claims(auth_token)
         if not claims:
             return False
-        
+
         # Check user_id against common claim names
         token_user_id = (
-            claims.get('user_id') or 
-            claims.get('sub') or 
-            claims.get('username') or
-            claims.get('preferred_username')
+            claims.get("user_id")
+            or claims.get("sub")
+            or claims.get("username")
+            or claims.get("preferred_username")
         )
-        
+
         if token_user_id != user_id:
-            logger.warning(f"User ID mismatch: token={token_user_id}, requested={user_id}")
+            logger.warning(
+                f"User ID mismatch: token={token_user_id}, requested={user_id}"
+            )
             return False
-        
+
         return True
-    
+
     def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to assistant."""
         if not self.validate_user(user_id, auth_token):
             return False
-        
+
         claims = self._get_token_claims(auth_token)
         if not claims:
             return False
-        
+
         # Check for assistant permissions in token
-        allowed_assistants = claims.get('assistants', [])
+        allowed_assistants = claims.get("assistants", [])
         if not allowed_assistants:
             return True  # Allow all if none specified
-        
+
         return assistant_id in allowed_assistants
-    
+
     def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to session."""
         return self.validate_user(user_id, auth_token)
-    
+
     def extract_user_id(self, auth_token: str) -> str | None:
         """Extract user_id from OAuth2 token."""
         claims = self._get_token_claims(auth_token)
         if not claims:
             return None
-        
+
         return (
-            claims.get('user_id') or 
-            claims.get('sub') or 
-            claims.get('username') or
-            claims.get('preferred_username')
+            claims.get("user_id")
+            or claims.get("sub")
+            or claims.get("username")
+            or claims.get("preferred_username")
         )
 
 
@@ -652,20 +662,22 @@ def create_auth_provider(provider_type: str = "jwt", **kwargs) -> AuthProvider:
 
     Example:
         # JWT provider
-        auth = create_auth_provider("jwt", secret_key="secret")
+        import os
+        auth = create_auth_provider("jwt", secret_key=os.getenv("JWT_SECRET_KEY"))
 
         # API key provider
         auth = create_auth_provider(
             "api_key",
             api_key_validator=my_validator
         )
-        
+
         # OAuth2 provider
+        import os
         auth = create_auth_provider(
             "oauth2",
             issuer="https://auth.example.com",
             client_id="my-client-id",
-            client_secret="my-secret"
+            client_secret=os.getenv("OAUTH2_CLIENT_SECRET")
         )
 
         # Development only - no auth

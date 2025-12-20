@@ -1,10 +1,12 @@
 """
 Configuration for NLP Microservice
 """
+
 import os
-from typing import List, Dict, Any, Union
+from typing import List, Union
 from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
+
 
 # Helper for Ollama Host
 def _get_ollama_host():
@@ -14,25 +16,27 @@ def _get_ollama_host():
     # If explicitly set in environment, use it (highest priority)
     if os.getenv("OLLAMA_HOST"):
         return os.getenv("OLLAMA_HOST")
-    
+
     # Check if running in Docker (standard Docker env variable)
     if os.path.exists("/.dockerenv"):
         # Running inside a container - use host.docker.internal
         default_host = "http://host.docker.internal:11434"
         return os.getenv("OLLAMA_HOST_DOCKER", default_host)
-    
+
     # Not in Docker - assume localhost
     return "http://localhost:11434"
+
 
 class Settings(BaseSettings):
     """
     Application Settings using Pydantic
     """
+
     # Service Configuration
     SERVICE_NAME: str = "HeartGuard NLP Service"
     SERVICE_VERSION: str = "1.0.0"
     SERVICE_PORT: int = Field(default=5001, alias="NLP_SERVICE_PORT")
-    SERVICE_HOST: str = Field(default="0.0.0.0", alias="NLP_SERVICE_HOST")
+    SERVICE_HOST: str = Field(default="127.0.0.1", alias="NLP_SERVICE_HOST")
 
     # Database Configuration
     DATABASE_URL: str = "sqlite:///./nlp_cache.db"
@@ -41,31 +45,31 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(default="default-secret-key", env="SECRET_KEY")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         """
         Validate SECRET_KEY to prevent insecure defaults in production.
-        
+
         Security Requirements:
         - Must not be the default value in production or staging
         - Must be at least 32 characters long
         - Should be cryptographically random
-        
+
         Raises:
             ValueError: If SECRET_KEY is insecure or too short
         """
         # Check environment (default to development if not set)
         environment = os.getenv("ENVIRONMENT", "development").lower()
-        
+
         # In production AND staging, reject the default secret key
         if environment in ["production", "staging"] and v == "default-secret-key":
             raise ValueError(
                 "SECRET_KEY must be set to a secure value in production/staging. "
                 "Generate a random secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
             )
-        
+
         # Enforce minimum length for security (32 characters = 256 bits)
         # Skip this check if using default key in development (handled by warning below)
         if v != "default-secret-key" and len(v) < 32:
@@ -73,24 +77,26 @@ class Settings(BaseSettings):
                 f"SECRET_KEY must be at least 32 characters long (current: {len(v)}). "
                 "For production, use: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
             )
-        
+
         # Entropy check for production
         if environment == "production":
-            import hashlib
+            pass
+
             # Calculate entropy: unique_chars / total_chars
             entropy = len(set(v)) / len(v)
             if entropy < 0.5:
                 raise ValueError("SECRET_KEY has insufficient entropy for production")
-        
+
         # Warn if using default in development
         if v == "default-secret-key":
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(
                 "Using default SECRET_KEY in development. "
                 "Set a unique SECRET_KEY in .env for better security."
             )
-        
+
         return v
 
     # NLP Model Configuration
@@ -133,11 +139,15 @@ class Settings(BaseSettings):
     NOTIFICATIONS_ENABLED: bool = Field(default=True, env="FEATURE_NOTIFICATIONS")
     TOOLS_ENABLED: bool = Field(default=True, env="FEATURE_TOOLS")
     VISION_ENABLED: bool = Field(default=True, env="FEATURE_VISION")
-    NEW_AI_FRAMEWORKS_ENABLED: bool = Field(default=True, env="FEATURE_NEW_AI_FRAMEWORKS")
+    NEW_AI_FRAMEWORKS_ENABLED: bool = Field(
+        default=True, env="FEATURE_NEW_AI_FRAMEWORKS"
+    )
     EVALUATION_ENABLED: bool = Field(default=True, env="FEATURE_EVALUATION")
-    STRUCTURED_OUTPUTS_ENABLED: bool = Field(default=True, env="FEATURE_STRUCTURED_OUTPUTS")
+    STRUCTURED_OUTPUTS_ENABLED: bool = Field(
+        default=True, env="FEATURE_STRUCTURED_OUTPUTS"
+    )
     GENERATION_ENABLED: bool = Field(default=True, env="FEATURE_GENERATION")
-    
+
     USE_OLLAMA_FOR_RESPONSES: bool = True
     OLLAMA_FALLBACK_TO_LLM: bool = True
 
@@ -168,11 +178,11 @@ class Settings(BaseSettings):
     # CORS Configuration - includes ports 5173, 5174, 5175, 5176 for Vite dev server
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5000",
-        "http://localhost:5173", 
-        "http://localhost:5174", 
-        "http://localhost:5175", 
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
         "http://localhost:5176",
-        "https://heartguard.ai"
+        "https://heartguard.ai",
     ]
 
     # Rate Limiting
@@ -181,41 +191,41 @@ class Settings(BaseSettings):
     # =========================================================================
     # MEMORI INTEGRATION SETTINGS (Phase 2: Enhanced Memory Features)
     # =========================================================================
-    
+
     # Memory Manager Settings
     MEMORI_ENABLED: bool = True
     MEMORI_DATABASE_URL: str = "sqlite:///./memori.db"
     MEMORI_CACHE_SIZE: int = 100  # Max patient instances in LRU cache
-    MEMORI_POOL_SIZE: int = 10    # Database connection pool size
+    MEMORI_POOL_SIZE: int = 10  # Database connection pool size
     MEMORI_REQUEST_TIMEOUT: int = 30  # Timeout for memory operations (seconds)
-    
+
     # Embedding Search Settings (EmbeddingSearchEngine)
     MEMORI_EMBEDDING_USE_LOCAL: bool = True  # Use sentence-transformers locally
     MEMORI_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # Local embedding model
     MEMORI_EMBEDDING_SIMILARITY_THRESHOLD: float = 0.5  # Minimum similarity score
     MEMORI_EMBEDDING_CACHE_SIZE: int = 10000  # Embedding vector cache size
-    
+
     # Conscious Agent Settings (ConsciouscAgent)
     MEMORI_CONSCIOUS_INGEST: bool = True  # Auto-inject relevant memory
     MEMORI_CONSCIOUS_MEMORY_LIMIT: int = 10  # Max conscious memories to load
-    
+
     # Rate Limiting Settings (Memori RateLimiter)
     MEMORI_RATE_LIMIT_SEARCH: int = 60  # Searches per minute per user
     MEMORI_RATE_LIMIT_STORE: int = 100  # Stores per minute per user
     MEMORI_RATE_LIMIT_API_CALLS: int = 1000  # API calls per day per user
     MEMORI_STORAGE_QUOTA_MB: int = 100  # Storage quota per user in MB
     MEMORI_MEMORY_COUNT_LIMIT: int = 10000  # Max memories per user
-    
+
     # Auth Provider Settings (Optional - default to NoAuth for dev)
     MEMORI_AUTH_PROVIDER: str = "none"  # Options: "none", "jwt", "oauth2", "apikey"
     MEMORI_JWT_SECRET: str = ""  # JWT secret for JWTAuthProvider
     MEMORI_JWT_ALGORITHM: str = "HS256"
-    
+
     # Input Validation Settings
     MEMORI_INPUT_MAX_QUERY_LENGTH: int = 10000  # Max query length
     MEMORI_INPUT_VALIDATE_SQL_INJECTION: bool = True
     MEMORI_INPUT_SANITIZE_XSS: bool = True
-    
+
     # Circuit Breaker Settings
     MEMORI_CIRCUIT_BREAKER_THRESHOLD: int = 5  # Failures before opening
     MEMORI_CIRCUIT_BREAKER_TIMEOUT: int = 60  # Seconds before half-open
@@ -233,19 +243,22 @@ class Settings(BaseSettings):
         # Check for wildcard which is forbidden in production
         if "*" in v:
             raise ValueError("Wildcard CORS origin '*' is forbidden in production!")
-            
+
         # Ensure all origins are valid URLs
         for origin in v:
             if not origin.startswith(("http://", "https://")):
-                raise ValueError(f"Invalid CORS origin: {origin}. Must start with http:// or https://")
-                
+                raise ValueError(
+                    f"Invalid CORS origin: {origin}. Must start with http:// or https://"
+                )
+
         return v
 
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=True,
-        extra="ignore"  # Allow extra env vars like GOOGLE_*, SMTP_*, TWILIO_*, etc.
+        extra="ignore",  # Allow extra env vars like GOOGLE_*, SMTP_*, TWILIO_*, etc.
     )
+
 
 # Initialize Settings
 settings = Settings()
@@ -335,22 +348,67 @@ GENERATION_ENABLED = settings.GENERATION_ENABLED
 
 # Constants (Not Settings)
 EMERGENCY_KEYWORDS = [
-    "emergency", "severe", "critical", "can't breathe", "cannot breathe",
-    "passing out", "faint", "collapse", "help me", "911", "ambulance",
-    "dying", "heart attack", "stroke", "unresponsive", "unconscious",
-    "life threatening", "dial 911", "call 911", "please help"
+    "emergency",
+    "severe",
+    "critical",
+    "can't breathe",
+    "cannot breathe",
+    "passing out",
+    "faint",
+    "collapse",
+    "help me",
+    "911",
+    "ambulance",
+    "dying",
+    "heart attack",
+    "stroke",
+    "unresponsive",
+    "unconscious",
+    "life threatening",
+    "dial 911",
+    "call 911",
+    "please help",
 ]
 
 CARDIOVASCULAR_SYMPTOMS = [
-    "chest pain", "chest tightness", "chest discomfort", "chest pressure",
-    "shortness of breath", "difficulty breathing", "breathless", "dyspnea",
-    "dizziness", "dizzy", "lightheaded", "vertigo", "fainting",
-    "fatigue", "tired", "exhausted", "weakness", "extreme fatigue",
-    "palpitations", "heart pounding", "irregular heartbeat", "arrhythmia",
-    "nausea", "nauseous", "sick", "vomiting",
-    "sweating", "perspiration", "sweat", "diaphoresis",
-    "jaw pain", "arm pain", "shoulder pain", "back pain", "neck pain",
-    "fluttering heart", "racing heart", "heart skipping beats"
+    "chest pain",
+    "chest tightness",
+    "chest discomfort",
+    "chest pressure",
+    "shortness of breath",
+    "difficulty breathing",
+    "breathless",
+    "dyspnea",
+    "dizziness",
+    "dizzy",
+    "lightheaded",
+    "vertigo",
+    "fainting",
+    "fatigue",
+    "tired",
+    "exhausted",
+    "weakness",
+    "extreme fatigue",
+    "palpitations",
+    "heart pounding",
+    "irregular heartbeat",
+    "arrhythmia",
+    "nausea",
+    "nauseous",
+    "sick",
+    "vomiting",
+    "sweating",
+    "perspiration",
+    "sweat",
+    "diaphoresis",
+    "jaw pain",
+    "arm pain",
+    "shoulder pain",
+    "back pain",
+    "neck pain",
+    "fluttering heart",
+    "racing heart",
+    "heart skipping beats",
 ]
 
 MEDICATIONS_DATABASE = {
@@ -368,17 +426,31 @@ MEDICATIONS_DATABASE = {
     "clopidogrel": {"class": "antiplatelet", "frequency": "daily"},
     "dabigatran": {"class": "anticoagulant", "frequency": "twice_daily"},
     "warfarin": {"class": "anticoagulant", "frequency": "daily"},
-    "enoxaparin": {"class": "anticoagulant", "frequency": "twice_daily"}
+    "enoxaparin": {"class": "anticoagulant", "frequency": "twice_daily"},
 }
 
 HEART_HEALTHY_FOODS = {
-    "olive oil": "fat", "fish": "protein", "salmon": "protein",
-    "nuts": "fat", "almonds": "fat", "berries": "fruit",
-    "blueberries": "fruit", "strawberries": "fruit", "vegetables": "vegetable",
-    "broccoli": "vegetable", "spinach": "vegetable", "oats": "grain",
-    "whole wheat": "grain", "fiber": "fiber", "avocado": "fat",
-    "chicken": "protein", "turkey": "protein", "beans": "protein",
-    "lentils": "protein", "legumes": "protein", "whole grains": "grain"
+    "olive oil": "fat",
+    "fish": "protein",
+    "salmon": "protein",
+    "nuts": "fat",
+    "almonds": "fat",
+    "berries": "fruit",
+    "blueberries": "fruit",
+    "strawberries": "fruit",
+    "vegetables": "vegetable",
+    "broccoli": "vegetable",
+    "spinach": "vegetable",
+    "oats": "grain",
+    "whole wheat": "grain",
+    "fiber": "fiber",
+    "avocado": "fat",
+    "chicken": "protein",
+    "turkey": "protein",
+    "beans": "protein",
+    "lentils": "protein",
+    "legumes": "protein",
+    "whole grains": "grain",
 }
 
 MODEL_VERSIONS = {
@@ -389,11 +461,11 @@ MODEL_VERSIONS = {
 }
 
 OLLAMA_AVAILABLE_MODELS = [
-    "gemma3:4b",        # ✅ Default: balanced performance & capability
-    "gemma2:2b",        # Alternative: lightweight, fast
-    "gemma2:9b",        # Alternative: larger Gemma2 model
-    "phi3",             # Alternative: Microsoft Phi 3 (small, capable)
-    "neural-chat",      # Alternative: dialogue-optimized
-    "mistral",          # Alternative: powerful general-purpose
-    "llama2",           # Alternative: larger context window
+    "gemma3:4b",  # ✅ Default: balanced performance & capability
+    "gemma2:2b",  # Alternative: lightweight, fast
+    "gemma2:9b",  # Alternative: larger Gemma2 model
+    "phi3",  # Alternative: Microsoft Phi 3 (small, capable)
+    "neural-chat",  # Alternative: dialogue-optimized
+    "mistral",  # Alternative: powerful general-purpose
+    "llama2",  # Alternative: larger context window
 ]

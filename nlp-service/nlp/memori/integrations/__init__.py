@@ -18,12 +18,14 @@ completion(model="gpt-4o", messages=[...])  # Auto-recorded
 
 # Direct OpenAI (auto-wrapping)
 import openai
-client = openai.OpenAI(api_key="...")
+import os
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 client.chat.completions.create(...)  # Auto-recorded
 
 # Direct Anthropic (auto-wrapping)
 import anthropic
-client = anthropic.Anthropic(api_key="...")
+import os
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 client.messages.create(...)  # Auto-recorded
 ```
 
@@ -31,12 +33,9 @@ The universal system automatically detects and records ALL LLM providers
 without requiring wrapper classes or complex setup.
 """
 
-from typing import Any
-
 from loguru import logger
 
 # Legacy imports (all deprecated)
-from . import anthropic_integration, litellm_integration, openai_integration
 
 __all__ = [
     # New interceptor classes (recommended)

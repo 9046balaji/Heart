@@ -35,11 +35,10 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar
-from collections import defaultdict
 
-from nlp.memory_manager import MemoryManager, MemoryManagerMetrics
+from nlp.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +177,7 @@ class Histogram:
         self.values.append(value)
         # Keep only recent values
         if len(self.values) > self.max_size:
-            self.values = self.values[-self.max_size // 2:]
+            self.values = self.values[-self.max_size // 2 :]
 
     def percentile(self, p: float) -> float:
         """Calculate percentile (0-100)."""
@@ -298,12 +297,24 @@ class MemoriMetricsCollector:
         search_stats = self.search_latency_histogram.get_stats()
         lines.append("# HELP memori_search_duration_seconds Search operation latency")
         lines.append("# TYPE memori_search_duration_seconds histogram")
-        lines.append(f"memori_search_duration_seconds_bucket{{le=\"0.01\"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.01)}")
-        lines.append(f"memori_search_duration_seconds_bucket{{le=\"0.05\"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.05)}")
-        lines.append(f"memori_search_duration_seconds_bucket{{le=\"0.1\"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.1)}")
-        lines.append(f"memori_search_duration_seconds_bucket{{le=\"+Inf\"}} {len(self.search_latency_histogram.values)}")
-        lines.append(f"memori_search_duration_seconds_sum {sum(self.search_latency_histogram.values)}")
-        lines.append(f"memori_search_duration_seconds_count {len(self.search_latency_histogram.values)}")
+        lines.append(
+            f'memori_search_duration_seconds_bucket{{le="0.01"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.01)}'
+        )
+        lines.append(
+            f'memori_search_duration_seconds_bucket{{le="0.05"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.05)}'
+        )
+        lines.append(
+            f'memori_search_duration_seconds_bucket{{le="0.1"}} {sum(1 for v in self.search_latency_histogram.values if v <= 0.1)}'
+        )
+        lines.append(
+            f'memori_search_duration_seconds_bucket{{le="+Inf"}} {len(self.search_latency_histogram.values)}'
+        )
+        lines.append(
+            f"memori_search_duration_seconds_sum {sum(self.search_latency_histogram.values)}"
+        )
+        lines.append(
+            f"memori_search_duration_seconds_count {len(self.search_latency_histogram.values)}"
+        )
 
         # Counter metrics
         lines.append("# HELP memori_search_total Total number of search operations")
@@ -314,7 +325,9 @@ class MemoriMetricsCollector:
         lines.append("# TYPE memori_search_success_total counter")
         lines.append(f"memori_search_success_total {self.searches_successful}")
 
-        lines.append("# HELP memori_search_timeout_total Search operations that timed out")
+        lines.append(
+            "# HELP memori_search_timeout_total Search operations that timed out"
+        )
         lines.append("# TYPE memori_search_timeout_total counter")
         lines.append(f"memori_search_timeout_total {self.searches_timeout}")
 
@@ -328,9 +341,13 @@ class MemoriMetricsCollector:
         lines.append(f"memori_store_success_total {self.stores_successful}")
 
         # Circuit breaker
-        lines.append("# HELP memori_circuit_breaker_open_total Times circuit breaker opened")
+        lines.append(
+            "# HELP memori_circuit_breaker_open_total Times circuit breaker opened"
+        )
         lines.append("# TYPE memori_circuit_breaker_open_total counter")
-        lines.append(f"memori_circuit_breaker_open_total {self.circuit_breaker_open_count}")
+        lines.append(
+            f"memori_circuit_breaker_open_total {self.circuit_breaker_open_count}"
+        )
 
         return "\n".join(lines) + "\n"
 
@@ -348,7 +365,8 @@ class MemoriMetricsCollector:
                 "timeout": self.searches_timeout,
                 "success_rate_percent": (
                     (self.searches_successful / self.searches_total * 100)
-                    if self.searches_total > 0 else 0.0
+                    if self.searches_total > 0
+                    else 0.0
                 ),
                 "latency_ms": search_stats,
             },
@@ -358,7 +376,8 @@ class MemoriMetricsCollector:
                 "failed": self.stores_failed,
                 "success_rate_percent": (
                     (self.stores_successful / self.stores_total * 100)
-                    if self.stores_total > 0 else 0.0
+                    if self.stores_total > 0
+                    else 0.0
                 ),
                 "latency_ms": store_stats,
             },
@@ -471,13 +490,19 @@ async def get_memori_health_check() -> MemoriHealthCheck:
         store_stats = metrics_collector.store_latency_histogram.get_stats()
 
         search_success_rate = (
-            (metrics_collector.searches_successful / metrics_collector.searches_total * 100)
-            if metrics_collector.searches_total > 0 else 0.0
+            (
+                metrics_collector.searches_successful
+                / metrics_collector.searches_total
+                * 100
+            )
+            if metrics_collector.searches_total > 0
+            else 0.0
         )
 
         store_success_rate = (
             (metrics_collector.stores_successful / metrics_collector.stores_total * 100)
-            if metrics_collector.stores_total > 0 else 0.0
+            if metrics_collector.stores_total > 0
+            else 0.0
         )
 
         # Determine overall status
@@ -494,8 +519,11 @@ async def get_memori_health_check() -> MemoriHealthCheck:
             initialized=memory_mgr._initialized,
             cache_size=memory_mgr._cache.size(),
             cache_max_size=memory_mgr.cache_size,
-            circuit_breaker_state=memory_mgr.circuit_breaker.state.value
-            if hasattr(memory_mgr, "circuit_breaker") else "N/A",
+            circuit_breaker_state=(
+                memory_mgr.circuit_breaker.state.value
+                if hasattr(memory_mgr, "circuit_breaker")
+                else "N/A"
+            ),
             memory_search_success_rate=search_success_rate,
             memory_store_success_rate=store_success_rate,
             avg_search_latency_ms=search_stats.get("avg", 0.0) * 1000,
@@ -681,11 +709,11 @@ INTEGRATION WITH main.py:
    @app.get("/metrics")
    async def metrics():
        return await metrics_endpoint()
-   
+
    @app.get("/health/memori")
    async def memori_health():
        return await health_endpoint()
-   
+
    @app.get("/metrics/detailed")
    async def detailed_metrics():
        return await detailed_metrics_endpoint()

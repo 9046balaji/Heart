@@ -1,6 +1,6 @@
 /**
  * Vitals Store - Zustand slice for health vitals management
- * 
+ *
  * Centralizes:
  * - Blood pressure readings
  * - Heart rate data
@@ -18,7 +18,7 @@ import { immer } from 'zustand/middleware/immer';
 // Types
 // ============================================================================
 
-export type VitalType = 
+export type VitalType =
   | 'blood_pressure'
   | 'heart_rate'
   | 'blood_glucose'
@@ -69,39 +69,39 @@ export interface VitalsState {
   // Data
   readings: VitalReading[];
   goals: VitalGoal[];
-  
+
   // Computed/cached stats
   stats: Record<VitalType, VitalStats>;
-  
+
   // State
   isLoading: boolean;
   isSyncing: boolean;
   lastSyncedAt: string | null;
   error: string | null;
-  
+
   // Actions - CRUD
   addReading: (reading: Omit<VitalReading, 'id' | 'timestamp'>) => void;
   updateReading: (id: string, updates: Partial<VitalReading>) => void;
   deleteReading: (id: string) => void;
   bulkAddReadings: (readings: Omit<VitalReading, 'id'>[]) => void;
-  
+
   // Actions - Goals
   setGoal: (goal: VitalGoal) => void;
   removeGoal: (type: VitalType) => void;
-  
+
   // Actions - Query
   getReadings: (type: VitalType, days?: number) => VitalReading[];
   getLatestReading: (type: VitalType) => VitalReading | null;
   getStats: (type: VitalType) => VitalStats | null;
-  
+
   // Actions - Sync
   syncFromDevice: (deviceId: string) => Promise<void>;
   exportData: (types: VitalType[], format: 'json' | 'csv') => string;
-  
+
   // State setters
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  
+
   // Internal
   _recalculateStats: (type: VitalType) => void;
 }
@@ -114,7 +114,7 @@ const generateId = () => `vital_${Date.now()}_${Math.random().toString(36).subst
 
 const calculateStats = (readings: VitalReading[], type: VitalType): VitalStats => {
   const typeReadings = readings.filter(r => r.type === type);
-  
+
   if (typeReadings.length === 0) {
     return {
       type,
@@ -125,7 +125,7 @@ const calculateStats = (readings: VitalReading[], type: VitalType): VitalStats =
       readingCount: 0,
     };
   }
-  
+
   // Extract numeric values (handle BP specially)
   const values = typeReadings.map(r => {
     if (type === 'blood_pressure' && typeof r.value === 'object') {
@@ -133,12 +133,12 @@ const calculateStats = (readings: VitalReading[], type: VitalType): VitalStats =
     }
     return r.value as number;
   });
-  
+
   const sum = values.reduce((a, b) => a + b, 0);
   const average = sum / values.length;
   const min = Math.min(...values);
   const max = Math.max(...values);
-  
+
   // Calculate trend (compare recent vs older readings)
   let trend: VitalStats['trend'] = 'insufficient_data';
   if (typeReadings.length >= 5) {
@@ -146,9 +146,9 @@ const calculateStats = (readings: VitalReading[], type: VitalType): VitalStats =
     const older = values.slice(Math.floor(values.length / 2));
     const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
     const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-    
+
     const change = ((recentAvg - olderAvg) / olderAvg) * 100;
-    
+
     if (Math.abs(change) < 5) {
       trend = 'stable';
     } else if (change > 0) {
@@ -160,7 +160,7 @@ const calculateStats = (readings: VitalReading[], type: VitalType): VitalStats =
       trend = lowerIsBetter ? 'improving' : 'declining';
     }
   }
-  
+
   return {
     type,
     average: Math.round(average * 10) / 10,
@@ -203,20 +203,20 @@ export const useVitalsStore = create<VitalsState>()(
             id: generateId(),
             timestamp: new Date().toISOString(),
           };
-          
+
           // Insert at beginning (sorted by time desc)
           state.readings.unshift(newReading);
-          
+
           // Recalculate stats for this type
           state.stats[reading.type] = calculateStats(state.readings, reading.type);
         }),
-        
+
         updateReading: (id, updates) => set((state) => {
           const index = state.readings.findIndex(r => r.id === id);
           if (index !== -1) {
             const oldType = state.readings[index].type;
             state.readings[index] = { ...state.readings[index], ...updates };
-            
+
             // Recalculate stats
             state.stats[oldType] = calculateStats(state.readings, oldType);
             if (updates.type && updates.type !== oldType) {
@@ -224,7 +224,7 @@ export const useVitalsStore = create<VitalsState>()(
             }
           }
         }),
-        
+
         deleteReading: (id) => set((state) => {
           const reading = state.readings.find(r => r.id === id);
           if (reading) {
@@ -232,17 +232,17 @@ export const useVitalsStore = create<VitalsState>()(
             state.stats[reading.type] = calculateStats(state.readings, reading.type);
           }
         }),
-        
+
         bulkAddReadings: (readings) => set((state) => {
           const newReadings = readings.map(r => ({
             ...r,
             id: generateId(),
           }));
-          
+
           state.readings = [...newReadings, ...state.readings].sort(
             (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
           );
-          
+
           // Recalculate stats for affected types
           const types = new Set(readings.map(r => r.type));
           types.forEach(type => {
@@ -259,7 +259,7 @@ export const useVitalsStore = create<VitalsState>()(
             state.goals.push(goal);
           }
         }),
-        
+
         removeGoal: (type) => set((state) => {
           state.goals = state.goals.filter(g => g.type !== type);
         }),
@@ -269,17 +269,17 @@ export const useVitalsStore = create<VitalsState>()(
           const state = get();
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() - days);
-          
+
           return state.readings.filter(
             r => r.type === type && new Date(r.timestamp) >= cutoff
           );
         },
-        
+
         getLatestReading: (type) => {
           const state = get();
           return state.readings.find(r => r.type === type) || null;
         },
-        
+
         getStats: (type) => {
           const state = get();
           return state.stats[type] || null;
@@ -292,9 +292,9 @@ export const useVitalsStore = create<VitalsState>()(
             // In production, call device sync API
             // const readings = await deviceService.syncReadings(deviceId);
             // get().bulkAddReadings(readings);
-            
+
             await new Promise(r => setTimeout(r, 1000)); // Simulate
-            
+
             set((state) => {
               state.isSyncing = false;
               state.lastSyncedAt = new Date().toISOString();
@@ -306,15 +306,15 @@ export const useVitalsStore = create<VitalsState>()(
             });
           }
         },
-        
+
         exportData: (types, format) => {
           const state = get();
           const data = state.readings.filter(r => types.includes(r.type));
-          
+
           if (format === 'json') {
             return JSON.stringify(data, null, 2);
           }
-          
+
           // CSV format
           const headers = ['id', 'type', 'timestamp', 'value', 'unit', 'source', 'notes'];
           const rows = data.map(r => [
@@ -326,14 +326,14 @@ export const useVitalsStore = create<VitalsState>()(
             r.source,
             r.notes || '',
           ]);
-          
+
           return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         },
 
         // State setters
         setLoading: (loading) => set({ isLoading: loading }),
         setError: (error) => set({ error }),
-        
+
         // Internal
         _recalculateStats: (type) => set((state) => {
           state.stats[type] = calculateStats(state.readings, type);
@@ -361,13 +361,13 @@ export const selectStats = (state: VitalsState) => state.stats;
 export const selectIsSyncing = (state: VitalsState) => state.isSyncing;
 
 // Type-specific selectors
-export const selectBloodPressureReadings = (state: VitalsState) => 
+export const selectBloodPressureReadings = (state: VitalsState) =>
   state.readings.filter(r => r.type === 'blood_pressure');
 
-export const selectHeartRateReadings = (state: VitalsState) => 
+export const selectHeartRateReadings = (state: VitalsState) =>
   state.readings.filter(r => r.type === 'heart_rate');
 
-export const selectWeightReadings = (state: VitalsState) => 
+export const selectWeightReadings = (state: VitalsState) =>
   state.readings.filter(r => r.type === 'weight');
 
 // ============================================================================
@@ -378,7 +378,7 @@ export const useBloodPressure = () => {
   const readings = useVitalsStore(selectBloodPressureReadings);
   const stats = useVitalsStore(state => state.stats.blood_pressure);
   const addReading = useVitalsStore(state => state.addReading);
-  
+
   return {
     readings,
     stats,
@@ -396,7 +396,7 @@ export const useHeartRate = () => {
   const readings = useVitalsStore(selectHeartRateReadings);
   const stats = useVitalsStore(state => state.stats.heart_rate);
   const addReading = useVitalsStore(state => state.addReading);
-  
+
   return {
     readings,
     stats,
@@ -416,7 +416,7 @@ export const useWeight = () => {
   const stats = useVitalsStore(state => state.stats.weight);
   const addReading = useVitalsStore(state => state.addReading);
   const preferences = { unit: 'lbs' }; // Would get from user store
-  
+
   return {
     readings,
     stats,

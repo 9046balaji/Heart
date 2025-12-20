@@ -43,6 +43,7 @@ class ConditionCategory(Enum):
 @dataclass
 class Guideline:
     """A single medical guideline."""
+
     id: str
     title: str
     content: str
@@ -51,7 +52,7 @@ class Guideline:
     keywords: List[str] = field(default_factory=list)
     related_conditions: List[str] = field(default_factory=list)
     last_updated: str = "2024"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -68,6 +69,7 @@ class Guideline:
 @dataclass
 class BloodPressureRange:
     """Blood pressure classification."""
+
     category: str
     systolic_min: int
     systolic_max: int
@@ -80,43 +82,78 @@ class BloodPressureRange:
 class CardiovascularGuidelines:
     """
     Cardiovascular disease guidelines knowledge base.
-    
+
     Provides structured access to cardiovascular health information
     for augmenting AI responses.
-    
+
     Example:
         guidelines = CardiovascularGuidelines()
-        
+
         # Get heart failure info
         hf_info = guidelines.get_condition_info("heart_failure")
-        
+
         # Classify blood pressure
         bp_class = guidelines.classify_blood_pressure(130, 85)
         print(f"Category: {bp_class['category']}")
-        
+
         # Search guidelines
         results = guidelines.search("chest pain symptoms")
     """
-    
+
     # Blood Pressure Classifications (AHA Guidelines)
     BP_CLASSIFICATIONS = [
-        BloodPressureRange("Normal", 0, 120, 0, 80, RiskLevel.LOW,
-            "Maintain healthy lifestyle. No medication typically needed."),
-        BloodPressureRange("Elevated", 120, 129, 0, 80, RiskLevel.MODERATE,
-            "Lifestyle modifications recommended: diet, exercise, stress management."),
-        BloodPressureRange("High Blood Pressure Stage 1", 130, 139, 80, 89, RiskLevel.HIGH,
-            "Lifestyle changes and possibly medication. Consult healthcare provider."),
-        BloodPressureRange("High Blood Pressure Stage 2", 140, 180, 90, 120, RiskLevel.HIGH,
-            "Medication likely needed along with lifestyle changes. Regular monitoring."),
-        BloodPressureRange("Hypertensive Crisis", 180, 999, 120, 999, RiskLevel.VERY_HIGH,
-            "SEEK IMMEDIATE MEDICAL ATTENTION. This is a medical emergency."),
+        BloodPressureRange(
+            "Normal",
+            0,
+            120,
+            0,
+            80,
+            RiskLevel.LOW,
+            "Maintain healthy lifestyle. No medication typically needed.",
+        ),
+        BloodPressureRange(
+            "Elevated",
+            120,
+            129,
+            0,
+            80,
+            RiskLevel.MODERATE,
+            "Lifestyle modifications recommended: diet, exercise, stress management.",
+        ),
+        BloodPressureRange(
+            "High Blood Pressure Stage 1",
+            130,
+            139,
+            80,
+            89,
+            RiskLevel.HIGH,
+            "Lifestyle changes and possibly medication. Consult healthcare provider.",
+        ),
+        BloodPressureRange(
+            "High Blood Pressure Stage 2",
+            140,
+            180,
+            90,
+            120,
+            RiskLevel.HIGH,
+            "Medication likely needed along with lifestyle changes. Regular monitoring.",
+        ),
+        BloodPressureRange(
+            "Hypertensive Crisis",
+            180,
+            999,
+            120,
+            999,
+            RiskLevel.VERY_HIGH,
+            "SEEK IMMEDIATE MEDICAL ATTENTION. This is a medical emergency.",
+        ),
     ]
-    
+
     def __init__(self):
         """Initialize the cardiovascular guidelines database."""
         self._guidelines: Dict[str, Guideline] = {}
         self._load_guidelines()
-    
+
     def _load_guidelines(self) -> None:
         """Load all cardiovascular guidelines."""
         guidelines = [
@@ -124,7 +161,7 @@ class CardiovascularGuidelines:
             Guideline(
                 id="hf_overview",
                 title="Heart Failure Overview",
-                content="""Heart failure is a chronic condition where the heart cannot pump blood 
+                content="""Heart failure is a chronic condition where the heart cannot pump blood
 efficiently enough to meet the body's needs. It does not mean the heart has stopped working.
 
 Types of Heart Failure:
@@ -146,14 +183,24 @@ Ejection Fraction (EF) is the percentage of blood pumped out of the heart with e
 Normal EF is 55-70%.""",
                 category=ConditionCategory.HEART_FAILURE,
                 source="AHA/ACC Heart Failure Guidelines",
-                keywords=["heart failure", "HFrEF", "HFpEF", "ejection fraction", "symptoms", "shortness of breath"],
-                related_conditions=["coronary_artery_disease", "hypertension", "diabetes"],
+                keywords=[
+                    "heart failure",
+                    "HFrEF",
+                    "HFpEF",
+                    "ejection fraction",
+                    "symptoms",
+                    "shortness of breath",
+                ],
+                related_conditions=[
+                    "coronary_artery_disease",
+                    "hypertension",
+                    "diabetes",
+                ],
             ),
-            
             Guideline(
                 id="hf_treatment",
                 title="Heart Failure Treatment Guidelines",
-                content="""Heart failure treatment focuses on managing symptoms, slowing progression, 
+                content="""Heart failure treatment focuses on managing symptoms, slowing progression,
 and improving quality of life.
 
 First-Line Medications for HFrEF (Guideline-Directed Medical Therapy - GDMT):
@@ -182,10 +229,16 @@ Lifestyle Modifications:
 - Limit alcohol""",
                 category=ConditionCategory.HEART_FAILURE,
                 source="AHA/ACC Heart Failure Guidelines 2022",
-                keywords=["treatment", "medications", "ACE inhibitor", "beta blocker", "diuretic", "GDMT"],
+                keywords=[
+                    "treatment",
+                    "medications",
+                    "ACE inhibitor",
+                    "beta blocker",
+                    "diuretic",
+                    "GDMT",
+                ],
                 related_conditions=["kidney_disease", "diabetes"],
             ),
-            
             # HYPERTENSION
             Guideline(
                 id="htn_overview",
@@ -218,14 +271,19 @@ Risk Factors:
 Often called the "silent killer" because there are usually no symptoms until damage occurs.""",
                 category=ConditionCategory.HYPERTENSION,
                 source="AHA Blood Pressure Guidelines 2017",
-                keywords=["hypertension", "blood pressure", "systolic", "diastolic", "silent killer"],
+                keywords=[
+                    "hypertension",
+                    "blood pressure",
+                    "systolic",
+                    "diastolic",
+                    "silent killer",
+                ],
                 related_conditions=["heart_failure", "stroke", "kidney_disease"],
             ),
-            
             Guideline(
                 id="htn_treatment",
                 title="Hypertension Treatment Guidelines",
-                content="""Hypertension treatment aims to reduce blood pressure to target levels 
+                content="""Hypertension treatment aims to reduce blood pressure to target levels
 and prevent cardiovascular events.
 
 Blood Pressure Targets:
@@ -259,15 +317,21 @@ Monitoring:
 - Average multiple readings for accuracy""",
                 category=ConditionCategory.HYPERTENSION,
                 source="AHA/ACC Hypertension Guidelines",
-                keywords=["treatment", "medications", "DASH diet", "lifestyle", "ACE inhibitor", "ARB"],
+                keywords=[
+                    "treatment",
+                    "medications",
+                    "DASH diet",
+                    "lifestyle",
+                    "ACE inhibitor",
+                    "ARB",
+                ],
                 related_conditions=["diabetes", "kidney_disease"],
             ),
-            
             # ARRHYTHMIA
             Guideline(
                 id="afib_overview",
                 title="Atrial Fibrillation (AFib) Overview",
-                content="""Atrial fibrillation (AFib) is the most common type of irregular heartbeat 
+                content="""Atrial fibrillation (AFib) is the most common type of irregular heartbeat
 (arrhythmia). In AFib, the heart's upper chambers (atria) beat chaotically.
 
 Types of AFib:
@@ -300,14 +364,19 @@ Complications:
 - Cognitive decline: Associated with dementia risk""",
                 category=ConditionCategory.ARRHYTHMIA,
                 source="AHA/ACC AFib Guidelines",
-                keywords=["atrial fibrillation", "AFib", "arrhythmia", "irregular heartbeat", "palpitations"],
+                keywords=[
+                    "atrial fibrillation",
+                    "AFib",
+                    "arrhythmia",
+                    "irregular heartbeat",
+                    "palpitations",
+                ],
                 related_conditions=["stroke", "heart_failure"],
             ),
-            
             Guideline(
                 id="afib_treatment",
                 title="Atrial Fibrillation Treatment Guidelines",
-                content="""AFib treatment focuses on three goals: rate control, rhythm control, 
+                content="""AFib treatment focuses on three goals: rate control, rhythm control,
 and stroke prevention.
 
 1. STROKE PREVENTION (Most Important!)
@@ -342,10 +411,15 @@ Lifestyle:
 - Regular exercise""",
                 category=ConditionCategory.ARRHYTHMIA,
                 source="AHA/ACC AFib Guidelines 2023",
-                keywords=["AFib treatment", "anticoagulation", "blood thinner", "ablation", "CHA2DS2-VASc"],
+                keywords=[
+                    "AFib treatment",
+                    "anticoagulation",
+                    "blood thinner",
+                    "ablation",
+                    "CHA2DS2-VASc",
+                ],
                 related_conditions=["stroke", "hypertension"],
             ),
-            
             # CORONARY ARTERY DISEASE
             Guideline(
                 id="cad_overview",
@@ -382,10 +456,15 @@ Risk Factors:
 - Stress""",
                 category=ConditionCategory.CORONARY_ARTERY_DISEASE,
                 source="AHA/ACC CAD Guidelines",
-                keywords=["coronary artery disease", "CAD", "angina", "chest pain", "atherosclerosis"],
+                keywords=[
+                    "coronary artery disease",
+                    "CAD",
+                    "angina",
+                    "chest pain",
+                    "atherosclerosis",
+                ],
                 related_conditions=["heart_failure", "hypertension", "diabetes"],
             ),
-            
             # GENERAL CARDIOVASCULAR HEALTH
             Guideline(
                 id="cv_prevention",
@@ -421,10 +500,15 @@ Screening Recommendations:
 - Assess 10-year CV risk: Every 5 years (starting at age 40)""",
                 category=ConditionCategory.GENERAL,
                 source="AHA Life's Essential 8",
-                keywords=["prevention", "lifestyle", "diet", "exercise", "Life's Essential 8"],
+                keywords=[
+                    "prevention",
+                    "lifestyle",
+                    "diet",
+                    "exercise",
+                    "Life's Essential 8",
+                ],
                 related_conditions=["hypertension", "diabetes", "obesity"],
             ),
-            
             Guideline(
                 id="emergency_signs",
                 title="Cardiovascular Emergency Warning Signs",
@@ -462,38 +546,47 @@ DO NOT:
 - Take someone else's medication""",
                 category=ConditionCategory.GENERAL,
                 source="AHA Emergency Guidelines",
-                keywords=["emergency", "heart attack", "stroke", "911", "warning signs", "BE FAST"],
+                keywords=[
+                    "emergency",
+                    "heart attack",
+                    "stroke",
+                    "911",
+                    "warning signs",
+                    "BE FAST",
+                ],
                 related_conditions=["heart_failure", "arrhythmia"],
             ),
         ]
-        
+
         for guideline in guidelines:
             self._guidelines[guideline.id] = guideline
-    
+
     def get_all_guidelines(self) -> List[Guideline]:
         """Get all guidelines."""
         return list(self._guidelines.values())
-    
+
     def get_guideline(self, guideline_id: str) -> Optional[Guideline]:
         """Get a specific guideline by ID."""
         return self._guidelines.get(guideline_id)
-    
-    def get_guidelines_by_category(self, category: ConditionCategory) -> List[Guideline]:
+
+    def get_guidelines_by_category(
+        self, category: ConditionCategory
+    ) -> List[Guideline]:
         """Get all guidelines for a specific category."""
         return [g for g in self._guidelines.values() if g.category == category]
-    
+
     def get_condition_info(self, condition: str) -> Dict[str, Any]:
         """
         Get information about a specific condition.
-        
+
         Args:
             condition: Condition name or keyword
-            
+
         Returns:
             Dict with relevant guidelines and information
         """
         condition_lower = condition.lower().replace(" ", "_")
-        
+
         # Map common terms to categories
         condition_map = {
             "heart_failure": ConditionCategory.HEART_FAILURE,
@@ -509,64 +602,64 @@ DO NOT:
             "coronary_artery_disease": ConditionCategory.CORONARY_ARTERY_DISEASE,
             "angina": ConditionCategory.CORONARY_ARTERY_DISEASE,
         }
-        
+
         category = condition_map.get(condition_lower)
-        
+
         if category:
             guidelines = self.get_guidelines_by_category(category)
         else:
             # Search by keyword
             guidelines = self.search(condition)
-        
+
         return {
             "condition": condition,
             "guidelines": [g.to_dict() for g in guidelines],
             "found": len(guidelines),
         }
-    
+
     def search(self, query: str, max_results: int = 5) -> List[Guideline]:
         """
         Search guidelines by query.
-        
+
         Args:
             query: Search query
             max_results: Maximum results to return
-            
+
         Returns:
             List of matching guidelines
         """
         query_lower = query.lower()
         query_words = set(query_lower.split())
-        
+
         scored_guidelines = []
-        
+
         for guideline in self._guidelines.values():
             score = 0
-            
+
             # Title match (highest weight)
             if query_lower in guideline.title.lower():
                 score += 10
-            
+
             # Keyword match
             for keyword in guideline.keywords:
                 if keyword.lower() in query_lower:
                     score += 5
                 elif any(w in keyword.lower() for w in query_words):
                     score += 2
-            
+
             # Content match
             content_lower = guideline.content.lower()
             for word in query_words:
                 if word in content_lower:
                     score += 1
-            
+
             if score > 0:
                 scored_guidelines.append((score, guideline))
-        
+
         # Sort by score and return top results
         scored_guidelines.sort(key=lambda x: x[0], reverse=True)
         return [g for _, g in scored_guidelines[:max_results]]
-    
+
     def classify_blood_pressure(
         self,
         systolic: int,
@@ -574,17 +667,19 @@ DO NOT:
     ) -> Dict[str, Any]:
         """
         Classify blood pressure reading.
-        
+
         Args:
             systolic: Systolic pressure (top number)
             diastolic: Diastolic pressure (bottom number)
-            
+
         Returns:
             Dict with classification and recommendations
         """
         for bp_range in self.BP_CLASSIFICATIONS:
-            if (bp_range.systolic_min <= systolic <= bp_range.systolic_max and
-                bp_range.diastolic_min <= diastolic <= bp_range.diastolic_max):
+            if (
+                bp_range.systolic_min <= systolic <= bp_range.systolic_max
+                and bp_range.diastolic_min <= diastolic <= bp_range.diastolic_max
+            ):
                 return {
                     "reading": f"{systolic}/{diastolic}",
                     "category": bp_range.category,
@@ -592,7 +687,7 @@ DO NOT:
                     "recommendation": bp_range.recommendation,
                     "is_emergency": bp_range.risk_level == RiskLevel.VERY_HIGH,
                 }
-        
+
         # Default to highest category if above all ranges
         return {
             "reading": f"{systolic}/{diastolic}",
@@ -601,7 +696,7 @@ DO NOT:
             "recommendation": "Consult a healthcare provider for proper evaluation.",
             "is_emergency": systolic >= 180 or diastolic >= 120,
         }
-    
+
     def get_lifestyle_recommendations(self) -> List[Dict[str, str]]:
         """Get general lifestyle recommendations for heart health."""
         return [
@@ -646,28 +741,30 @@ DO NOT:
                 "priority": "high",
             },
         ]
-    
+
     def to_rag_documents(self) -> List[Dict[str, Any]]:
         """
         Convert guidelines to format suitable for RAG indexing.
-        
+
         Returns:
             List of documents ready for vector store
         """
         documents = []
-        
+
         for guideline in self._guidelines.values():
-            documents.append({
-                "id": f"cardio_guide_{guideline.id}",
-                "content": f"{guideline.title}\n\n{guideline.content}",
-                "metadata": {
-                    "source": guideline.source,
-                    "category": guideline.category.value,
-                    "keywords": guideline.keywords,
-                    "type": "cardiovascular_guideline",
-                },
-            })
-        
+            documents.append(
+                {
+                    "id": f"cardio_guide_{guideline.id}",
+                    "content": f"{guideline.title}\n\n{guideline.content}",
+                    "metadata": {
+                        "source": guideline.source,
+                        "category": guideline.category.value,
+                        "keywords": guideline.keywords,
+                        "type": "cardiovascular_guideline",
+                    },
+                }
+            )
+
         return documents
 
 
@@ -692,39 +789,41 @@ def get_cardiovascular_guidelines() -> CardiovascularGuidelines:
 
 if __name__ == "__main__":
     print("Testing CardiovascularGuidelines...")
-    
+
     guidelines = get_cardiovascular_guidelines()
-    
+
     # Test getting all guidelines
     all_guidelines = guidelines.get_all_guidelines()
     print(f"\n📚 Total guidelines: {len(all_guidelines)}")
-    
+
     # Test category search
-    hf_guidelines = guidelines.get_guidelines_by_category(ConditionCategory.HEART_FAILURE)
+    hf_guidelines = guidelines.get_guidelines_by_category(
+        ConditionCategory.HEART_FAILURE
+    )
     print(f"\n❤️ Heart failure guidelines: {len(hf_guidelines)}")
     for g in hf_guidelines:
         print(f"  - {g.title}")
-    
+
     # Test blood pressure classification
     print("\n🩺 Blood pressure classifications:")
     test_readings = [(115, 75), (125, 78), (135, 85), (145, 95), (185, 125)]
     for sys, dia in test_readings:
         result = guidelines.classify_blood_pressure(sys, dia)
         print(f"  {result['reading']}: {result['category']} ({result['risk_level']})")
-    
+
     # Test search
     print("\n🔍 Search for 'chest pain':")
     results = guidelines.search("chest pain")
     for r in results:
         print(f"  - {r.title}")
-    
+
     # Test condition info
     print("\n📋 Get condition info for 'afib':")
     info = guidelines.get_condition_info("afib")
     print(f"  Found {info['found']} guidelines")
-    
+
     # Test RAG documents
     rag_docs = guidelines.to_rag_documents()
     print(f"\n📄 RAG documents ready: {len(rag_docs)}")
-    
+
     print("\n✅ CardiovascularGuidelines tests passed!")

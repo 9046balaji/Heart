@@ -590,14 +590,14 @@ The NLP service supports conditional loading of feature modules. Each module can
 **Symptom Inquiry**:
 ```
 User: "I've been having chest pain for the past 2 days"
-System: Detects symptom entity, assesses urgency, provides recommendations, 
+System: Detects symptom entity, assesses urgency, provides recommendations,
         may escalate if emergency keywords detected
 ```
 
 **Risk Assessment**:
 ```
 User: Provides age, blood pressure, cholesterol levels
-System: Calculates Framingham Risk Score, provides interpretation and 
+System: Calculates Framingham Risk Score, provides interpretation and
         personalized recommendations
 ```
 

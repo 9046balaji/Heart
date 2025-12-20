@@ -1,9 +1,9 @@
 """
 Risk Assessment Engine
 """
+
 from typing import Dict, List, Tuple
 import os
-import hashlib
 from core.models import HealthMetrics, RiskAssessmentResponse
 from core.error_handling import (
     ProcessingError,
@@ -13,6 +13,7 @@ from core.error_handling import (
 # Conditional import for ML models
 try:
     from medical_ai.ml_risk_assessor import MLRiskAssessor
+
     ML_AVAILABLE = True
 except ImportError as e:
     ML_AVAILABLE = False
@@ -36,11 +37,11 @@ class RiskAssessor:
         self.diabetes_coefficient = 0.2
         self.family_history_coefficient = 0.15
         self.activity_coefficient = -0.001
-        
+
         # Check if we should use ML models
         self.use_ml = os.getenv("USE_ML_RISK_MODELS", "false").lower() == "true"
         self.ml_assessor = None
-        
+
         if self.use_ml and ML_AVAILABLE:
             try:
                 ml_model_type = os.getenv("ML_RISK_MODEL_TYPE", "random_forest")
@@ -49,7 +50,7 @@ class RiskAssessor:
             except Exception as e:
                 print(f"Failed to initialize ML risk assessor: {e}")
                 self.use_ml = False
-        
+
         # PHASE 2B ENHANCEMENT: Risk assessment result caching
         self._assessment_cache = {}  # Key: hash(metrics), Value: RiskAssessmentResponse
         self._cache_hits = 0
@@ -58,7 +59,7 @@ class RiskAssessor:
     def assess_risk(self, metrics: HealthMetrics) -> RiskAssessmentResponse:
         """
         Calculate cardiovascular disease risk based on health metrics.
-        
+
         PHASE 2B ENHANCEMENT: Cache risk assessment results to avoid recalculation
         for identical metrics.
 
@@ -69,26 +70,28 @@ class RiskAssessor:
             RiskAssessmentResponse with risk level, score, and recommendations
         """
         # Create cache key from metrics tuple
-        cache_key = hash((
-            metrics.age,
-            metrics.blood_pressure_systolic,
-            metrics.blood_pressure_diastolic,
-            metrics.cholesterol_total,
-            metrics.cholesterol_ldl,
-            metrics.cholesterol_hdl,
-            metrics.smoking_status,
-            metrics.diabetes,
-            metrics.family_history_heart_disease,
-            metrics.physical_activity_minutes_per_week
-        ))
-        
+        cache_key = hash(
+            (
+                metrics.age,
+                metrics.blood_pressure_systolic,
+                metrics.blood_pressure_diastolic,
+                metrics.cholesterol_total,
+                metrics.cholesterol_ldl,
+                metrics.cholesterol_hdl,
+                metrics.smoking_status,
+                metrics.diabetes,
+                metrics.family_history_heart_disease,
+                metrics.physical_activity_minutes_per_week,
+            )
+        )
+
         # Check cache first (avoid recalculation)
         if cache_key in self._assessment_cache:
             self._cache_hits += 1
             return self._assessment_cache[cache_key]
-        
+
         self._cache_misses += 1
-        
+
         # Use ML model if enabled and available
         if self.use_ml and self.ml_assessor:
             try:
@@ -98,7 +101,7 @@ class RiskAssessor:
                 return result
             except Exception as e:
                 print(f"ML model failed, falling back to Framingham Risk Score: {e}")
-        
+
         # Calculate base risk score (0-100)
         risk_score = self._calculate_framingham_score(metrics)
 
@@ -116,21 +119,20 @@ class RiskAssessor:
             risk_score=min(100, risk_score),  # Cap at 100
             risk_interpretation=risk_interpretation,
             recommendations=recommendations,
-            consultation_urgency=consultation_urgency
+            consultation_urgency=consultation_urgency,
         )
-        
+
         # Cache the result
         self._assessment_cache[cache_key] = result
-        
+
         # Limit cache size to prevent memory bloat (keep last 500 assessments)
         if len(self._assessment_cache) > 500:
             # Remove oldest entries (FIFO eviction)
             oldest_keys = list(self._assessment_cache.keys())[:50]
             for key in oldest_keys:
                 del self._assessment_cache[key]
-        
-        return result
 
+        return result
 
     def _calculate_framingham_score(self, metrics: HealthMetrics) -> float:
         """
@@ -250,9 +252,7 @@ class RiskAssessor:
             )
 
     def _generate_recommendations(
-        self,
-        metrics: HealthMetrics,
-        risk_score: float
+        self, metrics: HealthMetrics, risk_score: float
     ) -> List[str]:
         """
         Generate personalized recommendations.
@@ -268,72 +268,102 @@ class RiskAssessor:
 
         # Age-based recommendations
         if metrics.age >= 60:
-            recommendations.append("Schedule regular health screenings every 6-12 months")
+            recommendations.append(
+                "Schedule regular health screenings every 6-12 months"
+            )
 
         # Blood pressure recommendations
         if metrics.blood_pressure_systolic and metrics.blood_pressure_systolic >= 140:
             recommendations.append("Reduce sodium intake to less than 2,300mg per day")
-            recommendations.append("Monitor blood pressure regularly (daily if possible)")
-            recommendations.append("Consult your doctor about blood pressure medications")
+            recommendations.append(
+                "Monitor blood pressure regularly (daily if possible)"
+            )
+            recommendations.append(
+                "Consult your doctor about blood pressure medications"
+            )
 
         # Cholesterol recommendations
         if metrics.cholesterol_total and metrics.cholesterol_total >= 240:
             recommendations.append("Follow a heart-healthy diet low in saturated fats")
-            recommendations.append("Increase intake of fruits, vegetables, and whole grains")
-            recommendations.append("Consider statin therapy - discuss with your healthcare provider")
+            recommendations.append(
+                "Increase intake of fruits, vegetables, and whole grains"
+            )
+            recommendations.append(
+                "Consider statin therapy - discuss with your healthcare provider"
+            )
 
         # Smoking recommendations
         if metrics.smoking_status == "current":
-            recommendations.append("URGENT: Quit smoking - consult smoking cessation programs")
-            recommendations.append("Speak with your doctor about nicotine replacement options")
+            recommendations.append(
+                "URGENT: Quit smoking - consult smoking cessation programs"
+            )
+            recommendations.append(
+                "Speak with your doctor about nicotine replacement options"
+            )
 
         # Diabetes recommendations
         if metrics.diabetes:
             recommendations.append("Maintain blood glucose levels within target range")
             recommendations.append("Monitor blood sugar regularly")
-            recommendations.append("Work with an endocrinologist or diabetes specialist")
+            recommendations.append(
+                "Work with an endocrinologist or diabetes specialist"
+            )
 
         # Activity recommendations
         if metrics.physical_activity_minutes_per_week < 150:
-            recommendations.append("Aim for at least 150 minutes of moderate aerobic activity per week")
+            recommendations.append(
+                "Aim for at least 150 minutes of moderate aerobic activity per week"
+            )
             recommendations.append("Incorporate strength training 2-3 times per week")
             recommendations.append("Start gradually if currently sedentary")
 
         # Family history recommendations
         if metrics.family_history_heart_disease:
             recommendations.append("Inform your doctor about family history")
-            recommendations.append("Consider genetic screening if multiple family members affected")
+            recommendations.append(
+                "Consider genetic screening if multiple family members affected"
+            )
 
         # General recommendations
         if risk_score < 10:
             recommendations.append("Maintain current lifestyle habits")
             recommendations.append("Annual wellness visits recommended")
         elif risk_score < 20:
-            recommendations.append("Schedule consultation with cardiologist for risk assessment")
-            recommendations.append("Consider stress management techniques (meditation, yoga)")
+            recommendations.append(
+                "Schedule consultation with cardiologist for risk assessment"
+            )
+            recommendations.append(
+                "Consider stress management techniques (meditation, yoga)"
+            )
         else:
-            recommendations.append("URGENT: Schedule immediate consultation with cardiologist")
-            recommendations.append("May require medication therapy and intensive monitoring")
+            recommendations.append(
+                "URGENT: Schedule immediate consultation with cardiologist"
+            )
+            recommendations.append(
+                "May require medication therapy and intensive monitoring"
+            )
 
         return recommendations[:5]  # Return top 5 recommendations
 
     def get_cache_stats(self) -> Dict[str, any]:
         """
         PHASE 2B ENHANCEMENT: Get risk assessment cache statistics.
-        
+
         Returns:
             Dictionary with cache hit rate, size, and performance metrics
         """
         total_requests = self._cache_hits + self._cache_misses
-        hit_rate = (self._cache_hits / total_requests * 100) if total_requests > 0 else 0
-        
+        hit_rate = (
+            (self._cache_hits / total_requests * 100) if total_requests > 0 else 0
+        )
+
         return {
-            'cache_hits': self._cache_hits,
-            'cache_misses': self._cache_misses,
-            'total_cache_requests': total_requests,
-            'cache_hit_rate_percent': hit_rate,
-            'cache_size': len(self._assessment_cache),
-            'max_cache_size': 500
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "total_cache_requests": total_requests,
+            "cache_hit_rate_percent": hit_rate,
+            "cache_size": len(self._assessment_cache),
+            "max_cache_size": 500,
         }
 
     def _determine_urgency(self, risk_level: str, metrics: HealthMetrics) -> str:
@@ -356,4 +386,3 @@ class RiskAssessor:
             return "RECOMMENDED_WITHIN_MONTH"
         else:
             return "ANNUAL_CHECKUP"
-

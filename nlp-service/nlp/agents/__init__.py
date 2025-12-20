@@ -14,7 +14,7 @@ from .base import (
     AppointmentAgent,
     SequentialAgent,
     ParallelAgent,
-    HealthAppointmentOrchestrator
+    HealthAppointmentOrchestrator,
 )
 
 from .orchestrator import (

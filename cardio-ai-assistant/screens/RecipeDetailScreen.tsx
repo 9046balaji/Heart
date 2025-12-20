@@ -21,18 +21,18 @@ const extractDuration = (text: string): number => {
 // --- Helper: Highlight Techniques ---
 const HighlightedInstruction = ({ text, onTermClick }: { text: string, onTermClick: (term: string) => void }) => {
     const techniques = ['boil', 'simmer', 'sauté', 'saute', 'fry', 'bake', 'roast', 'grill', 'steam', 'poach', 'blanch', 'braise', 'stew', 'broil', 'marinate', 'whisk', 'fold', 'knead', 'julienne', 'dice', 'mince', 'chop', 'slice', 'peel', 'grate', 'zest', 'sear', 'mix', 'blend', 'mash', 'crush'];
-    
+
     // Split by regex, keeping the delimiter
     const regex = new RegExp(`\\b(${techniques.join('|')})\\b`, 'gi');
     const parts = text.split(regex);
-    
+
     return (
         <span>
             {parts.map((part, i) => {
                 if (techniques.some(t => t.toLowerCase() === part.toLowerCase())) {
                     return (
-                        <span 
-                            key={i} 
+                        <span
+                            key={i}
                             onClick={(e) => { e.stopPropagation(); onTermClick(part); }}
                             className="text-primary font-bold cursor-pointer border-b-2 border-dotted border-primary/50 hover:text-primary-dark hover:border-primary transition-colors"
                             title="Tap for explanation"
@@ -47,12 +47,12 @@ const HighlightedInstruction = ({ text, onTermClick }: { text: string, onTermCli
     );
 };
 
-const CookingModeOverlay = ({ 
-    recipe, 
+const CookingModeOverlay = ({
+    recipe,
     onClose,
-    onComplete 
-}: { 
-    recipe: any, 
+    onComplete
+}: {
+    recipe: any,
     onClose: () => void,
     onComplete: () => void
 }) => {
@@ -136,7 +136,7 @@ const CookingModeOverlay = ({
                 </button>
                 <div className="flex-1 mx-4">
                     <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
+                        <div
                             className="h-full bg-green-500 transition-all duration-300"
                             style={{width: `${((stepIndex + 1) / recipe.steps.length) * 100}%`}}
                         ></div>
@@ -161,7 +161,7 @@ const CookingModeOverlay = ({
                 {detectedDuration > 0 && (
                     <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {!timerActive && timeLeft === 0 ? (
-                            <button 
+                            <button
                                 onClick={() => startTimer(detectedDuration)}
                                 className="flex items-center gap-2 px-6 py-3 bg-slate-800 border border-slate-600 rounded-full hover:bg-slate-700 transition-colors text-lg font-medium text-orange-400 shadow-lg shadow-orange-500/10"
                             >
@@ -173,9 +173,9 @@ const CookingModeOverlay = ({
                                 <div className="relative">
                                     <svg className="w-48 h-48 transform -rotate-90">
                                         <circle cx="96" cy="96" r="90" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-800" />
-                                        <circle 
-                                            cx="96" cy="96" r="90" 
-                                            stroke="currentColor" strokeWidth="8" fill="transparent" 
+                                        <circle
+                                            cx="96" cy="96" r="90"
+                                            stroke="currentColor" strokeWidth="8" fill="transparent"
                                             className="text-orange-500 transition-all duration-1000 linear"
                                             strokeDasharray={565.48}
                                             strokeDashoffset={565.48 - ((timeLeft / initialTime) * 565.48)}
@@ -185,8 +185,8 @@ const CookingModeOverlay = ({
                                         <span className="text-4xl font-mono font-bold text-white">{formatTime(timeLeft)}</span>
                                     </div>
                                 </div>
-                                <button 
-                                    onClick={() => setTimerActive(!timerActive)} 
+                                <button
+                                    onClick={() => setTimerActive(!timerActive)}
                                     className="px-6 py-2 bg-white/10 rounded-full text-sm font-bold hover:bg-white/20 transition-colors"
                                 >
                                     {timerActive ? 'Pause' : 'Resume'}
@@ -199,14 +199,14 @@ const CookingModeOverlay = ({
 
             {/* Controls */}
             <div className="p-6 pb-8 flex gap-4">
-                <button 
+                <button
                     onClick={handlePrev}
                     disabled={stepIndex === 0}
                     className="flex-1 py-4 rounded-2xl font-bold text-lg bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-700 transition-colors"
                 >
                     Back
                 </button>
-                <button 
+                <button
                     onClick={handleNext}
                     className="flex-[2] py-4 rounded-2xl font-bold text-lg bg-primary text-white hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
                 >
@@ -229,7 +229,7 @@ const RecipeDetailScreen: React.FC = () => {
   // AI Modal States
   const [showSubModal, setShowSubModal] = useState(false);
   const [subModalData, setSubModalData] = useState<{ ingredient: string, result: string | null, loading: boolean }>({ ingredient: '', result: null, loading: false });
-  
+
   const [showTechModal, setShowTechModal] = useState(false);
   const [techModalData, setTechModalData] = useState<{ term: string, result: string | null, loading: boolean }>({ term: '', result: null, loading: false });
 
@@ -285,7 +285,7 @@ const RecipeDetailScreen: React.FC = () => {
               protein: recipe.macros.protein_g,
               carbs: recipe.macros.carbs_g,
               fat: recipe.macros.fat_g || recipe.macros.fats_g,
-              sodium: 0, 
+              sodium: 0,
               image: recipe.image,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
@@ -319,7 +319,7 @@ const RecipeDetailScreen: React.FC = () => {
     // Handle Old Data Format (String amount e.g. "300g" or "1 cup")
     const amountStr = String(item.amount);
     const numericMatch = amountStr.match(/^(\d+(\.\d+)?)/); // Matches number at start
-    
+
     if (numericMatch) {
         const baseVal = parseFloat(numericMatch[0]);
         if (!isNaN(baseVal)) {
@@ -329,7 +329,7 @@ const RecipeDetailScreen: React.FC = () => {
              return amountStr.replace(numericMatch[0], String(formatted));
         }
     }
-    
+
     // Fallback: just return the string if scaling fails
     return amountStr;
   };
@@ -338,13 +338,13 @@ const RecipeDetailScreen: React.FC = () => {
   const handleGetSubstitute = async (ingredient: string) => {
       setSubModalData({ ingredient, result: null, loading: true });
       setShowSubModal(true);
-      
+
       try {
           // Call backend API proxy
-          setSubModalData(prev => ({ 
-              ...prev, 
-              result: `Healthy substitutes for ${ingredient}:\n• Option 1\n• Option 2\n• Option 3`, 
-              loading: false 
+          setSubModalData(prev => ({
+              ...prev,
+              result: `Healthy substitutes for ${ingredient}:\n• Option 1\n• Option 2\n• Option 3`,
+              loading: false
           }));
       } catch (e) {
           setSubModalData(prev => ({ ...prev, result: "Could not load suggestions.", loading: false }));
@@ -355,13 +355,13 @@ const RecipeDetailScreen: React.FC = () => {
   const handleExplainTechnique = async (term: string) => {
       setTechModalData({ term, result: null, loading: true });
       setShowTechModal(true);
-      
+
       try {
           // Call backend API proxy
-          setTechModalData(prev => ({ 
-              ...prev, 
-              result: `${term} is a cooking method used to prepare food properly. It involves careful technique and timing.`, 
-              loading: false 
+          setTechModalData(prev => ({
+              ...prev,
+              result: `${term} is a cooking method used to prepare food properly. It involves careful technique and timing.`,
+              loading: false
           }));
       } catch (e) {
           setTechModalData(prev => ({ ...prev, result: "Could not load explanation.", loading: false }));
@@ -376,7 +376,7 @@ const RecipeDetailScreen: React.FC = () => {
       <div className="w-full h-[40vh] relative">
          <img src={getImageUrl(recipe.image)} alt={recipe.title} className="w-full h-full object-cover" />
          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/60"></div>
-         
+
          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10">
             <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-colors">
                 <span className="material-symbols-outlined">arrow_back</span>
@@ -390,7 +390,7 @@ const RecipeDetailScreen: React.FC = () => {
       {/* Content Sheet */}
       <div className="relative -mt-10 bg-white dark:bg-card-dark rounded-t-[32px] px-6 pt-8 pb-8 min-h-[70vh] shadow-2xl">
          <div className="w-12 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-6"></div>
-         
+
          <div className="mb-6">
              <div className="flex gap-2 mb-3 flex-wrap">
                  {recipe.tags && recipe.tags.slice(0,4).map((tag: string) => (
@@ -449,14 +449,14 @@ const RecipeDetailScreen: React.FC = () => {
          <div className="flex items-center justify-between mb-6 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl">
              <span className="text-sm font-bold dark:text-white">Servings</span>
              <div className="flex items-center gap-4">
-                 <button 
+                 <button
                     onClick={() => setServings(Math.max(1, servings - 1))}
                     className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-slate-600 dark:text-white"
                  >
                      <span className="material-symbols-outlined text-sm">remove</span>
                  </button>
                  <span className="font-bold w-4 text-center dark:text-white">{servings}</span>
-                 <button 
+                 <button
                     onClick={() => setServings(servings + 1)}
                     className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center text-slate-600 dark:text-white"
                  >
@@ -472,8 +472,8 @@ const RecipeDetailScreen: React.FC = () => {
                     key={tab}
                     onClick={() => setActiveTab(tab as any)}
                     className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${
-                        activeTab === tab 
-                        ? 'bg-white dark:bg-card-dark shadow-sm text-slate-900 dark:text-white' 
+                        activeTab === tab
+                        ? 'bg-white dark:bg-card-dark shadow-sm text-slate-900 dark:text-white'
                         : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                  >
@@ -494,7 +494,7 @@ const RecipeDetailScreen: React.FC = () => {
                                 <div className="flex items-center gap-3">
                                     <span className="text-slate-500 dark:text-slate-400 text-sm">{getIngredientDisplay(item)}</span>
                                     {/* Priority 3: Substitution Button */}
-                                    <button 
+                                    <button
                                         onClick={(e) => { e.stopPropagation(); handleGetSubstitute(item.name); }}
                                         className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                         title="Find Substitutes"
@@ -509,7 +509,7 @@ const RecipeDetailScreen: React.FC = () => {
              ) : (
                  <div className="space-y-8 relative pl-2">
                      <div className="absolute left-[19px] top-4 bottom-8 w-0.5 bg-slate-200 dark:bg-slate-700"></div>
-                     
+
                      {recipe.steps.map((step: string, i: number) => (
                          <div key={i} className="flex gap-6 relative z-10 group">
                              <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border-2 border-green-500 text-green-500 flex items-center justify-center text-sm font-bold flex-shrink-0 group-hover:bg-green-500 group-hover:text-white transition-colors">
@@ -529,7 +529,7 @@ const RecipeDetailScreen: React.FC = () => {
       </div>
 
       <div className="fixed bottom-6 left-6 right-6 z-20">
-          <button 
+          <button
             onClick={() => setIsCooking(true)}
             className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold shadow-xl shadow-primary/30 flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]"
           >
@@ -539,9 +539,9 @@ const RecipeDetailScreen: React.FC = () => {
       </div>
 
       {isCooking && (
-          <CookingModeOverlay 
-            recipe={recipe} 
-            onClose={() => setIsCooking(false)} 
+          <CookingModeOverlay
+            recipe={recipe}
+            onClose={() => setIsCooking(false)}
             onComplete={handleCookingComplete}
           />
       )}
@@ -555,7 +555,7 @@ const RecipeDetailScreen: React.FC = () => {
                       <span className="material-symbols-outlined text-blue-500">swap_horiz</span>
                       Substitutes for "{subModalData.ingredient}"
                   </h3>
-                  
+
                   {subModalData.loading ? (
                       <div className="flex flex-col items-center py-8">
                           <span className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></span>
@@ -578,7 +578,7 @@ const RecipeDetailScreen: React.FC = () => {
                   <button onClick={() => setShowTechModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><span className="material-symbols-outlined">close</span></button>
                   <h3 className="text-lg font-bold dark:text-white mb-2 capitalize">{techModalData.term}</h3>
                   <div className="h-0.5 w-10 bg-primary mb-4"></div>
-                  
+
                   {techModalData.loading ? (
                       <div className="flex items-center gap-3 text-slate-500 text-sm">
                           <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>

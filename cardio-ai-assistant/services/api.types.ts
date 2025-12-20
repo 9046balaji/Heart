@@ -1,6 +1,6 @@
 /**
  * API Types for Document and Vision Services
- * 
+ *
  * TypeScript interfaces matching backend API responses.
  * Healthcare-grade with strict typing for safety.
  */

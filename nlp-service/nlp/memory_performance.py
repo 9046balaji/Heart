@@ -31,13 +31,14 @@ import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 # Optional compression library
 try:
     import zstandard as zstd
+
     HAS_ZSTD = True
 except ImportError:
     HAS_ZSTD = False
@@ -228,7 +229,9 @@ class BatchMemoryProcessor:
         while True:
             await asyncio.sleep(self.max_batch_time_ms / 1000.0)
 
-            time_since_flush = (datetime.utcnow() - self.last_flush_time).total_seconds() * 1000
+            time_since_flush = (
+                datetime.utcnow() - self.last_flush_time
+            ).total_seconds() * 1000
             if time_since_flush > self.max_batch_time_ms and self.pending_operations:
                 await self.flush()
 
@@ -416,9 +419,11 @@ class MultiTierCache:
                 "hit_rate_percent": round(l2_hit_rate, 2),
             },
             "combined_hit_rate_percent": round(
-                ((self.l1_hits + self.l2_hits) / (l1_total + l2_total) * 100)
-                if (l1_total + l2_total) > 0
-                else 0,
+                (
+                    ((self.l1_hits + self.l2_hits) / (l1_total + l2_total) * 100)
+                    if (l1_total + l2_total) > 0
+                    else 0
+                ),
                 2,
             ),
         }
@@ -619,7 +624,8 @@ class QueryOptimizer:
                 # Newer = higher score
                 try:
                     days_old = (
-                        datetime.utcnow() - datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                        datetime.utcnow()
+                        - datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                     ).days
                     recency_bonus = max(0.5 - (days_old * 0.05), 0)
                     score_value += recency_bonus
@@ -820,7 +826,7 @@ INTEGRATION WITH main.py:
    # In app startup
    cache = MultiTierCache(l1_max_size=1000, redis_enabled=True)
    batch_processor = BatchMemoryProcessor(batch_size=100)
-   
+
    # Configure pool
    pool_config = PoolConfig.for_production()
    ```
@@ -828,7 +834,7 @@ INTEGRATION WITH main.py:
 3. Use compression for large entries:
    ```python
    from memory_middleware import with_memory_context
-   
+
    @app.post("/nlp/process")
    async def nlp_process(request: NLPRequest):
        # Large conversation context
@@ -858,11 +864,11 @@ INTEGRATION WITH main.py:
        page_size: int = 50
    ):
        results = await memory_mgr.search_memory(patient_id, query)
-       
+
        # Optimize results
        results = QueryOptimizer.deduplicate_results(results)
        results = QueryOptimizer.rank_by_relevance(results, query)
-       
+
        paginated = PaginationHelper.paginate_results(
            results, page, page_size
        )

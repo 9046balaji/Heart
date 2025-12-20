@@ -404,7 +404,7 @@ const WorkoutDetailScreen: React.FC = () => {
     const handleHeartRateChanged = (event: any) => {
         const value = event.target.value;
         // Parse standard Heart Rate Measurement
-        // First byte: flags. 
+        // First byte: flags.
         const flags = value.getUint8(0);
         const rate16Bits = flags & 0x1;
         let hr;

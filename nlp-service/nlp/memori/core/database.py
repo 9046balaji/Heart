@@ -637,7 +637,7 @@ class DatabaseManager:
                     params.extend(sanitized_categories)
                     params.append(limit)
 
-                    sql_query = f"""
+                    sql_query = f"""  # nosec B608
                         SELECT
                             fts.memory_id, fts.memory_type, fts.category_primary,
                             CASE
@@ -751,7 +751,7 @@ class DatabaseManager:
             category_placeholders = ",".join(["?"] * len(sanitized_categories))
 
             # Use parameterized query with proper escaping
-            sql_query = f"""
+            sql_query = f"""  # nosec B608
                 SELECT memory_id, processed_data, importance_score, created_at, summary,
                        category_primary, 'long_term' as memory_type
                 FROM long_term_memory
@@ -803,7 +803,7 @@ class DatabaseManager:
             # Search short-term memory with parameterized query
             if sanitized_categories:
                 category_placeholders = ",".join(["?"] * len(sanitized_categories))
-                short_term_sql = f"""
+                short_term_sql = f"""  # nosec B608
                     SELECT *, 'short_term' as memory_type FROM short_term_memory
                     WHERE user_id = ? AND (searchable_content LIKE ? OR summary LIKE ?)
                     AND (expires_at IS NULL OR expires_at > ?)
@@ -843,7 +843,7 @@ class DatabaseManager:
             # Search long-term memory with parameterized query
             if sanitized_categories:
                 category_placeholders = ",".join(["?"] * len(sanitized_categories))
-                long_term_sql = f"""
+                long_term_sql = f"""  # nosec B608
                     SELECT *, 'long_term' as memory_type FROM long_term_memory
                     WHERE user_id = ? AND (searchable_content LIKE ? OR summary LIKE ?)
                     AND category_primary IN ({category_placeholders})

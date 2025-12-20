@@ -1,6 +1,6 @@
 /**
  * User Store - Zustand slice for user profile and settings
- * 
+ *
  * Centralizes:
  * - User profile data
  * - Authentication state
@@ -85,40 +85,40 @@ export interface UserState {
   // Profile
   user: UserProfile | null;
   isAuthenticated: boolean;
-  
+
   // Notifications
   notifications: Notification[];
   unreadCount: number;
-  
+
   // Preferences
   preferences: UserPreferences;
-  
+
   // State
   isLoading: boolean;
   error: string | null;
-  
+
   // Profile actions
   setUser: (user: UserProfile) => void;
   updateUser: (updates: Partial<UserProfile>) => void;
   clearUser: () => void;
-  
+
   // Auth actions
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  
+
   // Notification actions
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
-  
+
   // Preference actions
   setPreferences: (preferences: Partial<UserPreferences>) => void;
   setTheme: (theme: UserPreferences['theme']) => void;
   setLanguage: (language: UserPreferences['language']) => void;
   setUnits: (units: Partial<UserPreferences['units']>) => void;
-  
+
   // State setters
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -177,7 +177,7 @@ export const useUserStore = create<UserState>()(
           state.user = user;
           state.isAuthenticated = true;
         }),
-        
+
         updateUser: (updates) => set((state) => {
           if (state.user) {
             state.user = {
@@ -187,7 +187,7 @@ export const useUserStore = create<UserState>()(
             };
           }
         }),
-        
+
         clearUser: () => set((state) => {
           state.user = null;
           state.isAuthenticated = false;
@@ -199,10 +199,10 @@ export const useUserStore = create<UserState>()(
           try {
             // In production, call auth API
             // const response = await authService.login(email, password);
-            
+
             // Simulate login
             await new Promise(r => setTimeout(r, 500));
-            
+
             const mockUser: UserProfile = {
               id: 'user_' + Date.now(),
               name: email.split('@')[0],
@@ -210,13 +210,13 @@ export const useUserStore = create<UserState>()(
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
-            
+
             set((state) => {
               state.user = mockUser;
               state.isAuthenticated = true;
               state.isLoading = false;
             });
-            
+
             return true;
           } catch (error) {
             set({
@@ -226,7 +226,7 @@ export const useUserStore = create<UserState>()(
             return false;
           }
         },
-        
+
         logout: () => set((state) => {
           state.user = null;
           state.isAuthenticated = false;
@@ -245,7 +245,7 @@ export const useUserStore = create<UserState>()(
           state.notifications.unshift(newNotification);
           state.unreadCount += 1;
         }),
-        
+
         markAsRead: (id) => set((state) => {
           const notification = state.notifications.find(n => n.id === id);
           if (notification && !notification.read) {
@@ -253,12 +253,12 @@ export const useUserStore = create<UserState>()(
             state.unreadCount = Math.max(0, state.unreadCount - 1);
           }
         }),
-        
+
         markAllAsRead: () => set((state) => {
           state.notifications.forEach(n => { n.read = true; });
           state.unreadCount = 0;
         }),
-        
+
         removeNotification: (id) => set((state) => {
           const notification = state.notifications.find(n => n.id === id);
           if (notification && !notification.read) {
@@ -266,7 +266,7 @@ export const useUserStore = create<UserState>()(
           }
           state.notifications = state.notifications.filter(n => n.id !== id);
         }),
-        
+
         clearNotifications: () => set((state) => {
           state.notifications = [];
           state.unreadCount = 0;
@@ -276,15 +276,15 @@ export const useUserStore = create<UserState>()(
         setPreferences: (preferences) => set((state) => {
           state.preferences = { ...state.preferences, ...preferences };
         }),
-        
+
         setTheme: (theme) => set((state) => {
           state.preferences.theme = theme;
         }),
-        
+
         setLanguage: (language) => set((state) => {
           state.preferences.language = language;
         }),
-        
+
         setUnits: (units) => set((state) => {
           state.preferences.units = { ...state.preferences.units, ...units };
         }),
@@ -329,7 +329,7 @@ export const useNotifications = () => {
   const addNotification = useUserStore(state => state.addNotification);
   const markAsRead = useUserStore(state => state.markAsRead);
   const markAllAsRead = useUserStore(state => state.markAllAsRead);
-  
+
   return {
     notifications,
     unreadCount,
@@ -345,7 +345,7 @@ export const useUserPreferences = () => {
   const setTheme = useUserStore(state => state.setTheme);
   const setLanguage = useUserStore(state => state.setLanguage);
   const setUnits = useUserStore(state => state.setUnits);
-  
+
   return {
     preferences,
     setPreferences,

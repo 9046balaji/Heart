@@ -1,6 +1,6 @@
 /**
  * Hooks Index
- * 
+ *
  * Central export for all custom React hooks
  */
 

@@ -1,9 +1,9 @@
 /**
  * Loading States Components
- * 
+ *
  * Higher-order components and utilities for managing loading states
  * with better UX patterns:
- * 
+ *
  * - Suspense boundaries with fallbacks
  * - Loading overlays
  * - Progress indicators
@@ -12,7 +12,7 @@
 
 import React, { Suspense, useState, useEffect, useCallback, ReactNode } from 'react';
 import { LoadingSpinner } from './LoadingSpinner';
-import { 
+import {
   Skeleton,
   CardSkeleton,
   ListSkeleton,
@@ -41,11 +41,11 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
     <div className="relative">
       {children}
       {isLoading && (
-        <div 
+        <div
           className={`
-            absolute inset-0 
-            flex items-center justify-center 
-            bg-white/80 dark:bg-slate-900/80 
+            absolute inset-0
+            flex items-center justify-center
+            bg-white/80 dark:bg-slate-900/80
             z-10
             ${blur ? 'backdrop-blur-sm' : ''}
           `}
@@ -123,17 +123,17 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   return (
     <div className={`flex flex-col items-center justify-center p-8 text-center ${className}`}>
       <div className="w-16 h-16 mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-        <svg 
-          className="w-8 h-8 text-red-600 dark:text-red-400" 
-          fill="none" 
-          viewBox="0 0 24 24" 
+        <svg
+          className="w-8 h-8 text-red-600 dark:text-red-400"
+          fill="none"
+          viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
           />
         </svg>
       </div>
@@ -297,14 +297,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   className = '',
 }) => {
   const clampedProgress = Math.min(100, Math.max(0, progress));
-  
+
   const colorClasses = {
     blue: 'bg-blue-600',
     green: 'bg-green-600',
     red: 'bg-red-600',
     yellow: 'bg-yellow-500',
   };
-  
+
   const sizeClasses = {
     sm: 'h-1',
     md: 'h-2',
@@ -411,7 +411,7 @@ export function useLoadingState(options: UseLoadingStateOptions = {}) {
     if (minimumLoadingTime > 0 && startTime) {
       const elapsed = Date.now() - startTime;
       const remaining = minimumLoadingTime - elapsed;
-      
+
       if (remaining > 0) {
         setTimeout(() => setIsLoading(false), remaining);
         return;

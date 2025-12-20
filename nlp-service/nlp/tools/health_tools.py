@@ -18,8 +18,7 @@ Tools included:
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
-import math
+from typing import List, Optional
 
 from .tool_registry import (
     register_tool,
@@ -34,15 +33,40 @@ logger = logging.getLogger(__name__)
 # VITAL SIGN ANALYZERS
 # =============================================================================
 
+
 @register_tool(
     name="blood_pressure_analyzer",
     description="Analyze blood pressure reading and provide classification and recommendations",
     parameters=[
-        ToolParameter("systolic", "integer", "Systolic pressure (top number) in mmHg", required=True),
-        ToolParameter("diastolic", "integer", "Diastolic pressure (bottom number) in mmHg", required=True),
-        ToolParameter("pulse", "integer", "Heart rate during measurement in bpm", required=False),
-        ToolParameter("arm", "string", "Which arm was used", required=False, enum=["left", "right"]),
-        ToolParameter("position", "string", "Position during measurement", required=False, enum=["sitting", "standing", "lying"]),
+        ToolParameter(
+            "systolic",
+            "integer",
+            "Systolic pressure (top number) in mmHg",
+            required=True,
+        ),
+        ToolParameter(
+            "diastolic",
+            "integer",
+            "Diastolic pressure (bottom number) in mmHg",
+            required=True,
+        ),
+        ToolParameter(
+            "pulse", "integer", "Heart rate during measurement in bpm", required=False
+        ),
+        ToolParameter(
+            "arm",
+            "string",
+            "Which arm was used",
+            required=False,
+            enum=["left", "right"],
+        ),
+        ToolParameter(
+            "position",
+            "string",
+            "Position during measurement",
+            required=False,
+            enum=["sitting", "standing", "lying"],
+        ),
     ],
     category="vitals",
     version="1.0.0",
@@ -56,7 +80,7 @@ def blood_pressure_analyzer(
 ) -> ToolResult:
     """
     Analyze blood pressure reading.
-    
+
     Classification based on AHA/ACC 2017 Guidelines:
     - Normal: <120 and <80
     - Elevated: 120-129 and <80
@@ -68,27 +92,31 @@ def blood_pressure_analyzer(
     if not (60 <= systolic <= 300):
         return ToolResult(
             success=False,
-            error=f"Invalid systolic pressure: {systolic}. Expected 60-300 mmHg."
+            error=f"Invalid systolic pressure: {systolic}. Expected 60-300 mmHg.",
         )
-    
+
     if not (40 <= diastolic <= 200):
         return ToolResult(
             success=False,
-            error=f"Invalid diastolic pressure: {diastolic}. Expected 40-200 mmHg."
+            error=f"Invalid diastolic pressure: {diastolic}. Expected 40-200 mmHg.",
         )
-    
+
     # Classify
     category = ""
     severity = ""
     recommendations = []
     warnings = []
-    
+
     if systolic > 180 or diastolic > 120:
         category = "Hypertensive Crisis"
         severity = "critical"
         warnings.append("⚠️ SEEK IMMEDIATE MEDICAL ATTENTION")
-        warnings.append("If experiencing headache, chest pain, or vision changes, call 911")
-        recommendations.append("Do not drive yourself - call emergency services or have someone drive you")
+        warnings.append(
+            "If experiencing headache, chest pain, or vision changes, call 911"
+        )
+        recommendations.append(
+            "Do not drive yourself - call emergency services or have someone drive you"
+        )
     elif systolic >= 140 or diastolic >= 90:
         category = "Hypertension Stage 2"
         severity = "high"
@@ -113,17 +141,29 @@ def blood_pressure_analyzer(
         severity = "normal"
         recommendations.append("Continue healthy habits")
         recommendations.append("Check blood pressure periodically")
-    
+
     # Check pulse if provided
     pulse_analysis = None
     if pulse:
         if pulse > 100:
-            pulse_analysis = {"rate": pulse, "category": "Tachycardia", "note": "Heart rate is elevated"}
+            pulse_analysis = {
+                "rate": pulse,
+                "category": "Tachycardia",
+                "note": "Heart rate is elevated",
+            }
         elif pulse < 60:
-            pulse_analysis = {"rate": pulse, "category": "Bradycardia", "note": "Heart rate is low (may be normal for athletes)"}
+            pulse_analysis = {
+                "rate": pulse,
+                "category": "Bradycardia",
+                "note": "Heart rate is low (may be normal for athletes)",
+            }
         else:
-            pulse_analysis = {"rate": pulse, "category": "Normal", "note": "Heart rate is within normal range"}
-    
+            pulse_analysis = {
+                "rate": pulse,
+                "category": "Normal",
+                "note": "Heart rate is within normal range",
+            }
+
     # Calculate pulse pressure (indicator of arterial stiffness)
     pulse_pressure = systolic - diastolic
     pp_analysis = None
@@ -131,7 +171,7 @@ def blood_pressure_analyzer(
         pp_analysis = "Wide pulse pressure - may indicate arterial stiffness"
     elif pulse_pressure < 25:
         pp_analysis = "Narrow pulse pressure"
-    
+
     return ToolResult(
         success=True,
         data={
@@ -157,11 +197,32 @@ def blood_pressure_analyzer(
     name="heart_rate_analyzer",
     description="Analyze heart rate and provide context-aware interpretation",
     parameters=[
-        ToolParameter("heart_rate", "integer", "Heart rate in beats per minute (bpm)", required=True),
-        ToolParameter("activity", "string", "Activity level during measurement", required=False, 
-                     enum=["resting", "light_activity", "moderate_activity", "vigorous_activity", "sleeping"]),
+        ToolParameter(
+            "heart_rate",
+            "integer",
+            "Heart rate in beats per minute (bpm)",
+            required=True,
+        ),
+        ToolParameter(
+            "activity",
+            "string",
+            "Activity level during measurement",
+            required=False,
+            enum=[
+                "resting",
+                "light_activity",
+                "moderate_activity",
+                "vigorous_activity",
+                "sleeping",
+            ],
+        ),
         ToolParameter("age", "integer", "Patient age in years", required=False),
-        ToolParameter("is_athlete", "boolean", "Whether patient is a trained athlete", required=False),
+        ToolParameter(
+            "is_athlete",
+            "boolean",
+            "Whether patient is a trained athlete",
+            required=False,
+        ),
     ],
     category="vitals",
     version="1.0.0",
@@ -174,7 +235,7 @@ def heart_rate_analyzer(
 ) -> ToolResult:
     """
     Analyze heart rate with context.
-    
+
     Normal resting heart rate: 60-100 bpm
     Athletes: 40-60 bpm
     """
@@ -182,14 +243,14 @@ def heart_rate_analyzer(
     if not (20 <= heart_rate <= 300):
         return ToolResult(
             success=False,
-            error=f"Invalid heart rate: {heart_rate}. Expected 20-300 bpm."
+            error=f"Invalid heart rate: {heart_rate}. Expected 20-300 bpm.",
         )
-    
+
     category = ""
     severity = ""
     recommendations = []
     warnings = []
-    
+
     # Resting analysis
     if activity == "resting" or activity == "sleeping":
         if heart_rate > 120:
@@ -216,12 +277,14 @@ def heart_rate_analyzer(
             if is_athlete:
                 recommendations.append("Normal for trained athletes")
             else:
-                recommendations.append("May be normal - monitor for symptoms like dizziness")
+                recommendations.append(
+                    "May be normal - monitor for symptoms like dizziness"
+                )
         else:
             category = "Normal"
             severity = "normal"
             recommendations.append("Heart rate is within normal range")
-    
+
     # Calculate max heart rate (220 - age) if age provided
     max_hr = None
     target_zones = None
@@ -232,7 +295,7 @@ def heart_rate_analyzer(
             "vigorous_exercise": f"{int(max_hr * 0.7)}-{int(max_hr * 0.85)} bpm",
             "maximum": f"{int(max_hr * 0.85)}-{max_hr} bpm",
         }
-    
+
     return ToolResult(
         success=True,
         data={
@@ -254,11 +317,17 @@ def heart_rate_analyzer(
 # MEDICATION TOOLS
 # =============================================================================
 
+
 @register_tool(
     name="medication_checker",
     description="Look up medication information including uses, side effects, and warnings",
     parameters=[
-        ToolParameter("medication_name", "string", "Name of medication (generic or brand)", required=True),
+        ToolParameter(
+            "medication_name",
+            "string",
+            "Name of medication (generic or brand)",
+            required=True,
+        ),
     ],
     category="medications",
     version="1.0.0",
@@ -267,9 +336,9 @@ def medication_checker(medication_name: str) -> ToolResult:
     """Look up medication information from the drug database."""
     try:
         from ..rag.knowledge_base import get_quick_drug_info
-        
+
         info = get_quick_drug_info(medication_name)
-        
+
         if not info:
             return ToolResult(
                 success=True,
@@ -277,10 +346,10 @@ def medication_checker(medication_name: str) -> ToolResult:
                     "found": False,
                     "medication": medication_name,
                     "message": f"Medication '{medication_name}' not found in database. "
-                              "Please verify spelling or consult a pharmacist.",
+                    "Please verify spelling or consult a pharmacist.",
                 },
             )
-        
+
         return ToolResult(
             success=True,
             data={
@@ -311,10 +380,11 @@ def medication_checker(medication_name: str) -> ToolResult:
     description="Check for potential interactions between multiple medications",
     parameters=[
         ToolParameter(
-            "medications", "array", 
+            "medications",
+            "array",
             "List of medication names to check for interactions",
             required=True,
-            items_type="string"
+            items_type="string",
         ),
     ],
     category="medications",
@@ -327,12 +397,12 @@ def drug_interaction_checker(medications: List[str]) -> ToolResult:
             success=False,
             error="At least 2 medications are required to check for interactions.",
         )
-    
+
     try:
         from ..rag.knowledge_base import check_drug_interactions_quick
-        
+
         interactions = check_drug_interactions_quick(medications)
-        
+
         warnings = []
         for interaction in interactions:
             severity = interaction.get("severity", "")
@@ -340,7 +410,7 @@ def drug_interaction_checker(medications: List[str]) -> ToolResult:
                 warnings.append(
                     f"⚠️ {interaction['drug1']} + {interaction['drug2']}: {interaction['effect']}"
                 )
-        
+
         return ToolResult(
             success=True,
             data={
@@ -365,26 +435,27 @@ def drug_interaction_checker(medications: List[str]) -> ToolResult:
 # SYMPTOM TOOLS
 # =============================================================================
 
+
 @register_tool(
     name="symptom_triage",
     description="Triage symptoms and determine urgency level",
     parameters=[
         ToolParameter(
-            "symptoms", "array",
+            "symptoms",
+            "array",
             "List of symptoms the patient is experiencing",
             required=True,
-            items_type="string"
+            items_type="string",
         ),
         ToolParameter(
-            "duration", "string",
+            "duration",
+            "string",
             "How long symptoms have been present",
             required=False,
-            enum=["minutes", "hours", "days", "weeks"]
+            enum=["minutes", "hours", "days", "weeks"],
         ),
         ToolParameter(
-            "severity", "integer",
-            "Severity on scale of 1-10",
-            required=False
+            "severity", "integer", "Severity on scale of 1-10", required=False
         ),
     ],
     category="symptoms",
@@ -398,23 +469,23 @@ def symptom_triage(
     """Triage symptoms and determine urgency."""
     try:
         from ..rag.knowledge_base import triage_symptoms_quick
-        
+
         triage = triage_symptoms_quick(symptoms)
-        
+
         # Add duration and severity to analysis
         urgency_level = triage.get("urgency", "routine")
-        
+
         # Escalate if severe
         if severity and severity >= 8:
             if urgency_level == "routine":
                 urgency_level = "soon"
             elif urgency_level == "soon":
                 urgency_level = "urgent"
-        
+
         warnings = []
         if urgency_level == "emergency":
             warnings.append("⚠️ CALL 911 OR GO TO EMERGENCY ROOM IMMEDIATELY")
-        
+
         return ToolResult(
             success=True,
             data={
@@ -438,25 +509,36 @@ def symptom_triage(
         # Fallback basic triage
         warnings = []
         urgency = "routine"
-        
-        emergency_symptoms = ["chest pain", "difficulty breathing", "severe headache", 
-                            "loss of consciousness", "stroke", "heart attack"]
-        
+
+        emergency_symptoms = [
+            "chest pain",
+            "difficulty breathing",
+            "severe headache",
+            "loss of consciousness",
+            "stroke",
+            "heart attack",
+        ]
+
         for symptom in symptoms:
             symptom_lower = symptom.lower()
             if any(es in symptom_lower for es in emergency_symptoms):
                 urgency = "emergency"
-                warnings.append(f"⚠️ '{symptom}' may require immediate medical attention")
+                warnings.append(
+                    f"⚠️ '{symptom}' may require immediate medical attention"
+                )
                 break
-        
+
         return ToolResult(
             success=True,
             data={
                 "symptoms": symptoms,
                 "urgency": urgency,
                 "message": "Please consult a healthcare provider for proper evaluation.",
-                "recommendations": ["Document your symptoms", "Note when they started", 
-                                   "Schedule an appointment with your doctor"],
+                "recommendations": [
+                    "Document your symptoms",
+                    "Note when they started",
+                    "Schedule an appointment with your doctor",
+                ],
             },
             warnings=warnings,
         )
@@ -466,14 +548,23 @@ def symptom_triage(
 # HEALTH CALCULATORS
 # =============================================================================
 
+
 @register_tool(
     name="bmi_calculator",
     description="Calculate Body Mass Index and provide interpretation",
     parameters=[
         ToolParameter("weight", "number", "Weight value", required=True),
-        ToolParameter("weight_unit", "string", "Weight unit", required=True, enum=["kg", "lbs"]),
+        ToolParameter(
+            "weight_unit", "string", "Weight unit", required=True, enum=["kg", "lbs"]
+        ),
         ToolParameter("height", "number", "Height value", required=True),
-        ToolParameter("height_unit", "string", "Height unit", required=True, enum=["m", "cm", "ft", "in"]),
+        ToolParameter(
+            "height_unit",
+            "string",
+            "Height unit",
+            required=True,
+            enum=["m", "cm", "ft", "in"],
+        ),
         ToolParameter("age", "integer", "Age in years (for context)", required=False),
     ],
     category="calculators",
@@ -491,7 +582,7 @@ def bmi_calculator(
     weight_kg = weight
     if weight_unit == "lbs":
         weight_kg = weight * 0.453592
-    
+
     # Convert height to meters
     height_m = height
     if height_unit == "cm":
@@ -500,24 +591,24 @@ def bmi_calculator(
         height_m = height * 0.3048
     elif height_unit == "in":
         height_m = height * 0.0254
-    
+
     # Validate
     if not (20 <= weight_kg <= 500):
         return ToolResult(
             success=False,
             error=f"Invalid weight: {weight_kg} kg. Please check your input.",
         )
-    
+
     if not (0.5 <= height_m <= 2.5):
         return ToolResult(
             success=False,
             error=f"Invalid height: {height_m} m. Please check your input.",
         )
-    
+
     # Calculate BMI
-    bmi = weight_kg / (height_m ** 2)
+    bmi = weight_kg / (height_m**2)
     bmi = round(bmi, 1)
-    
+
     # Classify
     if bmi < 18.5:
         category = "Underweight"
@@ -568,13 +659,13 @@ def bmi_calculator(
             "Medically supervised weight loss program",
             "Consider all treatment options with healthcare team",
         ]
-    
+
     # Calculate ideal weight range
     ideal_bmi_low = 18.5
     ideal_bmi_high = 24.9
-    ideal_weight_low = ideal_bmi_low * (height_m ** 2)
-    ideal_weight_high = ideal_bmi_high * (height_m ** 2)
-    
+    ideal_weight_low = ideal_bmi_low * (height_m**2)
+    ideal_weight_high = ideal_bmi_high * (height_m**2)
+
     return ToolResult(
         success=True,
         data={
@@ -593,8 +684,10 @@ def bmi_calculator(
             },
             "recommendations": recommendations,
         },
-        warnings=["BMI is a screening tool, not a diagnostic measure. "
-                 "It doesn't account for muscle mass or fat distribution."],
+        warnings=[
+            "BMI is a screening tool, not a diagnostic measure. "
+            "It doesn't account for muscle mass or fat distribution."
+        ],
     )
 
 
@@ -603,11 +696,24 @@ def bmi_calculator(
     description="Calculate 10-year cardiovascular disease risk (simplified ASCVD)",
     parameters=[
         ToolParameter("age", "integer", "Age in years", required=True),
-        ToolParameter("sex", "string", "Biological sex", required=True, enum=["male", "female"]),
-        ToolParameter("total_cholesterol", "integer", "Total cholesterol in mg/dL", required=True),
-        ToolParameter("hdl_cholesterol", "integer", "HDL cholesterol in mg/dL", required=True),
-        ToolParameter("systolic_bp", "integer", "Systolic blood pressure in mmHg", required=True),
-        ToolParameter("on_bp_meds", "boolean", "Currently on blood pressure medications", required=True),
+        ToolParameter(
+            "sex", "string", "Biological sex", required=True, enum=["male", "female"]
+        ),
+        ToolParameter(
+            "total_cholesterol", "integer", "Total cholesterol in mg/dL", required=True
+        ),
+        ToolParameter(
+            "hdl_cholesterol", "integer", "HDL cholesterol in mg/dL", required=True
+        ),
+        ToolParameter(
+            "systolic_bp", "integer", "Systolic blood pressure in mmHg", required=True
+        ),
+        ToolParameter(
+            "on_bp_meds",
+            "boolean",
+            "Currently on blood pressure medications",
+            required=True,
+        ),
         ToolParameter("diabetic", "boolean", "Has diabetes", required=True),
         ToolParameter("smoker", "boolean", "Current smoker", required=True),
     ],
@@ -626,7 +732,7 @@ def cardiovascular_risk_calculator(
 ) -> ToolResult:
     """
     Calculate 10-year cardiovascular risk.
-    
+
     This is a simplified calculation. The full ASCVD risk calculator uses
     the Pooled Cohort Equations which are more complex.
     """
@@ -636,38 +742,46 @@ def cardiovascular_risk_calculator(
             success=False,
             error="Age must be between 40 and 79 for this calculator.",
         )
-    
+
     # Simplified risk calculation (not the actual ASCVD formula)
     # This is for demonstration - real implementation should use validated formulas
-    
+
     base_risk = 0.5  # Base 0.5% risk
-    
+
     # Age factor
     age_factor = (age - 40) * 0.3  # 0.3% increase per year over 40
-    
+
     # Sex factor
     sex_factor = 0 if sex == "female" else 2  # Higher baseline for males
-    
+
     # Cholesterol factor
     tc_hdl_ratio = total_cholesterol / hdl_cholesterol
     chol_factor = max(0, (tc_hdl_ratio - 3.5) * 2)
-    
+
     # Blood pressure factor
     bp_factor = max(0, (systolic_bp - 120) * 0.1)
     if on_bp_meds:
         bp_factor += 1  # Being on meds indicates underlying hypertension
-    
+
     # Diabetes factor
     diabetes_factor = 4 if diabetic else 0
-    
+
     # Smoking factor
     smoking_factor = 3 if smoker else 0
-    
+
     # Calculate total risk
-    risk = base_risk + age_factor + sex_factor + chol_factor + bp_factor + diabetes_factor + smoking_factor
+    risk = (
+        base_risk
+        + age_factor
+        + sex_factor
+        + chol_factor
+        + bp_factor
+        + diabetes_factor
+        + smoking_factor
+    )
     risk = min(risk, 50)  # Cap at 50%
     risk = round(risk, 1)
-    
+
     # Classify risk
     if risk < 5:
         category = "Low"
@@ -681,28 +795,28 @@ def cardiovascular_risk_calculator(
     else:
         category = "High"
         color = "red"
-    
+
     # Generate recommendations
     recommendations = []
     modifiable_factors = []
-    
+
     if smoker:
         modifiable_factors.append("Smoking cessation could significantly reduce risk")
-    
+
     if systolic_bp > 130:
         modifiable_factors.append("Blood pressure management")
-    
+
     if tc_hdl_ratio > 4:
         modifiable_factors.append("Cholesterol management (diet, possibly statins)")
-    
+
     if diabetic:
         modifiable_factors.append("Optimal diabetes control")
-    
+
     recommendations = [
         "Discuss these results with your healthcare provider",
         "Focus on modifiable risk factors",
     ] + modifiable_factors
-    
+
     return ToolResult(
         success=True,
         data={
@@ -734,18 +848,44 @@ def cardiovascular_risk_calculator(
 # APPOINTMENT & REMINDER TOOLS
 # =============================================================================
 
+
 @register_tool(
     name="appointment_scheduler",
     description="Schedule or check availability for medical appointments",
     parameters=[
-        ToolParameter("action", "string", "Action to perform", required=True,
-                     enum=["check_availability", "schedule", "cancel", "reschedule"]),
-        ToolParameter("appointment_type", "string", "Type of appointment", required=True,
-                     enum=["routine_checkup", "follow_up", "specialist", "urgent_care", "lab_work"]),
-        ToolParameter("preferred_date", "string", "Preferred date (YYYY-MM-DD)", required=False),
-        ToolParameter("preferred_time", "string", "Preferred time slot", required=False,
-                     enum=["morning", "afternoon", "evening"]),
-        ToolParameter("provider_name", "string", "Specific provider name", required=False),
+        ToolParameter(
+            "action",
+            "string",
+            "Action to perform",
+            required=True,
+            enum=["check_availability", "schedule", "cancel", "reschedule"],
+        ),
+        ToolParameter(
+            "appointment_type",
+            "string",
+            "Type of appointment",
+            required=True,
+            enum=[
+                "routine_checkup",
+                "follow_up",
+                "specialist",
+                "urgent_care",
+                "lab_work",
+            ],
+        ),
+        ToolParameter(
+            "preferred_date", "string", "Preferred date (YYYY-MM-DD)", required=False
+        ),
+        ToolParameter(
+            "preferred_time",
+            "string",
+            "Preferred time slot",
+            required=False,
+            enum=["morning", "afternoon", "evening"],
+        ),
+        ToolParameter(
+            "provider_name", "string", "Specific provider name", required=False
+        ),
         ToolParameter("reason", "string", "Reason for appointment", required=False),
     ],
     category="appointments",
@@ -761,7 +901,7 @@ def appointment_scheduler(
 ) -> ToolResult:
     """
     Handle appointment scheduling.
-    
+
     Note: This is a simulation. Real implementation would connect to
     a scheduling system or EHR.
     """
@@ -776,14 +916,14 @@ def appointment_scheduler(
             )
     else:
         target_date = datetime.now() + timedelta(days=7)  # Default to 1 week out
-    
+
     # Time slot mapping
     time_slots = {
         "morning": ["9:00 AM", "10:00 AM", "11:00 AM"],
         "afternoon": ["1:00 PM", "2:00 PM", "3:00 PM"],
         "evening": ["4:00 PM", "5:00 PM"],
     }
-    
+
     if action == "check_availability":
         # Simulate availability check
         available_slots = []
@@ -791,12 +931,14 @@ def appointment_scheduler(
             check_date = target_date + timedelta(days=day_offset)
             if check_date.weekday() < 5:  # Weekdays only
                 for slot in time_slots.get(preferred_time, time_slots["morning"]):
-                    available_slots.append({
-                        "date": check_date.strftime("%Y-%m-%d"),
-                        "day": check_date.strftime("%A"),
-                        "time": slot,
-                    })
-        
+                    available_slots.append(
+                        {
+                            "date": check_date.strftime("%Y-%m-%d"),
+                            "day": check_date.strftime("%A"),
+                            "time": slot,
+                        }
+                    )
+
         return ToolResult(
             success=True,
             data={
@@ -806,11 +948,11 @@ def appointment_scheduler(
                 "message": f"Found {len(available_slots)} available slots in the next 7 days.",
             },
         )
-    
+
     elif action == "schedule":
         # Simulate scheduling
         scheduled_slot = time_slots.get(preferred_time, ["10:00 AM"])[0]
-        
+
         return ToolResult(
             success=True,
             data={
@@ -825,12 +967,12 @@ def appointment_scheduler(
                 },
                 "confirmation_number": f"APT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
                 "reminders": [
-                    f"Reminder will be sent 24 hours before appointment",
-                    f"Please arrive 15 minutes early",
+                    "Reminder will be sent 24 hours before appointment",
+                    "Please arrive 15 minutes early",
                 ],
             },
         )
-    
+
     elif action == "cancel":
         return ToolResult(
             success=True,
@@ -840,7 +982,7 @@ def appointment_scheduler(
                 "contact": "Please call (555) 123-4567",
             },
         )
-    
+
     elif action == "reschedule":
         return ToolResult(
             success=True,
@@ -854,7 +996,7 @@ def appointment_scheduler(
                 ],
             },
         )
-    
+
     return ToolResult(
         success=False,
         error=f"Unknown action: {action}",
@@ -865,14 +1007,29 @@ def appointment_scheduler(
     name="health_reminder_setter",
     description="Set health-related reminders (medications, appointments, measurements)",
     parameters=[
-        ToolParameter("reminder_type", "string", "Type of reminder", required=True,
-                     enum=["medication", "measurement", "appointment", "exercise", "custom"]),
+        ToolParameter(
+            "reminder_type",
+            "string",
+            "Type of reminder",
+            required=True,
+            enum=["medication", "measurement", "appointment", "exercise", "custom"],
+        ),
         ToolParameter("title", "string", "Reminder title", required=True),
-        ToolParameter("frequency", "string", "How often to remind", required=True,
-                     enum=["once", "daily", "weekly", "monthly"]),
+        ToolParameter(
+            "frequency",
+            "string",
+            "How often to remind",
+            required=True,
+            enum=["once", "daily", "weekly", "monthly"],
+        ),
         ToolParameter("time", "string", "Time for reminder (HH:MM)", required=False),
-        ToolParameter("days", "array", "Days of week for weekly reminders", required=False,
-                     items_type="string"),
+        ToolParameter(
+            "days",
+            "array",
+            "Days of week for weekly reminders",
+            required=False,
+            items_type="string",
+        ),
         ToolParameter("notes", "string", "Additional notes", required=False),
     ],
     category="reminders",
@@ -888,7 +1045,7 @@ def health_reminder_setter(
 ) -> ToolResult:
     """
     Set health reminders.
-    
+
     Note: This is a simulation. Real implementation would integrate
     with notification systems.
     """
@@ -898,13 +1055,13 @@ def health_reminder_setter(
         time_display = reminder_time.strftime("%I:%M %p")
     except ValueError:
         time_display = "9:00 AM"  # Default
-    
+
     # Generate reminder ID
     reminder_id = f"REM-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    
+
     # Build schedule description
     if frequency == "once":
-        schedule_desc = f"One-time reminder"
+        schedule_desc = "One-time reminder"
     elif frequency == "daily":
         schedule_desc = f"Daily at {time_display}"
     elif frequency == "weekly":
@@ -914,7 +1071,7 @@ def health_reminder_setter(
         schedule_desc = f"Monthly at {time_display}"
     else:
         schedule_desc = frequency
-    
+
     # Tips based on reminder type
     tips = []
     if reminder_type == "medication":
@@ -935,7 +1092,7 @@ def health_reminder_setter(
             "Prepare workout clothes the night before",
             "Find an exercise buddy for accountability",
         ]
-    
+
     return ToolResult(
         success=True,
         data={
@@ -961,78 +1118,96 @@ def health_reminder_setter(
 if __name__ == "__main__":
     import asyncio
     from .tool_registry import get_tool_registry, execute_tool
-    
+
     async def test_health_tools():
         print("Testing Health Tools...")
-        
+
         registry = get_tool_registry()
-        
+
         # List all health tools
         print(f"\n📋 Registered health tools: {len(registry.list_tools())}")
         for tool in registry.list_tools():
             print(f"  - {tool.name}: {tool.description[:50]}...")
-        
+
         # Test blood pressure analyzer
         print("\n🩺 Testing blood_pressure_analyzer:")
-        result = await execute_tool("blood_pressure_analyzer", {
-            "systolic": 145,
-            "diastolic": 92,
-            "pulse": 78,
-        })
+        result = await execute_tool(
+            "blood_pressure_analyzer",
+            {
+                "systolic": 145,
+                "diastolic": 92,
+                "pulse": 78,
+            },
+        )
         print(f"  Result: {result.data['category']} - {result.data['reading']}")
         print(f"  Recommendations: {result.data['recommendations'][:2]}")
-        
+
         # Test heart rate analyzer
         print("\n❤️ Testing heart_rate_analyzer:")
-        result = await execute_tool("heart_rate_analyzer", {
-            "heart_rate": 72,
-            "activity": "resting",
-            "age": 45,
-        })
+        result = await execute_tool(
+            "heart_rate_analyzer",
+            {
+                "heart_rate": 72,
+                "activity": "resting",
+                "age": 45,
+            },
+        )
         print(f"  Result: {result.data['category']} - {result.data['heart_rate']} bpm")
-        
+
         # Test BMI calculator
         print("\n📊 Testing bmi_calculator:")
-        result = await execute_tool("bmi_calculator", {
-            "weight": 180,
-            "weight_unit": "lbs",
-            "height": 5.9,
-            "height_unit": "ft",
-        })
+        result = await execute_tool(
+            "bmi_calculator",
+            {
+                "weight": 180,
+                "weight_unit": "lbs",
+                "height": 5.9,
+                "height_unit": "ft",
+            },
+        )
         print(f"  BMI: {result.data['bmi']} - {result.data['category']}")
-        
+
         # Test symptom triage
         print("\n🏥 Testing symptom_triage:")
-        result = await execute_tool("symptom_triage", {
-            "symptoms": ["chest pain", "shortness of breath"],
-            "severity": 7,
-        })
+        result = await execute_tool(
+            "symptom_triage",
+            {
+                "symptoms": ["chest pain", "shortness of breath"],
+                "severity": 7,
+            },
+        )
         print(f"  Urgency: {result.data['urgency']}")
         print(f"  Action: {result.data['action']}")
-        
+
         # Test appointment scheduler
         print("\n📅 Testing appointment_scheduler:")
-        result = await execute_tool("appointment_scheduler", {
-            "action": "check_availability",
-            "appointment_type": "routine_checkup",
-            "preferred_time": "morning",
-        })
+        result = await execute_tool(
+            "appointment_scheduler",
+            {
+                "action": "check_availability",
+                "appointment_type": "routine_checkup",
+                "preferred_time": "morning",
+            },
+        )
         print(f"  Found {len(result.data['available_slots'])} slots")
-        
+
         # Test reminder setter
         print("\n⏰ Testing health_reminder_setter:")
-        result = await execute_tool("health_reminder_setter", {
-            "reminder_type": "medication",
-            "title": "Take blood pressure medication",
-            "frequency": "daily",
-            "time": "08:00",
-        })
+        result = await execute_tool(
+            "health_reminder_setter",
+            {
+                "reminder_type": "medication",
+                "title": "Take blood pressure medication",
+                "frequency": "daily",
+                "time": "08:00",
+            },
+        )
         print(f"  Created: {result.data['reminder_id']}")
         print(f"  Schedule: {result.data['schedule']}")
-        
+
         # Stats
         print(f"\n📊 Registry stats: {registry.get_stats()}")
-        
+
         print("\n✅ Health tools tests passed!")
-    
+
     asyncio.run(test_health_tools())

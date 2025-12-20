@@ -14,7 +14,7 @@ const data = [
   { day: 'Fri', bpm: 85, note: 'High activity detected (Cardio).' },
   { day: 'Sat', bpm: 75, note: 'Moderate active recovery.' },
   { day: 'Sun', bpm: 72, note: 'Baseline returned to normal.' },
-  { day: 'Mon', bpm: 69, note: 'Start of new week.' }, 
+  { day: 'Mon', bpm: 69, note: 'Start of new week.' },
   { day: 'Tue', bpm: 71, note: 'Consistent.' },
 ];
 
@@ -73,14 +73,14 @@ const MedicalIdModal = ({ onClose }: { onClose: () => void }) => {
                   </h2>
                   <p className="text-red-100 text-sm opacity-90">Emergency Information</p>
               </div>
-              <button 
-                onClick={onClose} 
+              <button
+                onClick={onClose}
                 className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center backdrop-blur-md transition-colors"
               >
                   <span className="material-symbols-outlined text-white">close</span>
               </button>
           </div>
-          
+
           <div className="flex items-center gap-4 mt-2">
               <img src={data.avatar} alt="Profile" className="w-20 h-20 rounded-full border-4 border-white/30 object-cover bg-slate-200" />
               <div>
@@ -158,7 +158,7 @@ const DashboardScreen: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string>(t('dashboard.loading_insight'));
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
-  
+
   // Real-time Data State
   const [liveHeartRate, setLiveHeartRate] = useState(72);
   const [steps, setSteps] = useState(5243);
@@ -182,7 +182,7 @@ const DashboardScreen: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const [showMedicalID, setShowMedicalID] = useState(false);
-  
+
   const [notifications, setNotifications] = useState<any[]>([
     { id: 1, title: 'Hydration Alert', message: 'Time to drink water!', time: '10m ago', icon: 'water_drop', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', path: '/dashboard' },
     { id: 2, title: 'Daily Goal', message: 'You reached 5,000 steps.', time: '2h ago', icon: 'directions_walk', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', path: '/exercise' },
@@ -192,7 +192,7 @@ const DashboardScreen: React.FC = () => {
   useEffect(() => {
     // Update loading text when language changes
     setAiInsight(t('dashboard.loading_insight'));
-    
+
     // Check for Caretaker Mode
     const viewingId = localStorage.getItem('active_profile_mode');
     setCaretakerMode(viewingId);
@@ -227,7 +227,7 @@ const DashboardScreen: React.FC = () => {
       loadedAssessment = JSON.parse(saved);
       setAssessment(loadedAssessment);
     }
-    
+
     const savedProfile = localStorage.getItem('user_profile');
     let profileName = 'Alex';
     if (savedProfile) {
@@ -273,10 +273,10 @@ const DashboardScreen: React.FC = () => {
         if (appts.length > 0) {
             appts.sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
             const futureAppts = appts.filter(a => new Date(`${a.date}T${a.time}`).getTime() > new Date().getTime());
-            
+
             if (futureAppts.length > 0) {
                 setNextAppointment(futureAppts[0]);
-                setReminderSet(true); 
+                setReminderSet(true);
             } else if (appts.length > 0) {
                 setNextAppointment(appts[appts.length - 1]);
             }
@@ -293,7 +293,7 @@ const DashboardScreen: React.FC = () => {
         const interval = setInterval(() => {
             setLiveHeartRate(prev => {
                 const base = caretakerMode ? 85 : 70;
-                const change = Math.floor(Math.random() * 5) - 2; 
+                const change = Math.floor(Math.random() * 5) - 2;
                 let val = prev + change;
                 if (val < base - 5) val = base - 5;
                 if (val > base + 20) val = base + 20;
@@ -311,7 +311,7 @@ const DashboardScreen: React.FC = () => {
       const today = new Date().toDateString();
       const cacheKey = 'daily_insight_cache';
       const cachedRaw = localStorage.getItem(cacheKey);
-      
+
       if (cachedRaw) {
           const cached: InsightCache = JSON.parse(cachedRaw);
           if (cached.date === today) {
@@ -409,10 +409,10 @@ const DashboardScreen: React.FC = () => {
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
             {/* Medical ID Button */}
-            <button 
+            <button
                 onClick={() => setShowMedicalID(true)}
                 className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors shadow-sm"
                 title="Emergency Medical ID"
@@ -422,7 +422,7 @@ const DashboardScreen: React.FC = () => {
 
             {/* Notifications */}
             <div className="relative">
-                <button 
+                <button
                     onClick={() => { setShowNotifications(!showNotifications); if(showNotifications) setHasUnreadNotifications(false); }}
                     className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 relative hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
@@ -442,8 +442,8 @@ const DashboardScreen: React.FC = () => {
                             </div>
                             <div className="max-h-[300px] overflow-y-auto">
                                 {notifications.length > 0 ? notifications.map(n => (
-                                    <div 
-                                        key={n.id} 
+                                    <div
+                                        key={n.id}
                                         onClick={() => {
                                             setShowNotifications(false);
                                             setHasUnreadNotifications(false);
@@ -466,7 +466,7 @@ const DashboardScreen: React.FC = () => {
                                     <div className="p-6 text-center text-slate-500 text-xs">No notifications</div>
                                 )}
                             </div>
-                            <button 
+                            <button
                                 onClick={() => { setShowNotifications(false); setHasUnreadNotifications(false); }}
                                 className="w-full p-3 text-center text-xs font-bold text-primary hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800"
                             >
@@ -507,7 +507,7 @@ const DashboardScreen: React.FC = () => {
               <h2 className="text-lg font-bold dark:text-white">{t('dashboard.risk_score')}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <span className={`text-sm font-bold ${
-                    assessment.risk === 'Low Risk' ? 'text-green-500' : 
+                    assessment.risk === 'Low Risk' ? 'text-green-500' :
                     assessment.risk === 'Moderate Risk' ? 'text-yellow-500' : 'text-red-500'
                 }`}>
                     {assessment.risk}
@@ -565,7 +565,7 @@ const DashboardScreen: React.FC = () => {
                 </div>
                 <span className={`material-symbols-outlined ${caretakerMode ? 'text-red-500' : 'text-red-500'} ${(connectedDevice || caretakerMode) ? 'animate-pulse' : ''}`}>favorite</span>
             </div>
-            
+
             <div className="h-[150px] w-full min-w-0 min-h-0 relative">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                     <AreaChart data={caretakerMode ? DAD_VITALS : data} onClick={handleChartClick}>
@@ -575,18 +575,18 @@ const DashboardScreen: React.FC = () => {
                                 <stop offset="95%" stopColor={caretakerMode ? "#ef4444" : "#137fec"} stopOpacity={0}/>
                             </linearGradient>
                         </defs>
-                        <Tooltip 
+                        <Tooltip
                             contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px' }}
                             itemStyle={{ color: '#fff' }}
                             cursor={{ stroke: caretakerMode ? "#ef4444" : "#137fec", strokeWidth: 1 }}
                         />
-                        <Area 
-                            type="monotone" 
-                            dataKey="bpm" 
-                            stroke={caretakerMode ? "#ef4444" : "#137fec"} 
-                            strokeWidth={3} 
-                            fillOpacity={1} 
-                            fill="url(#colorBpm)" 
+                        <Area
+                            type="monotone"
+                            dataKey="bpm"
+                            stroke={caretakerMode ? "#ef4444" : "#137fec"}
+                            strokeWidth={3}
+                            fillOpacity={1}
+                            fill="url(#colorBpm)"
                             activeDot={{ r: 6, onClick: handleChartClick }}
                         />
                         <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
@@ -638,8 +638,8 @@ const DashboardScreen: React.FC = () => {
         {/* Medication Card (if active) */}
         {nextMed ? (
             <Link to="/medications" className={`rounded-2xl p-4 shadow-sm border flex flex-col justify-between cursor-pointer hover:shadow-md transition-all ${
-                caretakerMode && nextMed.instructions?.includes('Missed') 
-                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
+                caretakerMode && nextMed.instructions?.includes('Missed')
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                 : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800/30'
             }`}>
                 <div className="flex justify-between items-start">
@@ -680,7 +680,7 @@ const DashboardScreen: React.FC = () => {
                       <p className="text-xs text-slate-500">{waterIntake} / {WATER_GOAL} {t('dashboard.glasses')}</p>
                   </div>
               </div>
-              <button 
+              <button
                 onClick={() => setWaterIntake(prev => Math.min(prev + 1, WATER_GOAL))}
                 className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
               >
@@ -689,12 +689,12 @@ const DashboardScreen: React.FC = () => {
           </div>
           <div className="flex justify-between gap-1">
               {Array.from({ length: WATER_GOAL }).map((_, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     onClick={() => setWaterIntake(i + 1)}
                     className={`h-8 flex-1 rounded-md transition-all duration-300 cursor-pointer ${
-                        i < waterIntake 
-                        ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] scale-y-100' 
+                        i < waterIntake
+                        ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] scale-y-100'
                         : 'bg-slate-100 dark:bg-slate-800 scale-y-75 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   ></div>
@@ -734,7 +734,7 @@ const DashboardScreen: React.FC = () => {
         <div className="bg-card-light dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-800 mb-20 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-lg dark:text-white">{t('dashboard.upcoming_appt')}</h3>
-                <button 
+                <button
                 onClick={() => setReminderSet(!reminderSet)}
                 className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors ${reminderSet ? 'bg-primary/20 text-primary' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}
                 >
@@ -766,7 +766,7 @@ const DashboardScreen: React.FC = () => {
             </div>
         </div>
       )}
-      
+
       {!nextAppointment && (
           <div className="mb-20"></div>
       )}

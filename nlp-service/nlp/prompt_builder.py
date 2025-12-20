@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class CommunicationStyle(Enum):
     """Communication style preferences for responses."""
+
     FORMAL = "formal"
     CASUAL = "casual"
     DETAILED = "detailed"
@@ -37,7 +38,7 @@ class CommunicationStyle(Enum):
 class BuiltPrompt:
     """
     Complete prompt ready for AI API call.
-    
+
     Attributes:
         system_message: Full system prompt with context
         context_section: Just the context portion (for debugging)
@@ -45,6 +46,7 @@ class BuiltPrompt:
         total_tokens_estimate: Estimated token count
         context_types_used: List of context types included
     """
+
     system_message: str
     context_section: str
     user_message: str
@@ -56,17 +58,17 @@ class BuiltPrompt:
 class HealthcarePromptBuilder:
     """
     Builds structured prompts for healthcare AI.
-    
+
     Implements Section 8.C from chat.md:
     "Send it to the AI" with proper formatting
-    
+
     Key Features:
     - Standardized system prompt template
     - Context organization by type
     - Token budget management
     - Healthcare compliance considerations
     - Customizable communication styles
-    
+
     Usage:
         builder = HealthcarePromptBuilder()
         prompt = builder.build_prompt(
@@ -76,7 +78,7 @@ class HealthcarePromptBuilder:
             patient_age=45
         )
     """
-    
+
     # Base system prompt template
     SYSTEM_TEMPLATE = """You are a medical AI assistant for cardiac health.
 
@@ -132,22 +134,22 @@ IMPORTANT GUIDELINES:
         CommunicationStyle.CONCISE: "Be brief and to the point. Use bullet points when helpful.",
         CommunicationStyle.EMPATHETIC: "Show empathy and understanding. Acknowledge patient concerns.",
     }
-    
+
     def __init__(
         self,
         max_context_tokens: int = 2000,
-        default_style: CommunicationStyle = CommunicationStyle.EMPATHETIC
+        default_style: CommunicationStyle = CommunicationStyle.EMPATHETIC,
     ):
         """
         Initialize prompt builder.
-        
+
         Args:
             max_context_tokens: Maximum tokens for context section
             default_style: Default communication style
         """
         self.max_context_tokens = max_context_tokens
         self.default_style = default_style
-    
+
     def build_prompt(
         self,
         user_query: str,
@@ -155,11 +157,11 @@ IMPORTANT GUIDELINES:
         user_name: Optional[str] = None,
         patient_age: Optional[int] = None,
         communication_style: Optional[CommunicationStyle] = None,
-        minimal: bool = False
+        minimal: bool = False,
     ) -> BuiltPrompt:
         """
         Build complete prompt from retrieved context.
-        
+
         Args:
             user_query: The user's current question
             retrieved_contexts: Context retrieved by ContextRetriever
@@ -167,7 +169,7 @@ IMPORTANT GUIDELINES:
             patient_age: Patient's age (optional)
             communication_style: Preferred communication style
             minimal: Use minimal context template
-        
+
         Returns:
             BuiltPrompt ready for AI API call
         """
@@ -175,31 +177,29 @@ IMPORTANT GUIDELINES:
             f"Building prompt for query: {user_query[:50]}... "
             f"with {len(retrieved_contexts)} context items"
         )
-        
+
         # Organize context by type
         context_by_type = self._organize_contexts(retrieved_contexts)
-        
+
         # Track which context types are used
         context_types_used = list(context_by_type.keys())
-        
+
         # Build sections
-        patient_info = self._build_patient_info(
-            user_name, patient_age, context_by_type
-        )
-        
+        patient_info = self._build_patient_info(user_name, patient_age, context_by_type)
+
         vitals = self._build_vitals_section(context_by_type)
         medications = self._build_medications_section(context_by_type)
         medical_history = self._build_medical_history_section(context_by_type)
         risk_assessments = self._build_risk_section(context_by_type)
         conversation = self._build_conversation_section(context_by_type)
         preferences = self._build_preferences_section(context_by_type)
-        
+
         # Build context section
         if minimal:
             context_section = self.MINIMAL_CONTEXT_TEMPLATE.format(
                 patient_info=patient_info or "No patient info available",
                 vitals=vitals or "No recent vitals",
-                recent_conversation=conversation or "New conversation"
+                recent_conversation=conversation or "New conversation",
             )
         else:
             context_section = self.CONTEXT_TEMPLATE.format(
@@ -209,33 +209,31 @@ IMPORTANT GUIDELINES:
                 medical_history=medical_history or "No history available",
                 risk_assessments=risk_assessments or "No assessments available",
                 conversation_summary=conversation or "New conversation",
-                preferences=preferences or "Default settings"
+                preferences=preferences or "Default settings",
             )
-        
+
         # Clean up empty sections
         context_section = self._clean_empty_sections(context_section)
-        
+
         # Get style instructions
         style = communication_style or self.default_style
         style_instructions = self.STYLE_INSTRUCTIONS.get(
-            style, 
-            self.STYLE_INSTRUCTIONS[CommunicationStyle.EMPATHETIC]
+            style, self.STYLE_INSTRUCTIONS[CommunicationStyle.EMPATHETIC]
         )
-        
+
         # Build system message
         system_message = self.SYSTEM_TEMPLATE.format(
-            style_instructions=style_instructions,
-            context_section=context_section
+            style_instructions=style_instructions, context_section=context_section
         )
-        
+
         # Calculate token estimate
         total_tokens = self._estimate_tokens(system_message + user_query)
-        
+
         logger.info(
             f"Built prompt: {total_tokens} tokens estimated, "
             f"context types: {[t.value for t in context_types_used]}"
         )
-        
+
         return BuiltPrompt(
             system_message=system_message,
             context_section=context_section,
@@ -247,24 +245,24 @@ IMPORTANT GUIDELINES:
                 "patient_age": patient_age,
                 "style": style.value,
                 "minimal": minimal,
-                "built_at": datetime.utcnow().isoformat()
-            }
+                "built_at": datetime.utcnow().isoformat(),
+            },
         )
-    
+
     def build_emergency_prompt(
         self,
         user_query: str,
         retrieved_contexts: List[RetrievedContext],
-        user_name: Optional[str] = None
+        user_name: Optional[str] = None,
     ) -> BuiltPrompt:
         """
         Build prompt for emergency situations.
-        
+
         Prioritizes medical history and emergency contact info.
         Uses urgent, clear communication style.
         """
         context_by_type = self._organize_contexts(retrieved_contexts)
-        
+
         # Emergency-specific context
         emergency_context = """
 === EMERGENCY CONTEXT ===
@@ -279,12 +277,15 @@ CURRENT MEDICATIONS (for emergency responders):
 EMERGENCY CONTACTS:
 {emergency_info}
 """.format(
-            patient_info=self._build_patient_info(user_name, None, context_by_type) or "Unknown patient",
-            medical_history=self._build_medical_history_section(context_by_type) or "No history available",
+            patient_info=self._build_patient_info(user_name, None, context_by_type)
+            or "Unknown patient",
+            medical_history=self._build_medical_history_section(context_by_type)
+            or "No history available",
             medications=self._build_medications_section(context_by_type) or "Unknown",
-            emergency_info=self._build_emergency_section(context_by_type) or "Not on file"
+            emergency_info=self._build_emergency_section(context_by_type)
+            or "Not on file",
         )
-        
+
         emergency_system = """You are a medical AI assistant responding to a potential emergency.
 
 CRITICAL GUIDELINES:
@@ -293,27 +294,25 @@ CRITICAL GUIDELINES:
 - Do not delay with lengthy explanations.
 - List any relevant medical information that emergency responders should know.
 
-{context}""".format(context=emergency_context)
-        
+{context}""".format(
+            context=emergency_context
+        )
+
         return BuiltPrompt(
             system_message=emergency_system,
             context_section=emergency_context,
             user_message=user_query,
             total_tokens_estimate=self._estimate_tokens(emergency_system + user_query),
             context_types_used=[t.value for t in context_by_type.keys()],
-            metadata={
-                "emergency": True,
-                "built_at": datetime.utcnow().isoformat()
-            }
+            metadata={"emergency": True, "built_at": datetime.utcnow().isoformat()},
         )
-    
+
     # ========================================================================
     # Context Organization Methods
     # ========================================================================
-    
+
     def _organize_contexts(
-        self, 
-        contexts: List[RetrievedContext]
+        self, contexts: List[RetrievedContext]
     ) -> Dict[ContextType, List[RetrievedContext]]:
         """Group contexts by type."""
         organized: Dict[ContextType, List[RetrievedContext]] = {}
@@ -322,300 +321,309 @@ CRITICAL GUIDELINES:
                 organized[ctx.context_type] = []
             organized[ctx.context_type].append(ctx)
         return organized
-    
+
     # ========================================================================
     # Section Building Methods
     # ========================================================================
-    
+
     def _build_patient_info(
         self,
         name: Optional[str],
         age: Optional[int],
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        contexts: Dict[ContextType, List[RetrievedContext]],
     ) -> Optional[str]:
         """Build patient information string."""
         parts = []
-        
+
         if name:
             parts.append(f"- Name: {name}")
         if age:
             parts.append(f"- Age: {age} years")
-        
+
         # Add preferences if available
         prefs_contexts = contexts.get(ContextType.USER_PREFERENCES, [])
         for pref_ctx in prefs_contexts:
-            prefs = pref_ctx.data.get('preferences', {})
-            if 'language' in prefs:
+            prefs = pref_ctx.data.get("preferences", {})
+            if "language" in prefs:
                 parts.append(f"- Preferred Language: {prefs['language']}")
-            if 'health_goals' in prefs:
-                goals = prefs['health_goals']
+            if "health_goals" in prefs:
+                goals = prefs["health_goals"]
                 if isinstance(goals, list):
-                    goals = ', '.join(goals)
+                    goals = ", ".join(goals)
                 parts.append(f"- Health Goals: {goals}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_vitals_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build vitals information string."""
         vitals_contexts = contexts.get(ContextType.RECENT_VITALS, [])
         if not vitals_contexts:
             return None
-        
+
         parts = []
         for ctx in vitals_contexts:
             data = ctx.data
-            
+
             # Handle vitals list
-            vitals_list = data.get('vitals', [data])
+            vitals_list = data.get("vitals", [data])
             if not isinstance(vitals_list, list):
                 vitals_list = [vitals_list]
-            
+
             for vital in vitals_list:
-                if 'blood_pressure' in vital:
-                    bp = vital['blood_pressure']
+                if "blood_pressure" in vital:
+                    bp = vital["blood_pressure"]
                     if isinstance(bp, dict):
-                        parts.append(f"- Blood Pressure: {bp.get('systolic')}/{bp.get('diastolic')} mmHg")
+                        parts.append(
+                            f"- Blood Pressure: {bp.get('systolic')}/{bp.get('diastolic')} mmHg"
+                        )
                     else:
                         parts.append(f"- Blood Pressure: {bp}")
-                
-                if 'blood_pressure_systolic' in vital:
+
+                if "blood_pressure_systolic" in vital:
                     parts.append(
                         f"- Blood Pressure: {vital['blood_pressure_systolic']}/"
                         f"{vital.get('blood_pressure_diastolic', '?')} mmHg"
                     )
-                
-                if 'heart_rate' in vital:
+
+                if "heart_rate" in vital:
                     parts.append(f"- Heart Rate: {vital['heart_rate']} bpm")
-                
-                if 'spo2' in vital:
+
+                if "spo2" in vital:
                     parts.append(f"- SpO2: {vital['spo2']}%")
-                
-                if 'temperature' in vital:
+
+                if "temperature" in vital:
                     parts.append(f"- Temperature: {vital['temperature']}°F")
-                
-                if 'timestamp' in vital:
+
+                if "timestamp" in vital:
                     parts.append(f"  (Recorded: {vital['timestamp']})")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_medications_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build medications information string."""
         med_contexts = contexts.get(ContextType.MEDICATIONS, [])
         if not med_contexts:
             return None
-        
+
         parts = []
         for ctx in med_contexts:
-            medications = ctx.data.get('medications', [])
+            medications = ctx.data.get("medications", [])
             for med in medications:
                 if isinstance(med, dict):
-                    name = med.get('name', 'Unknown')
-                    dosage = med.get('dosage', '')
-                    frequency = med.get('frequency', '')
+                    name = med.get("name", "Unknown")
+                    dosage = med.get("dosage", "")
+                    frequency = med.get("frequency", "")
                     parts.append(f"- {name} {dosage} {frequency}".strip())
                 else:
                     parts.append(f"- {med}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_medical_history_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build medical history string."""
         history_contexts = contexts.get(ContextType.MEDICAL_HISTORY, [])
         if not history_contexts:
             return None
-        
+
         parts = []
         for ctx in history_contexts:
             data = ctx.data
-            
-            if 'conditions' in data:
-                conditions = data['conditions']
+
+            if "conditions" in data:
+                conditions = data["conditions"]
                 if isinstance(conditions, list):
                     for cond in conditions:
                         parts.append(f"- Condition: {cond}")
                 else:
                     parts.append(f"- Conditions: {conditions}")
-            
-            if 'surgeries' in data:
-                surgeries = data['surgeries']
+
+            if "surgeries" in data:
+                surgeries = data["surgeries"]
                 if isinstance(surgeries, list):
                     for surg in surgeries:
                         parts.append(f"- Surgery: {surg}")
-            
-            if 'allergies' in data:
-                allergies = data['allergies']
+
+            if "allergies" in data:
+                allergies = data["allergies"]
                 if isinstance(allergies, list):
                     parts.append(f"- Allergies: {', '.join(allergies)}")
                 else:
                     parts.append(f"- Allergies: {allergies}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_risk_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build risk assessments string."""
         risk_contexts = contexts.get(ContextType.RISK_ASSESSMENTS, [])
         if not risk_contexts:
             return None
-        
+
         parts = []
         for ctx in risk_contexts:
-            assessments = ctx.data.get('assessments', [ctx.data])
+            assessments = ctx.data.get("assessments", [ctx.data])
             if not isinstance(assessments, list):
                 assessments = [assessments]
-            
+
             for assessment in assessments:
-                if 'risk_level' in assessment:
+                if "risk_level" in assessment:
                     parts.append(f"- Risk Level: {assessment['risk_level']}")
-                if 'risk_score' in assessment:
+                if "risk_score" in assessment:
                     parts.append(f"- Risk Score: {assessment['risk_score']}")
-                if 'date' in assessment:
+                if "date" in assessment:
                     parts.append(f"  (Assessed: {assessment['date']})")
-                if 'recommendations' in assessment:
-                    recs = assessment['recommendations']
+                if "recommendations" in assessment:
+                    recs = assessment["recommendations"]
                     if isinstance(recs, list):
                         for rec in recs[:3]:  # Limit to 3 recommendations
                             parts.append(f"  - {rec}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_conversation_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build conversation summary string."""
         conv_contexts = contexts.get(ContextType.RECENT_CONVERSATIONS, [])
         if not conv_contexts:
             return None
-        
+
         parts = []
         for ctx in conv_contexts:
-            messages = ctx.data.get('messages', [])
-            
+            messages = ctx.data.get("messages", [])
+
             # Get last 5 messages for context
             for msg in messages[-5:]:
-                role = msg.get('role', 'unknown').capitalize()
-                content = msg.get('content', '')
-                
+                role = msg.get("role", "unknown").capitalize()
+                content = msg.get("content", "")
+
                 # Truncate long messages
                 if len(content) > 200:
                     content = content[:200] + "..."
-                
+
                 parts.append(f"{role}: {content}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_preferences_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build user preferences string."""
         pref_contexts = contexts.get(ContextType.USER_PREFERENCES, [])
         if not pref_contexts:
             return None
-        
+
         parts = []
         for ctx in pref_contexts:
-            prefs = ctx.data.get('preferences', {})
-            
-            if 'communication_style' in prefs:
+            prefs = ctx.data.get("preferences", {})
+
+            if "communication_style" in prefs:
                 parts.append(f"- Communication Style: {prefs['communication_style']}")
-            if 'preferred_units' in prefs:
+            if "preferred_units" in prefs:
                 parts.append(f"- Preferred Units: {prefs['preferred_units']}")
-            if 'dietary_restrictions' in prefs:
-                restrictions = prefs['dietary_restrictions']
+            if "dietary_restrictions" in prefs:
+                restrictions = prefs["dietary_restrictions"]
                 if isinstance(restrictions, list):
-                    restrictions = ', '.join(restrictions)
+                    restrictions = ", ".join(restrictions)
                 parts.append(f"- Dietary Restrictions: {restrictions}")
-            if 'activity_level' in prefs:
+            if "activity_level" in prefs:
                 parts.append(f"- Activity Level: {prefs['activity_level']}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     def _build_emergency_section(
-        self, 
-        contexts: Dict[ContextType, List[RetrievedContext]]
+        self, contexts: Dict[ContextType, List[RetrievedContext]]
     ) -> Optional[str]:
         """Build emergency info string."""
         emergency_contexts = contexts.get(ContextType.EMERGENCY_INFO, [])
         if not emergency_contexts:
             return None
-        
+
         parts = []
         for ctx in emergency_contexts:
             data = ctx.data
-            
-            if 'emergency_contact' in data:
-                contact = data['emergency_contact']
+
+            if "emergency_contact" in data:
+                contact = data["emergency_contact"]
                 if isinstance(contact, dict):
                     parts.append(f"- Contact: {contact.get('name', 'Unknown')}")
                     parts.append(f"- Phone: {contact.get('phone', 'N/A')}")
                 else:
                     parts.append(f"- Emergency Contact: {contact}")
-            
-            if 'blood_type' in data:
+
+            if "blood_type" in data:
                 parts.append(f"- Blood Type: {data['blood_type']}")
-            
-            if 'dnr_status' in data:
+
+            if "dnr_status" in data:
                 parts.append(f"- DNR Status: {data['dnr_status']}")
-        
-        return '\n'.join(parts) if parts else None
-    
+
+        return "\n".join(parts) if parts else None
+
     # ========================================================================
     # Utility Methods
     # ========================================================================
-    
+
     def _clean_empty_sections(self, text: str) -> str:
         """Remove empty sections from context."""
-        lines = text.split('\n')
+        lines = text.split("\n")
         cleaned_lines = []
         skip_next_empty = False
-        
+
         for i, line in enumerate(lines):
             # Skip lines that are just section headers with empty content
-            if line.startswith('===') and line.endswith('==='):
+            if line.startswith("===") and line.endswith("==="):
                 # Check if next non-empty line is another header or end
                 next_content = None
                 for j in range(i + 1, len(lines)):
                     if lines[j].strip():
                         next_content = lines[j]
                         break
-                
-                if next_content and (next_content.startswith('===') or 
-                                    next_content in ['Not available', 'No recent vitals recorded',
-                                                     'No medications on file', 'No history available',
-                                                     'No assessments available', 'New conversation',
-                                                     'Default settings']):
+
+                if next_content and (
+                    next_content.startswith("===")
+                    or next_content
+                    in [
+                        "Not available",
+                        "No recent vitals recorded",
+                        "No medications on file",
+                        "No history available",
+                        "No assessments available",
+                        "New conversation",
+                        "Default settings",
+                    ]
+                ):
                     skip_next_empty = True
                     continue
-            
+
             if skip_next_empty:
-                if line.strip() in ['Not available', 'No recent vitals recorded',
-                                   'No medications on file', 'No history available',
-                                   'No assessments available', 'New conversation',
-                                   'Default settings', '']:
+                if line.strip() in [
+                    "Not available",
+                    "No recent vitals recorded",
+                    "No medications on file",
+                    "No history available",
+                    "No assessments available",
+                    "New conversation",
+                    "Default settings",
+                    "",
+                ]:
                     continue
                 skip_next_empty = False
-            
+
             cleaned_lines.append(line)
-        
-        return '\n'.join(cleaned_lines)
-    
+
+        return "\n".join(cleaned_lines)
+
     def _estimate_tokens(self, text: str) -> int:
         """
         Rough token estimate.
-        
+
         Uses ~4 characters per token as approximation.
         More accurate estimation would use tiktoken.
         """
@@ -626,21 +634,22 @@ CRITICAL GUIDELINES:
 # Convenience Functions
 # ============================================================================
 
+
 def build_healthcare_prompt(
     user_query: str,
     retrieved_contexts: List[RetrievedContext],
     user_name: Optional[str] = None,
-    patient_age: Optional[int] = None
+    patient_age: Optional[int] = None,
 ) -> BuiltPrompt:
     """
     Convenience function to build a healthcare prompt.
-    
+
     Args:
         user_query: User's question
         retrieved_contexts: List of context items
         user_name: Patient name
         patient_age: Patient age
-    
+
     Returns:
         BuiltPrompt ready for AI call
     """
@@ -649,7 +658,7 @@ def build_healthcare_prompt(
         user_query=user_query,
         retrieved_contexts=retrieved_contexts,
         user_name=user_name,
-        patient_age=patient_age
+        patient_age=patient_age,
     )
 
 

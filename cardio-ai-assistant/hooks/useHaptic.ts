@@ -1,19 +1,19 @@
 /**
  * useHaptic Hook - Haptic Feedback for Mobile Devices
- * 
+ *
  * Provides tactile feedback using the Vibration API for enhanced mobile UX.
  * Falls back silently on unsupported devices.
- * 
+ *
  * Usage:
  * ```tsx
  * const { trigger, isSupported } = useHaptic();
- * 
+ *
  * const handleButtonClick = () => {
  *   trigger('light');
  *   // ... rest of your logic
  * };
  * ```
- * 
+ *
  * @see https://developer.mozilla.org/en-US/docs/Web/API/Vibration_API
  */
 
@@ -133,7 +133,7 @@ export const useHaptic = (options: HapticOptions = {}): UseHapticReturn => {
 
 /**
  * Hook for adding haptic feedback to button interactions
- * 
+ *
  * Usage:
  * ```tsx
  * const buttonProps = useHapticButton('medium');

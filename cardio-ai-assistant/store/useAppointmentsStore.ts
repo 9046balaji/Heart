@@ -1,6 +1,6 @@
 /**
  * Appointments Store - Zustand slice for appointment management
- * 
+ *
  * Centralizes:
  * - Appointment scheduling
  * - Doctor/provider management
@@ -24,11 +24,11 @@ export interface Appointment {
   title: string;
   type: AppointmentType;
   status: AppointmentStatus;
-  
+
   // Scheduling
   dateTime: string;
   duration: number; // minutes
-  
+
   // Provider
   provider: {
     id: string;
@@ -36,7 +36,7 @@ export interface Appointment {
     specialty?: string;
     location?: string;
   };
-  
+
   // Location
   location?: {
     name: string;
@@ -46,22 +46,22 @@ export interface Appointment {
   };
   isVirtual?: boolean;
   virtualLink?: string;
-  
+
   // Details
   reason?: string;
   notes?: string;
-  
+
   // Preparation
   preparations?: string[];
   documentsNeeded?: string[];
-  
+
   // Reminders
   reminders: {
     dayBefore: boolean;
     hourBefore: boolean;
     custom?: number; // minutes before
   };
-  
+
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -82,41 +82,41 @@ export interface AppointmentsState {
   // Data
   appointments: Appointment[];
   providers: Provider[];
-  
+
   // State
   isLoading: boolean;
   error: string | null;
-  
+
   // Filters/view
   filter: {
     status: AppointmentStatus | 'all';
     type: AppointmentType | 'all';
     dateRange: 'upcoming' | 'past' | 'all';
   };
-  
+
   // Actions - Appointments
   addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateAppointment: (id: string, updates: Partial<Appointment>) => void;
   cancelAppointment: (id: string, reason?: string) => void;
   completeAppointment: (id: string, notes?: string) => void;
   deleteAppointment: (id: string) => void;
-  
+
   // Actions - Providers
   addProvider: (provider: Omit<Provider, 'id'>) => string;
   updateProvider: (id: string, updates: Partial<Provider>) => void;
   removeProvider: (id: string) => void;
   toggleFavoriteProvider: (id: string) => void;
-  
+
   // Actions - Query
   getUpcoming: () => Appointment[];
   getPast: () => Appointment[];
   getByProvider: (providerId: string) => Appointment[];
   getByDate: (date: string) => Appointment[];
-  
+
   // Actions - Filter
   setFilter: (filter: Partial<AppointmentsState['filter']>) => void;
   getFilteredAppointments: () => Appointment[];
-  
+
   // State setters
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -129,13 +129,13 @@ export interface AppointmentsState {
 const generateId = () => `appt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 const isUpcoming = (appointment: Appointment): boolean => {
-  return new Date(appointment.dateTime) > new Date() && 
-         appointment.status !== 'cancelled' && 
+  return new Date(appointment.dateTime) > new Date() &&
+         appointment.status !== 'cancelled' &&
          appointment.status !== 'completed';
 };
 
 const isPast = (appointment: Appointment): boolean => {
-  return new Date(appointment.dateTime) <= new Date() || 
+  return new Date(appointment.dateTime) <= new Date() ||
          appointment.status === 'completed';
 };
 
@@ -169,7 +169,7 @@ export const useAppointmentsStore = create<AppointmentsState>()(
         addAppointment: (appointment) => {
           const id = generateId();
           const now = new Date().toISOString();
-          
+
           set((state) => {
             state.appointments.unshift({
               ...appointment,
@@ -177,16 +177,16 @@ export const useAppointmentsStore = create<AppointmentsState>()(
               createdAt: now,
               updatedAt: now,
             });
-            
+
             // Sort by date
             state.appointments.sort(
               (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
             );
           });
-          
+
           return id;
         },
-        
+
         updateAppointment: (id, updates) => set((state) => {
           const index = state.appointments.findIndex(a => a.id === id);
           if (index !== -1) {
@@ -197,30 +197,30 @@ export const useAppointmentsStore = create<AppointmentsState>()(
             };
           }
         }),
-        
+
         cancelAppointment: (id, reason) => set((state) => {
           const index = state.appointments.findIndex(a => a.id === id);
           if (index !== -1) {
             state.appointments[index].status = 'cancelled';
-            state.appointments[index].notes = reason 
-              ? `Cancelled: ${reason}` 
+            state.appointments[index].notes = reason
+              ? `Cancelled: ${reason}`
               : state.appointments[index].notes;
             state.appointments[index].updatedAt = new Date().toISOString();
           }
         }),
-        
+
         completeAppointment: (id, notes) => set((state) => {
           const index = state.appointments.findIndex(a => a.id === id);
           if (index !== -1) {
             state.appointments[index].status = 'completed';
             if (notes) {
-              state.appointments[index].notes = 
+              state.appointments[index].notes =
                 (state.appointments[index].notes || '') + '\n' + notes;
             }
             state.appointments[index].updatedAt = new Date().toISOString();
           }
         }),
-        
+
         deleteAppointment: (id) => set((state) => {
           state.appointments = state.appointments.filter(a => a.id !== id);
         }),
@@ -233,18 +233,18 @@ export const useAppointmentsStore = create<AppointmentsState>()(
           });
           return id;
         },
-        
+
         updateProvider: (id, updates) => set((state) => {
           const index = state.providers.findIndex(p => p.id === id);
           if (index !== -1) {
             state.providers[index] = { ...state.providers[index], ...updates };
           }
         }),
-        
+
         removeProvider: (id) => set((state) => {
           state.providers = state.providers.filter(p => p.id !== id);
         }),
-        
+
         toggleFavoriteProvider: (id) => set((state) => {
           const provider = state.providers.find(p => p.id === id);
           if (provider) {
@@ -256,15 +256,15 @@ export const useAppointmentsStore = create<AppointmentsState>()(
         getUpcoming: () => {
           return get().appointments.filter(isUpcoming);
         },
-        
+
         getPast: () => {
           return get().appointments.filter(isPast);
         },
-        
+
         getByProvider: (providerId) => {
           return get().appointments.filter(a => a.provider.id === providerId);
         },
-        
+
         getByDate: (date) => {
           const targetDate = new Date(date).toDateString();
           return get().appointments.filter(
@@ -276,28 +276,28 @@ export const useAppointmentsStore = create<AppointmentsState>()(
         setFilter: (filter) => set((state) => {
           state.filter = { ...state.filter, ...filter };
         }),
-        
+
         getFilteredAppointments: () => {
           const state = get();
           let filtered = [...state.appointments];
-          
+
           // Status filter
           if (state.filter.status !== 'all') {
             filtered = filtered.filter(a => a.status === state.filter.status);
           }
-          
+
           // Type filter
           if (state.filter.type !== 'all') {
             filtered = filtered.filter(a => a.type === state.filter.type);
           }
-          
+
           // Date range filter
           if (state.filter.dateRange === 'upcoming') {
             filtered = filtered.filter(isUpcoming);
           } else if (state.filter.dateRange === 'past') {
             filtered = filtered.filter(isPast);
           }
-          
+
           return filtered;
         },
 
@@ -325,13 +325,13 @@ export const selectAppointments = (state: AppointmentsState) => state.appointmen
 export const selectProviders = (state: AppointmentsState) => state.providers;
 export const selectFilter = (state: AppointmentsState) => state.filter;
 
-export const selectUpcomingAppointments = (state: AppointmentsState) => 
+export const selectUpcomingAppointments = (state: AppointmentsState) =>
   state.appointments.filter(isUpcoming);
 
-export const selectNextAppointment = (state: AppointmentsState) => 
+export const selectNextAppointment = (state: AppointmentsState) =>
   state.appointments.filter(isUpcoming)[0] || null;
 
-export const selectFavoriteProviders = (state: AppointmentsState) => 
+export const selectFavoriteProviders = (state: AppointmentsState) =>
   state.providers.filter(p => p.isFavorite);
 
 // ============================================================================
@@ -353,7 +353,7 @@ export const useProviders = () => {
   const favorites = useAppointmentsStore(selectFavoriteProviders);
   const addProvider = useAppointmentsStore(state => state.addProvider);
   const toggleFavorite = useAppointmentsStore(state => state.toggleFavoriteProvider);
-  
+
   return {
     providers,
     favorites,

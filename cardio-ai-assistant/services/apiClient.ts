@@ -8,8 +8,8 @@
 // When VITE_API_URL is empty, endpoints will be relative like /api/...
 // When using proxy, /api paths are automatically forwarded to backend
 // Updated to point to the new NLP service instead of Flask backend
-const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.meta as any).env.VITE_NLP_SERVICE_URL !== '/' 
-  ? (import.meta as any).env.VITE_NLP_SERVICE_URL 
+const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.meta as any).env.VITE_NLP_SERVICE_URL !== '/'
+  ? (import.meta as any).env.VITE_NLP_SERVICE_URL
   : 'http://localhost:5001';
 
 interface RequestOptions {
@@ -136,7 +136,7 @@ async function apiCallWithRetry<T>(
       // Don't retry client errors (4xx) except for specific ones
       const isRetryableStatus = RETRY_STATUS_CODES.includes(error.status);
       const isNetworkError = error.status === 0;
-      
+
       if (!isRetryableStatus && !isNetworkError) {
         throw error;
       }
@@ -322,7 +322,7 @@ export const apiClient = {
     temperature?: number;
   }): AsyncGenerator<{ type: 'token' | 'done' | 'error'; data: string | any }> {
     const url = `${API_BASE_URL}/api/chat/stream`;
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -355,7 +355,7 @@ export const apiClient = {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6);
-            
+
             if (data.startsWith('[DONE]')) {
               const metadata = JSON.parse(data.slice(6));
               yield { type: 'done', data: metadata };
@@ -601,7 +601,7 @@ export const apiClient = {
 export type ResponseConfidence = 'high' | 'medium' | 'low' | 'uncertain';
 
 /** Healthcare-specific intents */
-export type HealthIntent = 
+export type HealthIntent =
   | 'symptom_report'
   | 'medication_question'
   | 'lifestyle_advice'
@@ -615,7 +615,7 @@ export type HealthIntent =
   | 'unknown';
 
 /** Urgency classification for health queries */
-export type UrgencyLevel = 
+export type UrgencyLevel =
   | 'critical'   // Requires immediate attention
   | 'high'       // Should see doctor soon
   | 'moderate'   // Can wait for regular appointment
@@ -623,7 +623,7 @@ export type UrgencyLevel =
   | 'informational';  // Just seeking knowledge
 
 /** Available schema names */
-export type StructuredSchemaName = 
+export type StructuredSchemaName =
   | 'CardioHealthAnalysis'
   | 'SimpleIntentAnalysis'
   | 'ConversationResponse'
@@ -653,7 +653,7 @@ export interface HealthRecommendation {
   evidence_based: boolean;
 }
 
-/** 
+/**
  * Main structured output for cardiovascular health analysis
  * This is the primary schema for health-related queries
  */

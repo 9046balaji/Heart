@@ -1,6 +1,6 @@
 /**
  * Skeleton Components - Loading placeholders for improved UX
- * 
+ *
  * Provides shimmer/skeleton effects for various content types:
  * - Text
  * - Cards
@@ -8,11 +8,11 @@
  * - Charts
  * - Chat messages
  * - Forms
- * 
+ *
  * Usage:
  * ```tsx
  * import { Skeleton, CardSkeleton, ChatMessageSkeleton } from './Skeleton';
- * 
+ *
  * // While loading
  * if (loading) return <CardSkeleton />;
  * ```
@@ -54,7 +54,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   return (
     <div
       className={`
-        bg-slate-200 dark:bg-slate-700 
+        bg-slate-200 dark:bg-slate-700
         ${roundedClasses[rounded]}
         ${animate ? 'animate-pulse' : ''}
         ${className}
@@ -78,7 +78,7 @@ export const TextSkeleton: React.FC<TextSkeletonProps> = ({
   className = '',
 }) => {
   const widths = ['100%', '90%', '80%', '95%', '75%', '85%'];
-  
+
   return (
     <div className={`space-y-2 ${className}`}>
       {Array.from({ length: lines }).map((_, i) => (
@@ -220,11 +220,11 @@ export const ChatMessageSkeleton: React.FC<ChatMessageSkeletonProps> = ({
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} ${className}`}>
       <div className={`flex gap-2 max-w-[80%] ${isUser ? 'flex-row-reverse' : ''}`}>
         {!isUser && <AvatarSkeleton size="sm" />}
-        <div 
+        <div
           className={`
             p-3 rounded-2xl space-y-2
-            ${isUser 
-              ? 'bg-blue-100 dark:bg-blue-900/30' 
+            ${isUser
+              ? 'bg-blue-100 dark:bg-blue-900/30'
               : 'bg-slate-100 dark:bg-slate-800'}
           `}
           style={{ minWidth: '200px' }}
@@ -311,16 +311,16 @@ export const ChartSkeleton: React.FC<ChartSkeletonProps> = ({
     <div className={`bg-white dark:bg-slate-800 rounded-xl p-4 ${className}`}>
       {/* Title */}
       <Skeleton height={18} width={120} rounded="sm" className="mb-4" />
-      
+
       {/* Chart area */}
       <div className="flex items-end gap-2" style={{ height }}>
         {type === 'bar' ? (
           // Bar chart
           Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="flex-1 flex flex-col justify-end">
-              <Skeleton 
-                height={`${30 + Math.random() * 70}%`} 
-                rounded="sm" 
+              <Skeleton
+                height={`${30 + Math.random() * 70}%`}
+                rounded="sm"
                 className="w-full"
               />
             </div>
@@ -328,8 +328,8 @@ export const ChartSkeleton: React.FC<ChartSkeletonProps> = ({
         ) : (
           // Line chart placeholder
           <div className="flex-1 relative">
-            <svg 
-              className="w-full h-full text-slate-200 dark:text-slate-700" 
+            <svg
+              className="w-full h-full text-slate-200 dark:text-slate-700"
               viewBox="0 0 100 50"
               preserveAspectRatio="none"
             >
@@ -344,7 +344,7 @@ export const ChartSkeleton: React.FC<ChartSkeletonProps> = ({
           </div>
         )}
       </div>
-      
+
       {/* X-axis labels */}
       <div className="flex justify-between mt-2">
         {Array.from({ length: 7 }).map((_, i) => (
@@ -394,7 +394,7 @@ export const AppointmentCardSkeleton: React.FC<{ className?: string }> = ({ clas
           <Skeleton height={24} width={24} rounded="sm" className="my-1" />
           <Skeleton height={10} width={40} rounded="sm" />
         </div>
-        
+
         {/* Details */}
         <div className="flex-1 space-y-2">
           <Skeleton height={18} width="70%" rounded="sm" />
@@ -407,7 +407,7 @@ export const AppointmentCardSkeleton: React.FC<{ className?: string }> = ({ clas
             <Skeleton height={14} width={80} rounded="sm" />
           </div>
         </div>
-        
+
         {/* Actions */}
         <Skeleton height={32} width={32} rounded="full" />
       </div>
@@ -494,12 +494,12 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
             </div>
           </div>
         </div>
-        
+
         {/* Messages */}
         <div className="flex-1 overflow-hidden">
           <ChatListSkeleton messages={6} />
         </div>
-        
+
         {/* Input */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
           <Skeleton height={48} width="100%" rounded="full" />
@@ -516,10 +516,10 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
           <Skeleton height={28} width={150} rounded="sm" />
           <Skeleton height={36} width={100} rounded="lg" />
         </div>
-        
+
         {/* Search/Filter */}
         <Skeleton height={44} width="100%" rounded="lg" />
-        
+
         {/* List */}
         <ListSkeleton items={8} hasAction />
       </div>
@@ -537,10 +537,10 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
             <Skeleton height={16} width="40%" rounded="sm" />
           </div>
         </div>
-        
+
         {/* Content */}
         <CardSkeleton lines={5} />
-        
+
         {/* Additional sections */}
         <div className="grid grid-cols-2 gap-4">
           <StatsCardSkeleton />
@@ -561,7 +561,7 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
         </div>
         <AvatarSkeleton size="lg" />
       </div>
-      
+
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatsCardSkeleton />
@@ -569,10 +569,10 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
         <StatsCardSkeleton />
         <StatsCardSkeleton />
       </div>
-      
+
       {/* Chart */}
       <ChartSkeleton type="line" height={200} />
-      
+
       {/* Recent items */}
       <div>
         <Skeleton height={20} width={150} rounded="sm" className="mb-3" />
@@ -588,7 +588,7 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
 
 export const ShimmerEffect: React.FC<{ className?: string }> = ({ className = '' }) => {
   return (
-    <div 
+    <div
       className={`
         relative overflow-hidden
         before:absolute before:inset-0

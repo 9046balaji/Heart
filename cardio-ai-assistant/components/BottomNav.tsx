@@ -25,12 +25,12 @@ const BottomNav: React.FC = () => {
               key={item.label}
               to={item.path}
               className={`flex flex-col items-center gap-1 min-w-[60px] p-2 rounded-xl transition-all duration-300 ${
-                isActive 
-                  ? 'text-primary' 
+                isActive
+                  ? 'text-primary'
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
-              <span 
+              <span
                 className={`material-symbols-outlined text-2xl ${isActive || item.filled ? 'filled' : ''} ${isActive ? 'scale-110' : ''}`}
                 style={item.filled && isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
               >

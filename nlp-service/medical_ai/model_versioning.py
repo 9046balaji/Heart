@@ -2,10 +2,14 @@
 Model Versioning System for NLP Service
 Manages different versions of NLP models and enables A/B testing
 """
+
 import logging
 from typing import Dict, Any, Optional
 from config import MODEL_VERSIONS, DEFAULT_MODEL_VERSION
-from core.error_handling import ModelLoadError, ProcessingError  # PHASE 2: Import exception hierarchy
+from core.error_handling import (
+    ModelLoadError,
+    ProcessingError,
+)  # PHASE 2: Import exception hierarchy
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +25,14 @@ class ModelVersionManager:
         self.model_versions = MODEL_VERSIONS.copy()
         self.active_models: Dict[str, Any] = {}
         self.version_history: Dict[str, list] = {}
-        
+
         # Initialize version history
         for model_name in self.model_versions:
             self.version_history[model_name] = [self.model_versions[model_name]]
-        
-        logger.info("ModelVersionManager initialized with versions: %s", self.model_versions)
+
+        logger.info(
+            "ModelVersionManager initialized with versions: %s", self.model_versions
+        )
 
     def get_model_version(self, model_name: str) -> str:
         """
@@ -53,17 +59,19 @@ class ModelVersionManager:
         """
         try:
             old_version = self.model_versions.get(model_name, DEFAULT_MODEL_VERSION)
-            
+
             # Update version
             self.model_versions[model_name] = version
-            
+
             # Add to version history
             if model_name in self.version_history:
                 self.version_history[model_name].append(version)
             else:
                 self.version_history[model_name] = [old_version, version]
-            
-            logger.info(f"Model version updated: {model_name} from {old_version} to {version}")
+
+            logger.info(
+                f"Model version updated: {model_name} from {old_version} to {version}"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to set model version: {e}")
@@ -119,28 +127,32 @@ class ModelVersionManager:
             if model_name not in self.version_history:
                 logger.warning(f"No version history for model: {model_name}")
                 return False
-            
+
             history = self.version_history[model_name]
             if len(history) < 2:
                 logger.warning(f"Not enough version history to rollback: {model_name}")
                 return False
-            
+
             # Get previous version (second to last)
             previous_version = history[-2]
-            
+
             # Update current version
             self.model_versions[model_name] = previous_version
-            
+
             # Remove the last entry from history
             self.version_history[model_name] = history[:-1]
-            
-            logger.info(f"Model version rolled back: {model_name} to {previous_version}")
+
+            logger.info(
+                f"Model version rolled back: {model_name} to {previous_version}"
+            )
             return True
         except Exception as e:
             logger.error(f"Failed to rollback model version: {e}")
             return False
 
-    def register_model(self, model_name: str, model_instance: Any, version: str = None) -> bool:
+    def register_model(
+        self, model_name: str, model_instance: Any, version: str = None
+    ) -> bool:
         """
         Register an active model instance.
 
@@ -192,7 +204,9 @@ class ModelVersionManager:
         # For now, we'll return the version history
         return {name: history.copy() for name, history in self.version_history.items()}
 
-    def enable_ab_test(self, model_name: str, version_a: str, version_b: str, split_ratio: float = 0.5) -> bool:
+    def enable_ab_test(
+        self, model_name: str, version_a: str, version_b: str, split_ratio: float = 0.5
+    ) -> bool:
         """
         Enable A/B testing between two versions of a model.
 
@@ -210,15 +224,15 @@ class ModelVersionManager:
             if not self.validate_version(model_name, version_a):
                 logger.error(f"Invalid version A: {version_a}")
                 return False
-                
+
             if not self.validate_version(model_name, version_b):
                 logger.error(f"Invalid version B: {version_b}")
                 return False
-                
+
             if not 0.0 <= split_ratio <= 1.0:
                 logger.error(f"Invalid split ratio: {split_ratio}")
                 return False
-            
+
             # In a real implementation, this would set up A/B testing infrastructure
             # For now, we'll just log the configuration
             logger.info(

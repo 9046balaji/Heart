@@ -1,6 +1,6 @@
 /**
  * API Response Caching Service
- * 
+ *
  * Provides intelligent caching for API responses:
  * - Time-based cache expiration
  * - Cache invalidation patterns
@@ -335,17 +335,17 @@ class HealthDataCache extends APICache {
     // Real-time data: short TTL
     vitals: { ttl: 30 * 1000, staleTime: 15 * 1000 }, // 30s / 15s
     heartRate: { ttl: 30 * 1000, staleTime: 15 * 1000 },
-    
+
     // Semi-static data: medium TTL
     medications: { ttl: 5 * 60 * 1000, staleTime: 2 * 60 * 1000 }, // 5m / 2m
     appointments: { ttl: 5 * 60 * 1000, staleTime: 2 * 60 * 1000 },
     chatHistory: { ttl: 5 * 60 * 1000, staleTime: 2 * 60 * 1000 },
-    
+
     // Static data: long TTL
     userProfile: { ttl: 30 * 60 * 1000, staleTime: 15 * 60 * 1000 }, // 30m / 15m
     medicalHistory: { ttl: 30 * 60 * 1000, staleTime: 15 * 60 * 1000 },
     drugInfo: { ttl: 60 * 60 * 1000, staleTime: 30 * 60 * 1000 }, // 1h / 30m
-    
+
     // Analytics: long TTL
     analytics: { ttl: 15 * 60 * 1000, staleTime: 10 * 60 * 1000 }, // 15m / 10m
   };

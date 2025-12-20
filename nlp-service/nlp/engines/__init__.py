@@ -16,7 +16,7 @@ from medical_ai.risk_assessor import RiskAssessor
 
 __all__ = [
     "IntentRecognizer",
-    "SentimentAnalyzer", 
+    "SentimentAnalyzer",
     "EntityExtractor",
     "RiskAssessor",
 ]

@@ -22,6 +22,7 @@ from ..utils.exceptions import DatabaseError
 from ..utils.pydantic_models import (
     ProcessedLongTermMemory,
 )
+
 # auto_creator removed - SQLAlchemy handles database creation via create_all()
 # from .auto_creator import DatabaseAutoCreator
 from .models import (
@@ -30,6 +31,7 @@ from .models import (
     LongTermMemory,
     ShortTermMemory,
 )
+
 # query_translator removed - using SQLAlchemy ORM directly
 # from .query_translator import QueryParameterTranslator
 from .search_service import SearchService
@@ -48,7 +50,7 @@ class SQLAlchemyDatabaseManager:
         pool_timeout: int = pool_config.get("pool_timeout", 30),
         pool_recycle: int = pool_config.get("pool_recycle", 3600),
         pool_pre_ping: bool = pool_config.get("pool_pre_ping", True),
-   ):
+    ):
         self.database_connect = database_connect
         self.template = template
         self.schema_init = schema_init
@@ -76,7 +78,7 @@ class SQLAlchemyDatabaseManager:
         # Initialize search service
         self._search_service = None
 
-        # query_translator removed - using SQLAlchemy ORM directly  
+        # query_translator removed - using SQLAlchemy ORM directly
         # self.query_translator = QueryParameterTranslator(self.database_type)
 
         logger.info(

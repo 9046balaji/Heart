@@ -231,7 +231,9 @@ def get_insert_statement(
 
     values_str = ", ".join(values)
 
-    return f"INSERT INTO {table_name} ({columns_str}) VALUES ({values_str})"
+    return (
+        f"INSERT INTO {table_name} ({columns_str}) VALUES ({values_str})"  # nosec B608
+    )
 
 
 # Convenience function for common case

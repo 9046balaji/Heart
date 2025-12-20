@@ -10,25 +10,21 @@ This package provides intelligent medical document ingestion and structuring:
 
 Usage:
     from document_scanning import DocumentIngestionService, OCREngineFactory, MedicalDocumentClassifier
-    
+
     # Ingest a document
     ingestion = DocumentIngestionService()
     result = ingestion.ingest_document(file, filename, user_id)
-    
+
     # Extract text via OCR
     ocr = OCREngineFactory().get_engine()
     text_result = ocr.extract_text(file_path)
-    
+
     # Classify document type
     classifier = MedicalDocumentClassifier()
     classification = classifier.classify(text)
 """
 
-from .ingestion import (
-    DocumentIngestionService,
-    DocumentType,
-    MedicalDocumentCategory
-)
+from .ingestion import DocumentIngestionService, DocumentType, MedicalDocumentCategory
 
 from .ocr_engine import (
     OCREngineFactory,
@@ -37,30 +33,30 @@ from .ocr_engine import (
     BaseOCREngine,
     TesseractOCREngine,
     GoogleVisionOCREngine,
-    AWSTextractEngine
+    AWSTextractEngine,
 )
 
 from .classifier import (
     MedicalDocumentClassifier,
     DocumentCategory,
-    ClassificationResult
+    ClassificationResult,
 )
 
 __all__ = [
     # Ingestion
-    'DocumentIngestionService',
-    'DocumentType',
-    'MedicalDocumentCategory',
+    "DocumentIngestionService",
+    "DocumentType",
+    "MedicalDocumentCategory",
     # OCR
-    'OCREngineFactory',
-    'OCRResult',
-    'OCRProvider',
-    'BaseOCREngine',
-    'TesseractOCREngine',
-    'GoogleVisionOCREngine',
-    'AWSTextractEngine',
+    "OCREngineFactory",
+    "OCRResult",
+    "OCRProvider",
+    "BaseOCREngine",
+    "TesseractOCREngine",
+    "GoogleVisionOCREngine",
+    "AWSTextractEngine",
     # Classification
-    'MedicalDocumentClassifier',
-    'DocumentCategory',
-    'ClassificationResult',
+    "MedicalDocumentClassifier",
+    "DocumentCategory",
+    "ClassificationResult",
 ]

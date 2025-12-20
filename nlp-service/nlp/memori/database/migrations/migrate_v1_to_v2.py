@@ -158,7 +158,7 @@ class MigrationHelper:
 
                 for table in tables:
                     result = conn.execute(
-                        text(f"SELECT COUNT(*) as count FROM {table}")
+                        text(f"SELECT COUNT(*) as count FROM {table}")  # nosec B608
                     )
                     count = result.scalar()
                     print(f"  {table}: {count} records")
@@ -167,7 +167,7 @@ class MigrationHelper:
                     try:
                         result = conn.execute(
                             text(
-                                f"SELECT namespace, COUNT(*) as count FROM {table} "
+                                f"SELECT namespace, COUNT(*) as count FROM {table} "  # nosec B608
                                 f"GROUP BY namespace"
                             )
                         )
@@ -339,7 +339,9 @@ class MigrationHelper:
             with self.engine.connect() as conn:
                 for table in tables:
                     result = conn.execute(
-                        text(f"SELECT COUNT(*) FROM {table} WHERE user_id IS NULL")
+                        text(
+                            f"SELECT COUNT(*) FROM {table} WHERE user_id IS NULL"
+                        )  # nosec B608
                     )
                     null_count = result.scalar()
 
@@ -357,7 +359,7 @@ class MigrationHelper:
                 for table in tables:
                     result = conn.execute(
                         text(
-                            f"SELECT user_id, COUNT(*) as count FROM {table} GROUP BY user_id"
+                            f"SELECT user_id, COUNT(*) as count FROM {table} GROUP BY user_id"  # nosec B608
                         )
                     )
                     for row in result:

@@ -57,7 +57,7 @@ const MiniAudioPlayer: React.FC<{ workout: Workout, onClose: () => void }> = ({ 
             if (isPlaying) {
                 setElapsed(prev => prev + 1);
                 setProgress(prev => Math.min(100, prev + 0.1));
-                
+
                 // Simulated script
                 if (elapsed === 5) setCaption("Coach: Keep a steady pace.");
                 if (elapsed === 15) setCaption("Coach: You're doing great! Check your posture.");
@@ -102,7 +102,7 @@ interface WorkoutCardProps {
 const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClick }) => {
     const [isHovered, setIsHovered] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
-    
+
     // Only attempt preview for MP4s (mostly Pexels in data)
     const canPreview = workout.videoUrl && !workout.videoUrl.includes('youtube');
 
@@ -123,7 +123,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
     };
 
     return (
-        <div 
+        <div
             onClick={onClick}
             className="flex flex-col gap-2 cursor-pointer group relative"
             onMouseEnter={() => setIsHovered(true)}
@@ -131,7 +131,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
         >
             <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-800 transition-transform duration-300 group-hover:scale-[1.02] shadow-sm group-hover:shadow-lg">
                 {/* Static Image */}
-                <div 
+                <div
                     className={`absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${isHovered && canPreview ? 'opacity-0' : 'opacity-100'}`}
                     style={{backgroundImage: `url(${getImageUrl(workout.image, workout.id)})`}}
                 ></div>
@@ -157,7 +157,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
 
                 {/* Audio Guide Button (if applicable) */}
                 {(workout.category === 'Cardio' && workout.accessibility.includes('outdoor')) && (
-                    <button 
+                    <button
                         onClick={(e) => { e.stopPropagation(); if (onAudioClick) onAudioClick(); }}
                         className="absolute bottom-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-primary hover:text-slate-900 transition-colors z-20"
                         title="Start Audio Guide"
@@ -185,7 +185,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
 
 const RemindersOverlay: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [enabled, setEnabled] = useState(true);
-  return <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose}></div>; 
+  return <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose}></div>;
 };
 
 const ExerciseScreen: React.FC = () => {
@@ -195,13 +195,13 @@ const ExerciseScreen: React.FC = () => {
   const [showReminders, setShowReminders] = useState(false);
   const [plan, setPlan] = useState<ExercisePlan | null>(null);
   const [activeAudioGuide, setActiveAudioGuide] = useState<Workout | null>(null);
-  
+
   // Search & Filter State
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [displayLimit, setDisplayLimit] = useState(8);
-  
+
   // Readiness State
   const [readinessScore, setReadinessScore] = useState(85);
 
@@ -270,7 +270,7 @@ const ExerciseScreen: React.FC = () => {
         const days: PlanDay[] = [];
         let exIndex = 0;
         for (let i = 0; i < 7; i++) {
-            const isWorkoutDay = i % 2 === 0 && exIndex < t.days; 
+            const isWorkoutDay = i % 2 === 0 && exIndex < t.days;
             if (isWorkoutDay) {
                 days.push({ day: daysOfWeek[i], workoutId: t.exercises[exIndex % t.exercises.length], completed: false });
                 exIndex++;
@@ -301,11 +301,11 @@ const ExerciseScreen: React.FC = () => {
     const confirmScratchPlan = () => {
         const days: PlanDay[] = [];
         const exercises = scratchData.exercises;
-        
+
         let exIndex = 0;
         for (let i = 0; i < 7; i++) {
-            const shouldWorkout = (i < scratchData.frequency * 2) && (i % 2 === 0 || scratchData.frequency > 4); 
-            if (exercises.length > 0 && exIndex < scratchData.frequency) { 
+            const shouldWorkout = (i < scratchData.frequency * 2) && (i % 2 === 0 || scratchData.frequency > 4);
+            if (exercises.length > 0 && exIndex < scratchData.frequency) {
                  days.push({ day: daysOfWeek[i], workoutId: exercises[exIndex % exercises.length], completed: false });
                  exIndex++;
             } else if (days.length < 7) {
@@ -319,7 +319,7 @@ const ExerciseScreen: React.FC = () => {
             name: scratchData.name || 'Custom Plan',
             goal: scratchData.goal,
             days: days,
-            weeklyTargetMinutes: 100, 
+            weeklyTargetMinutes: 100,
             createdAt: new Date().toISOString()
         };
         savePlan(newPlan);
@@ -328,7 +328,7 @@ const ExerciseScreen: React.FC = () => {
     const renderMenu = () => (
         <div className="space-y-4 p-6">
             <h3 className="text-2xl font-bold dark:text-white mb-4">How would you like to start?</h3>
-            
+
             <button onClick={() => setPath('templates')} className="w-full bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-200 dark:border-slate-700 text-left hover:border-primary transition-all group shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                     <span className="material-symbols-outlined text-3xl text-purple-500">dashboard</span>
@@ -362,7 +362,7 @@ const ExerciseScreen: React.FC = () => {
             <div className="px-6 py-4 overflow-x-auto no-scrollbar border-b border-slate-100 dark:border-slate-800">
                 <div className="flex gap-2">
                     {TEMPLATE_CATEGORIES.map(cat => (
-                        <button 
+                        <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
@@ -398,7 +398,7 @@ const ExerciseScreen: React.FC = () => {
                     <div className="space-y-4">
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Plan Name</label>
-                            <input 
+                            <input
                                 type="text" value={scratchData.name} onChange={e => setScratchData({...scratchData, name: e.target.value})}
                                 placeholder="e.g. Morning Cardio"
                                 className="w-full mt-1 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
@@ -406,7 +406,7 @@ const ExerciseScreen: React.FC = () => {
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase">Goal / Description</label>
-                            <input 
+                            <input
                                 type="text" value={scratchData.goal} onChange={e => setScratchData({...scratchData, goal: e.target.value})}
                                 placeholder="e.g. Lose weight, Build muscle"
                                 className="w-full mt-1 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
@@ -417,7 +417,7 @@ const ExerciseScreen: React.FC = () => {
                                 <label className="text-xs font-bold text-slate-500 uppercase">Frequency</label>
                                 <span className="text-sm font-bold text-primary">{scratchData.frequency} days/week</span>
                             </div>
-                            <input 
+                            <input
                                 type="range" min="1" max="7" value={scratchData.frequency} onChange={e => setScratchData({...scratchData, frequency: parseInt(e.target.value)})}
                                 className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary mt-2"
                             />
@@ -434,7 +434,7 @@ const ExerciseScreen: React.FC = () => {
                     <div className="p-4 border-b border-slate-100 dark:border-slate-800">
                         <div className="relative">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                            <input 
+                            <input
                                 type="text" placeholder="Search exercises..." value={scratchSearch} onChange={e => setScratchSearch(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white"
                             />
@@ -456,10 +456,10 @@ const ExerciseScreen: React.FC = () => {
                             );
                         })}
                     </div>
-                    
+
                     {/* Live Preview / Action Bar */}
                     <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-[60]">
-                        <div 
+                        <div
                             className="flex justify-between items-center mb-3 cursor-pointer"
                             onClick={() => setShowPreview(!showPreview)}
                         >
@@ -469,7 +469,7 @@ const ExerciseScreen: React.FC = () => {
                             </div>
                             <span className="material-symbols-outlined text-slate-400">{showPreview ? 'expand_more' : 'expand_less'}</span>
                         </div>
-                        
+
                         {showPreview && (
                             <div className="mb-4 max-h-40 overflow-y-auto space-y-1 border-t border-slate-100 dark:border-slate-700 pt-2">
                                 {scratchData.exercises.map(id => {
@@ -491,7 +491,7 @@ const ExerciseScreen: React.FC = () => {
             {scratchStep === 3 && (
                 <div className="p-6 flex flex-col h-full">
                     <h3 className="text-2xl font-bold dark:text-white mb-6">Review Plan</h3>
-                    
+
                     <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6">
                         <h4 className="font-bold text-lg dark:text-white">{scratchData.name}</h4>
                         <p className="text-sm text-slate-500 mb-2">{scratchData.goal}</p>
@@ -534,7 +534,7 @@ const ExerciseScreen: React.FC = () => {
                 </h2>
                 <div className="w-10"></div>
             </div>
-            
+
             <div className="flex-1 overflow-hidden relative">
                 {path === 'menu' && renderMenu()}
                 {path === 'templates' && renderTemplates()}
@@ -547,7 +547,7 @@ const ExerciseScreen: React.FC = () => {
                     <div className="bg-white dark:bg-card-dark w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10">
                         <h3 className="text-xl font-bold dark:text-white mb-1">{previewTemplate.name}</h3>
                         <p className="text-sm text-slate-500 mb-4">{previewTemplate.desc}</p>
-                        
+
                         <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg mb-4">
                             <p className="text-xs font-bold text-slate-500 uppercase mb-2">Included Workouts</p>
                             <ul className="space-y-1">
@@ -573,7 +573,7 @@ const ExerciseScreen: React.FC = () => {
 
   // Filter Logic:
   // If plan exists, collect unique exercises from plan.days
-  const planWorkoutIds = plan 
+  const planWorkoutIds = plan
     ? Array.from(new Set(plan.days.map(d => d.workoutId).filter(id => id !== 'rest')))
     : [];
 
@@ -597,27 +597,27 @@ const ExerciseScreen: React.FC = () => {
                <span className="material-symbols-outlined">notifications</span>
             </button>
           </div>
-          
+
           <div className="flex px-4 border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
-            <button 
+            <button
                 onClick={() => setActiveTab('plan')}
                 className={`flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors whitespace-nowrap px-3 ${activeTab === 'plan' ? 'border-primary text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-slate-400'}`}
             >
                 My Plan
             </button>
-            <button 
+            <button
                 onClick={() => setActiveTab('coach')}
                 className={`flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors whitespace-nowrap px-3 ${activeTab === 'coach' ? 'border-primary text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-slate-400'}`}
             >
                 AI Coach
             </button>
-            <button 
+            <button
                 onClick={() => setActiveTab('stats')}
                 className={`flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors whitespace-nowrap px-3 ${activeTab === 'stats' ? 'border-primary text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-slate-400'}`}
             >
                 Stats
             </button>
-            <button 
+            <button
                 onClick={() => setActiveTab('community')}
                 className={`flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors whitespace-nowrap px-3 ${activeTab === 'community' ? 'border-primary text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-slate-400'}`}
             >
@@ -674,7 +674,7 @@ const ExerciseScreen: React.FC = () => {
                             const todayIndex = (new Date().getDay() + 6) % 7;
                             const todayPlan = plan.days[todayIndex];
                             const todayWorkout = todayPlan && todayPlan.workoutId !== 'rest' ? getWorkoutById(todayPlan.workoutId) : null;
-                            
+
                             return (
                                 <div className="bg-white dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden transition-all duration-300">
                                     {todayWorkout ? (
@@ -691,7 +691,7 @@ const ExerciseScreen: React.FC = () => {
                                                 </div>
                                                 <div className="w-16 h-16 rounded-xl bg-slate-200 bg-cover bg-center cursor-pointer" onClick={() => navigate(`/workout/${todayWorkout.id}`)} style={{backgroundImage: `url(${todayWorkout.image.startsWith('/images') ? 'https://picsum.photos/seed/'+todayWorkout.id+'/200' : todayWorkout.image})`}}></div>
                                             </div>
-                                            
+
                                             <div className="flex flex-col gap-3">
                                                 <button onClick={() => navigate(`/workout/${todayWorkout.id}`)} className="flex-1 bg-primary hover:bg-primary-dark text-slate-900 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/20">
                                                     <span className="material-symbols-outlined">play_arrow</span> Start
@@ -748,17 +748,17 @@ const ExerciseScreen: React.FC = () => {
 
                          <div className="grid grid-cols-2 gap-4">
                              {filteredWorkouts.slice(0, displayLimit).map(workout => (
-                                 <WorkoutCard 
-                                    key={workout.id} 
+                                 <WorkoutCard
+                                    key={workout.id}
                                     workout={workout}
                                     onClick={() => navigate(`/workout/${workout.id}`)}
                                     onAudioClick={() => setActiveAudioGuide(workout)}
                                  />
                              ))}
                          </div>
-                         
+
                          {displayLimit < filteredWorkouts.length && (
-                             <button 
+                             <button
                                 onClick={() => setDisplayLimit(prev => prev + 20)}
                                 className="w-full py-3 mt-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                              >
@@ -773,10 +773,10 @@ const ExerciseScreen: React.FC = () => {
             {activeTab === 'community' && <CommunityScreen />}
           </>
       )}
-      
+
       {view === 'wizard' && <WizardView />}
       {showReminders && <RemindersOverlay onClose={() => setShowReminders(false)} />}
-      
+
       {/* Filter Modal Placeholder */}
       {showFilters && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowFilters(false)}>

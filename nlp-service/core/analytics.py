@@ -2,7 +2,7 @@
 Analytics Module for NLP Service
 Tracks intent/sentiment patterns and usage statistics
 """
-import json
+
 import logging
 import time
 from typing import Dict, List, Any, Tuple
@@ -29,25 +29,31 @@ class AnalyticsManager:
         self.entity_type_counter = Counter()
         self.processing_time_samples: List[float] = []
         self.request_timestamps: List[float] = []
-        self.session_patterns: Dict[str, Dict] = defaultdict(lambda: {
-            'intents': Counter(),
-            'sentiments': Counter(),
-            'entities': Counter(),
-            'request_count': 0
-        })
-        
+        self.session_patterns: Dict[str, Dict] = defaultdict(
+            lambda: {
+                "intents": Counter(),
+                "sentiments": Counter(),
+                "entities": Counter(),
+                "request_count": 0,
+            }
+        )
+
         # Trend analysis data
-        self.hourly_intent_trends: Dict[str, List[Tuple[datetime, int]]] = defaultdict(list)
-        self.daily_intent_trends: Dict[str, List[Tuple[datetime, int]]] = defaultdict(list)
+        self.hourly_intent_trends: Dict[str, List[Tuple[datetime, int]]] = defaultdict(
+            list
+        )
+        self.daily_intent_trends: Dict[str, List[Tuple[datetime, int]]] = defaultdict(
+            list
+        )
         self.sentiment_trends: List[Tuple[datetime, Dict[str, int]]] = []
-        
+
         # Performance trends
         self.performance_trends: List[Tuple[datetime, float]] = []
-        
+
         # Configure logging for analytics
         logging.basicConfig(
             level=getattr(logging, LOG_LEVEL),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
     def track_nlp_request(
@@ -57,7 +63,7 @@ class AnalyticsManager:
         entities: List[Any],
         processing_time: float,
         session_id: str = None,
-        user_id: str = None
+        user_id: str = None,
     ):
         """
         Track an NLP processing request.
@@ -72,32 +78,32 @@ class AnalyticsManager:
         """
         try:
             current_time = datetime.now()
-            
+
             # Track overall patterns
             self.intent_counter[intent.value] += 1
             self.sentiment_counter[sentiment.value] += 1
             self.processing_time_samples.append(processing_time)
             self.request_timestamps.append(time.time())
-            
+
             # Track entity types
             for entity in entities:
                 self.entity_type_counter[entity.type] += 1
-            
+
             # Track session patterns
             if session_id:
                 session_data = self.session_patterns[session_id]
-                session_data['intents'][intent.value] += 1
-                session_data['sentiments'][sentiment.value] += 1
-                session_data['request_count'] += 1
-                
+                session_data["intents"][intent.value] += 1
+                session_data["sentiments"][sentiment.value] += 1
+                session_data["request_count"] += 1
+
                 for entity in entities:
-                    session_data['entities'][entity.type] += 1
-            
+                    session_data["entities"][entity.type] += 1
+
             # Track trends
             self._track_intent_trend(current_time, intent.value)
             self._track_sentiment_trend(current_time, sentiment.value)
             self._track_performance_trend(current_time, processing_time)
-            
+
             # Log the request for detailed analysis
             logger.info(
                 f"NLP_ANALYTICS - Intent: {intent.value}, "
@@ -105,7 +111,7 @@ class AnalyticsManager:
                 f"Entities: {len(entities)}, "
                 f"ProcessingTime: {processing_time:.3f}s"
             )
-            
+
         except Exception as e:
             logger.warning(f"Failed to track analytics: {e}")
 
@@ -114,22 +120,24 @@ class AnalyticsManager:
         # Hourly trends
         hour_key = timestamp.replace(minute=0, second=0, microsecond=0)
         self.hourly_intent_trends[intent].append((hour_key, 1))
-        
+
         # Daily trends
         day_key = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
         self.daily_intent_trends[intent].append((day_key, 1))
-        
+
         # Keep only recent data (last 24 hours for hourly, last 30 days for daily)
         cutoff_hour = datetime.now() - timedelta(hours=24)
         cutoff_day = datetime.now() - timedelta(days=30)
-        
+
         self.hourly_intent_trends[intent] = [
-            (t, count) for t, count in self.hourly_intent_trends[intent] 
+            (t, count)
+            for t, count in self.hourly_intent_trends[intent]
             if t >= cutoff_hour
         ]
-        
+
         self.daily_intent_trends[intent] = [
-            (t, count) for t, count in self.daily_intent_trends[intent] 
+            (t, count)
+            for t, count in self.daily_intent_trends[intent]
             if t >= cutoff_day
         ]
 
@@ -138,23 +146,21 @@ class AnalyticsManager:
         # For simplicity, we'll just track the current sentiment counts
         # In a production system, you might want more sophisticated tracking
         self.sentiment_trends.append((timestamp, dict(self.sentiment_counter)))
-        
+
         # Keep only recent data (last 24 hours)
         cutoff = datetime.now() - timedelta(hours=24)
         self.sentiment_trends = [
-            (t, data) for t, data in self.sentiment_trends 
-            if t >= cutoff
+            (t, data) for t, data in self.sentiment_trends if t >= cutoff
         ]
 
     def _track_performance_trend(self, timestamp: datetime, processing_time: float):
         """Track performance trends over time"""
         self.performance_trends.append((timestamp, processing_time))
-        
+
         # Keep only recent data (last 24 hours)
         cutoff = datetime.now() - timedelta(hours=24)
         self.performance_trends = [
-            (t, pt) for t, pt in self.performance_trends 
-            if t >= cutoff
+            (t, pt) for t, pt in self.performance_trends if t >= cutoff
         ]
 
     def get_intent_distribution(self) -> Dict[str, int]:
@@ -193,14 +199,14 @@ class AnalyticsManager:
         """
         if not self.processing_time_samples:
             return {"count": 0}
-        
+
         samples = self.processing_time_samples
         return {
             "count": len(samples),
             "average": sum(samples) / len(samples),
             "min": min(samples),
             "max": max(samples),
-            "median": sorted(samples)[len(samples) // 2]
+            "median": sorted(samples)[len(samples) // 2],
         }
 
     def get_request_rate(self, minutes: int = 60) -> float:
@@ -227,7 +233,11 @@ class AnalyticsManager:
         Returns:
             Dictionary with session analytics
         """
-        return dict(self.session_patterns[session_id]) if session_id in self.session_patterns else {}
+        return (
+            dict(self.session_patterns[session_id])
+            if session_id in self.session_patterns
+            else {}
+        )
 
     def get_top_intents(self, limit: int = 10) -> List[tuple]:
         """
@@ -284,10 +294,12 @@ class AnalyticsManager:
             "total_requests": len(self.request_timestamps),
             "active_sessions": self.get_active_sessions(),
             "top_intents": self.get_top_intents(5),
-            "top_entities": self.get_top_entities(5)
+            "top_entities": self.get_top_entities(5),
         }
 
-    def get_intent_trends(self, intent: str = None, period: str = "hourly") -> Dict[str, Any]:
+    def get_intent_trends(
+        self, intent: str = None, period: str = "hourly"
+    ) -> Dict[str, Any]:
         """
         Get intent trends over time.
 
@@ -303,20 +315,29 @@ class AnalyticsManager:
                 data = self.hourly_intent_trends.get(intent, [])
             else:
                 data = self.daily_intent_trends.get(intent, [])
-            
+
             return {
                 "intent": intent,
                 "period": period,
-                "data": [{"timestamp": t.isoformat(), "count": count} for t, count in data]
+                "data": [
+                    {"timestamp": t.isoformat(), "count": count} for t, count in data
+                ],
             }
         else:
             # Return trends for all intents
             result = {}
-            trends = self.hourly_intent_trends if period == "hourly" else self.daily_intent_trends
+            trends = (
+                self.hourly_intent_trends
+                if period == "hourly"
+                else self.daily_intent_trends
+            )
             for intent_name, data in trends.items():
                 result[intent_name] = {
                     "period": period,
-                    "data": [{"timestamp": t.isoformat(), "count": count} for t, count in data]
+                    "data": [
+                        {"timestamp": t.isoformat(), "count": count}
+                        for t, count in data
+                    ],
                 }
             return result
 
@@ -328,10 +349,7 @@ class AnalyticsManager:
             List of sentiment trend data points
         """
         return [
-            {
-                "timestamp": t.isoformat(),
-                "sentiments": data
-            }
+            {"timestamp": t.isoformat(), "sentiments": data}
             for t, data in self.sentiment_trends
         ]
 
@@ -343,10 +361,7 @@ class AnalyticsManager:
             List of performance trend data points
         """
         return [
-            {
-                "timestamp": t.isoformat(),
-                "processing_time": pt
-            }
+            {"timestamp": t.isoformat(), "processing_time": pt}
             for t, pt in self.performance_trends
         ]
 
@@ -361,46 +376,48 @@ class AnalyticsManager:
             "high_request_rate": False,
             "slow_performance": False,
             "unusual_intent_distribution": False,
-            "details": {}
+            "details": {},
         }
-        
+
         # Check for high request rate (more than 2 standard deviations above average)
         if len(self.request_timestamps) > 10:
             current_rate = self.get_request_rate(5)  # Last 5 minutes
-            recent_rates = [self.get_request_rate(i) for i in range(1, 11)]  # Last 10 minutes
+            recent_rates = [
+                self.get_request_rate(i) for i in range(1, 11)
+            ]  # Last 10 minutes
             avg_rate = sum(recent_rates) / len(recent_rates)
             std_rate = np.std(recent_rates) if len(recent_rates) > 1 else 0
-            
+
             if std_rate > 0 and current_rate > avg_rate + 2 * std_rate:
                 anomalies["high_request_rate"] = True
                 anomalies["details"]["request_rate_spike"] = {
                     "current_rate": current_rate,
                     "average_rate": avg_rate,
-                    "threshold": avg_rate + 2 * std_rate
+                    "threshold": avg_rate + 2 * std_rate,
                 }
-        
+
         # Check for slow performance (more than 2 standard deviations above average)
         if len(self.processing_time_samples) > 10:
             current_avg_time = self.get_processing_time_stats()["average"]
             recent_avg_times = []
             for i in range(1, 11):
                 # Get average of last i*10 samples
-                samples = self.processing_time_samples[-(i*10):]
+                samples = self.processing_time_samples[-(i * 10) :]
                 if len(samples) > 0:
                     recent_avg_times.append(sum(samples) / len(samples))
-            
+
             if len(recent_avg_times) > 1:
                 avg_time = sum(recent_avg_times) / len(recent_avg_times)
                 std_time = np.std(recent_avg_times)
-                
+
                 if std_time > 0 and current_avg_time > avg_time + 2 * std_time:
                     anomalies["slow_performance"] = True
                     anomalies["details"]["performance_degradation"] = {
                         "current_avg_time": current_avg_time,
                         "historical_avg_time": avg_time,
-                        "threshold": avg_time + 2 * std_time
+                        "threshold": avg_time + 2 * std_time,
                     }
-        
+
         return anomalies
 
     def reset_analytics(self):

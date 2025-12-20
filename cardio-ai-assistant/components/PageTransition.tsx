@@ -1,6 +1,6 @@
 /**
  * Page Transition Components
- * 
+ *
  * Provides smooth page transitions using Framer Motion
  * Addresses: FINAL_ACTION_PLAN.md "Add page transitions with Framer Motion"
  */
@@ -98,7 +98,7 @@ interface PageWrapperProps {
 
 /**
  * Wraps a page/screen with animated transitions
- * 
+ *
  * Usage:
  * ```tsx
  * <PageWrapper>
@@ -190,7 +190,7 @@ export const SlideIn: React.FC<SlideInProps> = ({
   className = '',
 }) => {
   const offset = getSlideOffset(direction);
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, ...offset }}
@@ -215,7 +215,7 @@ interface StaggerContainerProps {
 
 /**
  * Container for staggered children animations
- * 
+ *
  * Usage:
  * ```tsx
  * <StaggerContainer>
@@ -361,7 +361,7 @@ interface PresenceWrapperProps {
 
 /**
  * Wrapper for AnimatePresence to handle exit animations
- * 
+ *
  * Use with React Router or conditional rendering
  */
 export const PresenceWrapper: React.FC<PresenceWrapperProps> = ({

@@ -10,11 +10,12 @@ Usage:
     from memori.integrations.anthropic_integration import MemoriAnthropic
 
     # Initialize with your memori instance
-    client = MemoriAnthropic(memori_instance, api_key="your-key")
+    import os
+    client = MemoriAnthropic(memori_instance, api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     # Use exactly like Anthropic client
     response = client.messages.create(...)
-    
+
     # Streaming support
     with client.messages.stream(...) as stream:
         for text in stream.text_stream:
@@ -22,7 +23,7 @@ Usage:
 """
 
 import time
-from typing import Optional, Generator, Any, Dict
+from typing import Generator, Any, Dict
 from functools import wraps
 
 from loguru import logger
@@ -33,11 +34,11 @@ def retry_with_backoff(
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
     exponential_base: float = 2.0,
-    retryable_errors: tuple = None
+    retryable_errors: tuple = None,
 ):
     """
     Decorator for retry logic with exponential backoff.
-    
+
     Args:
         max_retries: Maximum number of retry attempts
         initial_delay: Initial delay between retries in seconds
@@ -47,28 +48,34 @@ def retry_with_backoff(
     """
     if retryable_errors is None:
         retryable_errors = (Exception,)
-    
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             delay = initial_delay
             last_exception = None
-            
+
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except retryable_errors as e:
                     last_exception = e
                     if attempt == max_retries:
-                        logger.error(f"Max retries ({max_retries}) exceeded for {func.__name__}: {e}")
+                        logger.error(
+                            f"Max retries ({max_retries}) exceeded for {func.__name__}: {e}"
+                        )
                         raise
-                    
-                    logger.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay:.1f}s...")
+
+                    logger.warning(
+                        f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay:.1f}s..."
+                    )
                     time.sleep(delay)
                     delay = min(delay * exponential_base, max_delay)
-            
+
             raise last_exception
+
         return wrapper
+
     return decorator
 
 
@@ -77,17 +84,17 @@ class TokenCounter:
     Token counting utility for Anthropic models.
     Estimates token count based on character length (approximate).
     """
-    
+
     # Average characters per token (varies by model)
     CHARS_PER_TOKEN = 4.0
-    
+
     @classmethod
     def estimate_tokens(cls, text: str) -> int:
         """Estimate token count from text."""
         if not text:
             return 0
         return int(len(text) / cls.CHARS_PER_TOKEN)
-    
+
     @classmethod
     def count_message_tokens(cls, messages: list) -> int:
         """Count tokens in a list of messages."""
@@ -274,37 +281,33 @@ class MemoriAnthropic:
                     )
                 except Exception as e:
                     logger.error(f"Failed to record Anthropic conversation: {e}")
-            
+
             def stream(self, **kwargs):
                 """
                 Stream messages from Anthropic API.
-                
+
                 Yields text chunks as they arrive and records the full
                 conversation when streaming completes.
-                
+
                 Usage:
                     with client.messages.stream(...) as stream:
                         for text in stream.text_stream:
                             print(text)
-                
+
                 Returns:
                     StreamingContext manager with text_stream generator
                 """
                 # Inject context if conscious ingestion is enabled
                 if self._memori.is_enabled and self._memori.conscious_ingest:
                     kwargs = self._inject_context(kwargs)
-                
-                return StreamingContext(
-                    self._anthropic,
-                    self._memori,
-                    kwargs
-                )
-            
+
+                return StreamingContext(self._anthropic, self._memori, kwargs)
+
             @retry_with_backoff(max_retries=3, initial_delay=1.0)
             def create_with_retry(self, **kwargs):
                 """
                 Create message with automatic retry on transient failures.
-                
+
                 Uses exponential backoff for rate limits and temporary errors.
                 """
                 return self.create(**kwargs)
@@ -315,10 +318,10 @@ class MemoriAnthropic:
 class StreamingContext:
     """
     Context manager for streaming Anthropic responses.
-    
+
     Collects the full response for recording while yielding chunks.
     """
-    
+
     def __init__(self, anthropic_client, memori_instance, kwargs: Dict[str, Any]):
         self._anthropic = anthropic_client
         self._memori = memori_instance
@@ -327,31 +330,31 @@ class StreamingContext:
         self._collected_text = []
         self._input_tokens = 0
         self._output_tokens = 0
-    
+
     def __enter__(self):
         """Start the stream."""
         # Ensure stream=True is set
         self._kwargs["stream"] = True
         self._stream = self._anthropic.messages.create(**self._kwargs)
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Clean up and record the conversation."""
         if exc_type is None and self._memori.is_enabled:
             self._record_streamed_conversation()
         return False
-    
+
     @property
     def text_stream(self) -> Generator[str, None, None]:
         """
         Generator that yields text chunks from the stream.
-        
+
         Yields:
             Text chunks as they arrive from the API
         """
         if self._stream is None:
             return
-        
+
         for event in self._stream:
             # Handle different event types
             if hasattr(event, "type"):
@@ -365,18 +368,20 @@ class StreamingContext:
                         self._output_tokens = getattr(event.usage, "output_tokens", 0)
                 elif event.type == "message_start":
                     if hasattr(event, "message") and hasattr(event.message, "usage"):
-                        self._input_tokens = getattr(event.message.usage, "input_tokens", 0)
-    
+                        self._input_tokens = getattr(
+                            event.message.usage, "input_tokens", 0
+                        )
+
     def get_full_text(self) -> str:
         """Get the full collected text from streaming."""
         return "".join(self._collected_text)
-    
+
     def _record_streamed_conversation(self):
         """Record the streamed conversation to Memori."""
         try:
             messages = self._kwargs.get("messages", [])
             model = self._kwargs.get("model", "claude-unknown")
-            
+
             # Find user input
             user_input = ""
             for message in reversed(messages):
@@ -387,17 +392,18 @@ class StreamingContext:
                             [
                                 block.get("text", "")
                                 for block in content
-                                if isinstance(block, dict) and block.get("type") == "text"
+                                if isinstance(block, dict)
+                                and block.get("type") == "text"
                             ]
                         )
                     else:
                         user_input = content
                     break
-            
+
             # Get collected response
             ai_output = self.get_full_text()
             tokens_used = self._input_tokens + self._output_tokens
-            
+
             # Record conversation
             self._memori.record_conversation(
                 user_input=user_input,

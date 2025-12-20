@@ -1,8 +1,8 @@
 /**
  * Service Worker for Cardio AI Assistant
- * 
+ *
  * Provides offline support and caching for the PWA
- * 
+ *
  * Features:
  * - Cache-first strategy for static assets
  * - Network-first strategy for API calls
@@ -31,7 +31,7 @@ const API_ROUTES = [
 // Install event - pre-cache static assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing Service Worker...');
-  
+
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
@@ -51,7 +51,7 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating Service Worker...');
-  
+
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
@@ -59,8 +59,8 @@ self.addEventListener('activate', (event) => {
           cacheNames
             .filter((name) => {
               // Remove old cache versions
-              return name.startsWith('cardio-') && 
-                     name !== STATIC_CACHE && 
+              return name.startsWith('cardio-') &&
+                     name !== STATIC_CACHE &&
                      name !== DYNAMIC_CACHE;
             })
             .map((name) => {
@@ -79,23 +79,23 @@ self.addEventListener('activate', (event) => {
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
+
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
-  
+
   // Skip chrome-extension and other non-http(s) requests
   if (!url.protocol.startsWith('http')) {
     return;
   }
-  
+
   // Handle API requests with network-first strategy
   if (isAPIRequest(url.pathname)) {
     event.respondWith(networkFirstStrategy(event.request));
     return;
   }
-  
+
   // Handle static assets with cache-first strategy
   event.respondWith(cacheFirstStrategy(event.request));
 });
@@ -113,20 +113,20 @@ async function cacheFirstStrategy(request) {
     if (cachedResponse) {
       return cachedResponse;
     }
-    
+
     // If not in cache, fetch from network
     const networkResponse = await fetch(request);
-    
+
     // Cache the response for future use
     if (networkResponse.ok) {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch (error) {
     console.error('[SW] Cache-first strategy failed:', error);
-    
+
     // Return offline fallback if available
     return caches.match('/offline.html') || new Response(
       '<h1>Offline</h1><p>Please check your internet connection.</p>',
@@ -140,31 +140,31 @@ async function networkFirstStrategy(request) {
   try {
     // Try network first
     const networkResponse = await fetch(request);
-    
+
     // Cache successful responses
     if (networkResponse.ok) {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch (error) {
     console.error('[SW] Network-first strategy failed:', error);
-    
+
     // Fall back to cache
     const cachedResponse = await caches.match(request);
     if (cachedResponse) {
       console.log('[SW] Serving cached API response');
       return cachedResponse;
     }
-    
+
     // Return error response if no cache
     return new Response(
-      JSON.stringify({ 
-        error: 'offline', 
-        message: 'You are currently offline. This data is not available.' 
+      JSON.stringify({
+        error: 'offline',
+        message: 'You are currently offline. This data is not available.'
       }),
-      { 
+      {
         status: 503,
         headers: { 'Content-Type': 'application/json' }
       }
@@ -177,13 +177,13 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
+
   if (event.data && event.data.type === 'CLEAR_CACHE') {
     caches.keys().then((names) => {
       names.forEach((name) => caches.delete(name));
     });
   }
-  
+
   if (event.data && event.data.type === 'CACHE_HEALTH_DATA') {
     // Cache health data for offline access
     const cache = caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -198,7 +198,7 @@ self.addEventListener('message', (event) => {
 // Background sync for deferred actions (when back online)
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync:', event.tag);
-  
+
   if (event.tag === 'sync-health-data') {
     event.waitUntil(syncHealthData());
   }
@@ -209,10 +209,10 @@ async function syncHealthData() {
   try {
     const cache = await caches.open(DYNAMIC_CACHE);
     const queuedData = await cache.match('/offline-queue');
-    
+
     if (queuedData) {
       const data = await queuedData.json();
-      
+
       // Send queued data to server
       for (const item of data) {
         await fetch(item.url, {
@@ -221,7 +221,7 @@ async function syncHealthData() {
           body: JSON.stringify(item.body),
         });
       }
-      
+
       // Clear the queue
       await cache.delete('/offline-queue');
       console.log('[SW] Synced offline data');

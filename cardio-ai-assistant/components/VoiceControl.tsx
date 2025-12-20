@@ -6,18 +6,18 @@ import { apiClient } from '../services/apiClient';
 const VoiceControl: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Basic State
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [showToast, setShowToast] = useState(false);
-  
+
   // Hands-Free Mode State
   const [isHandsFree, setIsHandsFree] = useState(false);
   const [aiState, setAiState] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [aiResponse, setAiResponse] = useState("I'm listening...");
   const [permissionError, setPermissionError] = useState(false);
-  
+
   // Refs
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<SpeechSynthesis>(window.speechSynthesis);
@@ -41,7 +41,7 @@ const VoiceControl: React.FC = () => {
         const currentTranscript = Array.from(event.results)
           .map((result: any) => result[0].transcript)
           .join('');
-        
+
         setTranscript(currentTranscript);
         if (!isHandsFree) setShowToast(true);
 
@@ -93,11 +93,11 @@ const VoiceControl: React.FC = () => {
         setIsListening(false);
         // In Hands-Free mode, we restart listening automatically unless we are processing or speaking
         if (isHandsFree && aiState === 'listening' && !permissionError) {
-            setTimeout(() => startListening(), 500); 
+            setTimeout(() => startListening(), 500);
         }
       };
     }
-    
+
     return () => {
         if (recognitionRef.current) recognitionRef.current.abort();
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -158,7 +158,7 @@ const VoiceControl: React.FC = () => {
   // --- TTS ---
   const speak = (text: string) => {
       if (!text) return;
-      
+
       stopListening();
       setAiState('speaking');
       setAiResponse(text);
@@ -166,7 +166,7 @@ const VoiceControl: React.FC = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
-      
+
       utterance.onend = () => {
           if (isHandsFree) {
               setAiState('listening');
@@ -184,7 +184,7 @@ const VoiceControl: React.FC = () => {
 
   const processSimpleCommand = (cmd: string) => {
     const lowerCmd = cmd.toLowerCase();
-    
+
     // Data Logging Commands -> Send to Chat Agent
     if (lowerCmd.startsWith('log') || lowerCmd.startsWith('record') || lowerCmd.startsWith('add') || lowerCmd.includes('blood pressure') || lowerCmd.includes('weight')) {
         navigate('/chat', { state: { autoSend: cmd } });
@@ -211,7 +211,7 @@ const VoiceControl: React.FC = () => {
           toggleHandsFreeMode();
           return;
       }
-      
+
       if (cmd.toLowerCase().includes('help') || cmd.toLowerCase().includes('emergency') || cmd.toLowerCase().includes('911')) {
           speak("I am displaying emergency options. Please tap the red button to call 911.");
           return;
@@ -234,18 +234,18 @@ Return JSON ONLY:
     "action_value": "string (e.g., '/dashboard' or '120/80')",
     "speech_response": "string (Short, comforting, max 1 sentence)"
 }`;
-          
+
           const result = await apiClient.generateInsight({
               user_name: 'VoiceUser',
               vitals: {}
           });
-          
+
           try {
               const parsed = JSON.parse(result.insight);
-              
+
               if (parsed.intent === 'NAVIGATION') {
                   navigate(parsed.action_value);
-              } 
+              }
               else if (parsed.intent === 'LOG_DATA') {
                   navigate('/chat', { state: { autoSend: `Log this data: ${cmd}` } });
               }
@@ -279,12 +279,12 @@ Return JSON ONLY:
             </button>
 
             {/* Main Mic FAB */}
-            <button 
+            <button
                 onMouseDown={toggleListen} // Desktop hold
                 onClick={toggleListen} // Mobile tap toggle
                 className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 border-2 border-slate-700/50 ${
-                    isListening 
-                    ? 'bg-red-600 text-white scale-110 animate-pulse ring-4 ring-red-500/30' 
+                    isListening
+                    ? 'bg-red-600 text-white scale-110 animate-pulse ring-4 ring-red-500/30'
                     : 'bg-slate-800 text-white hover:bg-slate-700'
                 }`}
                 title="Voice Control"
@@ -304,14 +304,14 @@ Return JSON ONLY:
         {/* Full Screen Hands-Free Overlay */}
         {isHandsFree && (
             <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between p-8 animate-in fade-in duration-300">
-                
+
                 {/* Header */}
                 <div className="w-full flex justify-between items-center">
                     <div className="flex items-center gap-2 text-white/50">
                         <span className="material-symbols-outlined">accessibility_new</span>
                         <span className="text-sm font-bold uppercase tracking-widest">Hands-Free Mode</span>
                     </div>
-                    <button 
+                    <button
                         onClick={toggleHandsFreeMode}
                         className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-white font-bold text-sm transition-colors"
                     >
@@ -321,7 +321,7 @@ Return JSON ONLY:
 
                 {/* Central Visualizer */}
                 <div className="flex flex-col items-center justify-center flex-1 w-full text-center">
-                    
+
                     {/* Status Text */}
                     <h2 className="text-2xl font-medium text-slate-400 mb-8 h-8">
                         {aiState === 'listening' ? "Listening..." : aiState === 'processing' ? "Thinking..." : "Speaking..."}
@@ -330,11 +330,11 @@ Return JSON ONLY:
                     {/* Orb */}
                     <div className="relative mb-12">
                         <div className={`w-48 h-48 rounded-full blur-3xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-colors duration-500 ${
-                            aiState === 'listening' ? 'bg-red-600/40' : 
+                            aiState === 'listening' ? 'bg-red-600/40' :
                             aiState === 'processing' ? 'bg-purple-600/40' : 'bg-blue-600/40'
                         }`}></div>
                         <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center relative z-10 transition-all duration-300 ${
-                            aiState === 'listening' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.5)] scale-110' : 
+                            aiState === 'listening' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.5)] scale-110' :
                             aiState === 'processing' ? 'border-purple-500 animate-pulse' : 'border-blue-500'
                         }`}>
                             <span className="material-symbols-outlined text-6xl text-white">
@@ -350,7 +350,7 @@ Return JSON ONLY:
                                 "{transcript || "..."}"
                             </p>
                         </div>
-                        
+
                         {aiResponse && (
                             <div className="bg-white/10 rounded-2xl p-6 border border-white/10">
                                 <p className="text-xl text-blue-200">
@@ -364,21 +364,21 @@ Return JSON ONLY:
                 {/* Footer Controls */}
                 <div className="w-full flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <button 
+                        <button
                             onClick={() => speak("I'm stopping.")}
                             className="py-6 bg-slate-800 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
                         >
                             <span className="material-symbols-outlined">stop_circle</span> Stop
                         </button>
-                        <button 
+                        <button
                             onClick={() => { setTranscript(''); startListening(); }}
                             className="py-6 bg-slate-800 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
                         >
                             <span className="material-symbols-outlined">refresh</span> Retry
                         </button>
                     </div>
-                    
-                    <a 
+
+                    <a
                         href="tel:911"
                         className="w-full py-6 bg-red-600 rounded-2xl text-white font-black text-2xl uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-red-700 transition-colors shadow-lg shadow-red-900/50"
                     >

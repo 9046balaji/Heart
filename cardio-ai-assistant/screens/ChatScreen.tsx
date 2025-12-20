@@ -167,11 +167,11 @@ const ChatScreen: React.FC = () => {
   const activeSourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Chat Store (for conversation history persistence)
-  const { 
-    sessions, 
-    createSession, 
-    loadSession, 
-    deleteSession 
+  const {
+    sessions,
+    createSession,
+    loadSession,
+    deleteSession
   } = useChatStore();
 
   const [messages, setMessages] = useState<ExtendedMessage[]>([
@@ -376,8 +376,8 @@ const ChatScreen: React.FC = () => {
           if (chunk.type === 'token') {
             fullResponse += chunk.data;
             // Update the message with new content
-            setMessages(prev => prev.map(msg => 
-              msg.id === aiMessageId 
+            setMessages(prev => prev.map(msg =>
+              msg.id === aiMessageId
                 ? { ...msg, content: fullResponse }
                 : msg
             ));
@@ -385,8 +385,8 @@ const ChatScreen: React.FC = () => {
             console.log('Streaming complete:', chunk.data);
           } else if (chunk.type === 'error') {
             console.error('Streaming error:', chunk.data);
-            setMessages(prev => prev.map(msg => 
-              msg.id === aiMessageId 
+            setMessages(prev => prev.map(msg =>
+              msg.id === aiMessageId
                 ? { ...msg, content: fullResponse || 'Error: Failed to get response from Ollama.' }
                 : msg
             ));
@@ -548,12 +548,12 @@ const ChatScreen: React.FC = () => {
     }
 
     const userMessage = messages[userMsgIndex];
-    
+
     setRegeneratingId(messageId);
-    
+
     // Remove the AI response we're regenerating
     setMessages(prev => prev.filter(m => m.id !== messageId));
-    
+
     // Re-send the user message to get a new response
     try {
       await handleSend(userMessage.content);
@@ -692,10 +692,10 @@ const ChatScreen: React.FC = () => {
         </button>
         <div className="flex flex-col items-center">
           <h1 className="font-bold text-lg text-white">Cardio AI Agent</h1>
-          
+
           {/* Model Selector Dropdown */}
           <div className="relative mt-1">
-            <button 
+            <button
               onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
               className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-colors"
             >
@@ -709,7 +709,7 @@ const ChatScreen: React.FC = () => {
                 {isModelDropdownOpen ? 'expand_less' : 'expand_more'}
               </span>
             </button>
-            
+
             {/* Dropdown Menu */}
             {isModelDropdownOpen && (
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-[#192633] border border-slate-700 rounded-lg shadow-lg z-50 min-w-48">
@@ -719,8 +719,8 @@ const ChatScreen: React.FC = () => {
                     setIsModelDropdownOpen(false);
                   }}
                   className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${
-                    selectedModel === 'gemini' 
-                      ? 'bg-slate-700 text-white' 
+                    selectedModel === 'gemini'
+                      ? 'bg-slate-700 text-white'
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
@@ -730,15 +730,15 @@ const ChatScreen: React.FC = () => {
                     <div className="text-xs text-slate-500">Google's advanced AI model</div>
                   </div>
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setSelectedModel('ollama');
                     setIsModelDropdownOpen(false);
                   }}
                   className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors border-t border-slate-700 ${
-                    selectedModel === 'ollama' 
-                      ? 'bg-slate-700 text-white' 
+                    selectedModel === 'ollama'
+                      ? 'bg-slate-700 text-white'
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
@@ -770,7 +770,7 @@ const ChatScreen: React.FC = () => {
       </div>
 
       {/* --- Messages --- */}
-      <div 
+      <div
         className="flex-1 overflow-y-auto p-4 space-y-6"
         role="log"
         aria-label="Chat messages"
@@ -781,8 +781,8 @@ const ChatScreen: React.FC = () => {
             // Render Action Requests (e.g. "Processing: logBiometrics")
             if (msg.type === 'action_request') {
               return (
-                <motion.div 
-                  key={msg.id} 
+                <motion.div
+                  key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -808,7 +808,7 @@ const ChatScreen: React.FC = () => {
               if (name === 'scheduleAppointment') { icon = 'calendar_today'; color = 'text-purple-500'; }
 
               return (
-                <motion.div 
+                <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -832,8 +832,8 @@ const ChatScreen: React.FC = () => {
             const { type, title, data } = msg.widgetData;
 
             return (
-              <motion.div 
-                key={msg.id} 
+              <motion.div
+                key={msg.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -909,8 +909,8 @@ const ChatScreen: React.FC = () => {
 
           // Standard Text Message
           return (
-            <motion.div 
-              key={msg.id} 
+            <motion.div
+              key={msg.id}
               initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
@@ -955,7 +955,7 @@ const ChatScreen: React.FC = () => {
 
                     {/* Use ChatMessageMarkdown for model responses, plain text for user */}
                     {msg.role === 'assistant' ? (
-                      <ChatMessageMarkdown 
+                      <ChatMessageMarkdown
                         content={msg.content}
                         sources={msg.sources}
                         showHealthAlerts={true}
@@ -1031,7 +1031,7 @@ const ChatScreen: React.FC = () => {
         </AnimatePresence>
 
         {isLoading && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex justify-start w-full"

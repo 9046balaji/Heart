@@ -18,7 +18,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -30,19 +30,24 @@ USE_LLAMA_INDEX = os.getenv("USE_LLAMA_INDEX", "false").lower() == "true"
 # REQUEST/RESPONSE MODELS
 # ============================================================================
 
+
 class RAGQueryRequest(BaseModel):
     """Request model for RAG query."""
+
     query: str = Field(..., min_length=1, max_length=5000, description="User query")
     user_id: Optional[str] = Field(None, description="User ID for memory lookup")
     include_medical: bool = Field(True, description="Include medical knowledge")
     include_drugs: bool = Field(True, description="Include drug information")
     include_user_memory: bool = Field(True, description="Include user memories")
     top_k: int = Field(5, ge=1, le=20, description="Number of results per source")
-    generate_response: bool = Field(True, description="Generate LLM response or just retrieve")
+    generate_response: bool = Field(
+        True, description="Generate LLM response or just retrieve"
+    )
 
 
 class RAGSearchRequest(BaseModel):
     """Request model for semantic search."""
+
     query: str = Field(..., min_length=1, max_length=2000)
     collection: str = Field("medical_knowledge", description="Collection to search")
     top_k: int = Field(5, ge=1, le=50)
@@ -51,12 +56,14 @@ class RAGSearchRequest(BaseModel):
 
 class RAGIndexRequest(BaseModel):
     """Request model for indexing documents."""
+
     documents: List[Dict[str, Any]] = Field(..., description="Documents to index")
     collection: str = Field("medical_knowledge", description="Target collection")
 
 
 class Citation(BaseModel):
     """Citation model."""
+
     type: str
     source: Optional[str] = None
     category: Optional[str] = None
@@ -66,6 +73,7 @@ class Citation(BaseModel):
 
 class RAGQueryResponse(BaseModel):
     """Response model for RAG query."""
+
     response: str
     citations: List[Citation]
     sources: Dict[str, Any]
@@ -76,6 +84,7 @@ class RAGQueryResponse(BaseModel):
 
 class RAGStatsResponse(BaseModel):
     """Response model for knowledge base statistics."""
+
     status: str
     medical_knowledge_count: int
     drug_knowledge_count: int
@@ -89,6 +98,7 @@ class RAGStatsResponse(BaseModel):
 
 class RAGSearchResponse(BaseModel):
     """Response model for semantic search."""
+
     results: List[Dict[str, Any]]
     query: str
     collection: str
@@ -98,16 +108,20 @@ class RAGSearchResponse(BaseModel):
 
 class UnifiedSearchRequest(BaseModel):
     """Request model for unified Memori + RAG search."""
+
     query: str = Field(..., min_length=1, max_length=2000)
     user_id: Optional[str] = Field(None, description="User ID for personalized results")
     top_k: int = Field(10, ge=1, le=50)
     use_memori: bool = Field(True, description="Search in Memori memories")
     use_rag: bool = Field(True, description="Search in RAG knowledge base")
-    hybrid_mode: str = Field("rrf", description="Ranking mode: rrf, interleave, or score_weighted")
+    hybrid_mode: str = Field(
+        "rrf", description="Ranking mode: rrf, interleave, or score_weighted"
+    )
 
 
 class UnifiedSearchResponse(BaseModel):
     """Response model for unified search."""
+
     results: List[Dict[str, Any]]
     query: str
     sources_used: Dict[str, bool]
@@ -117,6 +131,7 @@ class UnifiedSearchResponse(BaseModel):
 
 class RAGInitializeResponse(BaseModel):
     """Response model for knowledge base initialization."""
+
     status: str
     message: str
     documents_indexed: Dict[str, int]
@@ -127,6 +142,7 @@ class RAGInitializeResponse(BaseModel):
 # RAG PIPELINE FACTORY WITH HOT SWAP
 # ============================================================================
 
+
 def get_rag_pipeline():
     """
     Factory function to get the appropriate RAG pipeline based on feature flag.
@@ -135,15 +151,20 @@ def get_rag_pipeline():
     if USE_LLAMA_INDEX:
         try:
             from rag.llama_index_pipeline import LlamaIndexRAG
+
             return LlamaIndexRAG()
         except ImportError as e:
-            logger.warning(f"LlamaIndex not available, falling back to custom RAGPipeline: {e}")
+            logger.warning(
+                f"LlamaIndex not available, falling back to custom RAGPipeline: {e}"
+            )
             from rag.rag_pipeline import RAGPipeline
             from rag.vector_store import VectorStore
+
             return RAGPipeline(vector_store=VectorStore())
     else:
         from rag.rag_pipeline import RAGPipeline
         from rag.vector_store import VectorStore
+
         return RAGPipeline(vector_store=VectorStore())
 
 
@@ -154,6 +175,7 @@ _knowledge_loader = None
 _memori_rag_bridge = None  # Bridge for unified Memori + RAG search
 _is_initialized = False
 
+
 def get_rag_pipeline_instance():
     """Get or create the RAG pipeline singleton."""
     global _rag_pipeline
@@ -161,14 +183,12 @@ def get_rag_pipeline_instance():
         _rag_pipeline = get_rag_pipeline()
     return _rag_pipeline
 
+
 def get_vector_store():
     """Get the vector store instance."""
     global _vector_store
     if _vector_store is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Vector store not initialized."
-        )
+        raise HTTPException(status_code=503, detail="Vector store not initialized.")
     return _vector_store
 
 
@@ -181,7 +201,7 @@ def get_memori_rag_bridge():
 def set_memori_for_bridge(memori_instance):
     """
     Connect a Memori instance to the RAG bridge.
-    
+
     Call this after initializing MemoryManager to enable unified search.
     """
     global _memori_rag_bridge, _vector_store
@@ -192,9 +212,9 @@ def set_memori_for_bridge(memori_instance):
         # Create bridge if vector store exists
         try:
             from rag.memori_integration import MemoriRAGBridge
+
             _memori_rag_bridge = MemoriRAGBridge(
-                memori=memori_instance,
-                vector_store=_vector_store
+                memori=memori_instance, vector_store=_vector_store
             )
             logger.info("Created MemoriRAGBridge with Memori instance")
         except Exception as e:
@@ -209,28 +229,27 @@ router = APIRouter(prefix="/api/rag", tags=["RAG - Retrieval Augmented Generatio
 async def rag_query(request: RAGQueryRequest):
     """
     Query the RAG system with context-augmented generation.
-    
+
     This endpoint:
     1. Retrieves relevant medical knowledge
     2. Retrieves relevant user memories (if user_id provided)
     3. Checks drug interactions (if relevant)
     4. Generates a response with the LLM
     5. Returns response with source citations
-    
+
     Uses LlamaIndex or custom RAG based on USE_LLAMA_INDEX env var.
     """
     start_time = time.time()
-    
+
     try:
         pipeline = get_rag_pipeline_instance()
-        
+
         # Query the RAG pipeline
         # Handle both implementations' interfaces
         if USE_LLAMA_INDEX:
             # LlamaIndex implementation
             result = await pipeline.query(
-                question=request.query,
-                user_id=request.user_id
+                question=request.query, user_id=request.user_id
             )
         else:
             # Custom RAGPipeline implementation
@@ -243,9 +262,9 @@ async def rag_query(request: RAGQueryRequest):
                 top_k=request.top_k,
                 generate=request.generate_response,
             )
-        
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         # Handle response format differences
         if USE_LLAMA_INDEX:
             # LlamaIndex response format
@@ -267,7 +286,7 @@ async def rag_query(request: RAGQueryRequest):
                 processing_time_ms=processing_time,
                 timestamp=datetime.now().isoformat(),
             )
-        
+
     except Exception as e:
         logger.error(f"RAG query failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -277,13 +296,13 @@ async def rag_query(request: RAGQueryRequest):
 async def get_rag_stats():
     """
     Get statistics about the RAG knowledge base.
-    
+
     Returns counts for each collection and embedding info.
     """
     try:
         store = get_vector_store()
         stats = store.get_stats()
-        
+
         return RAGStatsResponse(
             status="healthy" if _is_initialized else "not_initialized",
             medical_knowledge_count=stats.get("medical_knowledge", 0),
@@ -295,7 +314,7 @@ async def get_rag_stats():
             vector_store_path=store.persist_directory,
             last_indexed=stats.get("last_indexed"),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get RAG stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -305,14 +324,14 @@ async def get_rag_stats():
 async def semantic_search(request: RAGSearchRequest):
     """
     Perform semantic search on a specific collection.
-    
+
     This is a lower-level endpoint for direct vector search.
     """
     start_time = time.time()
-    
+
     try:
         store = get_vector_store()
-        
+
         # Determine which search method to use based on collection
         if request.collection == "medical_knowledge":
             results = store.search_medical_knowledge(
@@ -333,9 +352,9 @@ async def semantic_search(request: RAGSearchRequest):
                 top_k=request.top_k,
                 filters=request.filters,
             )
-        
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         return RAGSearchResponse(
             results=results,
             query=request.query,
@@ -343,7 +362,7 @@ async def semantic_search(request: RAGSearchRequest):
             count=len(results),
             processing_time_ms=processing_time,
         )
-        
+
     except Exception as e:
         logger.error(f"Semantic search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -353,21 +372,21 @@ async def semantic_search(request: RAGSearchRequest):
 async def unified_search(request: UnifiedSearchRequest):
     """
     Unified search across Memori memories and RAG knowledge base.
-    
+
     This endpoint uses the MemoriRAGBridge to combine:
     - Structured memories from Memori (user history, conversations)
     - Semantic knowledge from RAG (medical guidelines, drug info)
-    
+
     Hybrid ranking modes:
     - rrf: Reciprocal Rank Fusion (default, best for diverse results)
     - interleave: Round-robin interleaving
     - score_weighted: Weighted by similarity scores
     """
     start_time = time.time()
-    
+
     try:
         bridge = get_memori_rag_bridge()
-        
+
         if bridge is None:
             # Fallback to RAG-only search if bridge not available
             logger.warning("MemoriRAGBridge not available, using RAG-only search")
@@ -384,7 +403,7 @@ async def unified_search(request: UnifiedSearchRequest):
                 result_counts={"rag": len(results)},
                 processing_time_ms=processing_time,
             )
-        
+
         # Use bridge for unified search
         search_result = await bridge.search(
             query=request.query,
@@ -394,9 +413,9 @@ async def unified_search(request: UnifiedSearchRequest):
             use_rag=request.use_rag,
             hybrid_mode=request.hybrid_mode,
         )
-        
+
         processing_time = (time.time() - start_time) * 1000
-        
+
         return UnifiedSearchResponse(
             results=search_result.get("results", []),
             query=request.query,
@@ -407,7 +426,7 @@ async def unified_search(request: UnifiedSearchRequest):
             result_counts=search_result.get("counts", {}),
             processing_time_ms=processing_time,
         )
-        
+
     except Exception as e:
         logger.error(f"Unified search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -420,21 +439,21 @@ async def index_documents(
 ):
     """
     Index documents into the knowledge base.
-    
+
     Documents should have 'content' and optional 'metadata' fields.
     """
     try:
         store = get_vector_store()
-        
+
         indexed_count = 0
         for doc in request.documents:
             content = doc.get("content")
             if not content:
                 continue
-                
+
             metadata = doc.get("metadata", {})
             doc_id = doc.get("id") or f"doc_{indexed_count}"
-            
+
             if request.collection == "medical_knowledge":
                 store.add_medical_document(
                     doc_id=doc_id,
@@ -451,13 +470,13 @@ async def index_documents(
                     metadata=metadata,
                 )
             indexed_count += 1
-        
+
         return {
             "status": "success",
             "message": f"Indexed {indexed_count} documents to {request.collection}",
             "count": indexed_count,
         }
-        
+
     except Exception as e:
         logger.error(f"Document indexing failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -467,52 +486,52 @@ async def index_documents(
 async def initialize_knowledge_base(force_reload: bool = False):
     """
     Initialize or reload the RAG knowledge base.
-    
+
     This loads the cardiovascular guidelines, drug database,
     and symptom checker into the vector store.
-    
+
     Args:
         force_reload: If True, clear existing data and reload
     """
     global _rag_pipeline, _vector_store, _knowledge_loader, _is_initialized
-    
+
     start_time = time.time()
-    
+
     try:
         # Import RAG components
         from rag import VectorStore
         from rag.knowledge_base import KnowledgeLoader
-        
+
         # Create/get instances
         if _vector_store is None or force_reload:
             _vector_store = VectorStore()
-        
+
         # Initialize knowledge loader
         _knowledge_loader = KnowledgeLoader(_vector_store)
-        
+
         # Load all knowledge bases
         results = _knowledge_loader.load_all(force_reload=force_reload)
-        
+
         # Create RAG pipeline based on feature flag
         _rag_pipeline = get_rag_pipeline()
-        
+
         _is_initialized = True
         duration = time.time() - start_time
-        
+
         logger.info(f"RAG knowledge base initialized in {duration:.2f}s")
-        
+
         return RAGInitializeResponse(
             status="success",
             message="Knowledge base initialized successfully",
             documents_indexed=results,
             duration_seconds=duration,
         )
-        
+
     except ImportError as e:
         logger.error(f"RAG dependencies not installed: {e}")
         raise HTTPException(
             status_code=503,
-            detail=f"RAG dependencies not installed: {e}. Install with: pip install sentence-transformers chromadb"
+            detail=f"RAG dependencies not installed: {e}. Install with: pip install sentence-transformers chromadb",
         )
     except Exception as e:
         logger.error(f"Knowledge base initialization failed: {e}")
@@ -523,7 +542,7 @@ async def initialize_knowledge_base(force_reload: bool = False):
 async def rag_health():
     """Check RAG system health."""
     global _is_initialized, _rag_pipeline, _vector_store
-    
+
     health_status = {
         "status": "healthy" if _is_initialized else "not_initialized",
         "vector_store": _vector_store is not None,
@@ -531,7 +550,7 @@ async def rag_health():
         "implementation": "LlamaIndex" if USE_LLAMA_INDEX else "Custom RAGPipeline",
         "timestamp": datetime.now().isoformat(),
     }
-    
+
     if _is_initialized and _vector_store:
         try:
             stats = _vector_store.get_stats()
@@ -539,7 +558,7 @@ async def rag_health():
         except Exception as e:
             health_status["error"] = str(e)
             health_status["status"] = "degraded"
-    
+
     return health_status
 
 
@@ -549,7 +568,7 @@ async def get_rag_status():
     return {
         "implementation": "LlamaIndex" if USE_LLAMA_INDEX else "Custom RAGPipeline",
         "feature_flag": USE_LLAMA_INDEX,
-        "status": "active"
+        "status": "active",
     }
 
 
@@ -557,58 +576,65 @@ async def get_rag_status():
 # INITIALIZATION HELPER
 # =============================================================================
 
+
 async def initialize_rag_on_startup():
     """
     Initialize RAG system on application startup.
-    
+
     Call this from the FastAPI lifespan event.
     """
     global _rag_pipeline, _vector_store, _memori_rag_bridge, _is_initialized
-    
+
     try:
         from rag import VectorStore
-        
+
         logger.info("Initializing RAG system on startup...")
-        
+
         # Create vector store
         _vector_store = VectorStore()
-        
+
         # Create RAG pipeline based on feature flag
         _rag_pipeline = get_rag_pipeline()
-        
+
         # Create MemoriRAGBridge (Memori will be connected later if available)
         try:
             from rag.memori_integration import MemoriRAGBridge
+
             _memori_rag_bridge = MemoriRAGBridge(
                 memori=None,  # Will be set when MemoryManager initializes
-                vector_store=_vector_store
+                vector_store=_vector_store,
             )
             logger.info("MemoriRAGBridge created (awaiting Memori connection)")
         except Exception as e:
             logger.warning(f"Could not create MemoriRAGBridge: {e}")
             _memori_rag_bridge = None
-        
+
         # Check if knowledge base needs to be loaded
         stats = _vector_store.get_stats()
         total_docs = sum(stats.values()) if isinstance(stats, dict) else 0
-        
+
         if total_docs == 0:
             logger.info("Knowledge base empty, loading default knowledge...")
             from rag.knowledge_base import KnowledgeLoader
+
             loader = KnowledgeLoader(_vector_store)
             loader.load_all()
             logger.info("Default knowledge loaded")
         else:
             logger.info(f"Knowledge base has {total_docs} documents")
-        
+
         _is_initialized = True
-        logger.info(f"✅ RAG system initialized successfully (using {'LlamaIndex' if USE_LLAMA_INDEX else 'Custom RAGPipeline'})")
-        
+        logger.info(
+            f"✅ RAG system initialized successfully (using {'LlamaIndex' if USE_LLAMA_INDEX else 'Custom RAGPipeline'})"
+        )
+
     except ImportError as e:
         logger.warning(f"RAG dependencies not available: {e}")
-        logger.warning("RAG features will be disabled. Install with: pip install sentence-transformers chromadb")
+        logger.warning(
+            "RAG features will be disabled. Install with: pip install sentence-transformers chromadb"
+        )
         _is_initialized = False
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize RAG system: {e}")
         _is_initialized = False
@@ -617,7 +643,7 @@ async def initialize_rag_on_startup():
 async def shutdown_rag():
     """Cleanup RAG resources on shutdown."""
     global _rag_pipeline, _vector_store, _memori_rag_bridge, _is_initialized
-    
+
     logger.info("Shutting down RAG system...")
     _rag_pipeline = None
     _vector_store = None

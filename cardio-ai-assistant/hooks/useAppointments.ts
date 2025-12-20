@@ -44,7 +44,7 @@ export const useAppointments = () => {
 
   const updateAppointment = useCallback((id: string, updates: Partial<Appointment>) => {
     setAppointments((prev) => {
-      const updated = prev.map((app) => 
+      const updated = prev.map((app) =>
         app.id === id ? { ...app, ...updates } : app
       );
       safeSetItem(STORAGE_KEYS.USER_APPOINTMENTS, updated);

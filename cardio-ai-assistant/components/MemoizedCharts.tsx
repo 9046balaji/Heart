@@ -1,19 +1,19 @@
 /**
  * Memoized Chart Components
- * 
+ *
  * Performance-optimized chart components to prevent unnecessary re-renders.
  * These components are designed for use in Dashboard and other screens
  * where charts might re-render frequently due to state changes.
  */
 
 import React, { memo, useMemo, useCallback } from 'react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
+import {
+  AreaChart,
+  Area,
+  XAxis,
   YAxis,
-  Tooltip, 
-  ResponsiveContainer, 
+  Tooltip,
+  ResponsiveContainer,
   Brush,
   LineChart,
   Line,
@@ -66,9 +66,9 @@ interface CustomTooltipProps {
   unit?: string;
 }
 
-const CustomChartTooltip: React.FC<CustomTooltipProps> = memo(({ 
-  active, 
-  payload, 
+const CustomChartTooltip: React.FC<CustomTooltipProps> = memo(({
+  active,
+  payload,
   label,
   unit = ''
 }) => {
@@ -120,8 +120,8 @@ export const MemoizedHeartRateChart = memo<HeartRateChartProps>(({
   }, [onPointClick]);
 
   // Memoize gradient ID to prevent recreation
-  const gradientId = useMemo(() => 
-    `heartRateGradient-${isCaretakerMode ? 'caretaker' : 'normal'}`, 
+  const gradientId = useMemo(() =>
+    `heartRateGradient-${isCaretakerMode ? 'caretaker' : 'normal'}`,
     [isCaretakerMode]
   );
 
@@ -250,7 +250,7 @@ export const MemoizedStepsChart = memo<StepsChartProps>(({
   className = ''
 }) => {
   // Memoize processed data with goal comparison
-  const processedData = useMemo(() => 
+  const processedData = useMemo(() =>
     data.map(d => ({
       ...d,
       goalMet: (d.steps as number || 0) >= goal

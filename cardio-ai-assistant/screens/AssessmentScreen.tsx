@@ -60,7 +60,7 @@ function getECGValue(t: number) {
     // t is time in seconds. Period is 1s (60bpm)
     const period = 1.0;
     const x = t % period;
-    
+
     // Baseline
     let y = 0.0;
 
@@ -147,12 +147,12 @@ const ECGRecorder = () => {
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        
+
         // We draw the last 2 seconds of data to keep it moving
         const windowSize = 3; // seconds visible
         const pointsToDraw = Math.floor(60 * windowSize); // 60fps * 3s
         const startIndex = Math.max(0, dataPointsRef.current.length - pointsToDraw);
-        
+
         for (let i = startIndex; i < dataPointsRef.current.length; i++) {
             const point = dataPointsRef.current[i];
             // X position relative to window
@@ -208,17 +208,17 @@ const ECGRecorder = () => {
                 <span className="text-xs font-mono text-green-500">25mm/s</span>
             </div>
 
-            <canvas 
-                ref={canvasRef} 
-                width={350} 
-                height={200} 
+            <canvas
+                ref={canvasRef}
+                width={350}
+                height={200}
                 className="w-full h-48 md:h-64 cursor-crosshair bg-black"
             ></canvas>
 
             {/* Overlay Controls */}
             {!isRecording && !analysis && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <button 
+                    <button
                         onClick={startECG}
                         className="bg-red-600 hover:bg-red-700 text-white rounded-full w-16 h-16 flex items-center justify-center shadow-lg shadow-red-600/30 transition-transform hover:scale-110"
                     >
@@ -237,7 +237,7 @@ const ECGRecorder = () => {
                             <p className="text-slate-300 text-xs leading-relaxed">{analysis}</p>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={startECG}
                         className="w-full mt-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-lg transition-colors"
                     >
@@ -261,7 +261,7 @@ const AssessmentScreen: React.FC = () => {
   const [step, setStep] = useState(1);
   const [assessment, setAssessment] = useState<HealthAssessment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Expanded Form State
   const [formData, setFormData] = useState({
     // Step 1: Personal & Vitals
@@ -294,7 +294,7 @@ const AssessmentScreen: React.FC = () => {
 
   const [isEmergencyModalVisible, setIsEmergencyModalVisible] = useState(false);
   const [showRiskSummary, setShowRiskSummary] = useState(false);
-  
+
   // AI Analysis State
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -327,7 +327,7 @@ const AssessmentScreen: React.FC = () => {
   useEffect(() => {
     const { age, gender, race, systolic, totalCholesterol, hdlCholesterol } = formData;
     const allFilled = age && gender && race && systolic && totalCholesterol && hdlCholesterol;
-    
+
     if (allFilled && bpCategory.level !== 'emergency') {
       setShowRiskSummary(true);
     } else {
@@ -345,7 +345,7 @@ const AssessmentScreen: React.FC = () => {
         setIsEmergencyModalVisible(true);
         return;
     }
-    
+
     if (step === 3) {
         calculateFinalRisk();
     } else {
@@ -367,9 +367,9 @@ const AssessmentScreen: React.FC = () => {
     const age = parseInt(formData.age) || 40;
     const systolic = parseInt(formData.systolic) || 120;
     const cholesterol = parseInt(formData.totalCholesterol) || 200;
-    
+
     let score = 100;
-    
+
     // 1. Vitals Penalties
     if (age > 50) score -= 5;
     if (age > 70) score -= 10;
@@ -378,7 +378,7 @@ const AssessmentScreen: React.FC = () => {
     if (systolic > 140) score -= 15;
     if (cholesterol > 200) score -= 5;
     if (cholesterol > 240) score -= 10;
-    
+
     // 2. Risk Factors Penalties
     if (formData.isSmoker) score -= 15;
     if (formData.hasDiabetes) score -= 15;
@@ -401,12 +401,12 @@ const AssessmentScreen: React.FC = () => {
     // Stress & Sleep
     if (formData.stressLevel === 'High' || formData.stressLevel === 'Severe') score -= 10;
     if (formData.sleepHours === '< 5 hrs') score -= 5;
-    
+
     // Alcohol
     if (formData.alcoholConsumption === 'Heavy') score -= 10;
 
     score = Math.max(0, Math.min(100, score));
-    
+
     let risk = 'Low Risk';
     if (score < 80) risk = 'Moderate Risk';
     if (score < 50) risk = 'High Risk';
@@ -484,8 +484,8 @@ const AssessmentScreen: React.FC = () => {
         <div className="flex items-center gap-2 pr-4">
             <span className="text-sm font-medium dark:text-slate-200">{label}</span>
             {infoText && (
-                <button 
-                    onClick={() => window.alert(infoText)} 
+                <button
+                    onClick={() => window.alert(infoText)}
                     className="text-slate-400 hover:text-primary transition-colors flex items-center justify-center"
                     title="More info"
                 >
@@ -494,11 +494,11 @@ const AssessmentScreen: React.FC = () => {
             )}
         </div>
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
-            <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={checked} 
-                onChange={(e) => onChange(e.target.checked)} 
+            <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
             />
             <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-primary"></div>
         </label>
@@ -514,8 +514,8 @@ const AssessmentScreen: React.FC = () => {
                     key={option}
                     onClick={() => onChange(option)}
                     className={`p-3 rounded-lg text-sm font-medium border transition-all ${
-                        value === option 
-                        ? 'bg-primary/10 border-primary text-primary' 
+                        value === option
+                        ? 'bg-primary/10 border-primary text-primary'
                         : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                     }`}
                 >
@@ -558,14 +558,14 @@ const AssessmentScreen: React.FC = () => {
                 }`}>
                     {assessment.risk}
                 </h2>
-                
+
                 <p className="text-center text-slate-600 dark:text-slate-300 mb-8 max-w-sm">
                     {assessment.details}
                 </p>
 
                 {/* AI Analysis Section */}
                 {!aiAnalysis ? (
-                    <button 
+                    <button
                         onClick={generateAIAnalysis}
                         disabled={isAnalyzing}
                         className="w-full mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform no-print"
@@ -611,14 +611,14 @@ const AssessmentScreen: React.FC = () => {
                 </div>
 
                 <div className="flex gap-3 w-full no-print">
-                    <button 
+                    <button
                         onClick={() => window.print()}
                         className="flex-1 py-4 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
                         <span className="material-symbols-outlined">print</span>
                         Export PDF
                     </button>
-                    <button 
+                    <button
                         onClick={() => { setView('form'); setStep(1); }}
                         className="flex-1 py-4 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
                     >
@@ -645,13 +645,13 @@ const AssessmentScreen: React.FC = () => {
       {/* Feature Tabs */}
       <div className="px-6 mb-4">
           <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded-xl flex">
-              <button 
+              <button
                 onClick={() => setActiveTab('Questionnaire')}
                 className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'Questionnaire' ? 'bg-white dark:bg-card-dark shadow text-primary' : 'text-slate-500'}`}
               >
                   Risk Assessment
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('ECG')}
                 className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'ECG' ? 'bg-white dark:bg-card-dark shadow text-primary' : 'text-slate-500'}`}
               >
@@ -668,7 +668,7 @@ const AssessmentScreen: React.FC = () => {
                   <h3 className="text-xl font-bold dark:text-white">ECG Rhythm Monitor</h3>
                   <p className="text-slate-500 text-sm mt-1">Record your heart rhythm using the sensor or camera simulation.</p>
               </div>
-              
+
               <ECGRecorder />
 
               <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl">
@@ -689,12 +689,12 @@ const AssessmentScreen: React.FC = () => {
             <div className="px-6 py-2 mb-2">
                 <div className="flex items-center justify-between relative">
                 <div className="absolute top-4 left-0 right-0 h-0.5 bg-slate-200 dark:bg-slate-700 -z-0 transform translate-y-[-50%]"></div>
-                
+
                 {[1, 2, 3].map((s) => (
                     <div key={s} className="relative z-10 flex flex-col items-center gap-1 bg-background-light dark:bg-background-dark px-2">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-300 ${
-                        step >= s 
-                        ? 'bg-primary text-white shadow-lg shadow-primary/30' 
+                        step >= s
+                        ? 'bg-primary text-white shadow-lg shadow-primary/30'
                         : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-400'
                     }`}>
                         {s}
@@ -711,7 +711,7 @@ const AssessmentScreen: React.FC = () => {
             <div className="flex-1 px-6 pt-4 pb-24">
                 {step === 1 && (
                     <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                        
+
                         {/* AI Auto-Fill Section */}
                         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-4 text-white shadow-lg">
                             <div className="flex justify-between items-start mb-2">
@@ -722,19 +722,19 @@ const AssessmentScreen: React.FC = () => {
                                 {isProcessingFile && <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>}
                             </div>
                             <p className="text-xs text-blue-100 mb-3">Upload a photo of your results and we'll fill in the details for you.</p>
-                            <button 
+                            <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isProcessingFile}
                                 className="w-full py-2 bg-white text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors disabled:opacity-70"
                             >
                                 {isProcessingFile ? "Analyzing..." : "Auto-fill from Report"}
                             </button>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                accept="image/*" 
-                                onChange={handleFileUpload} 
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleFileUpload}
                             />
                         </div>
 
@@ -756,9 +756,9 @@ const AssessmentScreen: React.FC = () => {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium dark:text-slate-200">Age</label>
-                            <input 
-                            type="number" 
-                            placeholder="e.g., 52" 
+                            <input
+                            type="number"
+                            placeholder="e.g., 52"
                             className="w-full p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                             value={formData.age}
                             onChange={(e) => handleChange('age', e.target.value)}
@@ -769,7 +769,7 @@ const AssessmentScreen: React.FC = () => {
                             <div className="space-y-2">
                                 <label className="text-sm font-medium dark:text-slate-200">Gender</label>
                                 <div className="relative">
-                                    <select 
+                                    <select
                                         className="w-full p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary outline-none appearance-none dark:text-white"
                                         value={formData.gender}
                                         onChange={(e) => handleChange('gender', e.target.value)}
@@ -785,7 +785,7 @@ const AssessmentScreen: React.FC = () => {
                             <div className="space-y-2">
                                 <label className="text-sm font-medium dark:text-slate-200">Race</label>
                                 <div className="relative">
-                                    <select 
+                                    <select
                                         className="w-full p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary outline-none appearance-none dark:text-white"
                                         value={formData.race}
                                         onChange={(e) => handleChange('race', e.target.value)}
@@ -811,9 +811,9 @@ const AssessmentScreen: React.FC = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium dark:text-slate-300">Systolic (Top)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="120" 
+                                    <input
+                                        type="number"
+                                        placeholder="120"
                                         className="w-full p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                                         value={formData.systolic}
                                         onChange={(e) => handleChange('systolic', e.target.value)}
@@ -821,9 +821,9 @@ const AssessmentScreen: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium dark:text-slate-300">Diastolic (Bottom)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="80" 
+                                    <input
+                                        type="number"
+                                        placeholder="80"
                                         className="w-full p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                                         value={formData.diastolic}
                                         onChange={(e) => handleChange('diastolic', e.target.value)}
@@ -851,10 +851,10 @@ const AssessmentScreen: React.FC = () => {
                             )}
                         </div>
 
-                        <ToggleSwitch 
-                            label="Are you on BP medication?" 
-                            checked={formData.onBPMeds} 
-                            onChange={(val) => handleChange('onBPMeds', val)} 
+                        <ToggleSwitch
+                            label="Are you on BP medication?"
+                            checked={formData.onBPMeds}
+                            onChange={(val) => handleChange('onBPMeds', val)}
                             infoText="Indicates history of hypertension which is a risk factor."
                         />
 
@@ -867,9 +867,9 @@ const AssessmentScreen: React.FC = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium dark:text-slate-300">Total (mg/dL)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="200" 
+                                    <input
+                                        type="number"
+                                        placeholder="200"
                                         className="w-full p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                                         value={formData.totalCholesterol}
                                         onChange={(e) => handleChange('totalCholesterol', e.target.value)}
@@ -877,9 +877,9 @@ const AssessmentScreen: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium dark:text-slate-300">HDL (mg/dL)</label>
-                                    <input 
-                                        type="number" 
-                                        placeholder="50" 
+                                    <input
+                                        type="number"
+                                        placeholder="50"
                                         className="w-full p-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                                         value={formData.hdlCholesterol}
                                         onChange={(e) => handleChange('hdlCholesterol', e.target.value)}
@@ -888,17 +888,17 @@ const AssessmentScreen: React.FC = () => {
                             </div>
                         </div>
 
-                        <ToggleSwitch 
-                            label="Do you smoke?" 
-                            checked={formData.isSmoker} 
-                            onChange={(val) => handleChange('isSmoker', val)} 
+                        <ToggleSwitch
+                            label="Do you smoke?"
+                            checked={formData.isSmoker}
+                            onChange={(val) => handleChange('isSmoker', val)}
                             infoText="Smoking significantly increases the risk of heart disease and stroke."
                         />
 
-                        <ToggleSwitch 
-                            label="Do you have diabetes?" 
-                            checked={formData.hasDiabetes} 
-                            onChange={(val) => handleChange('hasDiabetes', val)} 
+                        <ToggleSwitch
+                            label="Do you have diabetes?"
+                            checked={formData.hasDiabetes}
+                            onChange={(val) => handleChange('hasDiabetes', val)}
                             infoText="Diabetes doubles the risk of heart disease. Managing blood sugar is crucial."
                         />
 
@@ -936,31 +936,31 @@ const AssessmentScreen: React.FC = () => {
                             <h1 className="text-2xl font-bold mb-2 dark:text-white">Medical History</h1>
                             <p className="text-slate-500">Tell us about your medical background to help us assess your risk.</p>
                         </div>
-                        
+
                         <div className="bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                             <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                                 <h3 className="font-bold dark:text-white text-sm uppercase tracking-wide">Existing Conditions</h3>
                             </div>
                             <div className="p-4 space-y-2">
-                                <ToggleSwitch 
-                                    label="History of Heart Attack or Stroke" 
-                                    checked={formData.historyHeartAttack} 
+                                <ToggleSwitch
+                                    label="History of Heart Attack or Stroke"
+                                    checked={formData.historyHeartAttack}
                                     onChange={(val) => handleChange('historyHeartAttack', val)}
                                 />
-                                <ToggleSwitch 
-                                    label="Family History of Heart Disease" 
-                                    checked={formData.historyFamily} 
+                                <ToggleSwitch
+                                    label="Family History of Heart Disease"
+                                    checked={formData.historyFamily}
                                     onChange={(val) => handleChange('historyFamily', val)}
                                     infoText="Immediate family (parents/siblings) diagnosed before age 55 (men) or 65 (women)."
                                 />
-                                <ToggleSwitch 
-                                    label="Chronic Kidney Disease" 
-                                    checked={formData.historyKidney} 
+                                <ToggleSwitch
+                                    label="Chronic Kidney Disease"
+                                    checked={formData.historyKidney}
                                     onChange={(val) => handleChange('historyKidney', val)}
                                 />
-                                <ToggleSwitch 
-                                    label="Atrial Fibrillation" 
-                                    checked={formData.historyAfib} 
+                                <ToggleSwitch
+                                    label="Atrial Fibrillation"
+                                    checked={formData.historyAfib}
                                     onChange={(val) => handleChange('historyAfib', val)}
                                     infoText="Irregular, often rapid heart rate that can increase risk of stroke."
                                 />
@@ -970,9 +970,9 @@ const AssessmentScreen: React.FC = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="text-sm font-medium dark:text-slate-200 mb-2 block">Current Medications (Optional)</label>
-                                <textarea 
+                                <textarea
                                     rows={3}
-                                    placeholder="e.g. Lisinopril, Atorvastatin, Metformin..." 
+                                    placeholder="e.g. Lisinopril, Atorvastatin, Metformin..."
                                     className="w-full p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary outline-none dark:text-white resize-none"
                                     value={formData.medications}
                                     onChange={(e) => handleChange('medications', e.target.value)}
@@ -980,9 +980,9 @@ const AssessmentScreen: React.FC = () => {
                             </div>
                             <div>
                                 <label className="text-sm font-medium dark:text-slate-200 mb-2 block">Allergies (Optional)</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="e.g. Penicillin, Shellfish" 
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Penicillin, Shellfish"
                                     className="w-full p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary outline-none dark:text-white"
                                     value={formData.allergies}
                                     onChange={(e) => handleChange('allergies', e.target.value)}
@@ -1005,15 +1005,15 @@ const AssessmentScreen: React.FC = () => {
                                 <span className="material-symbols-outlined text-green-500">restaurant</span>
                                 <h3 className="font-bold dark:text-white">Diet & Nutrition</h3>
                             </div>
-                            
-                            <SelectionGroup 
+
+                            <SelectionGroup
                                 label="How often do you eat fruits & vegetables?"
                                 options={['Rarely', '1-2 days/week', 'Some days', 'Daily']}
                                 value={formData.fruitVegIntake}
                                 onChange={(val) => handleChange('fruitVegIntake', val)}
                             />
 
-                            <SelectionGroup 
+                            <SelectionGroup
                                 label="How often do you eat processed/fast food?"
                                 options={['Rarely', 'Weekly', 'Multiple/week', 'Daily']}
                                 value={formData.processedFoodIntake}
@@ -1033,10 +1033,10 @@ const AssessmentScreen: React.FC = () => {
                                     <label className="text-sm font-medium dark:text-slate-200">Days per week (30+ mins)</label>
                                     <span className="text-2xl font-bold text-primary">{formData.exerciseDays}</span>
                                 </div>
-                                <input 
-                                    type="range" 
-                                    min="0" 
-                                    max="7" 
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="7"
                                     value={formData.exerciseDays}
                                     onChange={(e) => handleChange('exerciseDays', parseInt(e.target.value))}
                                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary"
@@ -1048,7 +1048,7 @@ const AssessmentScreen: React.FC = () => {
                             </div>
 
                             {formData.exerciseDays > 0 && (
-                                <SelectionGroup 
+                                <SelectionGroup
                                     label="Typical Intensity"
                                     options={['Low (Walk)', 'Moderate (Jog)', 'High (Run/HIIT)']}
                                     value={formData.exerciseIntensity}
@@ -1063,22 +1063,22 @@ const AssessmentScreen: React.FC = () => {
                                 <span className="material-symbols-outlined text-purple-500">psychology</span>
                                 <h3 className="font-bold dark:text-white">Wellbeing & Habits</h3>
                             </div>
-                            
-                            <SelectionGroup 
+
+                            <SelectionGroup
                                 label="Average Sleep per Night"
                                 options={['< 5 hrs', '5-6 hrs', '6-8 hrs', '9+ hrs']}
                                 value={formData.sleepHours}
                                 onChange={(val) => handleChange('sleepHours', val)}
                             />
 
-                            <SelectionGroup 
+                            <SelectionGroup
                                 label="Daily Stress Level"
                                 options={['Low', 'Moderate', 'High', 'Severe']}
                                 value={formData.stressLevel}
                                 onChange={(val) => handleChange('stressLevel', val)}
                             />
 
-                            <SelectionGroup 
+                            <SelectionGroup
                                 label="Alcohol Consumption"
                                 options={['None', 'Socially', 'Moderate', 'Heavy']}
                                 value={formData.alcoholConsumption}
@@ -1091,7 +1091,7 @@ const AssessmentScreen: React.FC = () => {
                 {/* Sticky Footer for Questionnaire */}
                 <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-background-dark border-t border-slate-100 dark:border-slate-800 z-20">
                     <div className="max-w-md mx-auto">
-                        <button 
+                        <button
                             onClick={handleContinue}
                             className="w-full h-14 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/30"
                         >
@@ -1121,18 +1121,18 @@ const AssessmentScreen: React.FC = () => {
                     <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
                         Your blood pressure readings ({formData.systolic}/{formData.diastolic}) indicate a critical condition. This is a medical emergency.
                     </p>
-                    
+
                     <button className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 mb-3 transition-colors shadow-lg shadow-red-600/30">
                         <span className="material-symbols-outlined">call</span>
                         Call Emergency Services
                     </button>
-                    
+
                     <button className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-xl font-bold flex items-center justify-center gap-2 mb-6 transition-colors">
                         <span className="material-symbols-outlined">near_me</span>
                         Find Nearest Clinic
                     </button>
 
-                    <button 
+                    <button
                         onClick={() => setIsEmergencyModalVisible(false)}
                         className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline"
                     >

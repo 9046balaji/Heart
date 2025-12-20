@@ -1,9 +1,9 @@
 /**
  * Notification Service
- * 
+ *
  * Handles notification preferences and delivery (Push, Email, WhatsApp).
  * Also manages weekly summary preferences.
- * 
+ *
  * Healthcare-grade error handling:
  * - No PHI or stack traces exposed to users
  * - All errors logged for developers
@@ -95,7 +95,7 @@ function handleError(error: unknown, context: string): never {
 
 /**
  * Register a device for push notifications
- * 
+ *
  * @param userId - User identifier
  * @param deviceToken - Device push token from the browser/app
  * @param platform - Platform type
@@ -181,7 +181,7 @@ export async function requestPushPermission(): Promise<string | null> {
 
 /**
  * Get weekly summary preferences for a user
- * 
+ *
  * @param userId - User identifier
  * @returns Current preferences
  */
@@ -212,7 +212,7 @@ export async function getWeeklySummaryPreferences(
 
 /**
  * Update weekly summary preferences
- * 
+ *
  * @param userId - User identifier
  * @param preferences - New preferences
  * @returns Updated preferences
@@ -246,7 +246,7 @@ export async function updateWeeklySummaryPreferences(
 
 /**
  * Manually trigger a weekly summary
- * 
+ *
  * @param userId - User identifier
  * @param channels - Optional specific channels to use
  * @returns Trigger result
@@ -280,7 +280,7 @@ export async function triggerWeeklySummary(
 
 /**
  * Unsubscribe from weekly summaries
- * 
+ *
  * @param userId - User identifier
  * @returns Unsubscribe result
  */
@@ -313,7 +313,7 @@ export async function unsubscribeWeeklySummary(
 
 /**
  * Get available notification templates
- * 
+ *
  * @returns Array of template definitions
  */
 export async function getNotificationTemplates(): Promise<

@@ -10,11 +10,11 @@ from .medical_bill import MedicalBillSchema, BillLineItem
 from .discharge_summary import DischargeSummarySchema
 
 __all__ = [
-    'LabReportSchema',
-    'TestResult',
-    'PrescriptionSchema',
-    'Medication',
-    'MedicalBillSchema',
-    'BillLineItem',
-    'DischargeSummarySchema',
+    "LabReportSchema",
+    "TestResult",
+    "PrescriptionSchema",
+    "Medication",
+    "MedicalBillSchema",
+    "BillLineItem",
+    "DischargeSummarySchema",
 ]

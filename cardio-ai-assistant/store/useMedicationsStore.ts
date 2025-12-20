@@ -1,6 +1,6 @@
 /**
  * Medications Store - Zustand slice for medication management
- * 
+ *
  * Centralizes:
  * - Active medications
  * - Dosing schedules
@@ -17,7 +17,7 @@ import { immer } from 'zustand/middleware/immer';
 // Types
 // ============================================================================
 
-export type MedicationFrequency = 
+export type MedicationFrequency =
   | 'once_daily'
   | 'twice_daily'
   | 'three_times_daily'
@@ -32,17 +32,17 @@ export interface Medication {
   name: string;
   genericName?: string;
   brandName?: string;
-  
+
   // Dosing
   dosage: string;
   unit: string;
   frequency: MedicationFrequency;
   schedules: MedicationSchedule[];
-  
+
   // Instructions
   instructions?: string;
   withFood?: boolean;
-  
+
   // Prescription info
   prescribedBy?: string;
   prescribedDate?: string;
@@ -50,21 +50,21 @@ export interface Medication {
   refillsRemaining?: number;
   lastRefillDate?: string;
   nextRefillDate?: string;
-  
+
   // Status
   isActive: boolean;
   startDate: string;
   endDate?: string;
-  
+
   // Categorization
   category?: string;
   purpose?: string;
-  
+
   // Metadata
   notes?: string;
   sideEffects?: string[];
   interactions?: DrugInteraction[];
-  
+
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -98,37 +98,37 @@ export interface MedicationsState {
   // Data
   medications: Medication[];
   adherenceLogs: AdherenceLog[];
-  
+
   // State
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions - Medications
   addMedication: (medication: Omit<Medication, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateMedication: (id: string, updates: Partial<Medication>) => void;
   removeMedication: (id: string) => void;
   deactivateMedication: (id: string, reason?: string) => void;
   reactivateMedication: (id: string) => void;
-  
+
   // Actions - Schedules
   addSchedule: (medicationId: string, schedule: Omit<MedicationSchedule, 'id'>) => void;
   updateSchedule: (medicationId: string, scheduleId: string, updates: Partial<MedicationSchedule>) => void;
   removeSchedule: (medicationId: string, scheduleId: string) => void;
-  
+
   // Actions - Adherence
   logAdherence: (log: Omit<AdherenceLog, 'id'>) => void;
   getTodaysSchedule: () => Array<{ medication: Medication; schedule: MedicationSchedule; status?: string }>;
   getAdherenceRate: (medicationId: string, days?: number) => number;
-  
+
   // Actions - Query
   getActiveMedications: () => Medication[];
   getMedicationById: (id: string) => Medication | null;
   checkInteractions: (medicationIds: string[]) => DrugInteraction[];
-  
+
   // Actions - Refills
   updateRefillInfo: (id: string, info: { refillsRemaining?: number; lastRefillDate?: string; nextRefillDate?: string }) => void;
   getMedicationsNeedingRefill: (daysAhead?: number) => Medication[];
-  
+
   // State setters
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -165,7 +165,7 @@ export const useMedicationsStore = create<MedicationsState>()(
         addMedication: (medication) => {
           const id = generateId();
           const now = new Date().toISOString();
-          
+
           set((state) => {
             state.medications.push({
               ...medication,
@@ -174,10 +174,10 @@ export const useMedicationsStore = create<MedicationsState>()(
               updatedAt: now,
             });
           });
-          
+
           return id;
         },
-        
+
         updateMedication: (id, updates) => set((state) => {
           const index = state.medications.findIndex(m => m.id === id);
           if (index !== -1) {
@@ -188,12 +188,12 @@ export const useMedicationsStore = create<MedicationsState>()(
             };
           }
         }),
-        
+
         removeMedication: (id) => set((state) => {
           state.medications = state.medications.filter(m => m.id !== id);
           state.adherenceLogs = state.adherenceLogs.filter(l => l.medicationId !== id);
         }),
-        
+
         deactivateMedication: (id, reason) => set((state) => {
           const med = state.medications.find(m => m.id === id);
           if (med) {
@@ -205,7 +205,7 @@ export const useMedicationsStore = create<MedicationsState>()(
             med.updatedAt = new Date().toISOString();
           }
         }),
-        
+
         reactivateMedication: (id) => set((state) => {
           const med = state.medications.find(m => m.id === id);
           if (med) {
@@ -226,7 +226,7 @@ export const useMedicationsStore = create<MedicationsState>()(
             med.updatedAt = new Date().toISOString();
           }
         }),
-        
+
         updateSchedule: (medicationId, scheduleId, updates) => set((state) => {
           const med = state.medications.find(m => m.id === medicationId);
           if (med) {
@@ -237,7 +237,7 @@ export const useMedicationsStore = create<MedicationsState>()(
             }
           }
         }),
-        
+
         removeSchedule: (medicationId, scheduleId) => set((state) => {
           const med = state.medications.find(m => m.id === medicationId);
           if (med) {
@@ -252,34 +252,34 @@ export const useMedicationsStore = create<MedicationsState>()(
             ...log,
             id: `adh_${Date.now()}`,
           });
-          
+
           // Keep last 1000 logs
           if (state.adherenceLogs.length > 1000) {
             state.adherenceLogs = state.adherenceLogs.slice(0, 1000);
           }
         }),
-        
+
         getTodaysSchedule: () => {
           const state = get();
           const today = new Date();
           const dayOfWeek = today.getDay();
-          
+
           const schedule: Array<{ medication: Medication; schedule: MedicationSchedule; status?: string }> = [];
-          
+
           for (const med of state.medications.filter(m => m.isActive)) {
             for (const sched of med.schedules) {
               // Check if this schedule applies today
               const appliestoday = !sched.daysOfWeek || sched.daysOfWeek.includes(dayOfWeek);
-              
+
               if (appliestoday) {
                 // Check if already logged
                 const todayStr = today.toISOString().split('T')[0];
                 const log = state.adherenceLogs.find(
-                  l => l.medicationId === med.id && 
+                  l => l.medicationId === med.id &&
                        l.scheduledTime.startsWith(todayStr) &&
                        l.scheduledTime.includes(sched.time)
                 );
-                
+
                 schedule.push({
                   medication: med,
                   schedule: sched,
@@ -288,22 +288,22 @@ export const useMedicationsStore = create<MedicationsState>()(
               }
             }
           }
-          
+
           // Sort by time
           return schedule.sort((a, b) => a.schedule.time.localeCompare(b.schedule.time));
         },
-        
+
         getAdherenceRate: (medicationId, days = 30) => {
           const state = get();
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() - days);
-          
+
           const logs = state.adherenceLogs.filter(
             l => l.medicationId === medicationId && new Date(l.scheduledTime) >= cutoff
           );
-          
+
           if (logs.length === 0) return 100;
-          
+
           const taken = logs.filter(l => l.status === 'taken' || l.status === 'late').length;
           return Math.round((taken / logs.length) * 100);
         },
@@ -312,15 +312,15 @@ export const useMedicationsStore = create<MedicationsState>()(
         getActiveMedications: () => {
           return get().medications.filter(m => m.isActive);
         },
-        
+
         getMedicationById: (id) => {
           return get().medications.find(m => m.id === id) || null;
         },
-        
+
         checkInteractions: (medicationIds) => {
           const state = get();
           const interactions: DrugInteraction[] = [];
-          
+
           for (const med of state.medications.filter(m => medicationIds.includes(m.id))) {
             if (med.interactions) {
               for (const interaction of med.interactions) {
@@ -330,7 +330,7 @@ export const useMedicationsStore = create<MedicationsState>()(
               }
             }
           }
-          
+
           return interactions;
         },
 
@@ -342,12 +342,12 @@ export const useMedicationsStore = create<MedicationsState>()(
             med.updatedAt = new Date().toISOString();
           }
         }),
-        
+
         getMedicationsNeedingRefill: (daysAhead = 7) => {
           const state = get();
           const cutoff = new Date();
           cutoff.setDate(cutoff.getDate() + daysAhead);
-          
+
           return state.medications.filter(m => {
             if (!m.isActive || !m.nextRefillDate) return false;
             return new Date(m.nextRefillDate) <= cutoff;
@@ -375,7 +375,7 @@ export const useMedicationsStore = create<MedicationsState>()(
 // ============================================================================
 
 export const selectMedications = (state: MedicationsState) => state.medications;
-export const selectActiveMedications = (state: MedicationsState) => 
+export const selectActiveMedications = (state: MedicationsState) =>
   state.medications.filter(m => m.isActive);
 export const selectAdherenceLogs = (state: MedicationsState) => state.adherenceLogs;
 
@@ -391,7 +391,7 @@ export const useActiveMedications = () => {
 export const useTodaysMedicationSchedule = () => {
   const getTodaysSchedule = useMedicationsStore(state => state.getTodaysSchedule);
   const logAdherence = useMedicationsStore(state => state.logAdherence);
-  
+
   return {
     schedule: getTodaysSchedule(),
     logTaken: (medicationId: string, scheduledTime: string) => logAdherence({
@@ -411,7 +411,7 @@ export const useTodaysMedicationSchedule = () => {
 export const useMedicationRefills = () => {
   const getMedicationsNeedingRefill = useMedicationsStore(state => state.getMedicationsNeedingRefill);
   const updateRefillInfo = useMedicationsStore(state => state.updateRefillInfo);
-  
+
   return {
     needsRefill: getMedicationsNeedingRefill(),
     recordRefill: (id: string, refillsRemaining: number) => updateRefillInfo(id, {

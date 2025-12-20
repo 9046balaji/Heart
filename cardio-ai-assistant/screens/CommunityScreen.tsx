@@ -34,32 +34,32 @@ const MOCK_CHATS: Record<string, ChatMessage[]> = {};
 const CommunityScreen: React.FC = () => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'Feed' | 'Challenges' | 'Friends'>('Feed');
-  
+
   // Data State
   const [posts, setPosts] = useState<CommunityPost[]>(communityFeed);
   const [challenges, setChallenges] = useState<Challenge[]>(challengesData);
   const [friends, setFriends] = useState<Friend[]>(friendsData);
-  
+
   // Challenge Detail State
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
   const [challengeView, setChallengeView] = useState<'Feed' | 'Chat' | 'MyEntries'>('Feed');
   const [challengePosts, setChallengePosts] = useState<CommunityPost[]>([]);
   const [challengeChat, setChallengeChat] = useState<ChatMessage[]>([]);
-  
+
   // Modal States
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [isChallengeEntry, setIsChallengeEntry] = useState(false); // Context for create post
   const [activePostComments, setActivePostComments] = useState<string | null>(null); // Post ID
   const [activeChatFriend, setActiveChatFriend] = useState<Friend | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  
+
   // Input States
   const [newPostText, setNewPostText] = useState('');
   const [newPostImage, setNewPostImage] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [chatText, setChatText] = useState('');
   const [friendSearch, setFriendSearch] = useState('');
-  
+
   // Local Comments State (PostID -> Comments[])
   const [comments, setComments] = useState<Record<string, Comment[]>>(MOCK_COMMENTS);
   // Local Chats State (FriendID -> Messages[])
@@ -80,7 +80,7 @@ const CommunityScreen: React.FC = () => {
 
   const handleCreatePost = () => {
     if (!newPostText.trim() && !newPostImage) return;
-    
+
     const newPost: CommunityPost = {
       id: `post_${Date.now()}`,
       user: {
@@ -121,7 +121,7 @@ const CommunityScreen: React.FC = () => {
   // --- Comments Logic ---
   const handleAddComment = () => {
     if (!activePostComments || !commentText.trim()) return;
-    
+
     const newComment: Comment = {
       id: `c_${Date.now()}`,
       user: 'You',
@@ -134,7 +134,7 @@ const CommunityScreen: React.FC = () => {
       ...prev,
       [activePostComments]: [...(prev[activePostComments] || []), newComment]
     }));
-    
+
     // Update post comment count (Check both feeds)
     setPosts(prev => prev.map(p => p.id === activePostComments ? { ...p, comments: p.comments + 1 } : p));
     setChallengePosts(prev => prev.map(p => p.id === activePostComments ? { ...p, comments: p.comments + 1 } : p));
@@ -167,7 +167,7 @@ const CommunityScreen: React.FC = () => {
   // --- Chat Logic ---
   const handleChatSend = () => {
     if (!activeChatFriend || !chatText.trim()) return;
-    
+
     const friendId = activeChatFriend.id;
     const msg: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -264,10 +264,10 @@ const CommunityScreen: React.FC = () => {
           <h3 className="font-bold text-lg dark:text-white">{isChallengeEntry ? 'Submit Challenge Entry' : 'Create Post'}</h3>
           <button onClick={() => setShowCreatePost(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
         </div>
-        
+
         <div className="flex gap-3 mb-4">
           <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8JJmFSNEDykVbLmg9GaDjI_y7oSrZg8hS9KI3YR7e3vQdQysk4FtU7xmAvLKhSuMQZgg2zbablylPhaXKCoy8vetGjpLe-Ty24fgpXbanV3G0gdxLOQp4UFEWDlaNETaNcWE1X-jhCKNT4bqUYPHtiTEZIBu24Ly5r-YP5vdBILXMcYIiLG6s8i1KztyEq0E4k79NTPODK1qXJhtVCURhe4x6JxRUzdlvshbonwupAWRLiXvZWsuODqHjdudOj9DAgtdsg0ScrbvE" className="w-10 h-10 rounded-full object-cover" alt="Me" />
-          <textarea 
+          <textarea
             className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 resize-none border-none focus:ring-2 focus:ring-primary dark:text-white h-32"
             placeholder={isChallengeEntry ? "Describe your entry..." : "Share your progress or a thought..."}
             value={newPostText}
@@ -278,7 +278,7 @@ const CommunityScreen: React.FC = () => {
         {newPostImage && (
           <div className="relative mb-4 rounded-xl overflow-hidden max-h-60">
             <img src={newPostImage} alt="Preview" className="w-full h-full object-cover" />
-            <button 
+            <button
               onClick={() => setNewPostImage(null)}
               className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white"
             >
@@ -293,8 +293,8 @@ const CommunityScreen: React.FC = () => {
             <span className="font-bold text-sm">Photo</span>
           </button>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageSelect} />
-          
-          <button 
+
+          <button
             onClick={handleCreatePost}
             disabled={!newPostText.trim() && !newPostImage}
             className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg font-bold disabled:opacity-50 transition-colors"
@@ -317,7 +317,7 @@ const CommunityScreen: React.FC = () => {
             <h3 className="font-bold text-lg dark:text-white">Comments</h3>
             <button onClick={() => setActivePostComments(null)}><span className="material-symbols-outlined text-slate-400">close</span></button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {postComments.length > 0 ? postComments.map(c => (
               <div key={c.id} className="flex gap-3">
@@ -336,15 +336,15 @@ const CommunityScreen: React.FC = () => {
           </div>
 
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
-            <input 
-              type="text" 
-              placeholder="Add a comment..." 
+            <input
+              type="text"
+              placeholder="Add a comment..."
               value={commentText}
               onChange={e => setCommentText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddComment()}
               className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-full px-4 text-sm focus:ring-2 focus:ring-primary dark:text-white"
             />
-            <button 
+            <button
               onClick={handleAddComment}
               disabled={!commentText.trim()}
               className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center disabled:opacity-50"
@@ -383,8 +383,8 @@ const CommunityScreen: React.FC = () => {
           {messages.map(msg => (
             <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${
-                msg.sender === 'me' 
-                ? 'bg-primary text-white rounded-br-none' 
+                msg.sender === 'me'
+                ? 'bg-primary text-white rounded-br-none'
                 : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
               }`}>
                 <p>{msg.text}</p>
@@ -402,15 +402,15 @@ const CommunityScreen: React.FC = () => {
 
         <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark flex gap-2 items-center">
           <button className="text-slate-400 hover:text-primary p-2"><span className="material-symbols-outlined">add_circle</span></button>
-          <input 
-            type="text" 
-            placeholder="Message..." 
+          <input
+            type="text"
+            placeholder="Message..."
             value={chatText}
             onChange={e => setChatText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleChatSend()}
             className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary dark:text-white"
           />
-          <button 
+          <button
             onClick={handleChatSend}
             disabled={!chatText.trim()}
             className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-primary-dark transition-colors"
@@ -445,14 +445,14 @@ const CommunityScreen: React.FC = () => {
             )}
         </div>
         <div className="flex items-center justify-start gap-1 p-4 pt-2 border-t border-slate-100 dark:border-slate-800/50">
-            <button 
+            <button
                 onClick={() => handleLike(post.id, selectedChallenge !== null)}
                 className={`flex min-w-[48px] items-center justify-center rounded-lg h-10 px-3 gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${post.likes > 0 ? 'text-red-500' : 'text-slate-500 dark:text-white'}`}
             >
                 <span className={`material-symbols-outlined ${post.likes > 0 ? 'filled' : ''}`}>favorite</span>
                 <span className="text-sm">{post.likes}</span>
             </button>
-            <button 
+            <button
                 onClick={() => setActivePostComments(post.id)}
                 className="flex min-w-[48px] items-center justify-center rounded-lg h-10 px-3 text-slate-500 dark:text-white gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
@@ -490,7 +490,7 @@ const CommunityScreen: React.FC = () => {
               {/* Action Bar */}
               <div className="p-4 bg-white dark:bg-card-dark border-b border-slate-100 dark:border-slate-800">
                   {!selectedChallenge.joined ? (
-                      <button 
+                      <button
                           onClick={handleJoinChallenge}
                           className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all"
                       >
@@ -514,12 +514,12 @@ const CommunityScreen: React.FC = () => {
                   <>
                     <div className="flex border-b border-slate-200 dark:border-white/10 px-4">
                         {['Feed', 'Chat', 'MyEntries'].map(tab => (
-                            <button 
+                            <button
                                 key={tab}
                                 onClick={() => setChallengeView(tab as any)}
                                 className={`flex-1 py-3 text-sm font-bold border-b-[3px] transition-colors ${
-                                    challengeView === tab 
-                                    ? 'border-primary text-slate-900 dark:text-white' 
+                                    challengeView === tab
+                                    ? 'border-primary text-slate-900 dark:text-white'
                                     : 'border-transparent text-slate-500 dark:text-slate-400'
                                 }`}
                             >
@@ -548,8 +548,8 @@ const CommunityScreen: React.FC = () => {
                                                 <img src={msg.avatar} alt={msg.user} className="w-8 h-8 rounded-full mr-2 self-end" />
                                             )}
                                             <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${
-                                                msg.sender === 'me' 
-                                                ? 'bg-primary text-white rounded-br-none' 
+                                                msg.sender === 'me'
+                                                ? 'bg-primary text-white rounded-br-none'
                                                 : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none shadow-sm'
                                             }`}>
                                                 {msg.sender !== 'me' && <p className="text-[10px] text-primary font-bold mb-0.5">{msg.user}</p>}
@@ -560,9 +560,9 @@ const CommunityScreen: React.FC = () => {
                                     ))}
                                 </div>
                                 <div className="p-2 bg-white dark:bg-card-dark border-t border-slate-200 dark:border-slate-800 flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Type a message..." 
+                                    <input
+                                        type="text"
+                                        placeholder="Type a message..."
                                         value={chatText}
                                         onChange={e => setChatText(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleChallengeChatSend()}
@@ -610,7 +610,7 @@ const CommunityScreen: React.FC = () => {
                                             </div>
                                         </div>
                                     ))}
-                                    <button 
+                                    <button
                                         onClick={() => { setIsChallengeEntry(true); setShowCreatePost(true); }}
                                         className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors aspect-square"
                                     >
@@ -658,12 +658,12 @@ const CommunityScreen: React.FC = () => {
         <div className="sticky top-[60px] z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
             <div className="flex border-b border-slate-200 dark:border-white/10 px-4 justify-between">
                 {['Feed', 'Challenges', 'Friends'].map(tab => (
-                    <button 
+                    <button
                         key={tab}
                         onClick={() => setActiveTab(tab as any)}
                         className={`flex flex-col items-center justify-center border-b-[3px] pb-3 pt-4 flex-1 transition-colors ${
-                            activeTab === tab 
-                            ? 'border-primary text-slate-900 dark:text-white' 
+                            activeTab === tab
+                            ? 'border-primary text-slate-900 dark:text-white'
                             : 'border-transparent text-slate-500 dark:text-slate-400'
                         }`}
                     >
@@ -694,7 +694,7 @@ const CommunityScreen: React.FC = () => {
                                                 <span className="material-symbols-outlined filled">groups</span>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="mb-2">
                                             <div className="flex justify-between text-xs font-bold mb-1 opacity-90">
                                                 <span>{goal.currentValue.toLocaleString()}</span>
@@ -704,7 +704,7 @@ const CommunityScreen: React.FC = () => {
                                                 <div className="bg-white h-full rounded-full transition-all duration-1000" style={{width: `${progress}%`}}></div>
                                             </div>
                                         </div>
-                                        
+
                                         <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1 backdrop-blur-md">
                                             <span className="material-symbols-outlined text-sm">add_circle</span> Contribute
                                         </button>
@@ -717,7 +717,7 @@ const CommunityScreen: React.FC = () => {
 
                 {/* Section Header: Feed */}
                 <h2 className="text-slate-900 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Activity Feed</h2>
-                
+
                 <div className="flex flex-col gap-4 px-4 @container">
                     {posts.map(renderPost)}
                 </div>
@@ -727,8 +727,8 @@ const CommunityScreen: React.FC = () => {
         {activeTab === 'Challenges' && (
             <div className="flex flex-col gap-4 px-4 py-4">
                 {challenges.map(challenge => (
-                    <div 
-                        key={challenge.id} 
+                    <div
+                        key={challenge.id}
                         onClick={() => openChallenge(challenge)}
                         className="bg-white dark:bg-card-dark rounded-xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 cursor-pointer hover:shadow-md transition-all"
                     >
@@ -743,7 +743,7 @@ const CommunityScreen: React.FC = () => {
                                 <span className="text-xs text-slate-500">{challenge.participants}</span>
                             </div>
                             <p className="text-slate-600 dark:text-slate-300 text-sm mb-4 line-clamp-2">{challenge.description}</p>
-                            <button 
+                            <button
                                 className={`w-full py-3 rounded-xl font-bold transition-colors ${challenge.joined ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-primary text-slate-900 hover:bg-primary-dark'}`}
                             >
                                 {challenge.joined ? 'View Challenge' : 'Join Challenge'}
@@ -758,7 +758,7 @@ const CommunityScreen: React.FC = () => {
             <div className="flex flex-col gap-2 px-4 py-4">
                 {/* Invite & Add Section */}
                 <div className="flex gap-3 mb-4">
-                    <button 
+                    <button
                         onClick={() => setShowInviteModal(true)}
                         className="flex-1 py-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                     >
@@ -766,15 +766,15 @@ const CommunityScreen: React.FC = () => {
                         Invite Link
                     </button>
                     <div className="flex-1 relative">
-                        <input 
-                            type="text" 
-                            placeholder="Add friend..." 
+                        <input
+                            type="text"
+                            placeholder="Add friend..."
                             value={friendSearch}
                             onChange={e => setFriendSearch(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSendFriendRequest()}
                             className="w-full h-full pl-4 pr-10 rounded-xl bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:border-primary"
                         />
-                        <button 
+                        <button
                             onClick={handleSendFriendRequest}
                             className="absolute right-2 top-1/2 -translate-y-1/2 text-primary p-1"
                         >
@@ -785,7 +785,7 @@ const CommunityScreen: React.FC = () => {
 
                 {friends.map(friend => {
                     const needsNudge = friend.status === 'Offline' && (friend.lastActive.includes('d') || (friend.lastActive.includes('h') && parseInt(friend.lastActive) > 2));
-                    
+
                     return (
                         <div key={friend.id} className="flex items-center justify-between p-4 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800">
                             <div className="flex items-center gap-3">
@@ -808,8 +808,8 @@ const CommunityScreen: React.FC = () => {
                                         <span className="text-xs font-bold">{friend.streak}</span>
                                     </div>
                                 )}
-                                
-                                <button 
+
+                                <button
                                     onClick={() => setActiveChatFriend(friend)}
                                     className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                                     title="Chat"
@@ -826,7 +826,7 @@ const CommunityScreen: React.FC = () => {
         {/* Floating Action Button for Create Post */}
         {activeTab === 'Feed' && (
             <div className="fixed bottom-24 right-6 z-20">
-                <button 
+                <button
                     onClick={() => setShowCreatePost(true)}
                     className="flex h-14 w-14 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-primary text-slate-900 shadow-lg hover:scale-105 transition-transform"
                 >
@@ -839,7 +839,7 @@ const CommunityScreen: React.FC = () => {
         {showCreatePost && renderCreatePostModal()}
         {activePostComments && renderCommentsModal()}
         {activeChatFriend && renderChatModal()}
-        
+
         {/* Invite Modal */}
         {showInviteModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowInviteModal(false)}>

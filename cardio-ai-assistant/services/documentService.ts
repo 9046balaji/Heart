@@ -1,9 +1,9 @@
 /**
  * Document Service
- * 
+ *
  * Handles document upload, OCR processing, and entity extraction.
  * Follows modular service architecture per integration requirements.
- * 
+ *
  * Healthcare-grade error handling:
  * - Network failures are caught and reported user-friendly
  * - No PHI or stack traces exposed to users
@@ -126,11 +126,11 @@ function handleError(error: unknown, context: string): never {
 
 /**
  * Upload a document for processing
- * 
+ *
  * @param file - The file to upload (image or PDF)
  * @param userId - User identifier for tracking
  * @returns Document upload response with document_id
- * 
+ *
  * @throws DocumentServiceError with user-friendly message
  */
 export async function uploadDocument(
@@ -177,7 +177,7 @@ export async function uploadDocument(
 
 /**
  * Process an uploaded document (OCR + entity extraction)
- * 
+ *
  * @param documentId - ID from uploadDocument response
  * @returns Processed document with text and entities
  */
@@ -213,7 +213,7 @@ export async function processDocument(
 
 /**
  * Retrieve a processed document by ID
- * 
+ *
  * @param documentId - Document identifier
  * @returns Document details including extracted text and entities
  */
@@ -239,7 +239,7 @@ export async function getDocument(documentId: string): Promise<DocumentDetails> 
 
 /**
  * Extract medical entities from text
- * 
+ *
  * @param text - Text content to analyze
  * @param documentType - Optional document type for context
  * @returns Array of extracted entities with confidence scores
@@ -275,7 +275,7 @@ export async function extractEntities(
 /**
  * Upload and process a document in one call
  * Convenience method that chains upload + process
- * 
+ *
  * @param file - The file to upload and process
  * @param userId - User identifier
  * @param onProgress - Optional progress callback (0-100)

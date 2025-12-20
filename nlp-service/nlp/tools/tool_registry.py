@@ -18,14 +18,14 @@ Example:
     def calculate_bmi(weight_kg: float, height_m: float) -> ToolResult:
         bmi = weight_kg / (height_m ** 2)
         return ToolResult(success=True, data={"bmi": round(bmi, 1)})
-    
+
     # Execute tool
     result = execute_tool("calculate_bmi", {"weight_kg": 70, "height_m": 1.75})
 """
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable, Union
+from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 from enum import Enum
 import json
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class ParameterType(Enum):
     """Supported parameter types."""
+
     STRING = "string"
     NUMBER = "number"
     INTEGER = "integer"
@@ -47,6 +48,7 @@ class ParameterType(Enum):
 @dataclass
 class ToolParameter:
     """Definition of a tool parameter."""
+
     name: str
     type: str  # string, number, integer, boolean, array, object
     description: str
@@ -55,29 +57,30 @@ class ToolParameter:
     enum: Optional[List[str]] = None  # For string parameters with fixed values
     items_type: Optional[str] = None  # For array parameters
     properties: Optional[Dict[str, Any]] = None  # For object parameters
-    
+
     def to_json_schema(self) -> Dict[str, Any]:
         """Convert to JSON Schema format."""
         schema = {
             "type": self.type,
             "description": self.description,
         }
-        
+
         if self.enum:
             schema["enum"] = self.enum
-        
+
         if self.type == "array" and self.items_type:
             schema["items"] = {"type": self.items_type}
-        
+
         if self.type == "object" and self.properties:
             schema["properties"] = self.properties
-        
+
         return schema
 
 
 @dataclass
 class ToolResult:
     """Result from tool execution."""
+
     success: bool
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
@@ -85,7 +88,7 @@ class ToolResult:
     execution_time_ms: float = 0.0
     tool_name: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "success": self.success,
@@ -96,12 +99,12 @@ class ToolResult:
             "tool_name": self.tool_name,
             "timestamp": self.timestamp,
         }
-    
+
     def to_string(self) -> str:
         """Convert to string for LLM consumption."""
         if not self.success:
             return f"Error: {self.error}"
-        
+
         if self.data:
             parts = []
             for key, value in self.data.items():
@@ -112,13 +115,14 @@ class ToolResult:
                 else:
                     parts.append(f"{key}: {value}")
             return "\n".join(parts)
-        
+
         return "Success"
 
 
 @dataclass
 class Tool:
     """A callable tool with schema."""
+
     name: str
     description: str
     parameters: List[ToolParameter]
@@ -128,17 +132,17 @@ class Tool:
     requires_auth: bool = False
     rate_limit: Optional[int] = None  # calls per minute
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    
+
     def to_openai_schema(self) -> Dict[str, Any]:
         """Generate OpenAI function calling schema."""
         properties = {}
         required = []
-        
+
         for param in self.parameters:
             properties[param.name] = param.to_json_schema()
             if param.required:
                 required.append(param.name)
-        
+
         return {
             "type": "function",
             "function": {
@@ -151,17 +155,17 @@ class Tool:
                 },
             },
         }
-    
+
     def to_gemini_schema(self) -> Dict[str, Any]:
         """Generate Gemini function calling schema."""
         properties = {}
         required = []
-        
+
         for param in self.parameters:
             properties[param.name] = param.to_json_schema()
             if param.required:
                 required.append(param.name)
-        
+
         return {
             "name": self.name,
             "description": self.description,
@@ -171,26 +175,26 @@ class Tool:
                 "required": required,
             },
         }
-    
+
     def validate_parameters(self, params: Dict[str, Any]) -> List[str]:
         """
         Validate parameters against schema.
-        
+
         Returns list of validation errors (empty if valid).
         """
         errors = []
-        
+
         # Check required parameters
         for param in self.parameters:
             if param.required and param.name not in params:
                 errors.append(f"Missing required parameter: {param.name}")
-        
+
         # Validate types
         for param in self.parameters:
             if param.name in params:
                 value = params[param.name]
                 expected_type = param.type
-                
+
                 # Type checking
                 type_valid = False
                 if expected_type == "string":
@@ -207,26 +211,27 @@ class Tool:
                     type_valid = isinstance(value, dict)
                 else:
                     type_valid = True  # Unknown type, skip validation
-                
+
                 if not type_valid:
                     errors.append(
                         f"Parameter {param.name} should be {expected_type}, "
                         f"got {type(value).__name__}"
                     )
-                
+
                 # Enum validation
                 if param.enum and value not in param.enum:
                     errors.append(
                         f"Parameter {param.name} must be one of: {param.enum}"
                     )
-        
+
         return errors
-    
+
     async def execute(self, params: Dict[str, Any]) -> ToolResult:
         """Execute the tool with given parameters."""
         import time
+
         start_time = time.time()
-        
+
         # Validate parameters
         errors = self.validate_parameters(params)
         if errors:
@@ -235,20 +240,20 @@ class Tool:
                 error="; ".join(errors),
                 tool_name=self.name,
             )
-        
+
         try:
             # Add defaults for missing optional parameters
             for param in self.parameters:
                 if not param.required and param.name not in params:
                     if param.default is not None:
                         params[param.name] = param.default
-            
+
             # Execute function
             if inspect.iscoroutinefunction(self.function):
                 result = await self.function(**params)
             else:
                 result = self.function(**params)
-            
+
             # Ensure result is ToolResult
             if not isinstance(result, ToolResult):
                 result = ToolResult(
@@ -256,11 +261,11 @@ class Tool:
                     data={"result": result},
                     tool_name=self.name,
                 )
-            
+
             result.tool_name = self.name
             result.execution_time_ms = (time.time() - start_time) * 1000
             return result
-            
+
         except Exception as e:
             logger.error(f"Tool {self.name} execution failed: {e}")
             return ToolResult(
@@ -274,17 +279,17 @@ class Tool:
 class ToolRegistry:
     """
     Registry for managing and discovering tools.
-    
+
     Features:
     - Tool registration
     - Schema generation for multiple LLM providers
     - Tool discovery by category
     - Parameter validation
     - Execution tracking
-    
+
     Example:
         registry = ToolRegistry()
-        
+
         # Register tool
         registry.register(Tool(
             name="get_weather",
@@ -292,39 +297,39 @@ class ToolRegistry:
             parameters=[...],
             function=get_weather_func,
         ))
-        
+
         # Get schemas for LLM
         schemas = registry.get_openai_schemas()
-        
+
         # Execute tool
         result = await registry.execute("get_weather", {"location": "NYC"})
     """
-    
+
     def __init__(self):
         """Initialize the tool registry."""
         self._tools: Dict[str, Tool] = {}
         self._execution_log: List[Dict[str, Any]] = []
         self._rate_limiters: Dict[str, List[datetime]] = {}
-        
+
         logger.info("ToolRegistry initialized")
-    
+
     def register(self, tool: Tool) -> None:
         """
         Register a tool.
-        
+
         Args:
             tool: Tool to register
         """
         self._tools[tool.name] = tool
         logger.info(f"Registered tool: {tool.name}")
-    
+
     def unregister(self, name: str) -> bool:
         """
         Unregister a tool.
-        
+
         Args:
             name: Tool name
-            
+
         Returns:
             True if tool was removed
         """
@@ -332,88 +337,87 @@ class ToolRegistry:
             del self._tools[name]
             return True
         return False
-    
+
     def get(self, name: str) -> Optional[Tool]:
         """Get a tool by name."""
         return self._tools.get(name)
-    
+
     def list_tools(self, category: Optional[str] = None) -> List[Tool]:
         """
         List all registered tools.
-        
+
         Args:
             category: Optional category filter
-            
+
         Returns:
             List of tools
         """
         if category:
             return [t for t in self._tools.values() if t.category == category]
         return list(self._tools.values())
-    
+
     def get_categories(self) -> List[str]:
         """Get all tool categories."""
         return list(set(t.category for t in self._tools.values()))
-    
+
     def get_openai_schemas(
         self,
         tool_names: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get OpenAI function calling schemas.
-        
+
         Args:
             tool_names: Optional list of tools to include
-            
+
         Returns:
             List of OpenAI-compatible schemas
         """
         tools = self._tools.values()
         if tool_names:
             tools = [t for t in tools if t.name in tool_names]
-        
+
         return [t.to_openai_schema() for t in tools]
-    
+
     def get_gemini_schemas(
         self,
         tool_names: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get Gemini function calling schemas.
-        
+
         Args:
             tool_names: Optional list of tools to include
-            
+
         Returns:
             List of Gemini-compatible schemas
         """
         tools = self._tools.values()
         if tool_names:
             tools = [t for t in tools if t.name in tool_names]
-        
+
         return [t.to_gemini_schema() for t in tools]
-    
+
     def _check_rate_limit(self, tool_name: str, limit: int) -> bool:
         """Check if tool call is within rate limit."""
         now = datetime.now()
         minute_ago = datetime.now().replace(second=0, microsecond=0)
-        
+
         if tool_name not in self._rate_limiters:
             self._rate_limiters[tool_name] = []
-        
+
         # Clean old entries
         self._rate_limiters[tool_name] = [
-            t for t in self._rate_limiters[tool_name]
-            if t > minute_ago
+            t for t in self._rate_limiters[tool_name] if t > minute_ago
         ]
-        
+
         # Check limit
         if len(self._rate_limiters[tool_name]) >= limit:
             return False
-        
+
         self._rate_limiters[tool_name].append(now)
         return True
-    
+
     async def execute(
         self,
         tool_name: str,
@@ -422,24 +426,24 @@ class ToolRegistry:
     ) -> ToolResult:
         """
         Execute a tool by name.
-        
+
         Args:
             tool_name: Name of tool to execute
             params: Tool parameters
             user_id: Optional user ID for logging
-            
+
         Returns:
             ToolResult with execution outcome
         """
         tool = self._tools.get(tool_name)
-        
+
         if not tool:
             return ToolResult(
                 success=False,
                 error=f"Tool not found: {tool_name}",
                 tool_name=tool_name,
             )
-        
+
         # Check rate limit
         if tool.rate_limit:
             if not self._check_rate_limit(tool_name, tool.rate_limit):
@@ -448,22 +452,24 @@ class ToolRegistry:
                     error=f"Rate limit exceeded for {tool_name}",
                     tool_name=tool_name,
                 )
-        
+
         # Execute
         result = await tool.execute(params)
-        
+
         # Log execution
-        self._execution_log.append({
-            "timestamp": datetime.now().isoformat(),
-            "tool_name": tool_name,
-            "params": {k: str(v)[:100] for k, v in params.items()},
-            "success": result.success,
-            "user_id": user_id,
-            "execution_time_ms": result.execution_time_ms,
-        })
-        
+        self._execution_log.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "tool_name": tool_name,
+                "params": {k: str(v)[:100] for k, v in params.items()},
+                "success": result.success,
+                "user_id": user_id,
+                "execution_time_ms": result.execution_time_ms,
+            }
+        )
+
         return result
-    
+
     def get_execution_log(
         self,
         tool_name: Optional[str] = None,
@@ -474,7 +480,7 @@ class ToolRegistry:
         if tool_name:
             logs = [l for l in logs if l["tool_name"] == tool_name]
         return logs[-limit:]
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get registry statistics."""
         return {
@@ -507,6 +513,7 @@ def get_tool_registry() -> ToolRegistry:
 # DECORATOR FOR REGISTRATION
 # =============================================================================
 
+
 def register_tool(
     name: str,
     description: str,
@@ -517,7 +524,7 @@ def register_tool(
 ):
     """
     Decorator to register a function as a tool.
-    
+
     Example:
         @register_tool(
             name="calculate_bmi",
@@ -532,6 +539,7 @@ def register_tool(
             bmi = weight_kg / (height_m ** 2)
             return ToolResult(success=True, data={"bmi": round(bmi, 1)})
     """
+
     def decorator(func: Callable) -> Callable:
         tool = Tool(
             name=name,
@@ -544,12 +552,14 @@ def register_tool(
         )
         get_tool_registry().register(tool)
         return func
+
     return decorator
 
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 async def execute_tool(
     tool_name: str,
@@ -558,14 +568,14 @@ async def execute_tool(
 ) -> ToolResult:
     """
     Execute a tool by name.
-    
+
     Convenience function that uses the singleton registry.
-    
+
     Args:
         tool_name: Name of tool to execute
         params: Tool parameters
         user_id: Optional user ID
-        
+
     Returns:
         ToolResult
     """
@@ -578,12 +588,12 @@ async def execute_tool(
 
 if __name__ == "__main__":
     import asyncio
-    
+
     async def test_registry():
         print("Testing ToolRegistry...")
-        
+
         registry = get_tool_registry()
-        
+
         # Register a test tool
         @register_tool(
             name="test_add",
@@ -592,32 +602,32 @@ if __name__ == "__main__":
                 ToolParameter("a", "number", "First number"),
                 ToolParameter("b", "number", "Second number"),
             ],
-            category="test"
+            category="test",
         )
         def add_numbers(a: float, b: float) -> ToolResult:
             return ToolResult(success=True, data={"sum": a + b})
-        
+
         # Test listing
         print(f"\n📋 Registered tools: {[t.name for t in registry.list_tools()]}")
-        
+
         # Test execution
         print("\n🧪 Testing execution:")
         result = await execute_tool("test_add", {"a": 5, "b": 3})
         print(f"  5 + 3 = {result.data['sum']}")
         print(f"  Execution time: {result.execution_time_ms:.2f}ms")
-        
+
         # Test validation error
         result = await execute_tool("test_add", {"a": 5})
         print(f"  Missing param error: {result.error}")
-        
+
         # Test schema generation
         print("\n📝 OpenAI schema:")
         schemas = registry.get_openai_schemas()
         print(f"  {json.dumps(schemas[0], indent=2)[:200]}...")
-        
+
         # Test stats
         print(f"\n📊 Stats: {registry.get_stats()}")
-        
+
         print("\n✅ ToolRegistry tests passed!")
-    
+
     asyncio.run(test_registry())

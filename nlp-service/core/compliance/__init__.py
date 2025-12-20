@@ -10,39 +10,36 @@ from .audit_logger import (
     AuditEvent,
     AuditEventType,
     AuditLog,
-    get_audit_service
+    get_audit_service,
 )
 from .consent_manager import (
     ConsentManager,
     ConsentRecord,
     ConsentType,
     ConsentStatus,
-    get_consent_manager
+    get_consent_manager,
 )
 from .data_retention import (
     DataRetentionService,
     RetentionPolicy,
     RetentionAction,
-    get_retention_service
+    get_retention_service,
 )
 from .verification_queue import (
     VerificationQueue,
     VerificationItem,
     VerificationStatus,
     VerificationResult,
-    get_verification_queue
+    get_verification_queue,
 )
 from .disclaimer_service import (
     DisclaimerService,
     DisclaimerType,
     DisclaimerSeverity,
     Disclaimer,
-    get_disclaimer_service
+    get_disclaimer_service,
 )
-from .encryption_service import (
-    PHIEncryptionService,
-    get_encryption_service
-)
+from .encryption_service import PHIEncryptionService, get_encryption_service
 
 __all__ = [
     # Audit
@@ -51,35 +48,30 @@ __all__ = [
     "AuditEventType",
     "AuditLog",
     "get_audit_service",
-    
     # Consent
     "ConsentManager",
     "ConsentRecord",
     "ConsentType",
     "ConsentStatus",
     "get_consent_manager",
-    
     # Retention
     "DataRetentionService",
     "RetentionPolicy",
     "RetentionAction",
     "get_retention_service",
-    
     # Verification
     "VerificationQueue",
     "VerificationItem",
     "VerificationStatus",
     "VerificationResult",
     "get_verification_queue",
-    
     # Disclaimers
     "DisclaimerService",
     "DisclaimerType",
     "DisclaimerSeverity",
     "Disclaimer",
     "get_disclaimer_service",
-    
     # Encryption
     "PHIEncryptionService",
-    "get_encryption_service"
+    "get_encryption_service",
 ]

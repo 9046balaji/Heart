@@ -1,6 +1,6 @@
 /**
  * Analytics Dashboard Component
- * 
+ *
  * Displays health analytics and insights from the NLP service analytics.py
  * Features:
  * - Usage statistics
@@ -10,10 +10,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  LineChart, Line, BarChart, Bar, PieChart, Pie, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, Cell, AreaChart, Area 
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, Cell, AreaChart, Area
 } from 'recharts';
 
 // ============================================================================
@@ -317,13 +317,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
             <XAxis dataKey="date" stroke="#94A3B8" />
             <YAxis stroke="#94A3B8" />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: '#1E293B', 
-                border: 'none', 
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1E293B',
+                border: 'none',
                 borderRadius: '8px',
                 color: '#fff'
-              }} 
+              }}
             />
             <Area
               type="monotone"
@@ -345,20 +345,20 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             <BarChart data={data.topIntents} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis type="number" stroke="#94A3B8" />
-              <YAxis 
-                dataKey="intent" 
-                type="category" 
-                stroke="#94A3B8" 
+              <YAxis
+                dataKey="intent"
+                type="category"
+                stroke="#94A3B8"
                 width={120}
                 tick={{ fontSize: 12 }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1E293B', 
-                  border: 'none', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#1E293B',
+                  border: 'none',
                   borderRadius: '8px',
                   color: '#fff'
-                }} 
+                }}
               />
               <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -385,13 +385,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1E293B', 
-                    border: 'none', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1E293B',
+                    border: 'none',
                     borderRadius: '8px',
                     color: '#fff'
-                  }} 
+                  }}
                 />
                 <Legend />
               </PieChart>
@@ -407,27 +407,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
             <XAxis dataKey="time" stroke="#94A3B8" />
             <YAxis stroke="#94A3B8" unit="s" />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: '#1E293B', 
-                border: 'none', 
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1E293B',
+                border: 'none',
                 borderRadius: '8px',
                 color: '#fff'
-              }} 
+              }}
             />
             <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="avgResponseTime" 
-              stroke="#10B981" 
+            <Line
+              type="monotone"
+              dataKey="avgResponseTime"
+              stroke="#10B981"
               strokeWidth={2}
               dot={false}
               name="Average"
             />
-            <Line 
-              type="monotone" 
-              dataKey="p95ResponseTime" 
-              stroke="#F59E0B" 
+            <Line
+              type="monotone"
+              dataKey="p95ResponseTime"
+              stroke="#F59E0B"
               strokeWidth={2}
               dot={false}
               name="P95"
@@ -443,13 +443,13 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
             <XAxis dataKey="category" stroke="#94A3B8" angle={-45} textAnchor="end" height={80} />
             <YAxis stroke="#94A3B8" />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: '#1E293B', 
-                border: 'none', 
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#1E293B',
+                border: 'none',
                 borderRadius: '8px',
                 color: '#fff'
-              }} 
+              }}
             />
             <Bar dataKey="count" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -471,7 +471,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -485,7 +485,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
@@ -499,7 +499,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">

@@ -33,7 +33,7 @@ import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Awaitable
+from typing import Any, Callable, Dict, Optional, TypeVar, Awaitable
 
 from fastapi import Request, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -64,19 +64,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 class CorrelationIDMiddleware(BaseHTTPMiddleware):
     """
     Middleware to add request correlation IDs for distributed tracing.
-    
+
     Sets:
     - X-Request-ID header (request-wide correlation ID)
     - request_id_context for automatic injection into logs and memory
-    
+
     Complexity: O(1) per request
     """
 
     async def dispatch(self, request: Request, call_next):
         # Get or generate correlation ID
         request_id = request.headers.get(
-            "X-Request-ID",
-            request.headers.get("x-request-id", str(uuid.uuid4()))
+            "X-Request-ID", request.headers.get("x-request-id", str(uuid.uuid4()))
         )
 
         # Set context for this request
@@ -349,7 +348,7 @@ class MemoryAwareStreamingResponse(StreamingResponse):
         content,
         patient_id: Optional[str] = None,
         memory_type: str = "conversation",
-        **kwargs
+        **kwargs,
     ):
         super().__init__(content, **kwargs)
         self.patient_id = patient_id or patient_id_context.get()
@@ -389,9 +388,13 @@ class ResponseWithMemoryContext:
     def dict(self) -> Dict[str, Any]:
         """Convert to dictionary for response."""
         result_dict = (
-            self.result.dict() if hasattr(self.result, "dict") else
-            self.result if isinstance(self.result, dict) else
-            {"result": self.result}
+            self.result.dict()
+            if hasattr(self.result, "dict")
+            else (
+                self.result
+                if isinstance(self.result, dict)
+                else {"result": self.result}
+            )
         )
 
         return {
@@ -431,7 +434,7 @@ async def handle_endpoint_error(
     logger.error(
         f"Endpoint error: operation={operation}, "
         f"patient_id={patient_id}, error={error}",
-        exc_info=True
+        exc_info=True,
     )
 
     # Optionally store error to memory for audit trail
@@ -506,9 +509,7 @@ async def fetch_and_merge_context(
         conversation_context = (
             results[0] if not isinstance(results[0], Exception) else {}
         )
-        health_summary = (
-            results[1] if not isinstance(results[1], Exception) else {}
-        )
+        health_summary = results[1] if not isinstance(results[1], Exception) else {}
 
         return {
             "conversation": conversation_context,

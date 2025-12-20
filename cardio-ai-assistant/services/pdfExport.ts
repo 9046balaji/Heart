@@ -1,6 +1,6 @@
 /**
  * PDF Export Service
- * 
+ *
  * Generates PDF reports for health data and chat history
  * Uses jsPDF for PDF generation
  */
@@ -79,7 +79,7 @@ function formatDateTime(date: string | Date): string {
 
 function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result 
+  return result
     ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
     : [0, 0, 0];
 }
@@ -104,7 +104,7 @@ class PDFExportService {
       unit: 'mm',
       format: 'a4',
     });
-    
+
     this.currentY = 20;
     this.addHeader(title);
     return this.doc;
@@ -120,7 +120,7 @@ class PDFExportService {
     const [r, g, b] = hexToRgb(COLORS.primary);
     this.doc.setFillColor(r, g, b);
     this.doc.circle(this.pageMargin + 8, 15, 8, 'F');
-    
+
     // Title
     this.doc.setFont('helvetica', 'bold');
     this.doc.setFontSize(20);
@@ -255,7 +255,7 @@ class PDFExportService {
     if (!this.doc) return;
 
     const pageCount = this.doc.getNumberOfPages();
-    
+
     for (let i = 1; i <= pageCount; i++) {
       this.doc.setPage(i);
       this.doc.setFont('helvetica', 'normal');
@@ -298,14 +298,14 @@ class PDFExportService {
     // Health Assessment
     if (data.assessment) {
       this.addSectionTitle('Health Assessment');
-      
+
       // Risk score card
-      const riskColor = data.assessment.risk === 'High Risk' 
-        ? COLORS.danger 
-        : data.assessment.risk === 'Moderate Risk' 
-          ? COLORS.warning 
+      const riskColor = data.assessment.risk === 'High Risk'
+        ? COLORS.danger
+        : data.assessment.risk === 'Moderate Risk'
+          ? COLORS.warning
           : COLORS.success;
-      
+
       this.addCard(
         'Cardiovascular Health Score',
         `${data.assessment.score}/100 - ${data.assessment.risk}`,
@@ -315,7 +315,7 @@ class PDFExportService {
       this.addKeyValue('Assessment Date', formatDate(data.assessment.date));
       this.addKeyValue('Blood Pressure', `${data.assessment.vitals.systolic} mmHg (systolic)`);
       this.addKeyValue('Total Cholesterol', `${data.assessment.vitals.cholesterol} mg/dL`);
-      
+
       if (data.assessment.details) {
         this.addSpace(5);
         this.addText(data.assessment.details);
@@ -326,7 +326,7 @@ class PDFExportService {
     // Medications
     if (data.medications && data.medications.length > 0) {
       this.addSectionTitle('Current Medications');
-      
+
       data.medications.forEach((med, index) => {
         this.checkPageBreak(15);
         this.addText(`${index + 1}. ${med.name}`, { bold: true });
@@ -341,7 +341,7 @@ class PDFExportService {
     // Appointments
     if (data.appointments && data.appointments.length > 0) {
       this.addSectionTitle('Upcoming Appointments');
-      
+
       data.appointments.forEach((apt, index) => {
         this.checkPageBreak(15);
         this.addText(`${index + 1}. Dr. ${apt.doctorName}`, { bold: true });
@@ -356,22 +356,22 @@ class PDFExportService {
     // Biometric History
     if (data.biometricHistory && data.biometricHistory.length > 0) {
       this.addSectionTitle('Biometric History');
-      
+
       // Table header
       this.checkPageBreak(30);
       this.doc!.setFont('helvetica', 'bold');
       this.doc!.setFontSize(9);
       this.doc!.setTextColor(...hexToRgb(COLORS.textLight));
-      
+
       const colWidths = [40, 35, 35, 35, 25];
       const headers = ['Date', 'Systolic', 'Diastolic', 'Heart Rate', 'Weight'];
       let xPos = this.pageMargin;
-      
+
       headers.forEach((header, i) => {
         this.doc!.text(header, xPos, this.currentY);
         xPos += colWidths[i];
       });
-      
+
       this.currentY += 5;
       this.doc!.setDrawColor(...hexToRgb(COLORS.border));
       this.doc!.line(this.pageMargin, this.currentY, this.pageWidth - this.pageMargin, this.currentY);
@@ -380,11 +380,11 @@ class PDFExportService {
       // Table rows
       this.doc!.setFont('helvetica', 'normal');
       this.doc!.setTextColor(...hexToRgb(COLORS.text));
-      
+
       data.biometricHistory.slice(0, 20).forEach((entry) => {
         this.checkPageBreak(8);
         xPos = this.pageMargin;
-        
+
         const values = [
           formatDate(entry.date),
           entry.systolic?.toString() || '-',
@@ -392,12 +392,12 @@ class PDFExportService {
           entry.heartRate?.toString() || '-',
           entry.weight ? `${entry.weight} kg` : '-',
         ];
-        
+
         values.forEach((val, i) => {
           this.doc!.text(val, xPos, this.currentY);
           xPos += colWidths[i];
         });
-        
+
         this.currentY += 6;
       });
     }
@@ -427,43 +427,43 @@ class PDFExportService {
       const isUser = msg.role === 'user';
       const bgColor = isUser ? '#E5E7EB' : '#F3F4F6';
       const labelColor = isUser ? COLORS.textLight : COLORS.primary;
-      
+
       // Message header
       this.doc!.setFont('helvetica', 'bold');
       this.doc!.setFontSize(9);
       this.doc!.setTextColor(...hexToRgb(labelColor));
       this.doc!.text(
-        isUser ? 'You' : 'Cardio AI', 
-        this.pageMargin, 
+        isUser ? 'You' : 'Cardio AI',
+        this.pageMargin,
         this.currentY
       );
-      
+
       this.doc!.setFont('helvetica', 'normal');
       this.doc!.setTextColor(...hexToRgb(COLORS.textLight));
       this.doc!.text(
-        formatDateTime(msg.timestamp), 
-        this.pageWidth - this.pageMargin, 
+        formatDateTime(msg.timestamp),
+        this.pageWidth - this.pageMargin,
         this.currentY,
         { align: 'right' }
       );
-      
+
       this.currentY += 4;
 
       // Message content
       this.doc!.setFont('helvetica', 'normal');
       this.doc!.setFontSize(10);
       this.doc!.setTextColor(...hexToRgb(COLORS.text));
-      
+
       const lines = this.doc!.splitTextToSize(msg.text, this.contentWidth - 10);
       const boxHeight = Math.max(10, lines.length * 4 + 6);
-      
+
       // Message background
       this.doc!.setFillColor(...hexToRgb(bgColor));
       this.doc!.roundedRect(this.pageMargin, this.currentY - 2, this.contentWidth, boxHeight, 2, 2, 'F');
-      
+
       // Message text
       this.doc!.text(lines, this.pageMargin + 5, this.currentY + 4);
-      
+
       this.currentY += boxHeight + 5;
     });
 

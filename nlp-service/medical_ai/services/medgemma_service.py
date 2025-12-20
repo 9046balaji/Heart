@@ -24,7 +24,7 @@ import time
 import json
 import hashlib
 import aiohttp
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 from pydantic import ValidationError
@@ -35,16 +35,18 @@ logger = logging.getLogger(__name__)
 
 class MedGemmaModel(Enum):
     """Available MedGemma model variants."""
-    MEDGEMMA_4B = "medgemma-4b"           # Smaller, faster
-    MEDGEMMA_27B = "medgemma-27b"         # Larger, more accurate
-    MEDGEMMA_MULTIMODAL = "medgemma-mm"   # Image + text
-    GEMINI_PRO = "gemini-pro"             # Fallback to Gemini
+
+    MEDGEMMA_4B = "medgemma-4b"  # Smaller, faster
+    MEDGEMMA_27B = "medgemma-27b"  # Larger, more accurate
+    MEDGEMMA_MULTIMODAL = "medgemma-mm"  # Image + text
+    GEMINI_PRO = "gemini-pro"  # Fallback to Gemini
     GEMINI_PRO_VISION = "gemini-pro-vision"  # Fallback for multimodal
 
 
 @dataclass
 class ExtractionResult:
     """Result from medical entity extraction."""
+
     entities: List[Dict[str, Any]]
     raw_text: str
     confidence: float
@@ -56,6 +58,7 @@ class ExtractionResult:
 @dataclass
 class SummaryResult:
     """Result from patient-friendly summarization."""
+
     summary: str
     key_findings: List[str]
     concerns: List[str]
@@ -68,15 +71,15 @@ class SummaryResult:
 class MedGemmaService:
     """
     Medical document understanding using MedGemma.
-    
+
     Implements the "medical NLP brain" concept from medical.md.
     Focuses on understanding and extraction, NOT diagnosis.
-    
+
     Usage Options:
     1. Google AI Studio API (cloud, recommended)
     2. Vertex AI (enterprise)
     3. Local Ollama with medgemma model
-    
+
     Example:
         service = MedGemmaService()
         result = await service.extract_medical_entities(
@@ -84,17 +87,17 @@ class MedGemmaService:
             document_type="lab_report"
         )
     """
-    
+
     def __init__(
         self,
         model: MedGemmaModel = MedGemmaModel.GEMINI_PRO,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        mock_mode: Optional[bool] = None
+        mock_mode: Optional[bool] = None,
     ):
         """
         Initialize MedGemma service.
-        
+
         Args:
             model: MedGemma model variant to use
             api_key: API key for Google AI or custom endpoint
@@ -102,30 +105,26 @@ class MedGemmaService:
             mock_mode: Skip actual API calls (for testing)
         """
         self.model = model
-        self.api_key = api_key or os.getenv('GOOGLE_AI_API_KEY')
+        self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
         self.base_url = base_url or os.getenv(
-            'MEDGEMMA_BASE_URL', 
-            'https://generativelanguage.googleapis.com/v1beta'
+            "MEDGEMMA_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
         )
-        
+
         # Mock mode
         if mock_mode is None:
-            mock_mode = os.getenv('MEDGEMMA_MOCK_MODE', 'false').lower() == 'true'
+            mock_mode = os.getenv("MEDGEMMA_MOCK_MODE", "false").lower() == "true"
         self.mock_mode = mock_mode or not self.api_key
-        
+
         # Response caching
         self._response_cache = {}
         self._cache_ttl = 3600  # 1 hour
-    
+
     def _get_cache_key(self, prompt: str) -> str:
         """Generate cache key for prompt."""
         return hashlib.sha256(prompt.encode()).hexdigest()[:16]
-    
+
     async def _call_model_cached(
-        self, 
-        prompt: str, 
-        task_type: str = "extraction",
-        cache_enabled: bool = True
+        self, prompt: str, task_type: str = "extraction", cache_enabled: bool = True
     ) -> str:
         """Call model with response caching."""
         if cache_enabled:
@@ -134,113 +133,107 @@ class MedGemmaService:
                 cached = self._response_cache[key]
                 if time.time() - cached["timestamp"] < self._cache_ttl:
                     return cached["response"]
-        
+
         response = await self._call_model(prompt, task_type)
-        
+
         if cache_enabled:
-            self._response_cache[key] = {
-                "response": response,
-                "timestamp": time.time()
-            }
-        
+            self._response_cache[key] = {"response": response, "timestamp": time.time()}
+
         return response
-    
+
     async def extract_medical_entities(
         self,
         text: str,
         document_type: str = "unknown",
-        schema: Optional[Dict[str, Any]] = None
+        schema: Optional[Dict[str, Any]] = None,
     ) -> ExtractionResult:
         """
         Extract medical entities from document text.
-        
+
         Implements schema-driven extraction as per medical.md Section 3.
-        
+
         Args:
             text: Document text (from OCR or direct)
             document_type: Type hint (lab_report, prescription, etc.)
             schema: Target JSON schema for extraction
-        
+
         Returns:
             ExtractionResult with structured entities
         """
         start_time = time.time()
-        
+
         if self.mock_mode:
             return self._mock_extraction(text, document_type, start_time)
-        
+
         # Build prompt for schema-driven extraction
         prompt = self._build_extraction_prompt(text, document_type, schema)
-        
+
         try:
             response = await self._call_model_cached(prompt, "extraction")
             entities = self._parse_extraction_response(response, schema)
-            
+
             return ExtractionResult(
                 entities=entities,
                 raw_text=text[:500],  # First 500 chars for reference
                 confidence=0.85,  # TODO: Calculate from response
                 model_used=self.model.value,
                 processing_time_ms=(time.time() - start_time) * 1000,
-                document_type=document_type
+                document_type=document_type,
             )
-            
+
         except Exception as e:
             logger.error(f"Entity extraction failed: {e}")
             raise
-    
+
     async def generate_patient_summary(
         self,
         text: str,
         patient_name: Optional[str] = None,
-        reading_level: str = "simple"
+        reading_level: str = "simple",
     ) -> SummaryResult:
         """
         Generate patient-friendly summary of medical document.
-        
+
         Converts medical jargon to plain language.
-        
+
         Args:
             text: Medical document text
             patient_name: Patient name for personalization
             reading_level: Target reading level (simple, moderate, detailed)
-        
+
         Returns:
             SummaryResult with plain language summary
         """
         if self.mock_mode:
             return self._mock_summary(text, reading_level)
-        
+
         prompt = self._build_summary_prompt(text, patient_name, reading_level)
-        
+
         try:
             response = await self._call_model_cached(prompt, "summary")
             return self._parse_summary_response(response, text, reading_level)
         except Exception as e:
             logger.error(f"Summary generation failed: {e}")
             raise
-    
-    async def normalize_terminology(
-        self,
-        text: str
-    ) -> Dict[str, Any]:
+
+    async def normalize_terminology(self, text: str) -> Dict[str, Any]:
         """
         Normalize medical abbreviations and terminology.
-        
+
         Examples:
         - "BP" → "Blood Pressure"
         - "HbA1c" → "Hemoglobin A1c (3-month blood sugar average)"
         - "QID" → "Four times daily"
-        
+
         Args:
             text: Text containing medical terminology
-        
+
         Returns:
             Dict with normalized text and term mappings
         """
         if self.mock_mode:
             return self._mock_normalization(text)
-        
+
         prompt = f"""Normalize the following medical text by:
 1. Expanding all medical abbreviations
 2. Adding brief explanations for medical terms in parentheses
@@ -253,26 +246,24 @@ Return JSON with:
 - "normalized_text": The text with expansions
 - "term_mappings": List of {{"abbreviation": "...", "expansion": "...", "explanation": "..."}}
 """
-        
+
         try:
             response = await self._call_model_cached(prompt, "normalization")
             return json.loads(response)
         except Exception as e:
             logger.error(f"Terminology normalization failed: {e}")
             return {"normalized_text": text, "term_mappings": []}
-    
+
     async def classify_document_sections(
-        self,
-        text: str,
-        document_type: str
+        self, text: str, document_type: str
     ) -> List[Dict[str, Any]]:
         """
         Identify and classify sections within a medical document.
-        
+
         Args:
             text: Full document text
             document_type: Type of document
-        
+
         Returns:
             List of sections with type and content
         """
@@ -287,25 +278,22 @@ Return JSON array of sections:
   {{"section_type": "test_results", "content": "...", "start_line": 5}}
 ]
 
-Possible section types: patient_info, test_results, medications, 
+Possible section types: patient_info, test_results, medications,
 diagnosis, recommendations, doctor_info, billing, instructions
 """
-        
+
         if self.mock_mode:
             return [{"section_type": "unknown", "content": text[:200]}]
-        
+
         try:
             response = await self._call_model_cached(prompt, "section_classification")
             return json.loads(response)
         except Exception as e:
             logger.error(f"Section classification failed: {e}")
             return []
-    
+
     def _build_extraction_prompt(
-        self,
-        text: str,
-        document_type: str,
-        schema: Optional[Dict[str, Any]]
+        self, text: str, document_type: str, schema: Optional[Dict[str, Any]]
     ) -> str:
         """Build prompt for entity extraction."""
         schema_instruction = ""
@@ -316,7 +304,7 @@ Extract data into this exact JSON schema:
 {json.dumps(schema, indent=2)}
 ```
 """
-        
+
         return f"""You are a medical document parser. Extract structured information from the following {document_type}.
 
 IMPORTANT RULES:
@@ -334,22 +322,19 @@ Document text:
 
 Return valid JSON only. No additional text or explanations.
 """
-    
+
     def _build_summary_prompt(
-        self,
-        text: str,
-        patient_name: Optional[str],
-        reading_level: str
+        self, text: str, patient_name: Optional[str], reading_level: str
     ) -> str:
         """Build prompt for patient summary."""
         name_part = f"for {patient_name}" if patient_name else ""
-        
+
         level_instructions = {
             "simple": "Use 6th grade reading level. Short sentences. No medical jargon.",
             "moderate": "Use 10th grade reading level. Explain medical terms in parentheses.",
-            "detailed": "Include more technical details but still explain complex terms."
+            "detailed": "Include more technical details but still explain complex terms.",
         }
-        
+
         return f"""Create a patient-friendly summary {name_part} of this medical document.
 
 {level_instructions.get(reading_level, level_instructions['simple'])}
@@ -372,56 +357,52 @@ Return JSON:
   "recommendations": ["next steps from document, NOT new advice"]
 }}
 """
-    
+
     def _get_token_limit(self, task_type: str) -> int:
         """Get appropriate token limit for task type."""
         limits = {
             "extraction": 2048,
             "summary": 1024,
             "normalization": 512,
-            "section_classification": 1024
+            "section_classification": 1024,
         }
         return limits.get(task_type, 2048)
-    
+
     async def _call_model(self, prompt: str, task_type: str = "extraction") -> str:
         """Call MedGemma/Gemini model API with dynamic token limits."""
         if not self.api_key:
             raise ValueError("API key not configured")
-        
+
         # Use Google Generative AI API
         url = f"{self.base_url}/models/{self.model.value}:generateContent"
-        
+
         headers = {
             "Content-Type": "application/json",
         }
-        
-        params = {
-            "key": self.api_key
-        }
-        
+
+        params = {"key": self.api_key}
+
         payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": prompt}
-                    ]
-                }
-            ],
+            "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.1,  # Low temperature for factual extraction
                 "topP": 0.8,
-                "maxOutputTokens": self._get_token_limit(task_type)
-            }
+                "maxOutputTokens": self._get_token_limit(task_type),
+            },
         }
-        
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, params=params, json=payload) as response:
+            async with session.post(
+                url, headers=headers, params=params, json=payload
+            ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    raise RuntimeError(f"API call failed: {response.status} - {error_text}")
-                
+                    raise RuntimeError(
+                        f"API call failed: {response.status} - {error_text}"
+                    )
+
                 result = await response.json()
-                
+
                 # Extract text from response
                 candidates = result.get("candidates", [])
                 if candidates:
@@ -429,55 +410,54 @@ Return JSON:
                     parts = content.get("parts", [])
                     if parts:
                         return parts[0].get("text", "")
-                
+
                 raise RuntimeError("No content in API response")
-    
+
     def _mock_extraction(
-        self, 
-        text: str, 
-        doc_type: str,
-        start_time: float
+        self, text: str, doc_type: str, start_time: float
     ) -> ExtractionResult:
         """Mock extraction for testing."""
         return ExtractionResult(
             entities=[
                 {"type": "patient_name", "value": "Mock Patient", "confidence": 0.9},
-                {"type": "document_type", "value": doc_type, "confidence": 0.85}
+                {"type": "document_type", "value": doc_type, "confidence": 0.85},
             ],
             raw_text=text[:200],
             confidence=0.8,
             model_used="mock",
             processing_time_ms=(time.time() - start_time) * 1000,
-            document_type=doc_type
+            document_type=doc_type,
         )
-    
+
     def _mock_summary(self, text: str, level: str) -> SummaryResult:
         """Mock summary for testing."""
         return SummaryResult(
             summary="This is a mock summary of the medical document. "
-                    "In a production system, this would contain a patient-friendly "
-                    "explanation of the document contents.",
+            "In a production system, this would contain a patient-friendly "
+            "explanation of the document contents.",
             key_findings=["Mock finding 1", "Mock finding 2"],
             concerns=["No concerns identified (mock)"],
             recommendations=["Follow up with your healthcare provider"],
             reading_level=level,
             original_length=len(text),
-            summary_length=200
+            summary_length=200,
         )
-    
+
     def _mock_normalization(self, text: str) -> Dict[str, Any]:
         """Mock normalization for testing."""
         return {
             "normalized_text": text,
             "term_mappings": [
-                {"abbreviation": "BP", "expansion": "Blood Pressure", "explanation": "Force of blood against artery walls"}
-            ]
+                {
+                    "abbreviation": "BP",
+                    "expansion": "Blood Pressure",
+                    "explanation": "Force of blood against artery walls",
+                }
+            ],
         }
-    
+
     def _parse_extraction_response(
-        self, 
-        response: str, 
-        schema: Optional[Dict[str, Any]]
+        self, response: str, schema: Optional[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Parse model response into entities with validation."""
         try:
@@ -491,49 +471,52 @@ Return JSON:
                 start = response.find("```") + 3
                 end = response.find("```", start)
                 response = response[start:end].strip()
-            
+
             data = json.loads(response)
-            
+
             # ✅ Validate with Pydantic
             validated = MedGemmaExtractionResult(**data)
-            
+
             # Convert to entity list
             entities = []
             for med in validated.medications:
-                entities.append({
-                    "type": "medication",
-                    "value": med.dict(),
-                    "confidence": med.confidence
-                })
-            
+                entities.append(
+                    {
+                        "type": "medication",
+                        "value": med.dict(),
+                        "confidence": med.confidence,
+                    }
+                )
+
             for lab in validated.lab_values:
-                entities.append({
-                    "type": "lab_value",
-                    "value": lab.dict(),
-                    "confidence": validated.raw_confidence
-                })
-                
+                entities.append(
+                    {
+                        "type": "lab_value",
+                        "value": lab.dict(),
+                        "confidence": validated.raw_confidence,
+                    }
+                )
+
             for diagnosis in validated.diagnoses:
-                entities.append({
-                    "type": "diagnosis",
-                    "value": diagnosis,
-                    "confidence": validated.raw_confidence
-                })
-            
+                entities.append(
+                    {
+                        "type": "diagnosis",
+                        "value": diagnosis,
+                        "confidence": validated.raw_confidence,
+                    }
+                )
+
             return entities
-            
+
         except ValidationError as e:
             logger.warning(f"Extraction validation failed: {e}")
             return [{"validation_errors": e.errors(), "raw_response": response[:500]}]
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse extraction response: {e}")
             return [{"raw_response": response, "parse_error": str(e)}]
-    
+
     def _parse_summary_response(
-        self, 
-        response: str, 
-        original_text: str,
-        reading_level: str
+        self, response: str, original_text: str, reading_level: str
     ) -> SummaryResult:
         """Parse model response into summary result."""
         try:
@@ -546,9 +529,9 @@ Return JSON:
                 start = response.find("```") + 3
                 end = response.find("```", start)
                 response = response[start:end].strip()
-            
+
             data = json.loads(response)
-            
+
             return SummaryResult(
                 summary=data.get("summary", ""),
                 key_findings=data.get("key_findings", []),
@@ -556,9 +539,9 @@ Return JSON:
                 recommendations=data.get("recommendations", []),
                 reading_level=reading_level,
                 original_length=len(original_text),
-                summary_length=len(data.get("summary", ""))
+                summary_length=len(data.get("summary", "")),
             )
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse summary response: {e}")
             return SummaryResult(
@@ -568,5 +551,5 @@ Return JSON:
                 recommendations=[],
                 reading_level=reading_level,
                 original_length=len(original_text),
-                summary_length=len(response)
+                summary_length=len(response),
             )

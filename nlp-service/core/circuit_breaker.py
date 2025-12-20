@@ -19,48 +19,48 @@ Failure Modes Handled:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Callable, Any, TypeVar, Optional, Tuple, List
+from typing import Callable, TypeVar, Optional, Tuple, List
 from enum import Enum
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class CircuitState(str, Enum):
     """Circuit breaker states with state machine semantics."""
-    CLOSED = "CLOSED"      # Normal operation
-    OPEN = "OPEN"          # Rejecting calls
+
+    CLOSED = "CLOSED"  # Normal operation
+    OPEN = "OPEN"  # Rejecting calls
     HALF_OPEN = "HALF_OPEN"  # Testing recovery
 
 
 class CircuitBreakerOpen(Exception):
     """Exception raised when circuit breaker is open - service unavailable."""
-    pass
 
 
 @dataclass
 class CircuitBreakerMetrics:
     """Metrics for circuit breaker monitoring."""
-    
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
     rejected_calls: int = 0  # When circuit was OPEN
     state_changes: List[Tuple[datetime, CircuitState]] = None
-    
+
     def __post_init__(self):
         if self.state_changes is None:
             self.state_changes = []
-    
+
     @property
     def success_rate(self) -> float:
         """Success rate as percentage."""
         if self.total_calls == 0:
             return 0.0
         return (self.successful_calls / self.total_calls) * 100
-    
+
     @property
     def failure_rate(self) -> float:
         """Failure rate as percentage."""
@@ -70,24 +70,24 @@ class CircuitBreakerMetrics:
 class CircuitBreaker:
     """
     Production-grade Circuit Breaker Pattern Implementation
-    
+
     State Transitions:
     CLOSED -> (failures >= threshold) -> OPEN
     OPEN -> (recovery_timeout elapsed) -> HALF_OPEN
     HALF_OPEN -> (success) -> CLOSED
     HALF_OPEN -> (failure) -> OPEN
-    
+
     Key Concepts:
     - Failure Threshold: Number of failures before opening (fast-fail)
     - Recovery Timeout: Time to wait before testing recovery
     - Expected Exception: Only these exceptions trigger failures (configurable)
-    
+
     Failure Modes Prevented:
     1. Cascading Failures: OPEN state prevents calls to failing service
     2. Connection Pool Exhaustion: Fast-fail prevents resource waste
     3. Thundering Herd: Rejected calls let system recover
     4. Wasted Latency: Don't wait for doomed requests
-    
+
     Complexity:
     - call(): O(1) state check + function execution
     - state transitions: O(1) timestamp comparison
@@ -103,18 +103,18 @@ class CircuitBreaker:
     ):
         """
         Initialize Circuit Breaker with resilience parameters.
-        
+
         Args:
             name: Name for logging and identification
             failure_threshold: Failures before opening (3-5 recommended)
             recovery_timeout: Seconds before HALF_OPEN state (30-60 recommended)
             expected_exception: Exception type that triggers failures
             fallback_func: Optional fallback callable if circuit is open
-        
+
         Example:
             def fallback_response(*args, **kwargs):
                 return {"status": "service_unavailable", "cached": True}
-            
+
             breaker = CircuitBreaker(
                 name="ollama_service",
                 failure_threshold=3,
@@ -127,15 +127,15 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self.expected_exception = expected_exception
         self.fallback_func = fallback_func
-        
+
         self.failure_count = 0
         self.last_failure_time: Optional[datetime] = None
         self.state = CircuitState.CLOSED
         self.metrics = CircuitBreakerMetrics()
-        
+
         # Record initial state
         self.metrics.state_changes.append((datetime.now(), self.state))
-        
+
         logger.info(
             f"CircuitBreaker '{name}' initialized: "
             f"threshold={failure_threshold}, timeout={recovery_timeout}s, "
@@ -146,26 +146,26 @@ class CircuitBreaker:
     def call(self, func: Callable[..., T], *args, **kwargs) -> T:
         """
         Execute function through circuit breaker with state protection.
-        
+
         Flow:
         1. Check if circuit should recover (OPEN -> HALF_OPEN)
         2. If OPEN, either reject or use fallback
         3. Execute function
         4. Update metrics on success/failure
         5. Update state based on results
-        
+
         Args:
             func: Function to execute
             *args: Positional arguments for function
             **kwargs: Keyword arguments for function
-            
+
         Returns:
             Function result or fallback result
-            
+
         Raises:
             CircuitBreakerOpen: If circuit open and no fallback
             expected_exception: If function raises expected exception
-        
+
         Example:
             breaker = CircuitBreaker(name="api_call")
             try:
@@ -178,12 +178,16 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             if self._should_attempt_reset():
                 self.state = CircuitState.HALF_OPEN
-                logger.info(f"CircuitBreaker '{self.name}' entering HALF_OPEN (testing recovery)")
+                logger.info(
+                    f"CircuitBreaker '{self.name}' entering HALF_OPEN (testing recovery)"
+                )
             else:
                 # Circuit still open - use fallback or reject
                 self.metrics.rejected_calls += 1
                 if self.fallback_func:
-                    logger.warning(f"CircuitBreaker '{self.name}' OPEN - using fallback")
+                    logger.warning(
+                        f"CircuitBreaker '{self.name}' OPEN - using fallback"
+                    )
                     return self.fallback_func(*args, **kwargs)
                 else:
                     logger.error(f"CircuitBreaker '{self.name}' OPEN - rejecting call")
@@ -210,9 +214,9 @@ class CircuitBreaker:
     async def call_async(self, func: Callable[..., T], *args, **kwargs) -> T:
         """
         Execute async function through circuit breaker.
-        
+
         Same semantics as call() but for async functions.
-        
+
         Example:
             breaker = CircuitBreaker(name="async_api")
             result = await breaker.call_async(async_http_get, url)
@@ -224,7 +228,9 @@ class CircuitBreaker:
             else:
                 self.metrics.rejected_calls += 1
                 if self.fallback_func:
-                    logger.warning(f"CircuitBreaker '{self.name}' OPEN - using fallback (async)")
+                    logger.warning(
+                        f"CircuitBreaker '{self.name}' OPEN - using fallback (async)"
+                    )
                     return self.fallback_func(*args, **kwargs)
                 else:
                     raise CircuitBreakerOpen(
@@ -243,7 +249,7 @@ class CircuitBreaker:
     def _on_success(self) -> None:
         """Handle successful call - may close circuit if half-open."""
         self.metrics.successful_calls += 1
-        
+
         if self.state == CircuitState.HALF_OPEN:
             # Recovery successful!
             self._reset()
@@ -259,7 +265,7 @@ class CircuitBreaker:
         self.metrics.failed_calls += 1
         self.failure_count += 1
         self.last_failure_time = datetime.now()
-        
+
         logger.warning(
             f"CircuitBreaker '{self.name}' failure #{self.failure_count}/{self.failure_threshold}"
         )
@@ -277,21 +283,21 @@ class CircuitBreaker:
         """Check if recovery timeout has elapsed."""
         if self.last_failure_time is None:
             return True
-        
+
         time_since_failure = datetime.now() - self.last_failure_time
         return time_since_failure >= timedelta(seconds=self.recovery_timeout)
-    
+
     def _time_until_reset(self) -> timedelta:
         """Calculate time remaining until recovery attempt."""
         if self.last_failure_time is None:
             return timedelta(seconds=0)
-        
+
         time_since_failure = datetime.now() - self.last_failure_time
         recovery_time = timedelta(seconds=self.recovery_timeout)
-        
+
         if time_since_failure >= recovery_time:
             return timedelta(seconds=0)
-        
+
         return recovery_time - time_since_failure
 
     def _reset(self) -> None:
@@ -305,7 +311,9 @@ class CircuitBreaker:
         """Manually reset circuit breaker (useful for testing/operations)."""
         old_state = self.state
         self._reset()
-        logger.info(f"CircuitBreaker '{self.name}' manually reset ({old_state} -> CLOSED)")
+        logger.info(
+            f"CircuitBreaker '{self.name}' manually reset ({old_state} -> CLOSED)"
+        )
 
     # ========================================================================
     # STATUS & MONITORING
@@ -333,12 +341,14 @@ class CircuitBreaker:
             "state": self.state.value,
             "failure_count": self.failure_count,
             "failure_threshold": self.failure_threshold,
-            "last_failure_time": self.last_failure_time.isoformat() if self.last_failure_time else None,
+            "last_failure_time": (
+                self.last_failure_time.isoformat() if self.last_failure_time else None
+            ),
             "recovery_timeout_seconds": self.recovery_timeout,
             "time_until_recovery_seconds": self._time_until_reset().total_seconds(),
             "fallback_available": self.fallback_func is not None,
         }
-    
+
     def get_metrics(self) -> dict:
         """Get detailed metrics for monitoring and debugging."""
         return {

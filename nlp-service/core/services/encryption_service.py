@@ -22,61 +22,63 @@ class EncryptionService:
     Service for encrypting/decrypting PHI.
     Uses AES-256-GCM for authenticated encryption with integrity checking.
     """
-    
+
     def __init__(self, master_key: str = "default-dev-key-change-in-production"):
         """
         Initialize encryption service with master key.
-        
+
         Args:
             master_key: Master encryption key (should be from config in production)
         """
         self.master_key = master_key
         self.algorithm = "AES-256-GCM"
-        self._key_cache = {}  # Cache: salt -> derived_key (avoids PBKDF2 100K iterations)
+        self._key_cache = (
+            {}
+        )  # Cache: salt -> derived_key (avoids PBKDF2 100K iterations)
         logger.info(f"Encryption service initialized with algorithm: {self.algorithm}")
-    
+
     def _derive_key(self, salt: bytes) -> bytes:
         """
         Derive encryption key from master key using PBKDF2.
         Caches derived keys to avoid expensive 100K iteration PBKDF2 on every encrypt/decrypt.
-        
+
         Args:
             salt: Random salt bytes
-            
+
         Returns:
             32-byte key for AES-256
         """
         # Check cache first (O(1) lookup avoids 100ms PBKDF2 computation)
         if salt in self._key_cache:
             return self._key_cache[salt]
-        
+
         # Expensive operation: PBKDF2 with 100K iterations (~100ms per call)
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,  # 256 bits for AES-256
             salt=salt,
             iterations=100000,  # NIST recommended minimum
-            backend=None  # Uses default backend
+            backend=None,  # Uses default backend
         )
         derived_key = kdf.derive(self.master_key.encode())
-        
+
         # Cache the derived key (salt is random, so cache hit on decrypt)
         self._key_cache[salt] = derived_key
-        
+
         return derived_key
-    
+
     def encrypt(self, plaintext: Union[str, Dict[str, Any]]) -> str:
         """
         Encrypt data and return base64-encoded string.
-        
+
         Format: base64(salt || IV || ciphertext)
         - salt: 16 bytes (used for key derivation)
         - IV: 12 bytes (nonce for GCM)
         - ciphertext: encrypted data with authentication tag
-        
+
         Args:
             plaintext: String or dict to encrypt
-            
+
         Returns:
             Base64-encoded encrypted string
         """
@@ -84,92 +86,99 @@ class EncryptionService:
             # Convert dict to JSON if needed
             if isinstance(plaintext, dict):
                 # Use custom encoder for datetime serialization
-                from datetime import datetime as dt
+                pass
+
                 plaintext = json.dumps(plaintext, default=str)
-            
+
             # Generate random salt and IV
             salt = os.urandom(16)
             iv = os.urandom(12)  # 96-bit IV for GCM
-            
+
             # Derive key from master key and salt
             key = self._derive_key(salt)
-            
+
             # Encrypt using AES-256-GCM
             cipher = AESGCM(key)
             ciphertext = cipher.encrypt(iv, plaintext.encode(), None)
-            
+
             # Combine salt, IV, and ciphertext
             encrypted_data = salt + iv + ciphertext
-            
+
             # Encode to base64 for storage
             encoded = base64.b64encode(encrypted_data).decode()
-            
+
             logger.debug(f"Data encrypted successfully ({len(plaintext)} bytes)")
             return encoded
-        
+
         except Exception as e:
             logger.error(f"Encryption error: {e}")
             raise
-    
+
     def decrypt(self, encrypted_data: str) -> Union[str, Dict[str, Any]]:
         """
         Decrypt base64-encoded data.
-        
+
         Args:
             encrypted_data: Base64-encoded encrypted string from encrypt()
-            
+
         Returns:
             Decrypted string or dict
-            
+
         Raises:
             Exception: If decryption fails (wrong key or corrupted data)
         """
         try:
             # Decode from base64
             encrypted_bytes = base64.b64decode(encrypted_data)
-            
+
             # Extract components
             salt = encrypted_bytes[:16]
             iv = encrypted_bytes[16:28]
             ciphertext = encrypted_bytes[28:]
-            
+
             # Derive key from master key and salt
             key = self._derive_key(salt)
-            
+
             # Decrypt using AES-256-GCM
             cipher = AESGCM(key)
             plaintext = cipher.decrypt(iv, ciphertext, None)
-            
+
             # Decode to string
             plaintext_str = plaintext.decode()
-            
+
             # Try to parse as JSON
             try:
                 return json.loads(plaintext_str)
             except json.JSONDecodeError:
                 return plaintext_str
-        
+
         except Exception as e:
             logger.error(f"Decryption error: {e}")
             raise
-    
+
     def encrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Encrypt sensitive fields in a dict.
-        
+
         Sensitive fields: patient_id, name, ssn, phone, email, medical_record_number, diagnosis
-        
+
         Args:
             data: Dictionary with potentially sensitive fields
-            
+
         Returns:
             Dictionary with sensitive fields encrypted
         """
         sensitive_fields = [
-            'patient_id', 'name', 'ssn', 'phone', 'email',
-            'medical_record_number', 'diagnosis', 'treatment'
+            "patient_id",
+            "name",
+            "ssn",
+            "phone",
+            "email",
+            "medical_record_number",
+            "diagnosis",
+            "treatment",
         ]
-        
+
         encrypted = {}
         for key, value in data.items():
             if key in sensitive_fields and value:
@@ -180,24 +189,30 @@ class EncryptionService:
                     encrypted[key] = value
             else:
                 encrypted[key] = value
-        
+
         return encrypted
-    
+
     def decrypt_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Decrypt sensitive fields in a dict.
-        
+
         Args:
             data: Dictionary with encrypted sensitive fields
-            
+
         Returns:
             Dictionary with sensitive fields decrypted
         """
         sensitive_fields = [
-            'patient_id', 'name', 'ssn', 'phone', 'email',
-            'medical_record_number', 'diagnosis', 'treatment'
+            "patient_id",
+            "name",
+            "ssn",
+            "phone",
+            "email",
+            "medical_record_number",
+            "diagnosis",
+            "treatment",
         ]
-        
+
         decrypted = {}
         for key, value in data.items():
             if key in sensitive_fields and isinstance(value, str):
@@ -208,7 +223,7 @@ class EncryptionService:
                     decrypted[key] = value
             else:
                 decrypted[key] = value
-        
+
         return decrypted
 
 
@@ -219,16 +234,18 @@ _encryption_service: Union[EncryptionService, None] = None
 def get_encryption_service(master_key: str = None) -> EncryptionService:
     """
     Get or create encryption service singleton.
-    
+
     Args:
         master_key: Optional master key (uses default if not provided)
-        
+
     Returns:
         EncryptionService instance
     """
     global _encryption_service
     if _encryption_service is None:
-        _encryption_service = EncryptionService(master_key or "default-dev-key-change-in-production")
+        _encryption_service = EncryptionService(
+            master_key or "default-dev-key-change-in-production"
+        )
     return _encryption_service
 
 

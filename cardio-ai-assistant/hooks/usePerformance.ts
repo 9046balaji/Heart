@@ -1,6 +1,6 @@
 /**
  * Performance Optimization Hooks
- * 
+ *
  * Custom hooks for performance optimization in the Cardio AI Assistant:
  * - Debouncing and throttling
  * - Memoization helpers
@@ -9,11 +9,11 @@
  * - Performance monitoring
  */
 
-import { 
-  useState, 
-  useEffect, 
-  useCallback, 
-  useRef, 
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
   useMemo,
   DependencyList
 } from 'react';

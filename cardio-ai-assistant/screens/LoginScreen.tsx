@@ -6,7 +6,7 @@ const LoginScreen: React.FC = () => {
   const navigate = useNavigate();
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Forgot Password Wizard State
   const [forgotStep, setForgotStep] = useState<'method' | 'input' | 'otp' | 'reset' | 'success'>('method');
   const [resetMethod, setResetMethod] = useState<'email' | 'sms'>('email');
@@ -97,9 +97,9 @@ const LoginScreen: React.FC = () => {
             <label className="text-sm text-slate-300 ml-1">Email or Username</label>
             <div className="relative">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">person</span>
-                <input 
-                    type="text" 
-                    placeholder="Enter your email or username" 
+                <input
+                    type="text"
+                    placeholder="Enter your email or username"
                     className="w-full h-14 bg-slate-800/50 border border-slate-700 rounded-xl pl-12 pr-4 text-white placeholder:text-slate-600 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
                 />
             </div>
@@ -109,12 +109,12 @@ const LoginScreen: React.FC = () => {
             <label className="text-sm text-slate-300 ml-1">Password</label>
             <div className="relative">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock</span>
-                <input 
+                <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password" 
+                    placeholder="Enter your password"
                     className="w-full h-14 bg-slate-800/50 border border-slate-700 rounded-xl pl-12 pr-12 text-white placeholder:text-slate-600 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
                 />
-                <span 
+                <span
                     className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 cursor-pointer hover:text-white select-none"
                     onClick={() => setShowPassword(!showPassword)}
                 >
@@ -124,7 +124,7 @@ const LoginScreen: React.FC = () => {
         </div>
 
         <div className="flex justify-end">
-            <button 
+            <button
                 type="button"
                 onClick={openForgotModal}
                 className="text-sm text-red-400 hover:text-red-300 transition-colors"
@@ -146,7 +146,7 @@ const LoginScreen: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-            <button 
+            <button
                 onClick={handleGoogleLogin}
                 className="w-full h-12 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors"
             >
@@ -173,9 +173,9 @@ const LoginScreen: React.FC = () => {
                         <>
                             <h3 className="text-xl font-bold text-white mb-2">Forgot Password</h3>
                             <p className="text-slate-400 text-sm mb-6">Select which contact details should we use to reset your password:</p>
-                            
+
                             <div className="space-y-3">
-                                <button 
+                                <button
                                     onClick={() => handleMethodSelect('email')}
                                     className="w-full p-4 bg-slate-800/50 border border-slate-700 rounded-xl flex items-center gap-4 hover:bg-slate-700 transition-colors group"
                                 >
@@ -188,7 +188,7 @@ const LoginScreen: React.FC = () => {
                                     </div>
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => handleMethodSelect('sms')}
                                     className="w-full p-4 bg-slate-800/50 border border-slate-700 rounded-xl flex items-center gap-4 hover:bg-slate-700 transition-colors group"
                                 >
@@ -215,14 +215,14 @@ const LoginScreen: React.FC = () => {
                             <p className="text-slate-400 text-sm mb-6">
                                 We will send a 6-digit OTP to this {resetMethod === 'email' ? 'email address' : 'mobile number'}.
                             </p>
-                            
+
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                                             {resetMethod === 'email' ? 'mail' : 'phone'}
                                         </span>
-                                        <input 
+                                        <input
                                             type={resetMethod === 'email' ? 'email' : 'tel'}
                                             required
                                             value={contactInput}
@@ -233,15 +233,15 @@ const LoginScreen: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex gap-3 pt-2">
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setForgotStep('method')}
                                         className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors"
                                     >
                                         Back
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         disabled={!contactInput}
                                         className="flex-1 h-12 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-600/20"
                                     >
@@ -260,11 +260,11 @@ const LoginScreen: React.FC = () => {
                                 Enter the 6-digit code sent to <br/>
                                 <span className="text-white font-medium">{maskedContact()}</span>
                             </p>
-                            
+
                             <div className="space-y-6">
                                 <div className="flex justify-center">
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         required
                                         maxLength={6}
                                         value={otp}
@@ -279,15 +279,15 @@ const LoginScreen: React.FC = () => {
                                     </p>
                                 </div>
                                 <div className="flex gap-3 pt-2">
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setForgotStep('input')}
                                         className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors"
                                     >
                                         Back
                                     </button>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         disabled={otp.length !== 6}
                                         className="flex-1 h-12 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-600/20"
                                     >
@@ -303,13 +303,13 @@ const LoginScreen: React.FC = () => {
                         <form onSubmit={handleResetSubmit}>
                             <h3 className="text-xl font-bold text-white mb-2">Create New Password</h3>
                             <p className="text-slate-400 text-sm mb-6">Enter your new password below.</p>
-                            
+
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock</span>
-                                        <input 
-                                            type="password" 
+                                        <input
+                                            type="password"
                                             required
                                             value={newPassword}
                                             onChange={(e) => setNewPassword(e.target.value)}
@@ -319,8 +319,8 @@ const LoginScreen: React.FC = () => {
                                     </div>
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">lock_reset</span>
-                                        <input 
-                                            type="password" 
+                                        <input
+                                            type="password"
                                             required
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -329,8 +329,8 @@ const LoginScreen: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     className="w-full h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-red-600/20 mt-2"
                                 >
                                     Reset Password
@@ -349,7 +349,7 @@ const LoginScreen: React.FC = () => {
                             <p className="text-slate-400 text-sm mb-6">
                                 Your password has been successfully updated. You can now log in.
                             </p>
-                            <button 
+                            <button
                                 onClick={closeResetModal}
                                 className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
                             >
@@ -366,4 +366,3 @@ const LoginScreen: React.FC = () => {
 };
 
 export default LoginScreen;
-    

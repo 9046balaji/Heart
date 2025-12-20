@@ -1,16 +1,16 @@
 /**
  * Markdown Renderer Component
- * 
+ *
  * Renders markdown content with proper styling for chat messages
  * and health information display.
- * 
+ *
  * Features:
  * - XSS protection via DOMPurify sanitization
  * - Syntax highlighting for code blocks
  * - Custom styling for health-related content
  * - Support for tables (medication info)
  * - Links with safety handling
- * 
+ *
  * For enhanced syntax highlighting, install: npm install prism-react-renderer
  */
 
@@ -29,7 +29,7 @@ import DOMPurify from 'dompurify';
  */
 const sanitizeContent = (content: string): string => {
   if (!content) return '';
-  
+
   // First pass: sanitize the raw input
   const sanitized = DOMPurify.sanitize(content, {
     ALLOWED_TAGS: [
@@ -53,7 +53,7 @@ const sanitizeContent = (content: string): string => {
     RETURN_DOM: false,
     RETURN_DOM_FRAGMENT: false,
   });
-  
+
   return String(sanitized);
 };
 
@@ -63,10 +63,10 @@ const sanitizeContent = (content: string): string => {
  */
 const sanitizeUrl = (url: string | undefined): string | undefined => {
   if (!url) return undefined;
-  
+
   // Allow only http, https, mailto, and tel protocols
   const allowedProtocols = ['http:', 'https:', 'mailto:', 'tel:'];
-  
+
   try {
     const parsed = new URL(url, window.location.origin);
     if (allowedProtocols.includes(parsed.protocol)) {
@@ -78,7 +78,7 @@ const sanitizeUrl = (url: string | undefined): string | undefined => {
       return url;
     }
   }
-  
+
   // Block potentially dangerous URLs
   console.warn('[MarkdownRenderer] Blocked potentially unsafe URL:', url);
   return undefined;
@@ -168,26 +168,26 @@ const highlightCode = (code: string, language: string): React.ReactNode => {
 
   // Tokenize the code
   const tokens: Array<{ type: string; value: string; start: number; end: number }> = [];
-  
+
   // Match comments first (highest priority)
   let match;
   const commentRegex = new RegExp(patterns.comments.source, patterns.comments.flags);
   while ((match = commentRegex.exec(code)) !== null) {
     tokens.push({ type: 'comment', value: match[0], start: match.index, end: match.index + match[0].length });
   }
-  
+
   // Match strings
   const stringRegex = new RegExp(patterns.strings.source, patterns.strings.flags);
   while ((match = stringRegex.exec(code)) !== null) {
     tokens.push({ type: 'string', value: match[0], start: match.index, end: match.index + match[0].length });
   }
-  
+
   // Match numbers
   const numberRegex = new RegExp(patterns.numbers.source, patterns.numbers.flags);
   while ((match = numberRegex.exec(code)) !== null) {
     tokens.push({ type: 'number', value: match[0], start: match.index, end: match.index + match[0].length });
   }
-  
+
   // Match keywords
   patterns.keywords.forEach(keyword => {
     const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
@@ -195,7 +195,7 @@ const highlightCode = (code: string, language: string): React.ReactNode => {
       tokens.push({ type: 'keyword', value: match[0], start: match.index, end: match.index + match[0].length });
     }
   });
-  
+
   // Match builtins
   patterns.builtins.forEach(builtin => {
     const builtinRegex = new RegExp(`\\b${builtin}\\b`, 'g');
@@ -206,10 +206,10 @@ const highlightCode = (code: string, language: string): React.ReactNode => {
 
   // Sort tokens by position and remove overlaps (prefer earlier and longer tokens)
   tokens.sort((a, b) => a.start - b.start || b.end - a.end);
-  
+
   const filteredTokens: typeof tokens = [];
   let lastEnd = 0;
-  
+
   tokens.forEach(token => {
     if (token.start >= lastEnd) {
       filteredTokens.push(token);
@@ -287,7 +287,7 @@ const CodeBlock: React.FC<CodeBlockProps> = memo(({ language, code }) => {
           {language}
         </div>
       )}
-      
+
       {/* Copy button */}
       <button
         onClick={handleCopy}
@@ -389,7 +389,7 @@ const createComponents = (variant: string): Components => ({
   code: ({ className, children, ...props }) => {
     const isInline = !className;
     const code = String(children).replace(/\n$/, '');
-    
+
     if (isInline) {
       return (
         <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-rose-600 dark:text-rose-400 rounded text-sm font-mono">
@@ -400,7 +400,7 @@ const createComponents = (variant: string): Components => ({
 
     // Extract language from className (format: language-xxx)
     const language = className?.replace('language-', '') || 'text';
-    
+
     return <CodeBlock language={language} code={code} />;
   },
 
@@ -451,7 +451,7 @@ const createComponents = (variant: string): Components => ({
       // Return just the text if URL is unsafe
       return <span className="text-slate-600">{children}</span>;
     }
-    
+
     const isExternal = safeHref.startsWith('http');
     return (
       <a
@@ -493,7 +493,7 @@ const createComponents = (variant: string): Components => ({
 /**
  * Renders markdown content with health-focused styling
  * Content is sanitized using DOMPurify for XSS protection
- * 
+ *
  * @example
  * ```tsx
  * <MarkdownRenderer
@@ -559,10 +559,10 @@ const CitationDisplay: React.FC<CitationDisplayProps> = memo(({ sources }) => {
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
       >
-        <svg 
+        <svg
           className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -571,11 +571,11 @@ const CitationDisplay: React.FC<CitationDisplayProps> = memo(({ sources }) => {
           {sources.length} source{sources.length > 1 ? 's' : ''} referenced
         </span>
       </button>
-      
+
       {isExpanded && (
         <div className="mt-2 space-y-1.5 animate-in slide-in-from-top-2 duration-200">
           {sources.map((source, index) => (
-            <div 
+            <div
               key={index}
               className="flex items-start gap-2 text-xs bg-slate-800/50 rounded px-2 py-1.5"
             >

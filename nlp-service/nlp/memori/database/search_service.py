@@ -220,7 +220,7 @@ class SearchService:
                 logger.debug(f"Category filter applied: {category_filter}")
 
             # SQLite FTS5 search query with COALESCE to handle NULL values
-            sql_query = f"""
+            sql_query = f"""  # nosec B608
                 SELECT
                     fts.memory_id,
                     fts.memory_type,
@@ -258,8 +258,9 @@ class SearchService:
                 {session_clause}
                 {category_clause}
                 ORDER BY search_score, importance_score DESC
-                LIMIT {limit}
+                LIMIT :limit
             """
+            params["limit"] = limit
 
             logger.debug(f"Executing SQLite FTS query with params: {params}")
             result = self.session.execute(text(sql_query), params)
@@ -569,7 +570,6 @@ class SearchService:
 
             # Search short-term memory if requested
             if search_short_term:
-
                 # Build filter clauses safely
                 category_clause = ""
                 assistant_clause = ""

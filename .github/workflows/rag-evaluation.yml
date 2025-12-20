@@ -8,20 +8,20 @@ on:
 jobs:
   evaluate-rag:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
         run: |
           pip install -r nlp-service/requirements.txt
           pip install ragas datasets
-      
+
       - name: Run RAG Evaluation
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -39,12 +39,12 @@ jobs:
           print('=== RAG Evaluation Results ===')
           for metric, score in results.items():
               print(f'{metric}: {score:.3f}')
-          
+
           # Fail if quality drops below threshold
           if results.get('faithfulness', 0) < 0.7:
               raise Exception('Faithfulness score below threshold!')
           "
-      
+
       - name: Upload Results
         uses: actions/upload-artifact@v3
         with:

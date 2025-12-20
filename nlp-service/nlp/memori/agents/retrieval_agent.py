@@ -18,6 +18,7 @@ from loguru import logger
 # Optional embedding libraries
 try:
     from sentence_transformers import SentenceTransformer
+
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
@@ -37,32 +38,32 @@ from ..utils.pydantic_models import MemorySearchQuery
 class EmbeddingSearchEngine:
     """
     Embedding-based semantic search for memory retrieval.
-    
+
     Uses sentence-transformers for local embeddings or OpenAI API for remote.
     Supports cosine similarity search with configurable thresholds.
-    
+
     Features:
     - Local embedding with sentence-transformers (fast, no API cost)
     - OpenAI embedding API fallback (higher quality)
     - Embedding cache for performance
     - Result ranking by similarity score
     """
-    
+
     # Default embedding model
     DEFAULT_LOCAL_MODEL = "all-MiniLM-L6-v2"  # Fast, 384 dimensions
     DEFAULT_OPENAI_MODEL = "text-embedding-3-small"  # 1536 dimensions
-    
+
     def __init__(
         self,
         use_local: bool = True,
         local_model: str = None,
         openai_client: Any = None,
         openai_model: str = None,
-        similarity_threshold: float = 0.5
+        similarity_threshold: float = 0.5,
     ):
         """
         Initialize Embedding Search Engine.
-        
+
         Args:
             use_local: Use local sentence-transformers model
             local_model: Local model name (default: all-MiniLM-L6-v2)
@@ -75,12 +76,12 @@ class EmbeddingSearchEngine:
         self.local_model = None
         self.openai_client = openai_client
         self.openai_model = openai_model or self.DEFAULT_OPENAI_MODEL
-        
+
         # Embedding cache: {text_hash: embedding_vector}
         self._embedding_cache: Dict[str, np.ndarray] = {}
         self._cache_lock = threading.Lock()
         self._max_cache_size = 10000
-        
+
         # Initialize local model if available
         if self.use_local:
             try:
@@ -90,88 +91,90 @@ class EmbeddingSearchEngine:
             except Exception as e:
                 logger.warning(f"Failed to load local embedding model: {e}")
                 self.use_local = False
-        
+
         if not self.use_local and not self.openai_client:
             logger.warning(
                 "EmbeddingSearchEngine: No embedding method available. "
                 "Install sentence-transformers or provide OpenAI client."
             )
-    
+
     def _hash_text(self, text: str) -> str:
         """Create hash for text caching."""
         import hashlib
-        return hashlib.md5(text.encode()).hexdigest()
-    
+
+        return hashlib.sha256(text.encode()).hexdigest()
+
     def get_embedding(self, text: str) -> Optional[np.ndarray]:
         """
         Get embedding vector for text.
-        
+
         Args:
             text: Input text to embed
-            
+
         Returns:
             Numpy array of embedding or None
         """
         if not text:
             return None
-        
+
         # Check cache
         text_hash = self._hash_text(text)
         with self._cache_lock:
             if text_hash in self._embedding_cache:
                 return self._embedding_cache[text_hash]
-        
+
         embedding = None
-        
+
         # Try local model first
         if self.use_local and self.local_model:
             try:
                 embedding = self.local_model.encode(text, convert_to_numpy=True)
             except Exception as e:
                 logger.warning(f"Local embedding failed: {e}")
-        
+
         # Fall back to OpenAI
         if embedding is None and self.openai_client:
             try:
                 response = self.openai_client.embeddings.create(
-                    input=text,
-                    model=self.openai_model
+                    input=text, model=self.openai_model
                 )
                 embedding = np.array(response.data[0].embedding)
             except Exception as e:
                 logger.warning(f"OpenAI embedding failed: {e}")
-        
+
         # Cache result
         if embedding is not None:
             with self._cache_lock:
                 # Evict old entries if cache is full
                 if len(self._embedding_cache) >= self._max_cache_size:
                     # Remove oldest 10%
-                    keys_to_remove = list(self._embedding_cache.keys())[:self._max_cache_size // 10]
+                    keys_to_remove = list(self._embedding_cache.keys())[
+                        : self._max_cache_size // 10
+                    ]
                     for key in keys_to_remove:
                         del self._embedding_cache[key]
                 self._embedding_cache[text_hash] = embedding
-        
+
         return embedding
-    
+
     def get_batch_embeddings(self, texts: List[str]) -> List[Optional[np.ndarray]]:
         """
         Get embeddings for multiple texts (batch processing).
-        
+
         Args:
             texts: List of texts to embed
-            
+
         Returns:
             List of embedding arrays (None for failures)
         """
         if not texts:
             return []
-        
+
         # Check cache for all
         results = [None] * len(texts)
         uncached_indices = []
         uncached_texts = []
-        
+
         with self._cache_lock:
             for i, text in enumerate(texts):
                 if text:
@@ -181,24 +184,25 @@ class EmbeddingSearchEngine:
                     else:
                         uncached_indices.append(i)
                         uncached_texts.append(text)
-        
+
         if not uncached_texts:
             return results
-        
+
         # Batch embed uncached texts
         embeddings = []
-        
+
         if self.use_local and self.local_model:
             try:
-                embeddings = self.local_model.encode(uncached_texts, convert_to_numpy=True)
+                embeddings = self.local_model.encode(
+                    uncached_texts, convert_to_numpy=True
+                )
             except Exception as e:
                 logger.warning(f"Batch local embedding failed: {e}")
                 embeddings = [None] * len(uncached_texts)
         elif self.openai_client:
             try:
                 response = self.openai_client.embeddings.create(
-                    input=uncached_texts,
-                    model=self.openai_model
+                    input=uncached_texts, model=self.openai_model
                 )
                 embeddings = [np.array(item.embedding) for item in response.data]
             except Exception as e:
@@ -206,16 +210,16 @@ class EmbeddingSearchEngine:
                 embeddings = [None] * len(uncached_texts)
         else:
             embeddings = [None] * len(uncached_texts)
-        
+
         # Update results and cache
         with self._cache_lock:
             for idx, emb, text in zip(uncached_indices, embeddings, uncached_texts):
                 results[idx] = emb
                 if emb is not None:
                     self._embedding_cache[self._hash_text(text)] = emb
-        
+
         return results
-    
+
     def cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
         """Calculate cosine similarity between two vectors."""
         if a is None or b is None:
@@ -225,42 +229,42 @@ class EmbeddingSearchEngine:
         if norm_a == 0 or norm_b == 0:
             return 0.0
         return float(np.dot(a, b) / (norm_a * norm_b))
-    
+
     def search(
         self,
         query: str,
         memories: List[Dict[str, Any]],
         content_field: str = "content",
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         Search memories using embedding similarity.
-        
+
         Args:
             query: Search query
             memories: List of memory dictionaries
             content_field: Field containing text content
             limit: Maximum results to return
-            
+
         Returns:
             List of memories sorted by similarity (includes similarity_score)
         """
         if not query or not memories:
             return []
-        
+
         # Get query embedding
         query_embedding = self.get_embedding(query)
         if query_embedding is None:
             logger.warning("Could not generate query embedding")
             return []
-        
+
         # Get embeddings for all memories
         memory_texts = [
             str(m.get(content_field, "") or m.get("summary", "") or "")
             for m in memories
         ]
         memory_embeddings = self.get_batch_embeddings(memory_texts)
-        
+
         # Calculate similarities
         results = []
         for memory, embedding in zip(memories, memory_embeddings):
@@ -271,13 +275,15 @@ class EmbeddingSearchEngine:
                     memory_copy["similarity_score"] = similarity
                     memory_copy["search_strategy"] = "semantic_embedding"
                     results.append(memory_copy)
-        
+
         # Sort by similarity
         results.sort(key=lambda x: x.get("similarity_score", 0), reverse=True)
-        
-        logger.debug(f"Embedding search found {len(results)} results above threshold {self.similarity_threshold}")
+
+        logger.debug(
+            f"Embedding search found {len(results)} results above threshold {self.similarity_threshold}"
+        )
         return results[:limit]
-    
+
     def clear_cache(self) -> None:
         """Clear the embedding cache."""
         with self._cache_lock:
@@ -387,6 +393,7 @@ Be strategic and comprehensive in your search planning."""
         try:
             # Create cache key
             cache_key = f"{query}|{context or ''}"
+            # Use SHA-256 for cache key if needed, but here it's just a string key
 
             # Check cache first
             with self._cache_lock:
@@ -586,10 +593,11 @@ Be strategic and comprehensive in your search planning."""
                         all_results.append(result)
 
             # If we have room for more results and semantic search is recommended, use embeddings
-            if len(all_results) < limit and "semantic_search" in search_plan.search_strategy:
-                logger.debug(
-                    f"Adding semantic search for query: {query}"
-                )
+            if (
+                len(all_results) < limit
+                and "semantic_search" in search_plan.search_strategy
+            ):
+                logger.debug(f"Adding semantic search for query: {query}")
                 semantic_results = self._execute_semantic_search(
                     query, db_manager, user_id, limit - len(all_results)
                 )
@@ -1105,7 +1113,7 @@ Be strategic and comprehensive in your search planning."""
                         self._execute_keyword_search,
                         search_plan,
                         db_manager,
-                        namespace,
+                        user_id,
                         limit,
                     )
                 )
@@ -1121,7 +1129,7 @@ Be strategic and comprehensive in your search planning."""
                         self._execute_category_search,
                         search_plan,
                         db_manager,
-                        namespace,
+                        user_id,
                         limit,
                     )
                 )

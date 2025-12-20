@@ -96,7 +96,7 @@ class AnomalyDetector:
             random_state=42,
             n_estimators=100
         )
-    
+
     def detect(self, features: np.ndarray) -> AnomalyResult:
         score = self.model.decision_function(features)
         is_anomaly = self.model.predict(features) == -1
@@ -140,7 +140,7 @@ Generates natural language explanations for anomalies:
 class HealthExplainer:
     def explain(self, anomaly: AnomalyResult, features: Dict) -> str:
         """
-        Returns: "Your heart rate of 145 bpm is elevated. 
+        Returns: "Your heart rate of 145 bpm is elevated.
                   This could indicate physical exertion or stress.
                   Consider resting and monitoring."
         """
@@ -158,7 +158,7 @@ class AlertPipeline:
         explanation = self.explainer.explain(anomaly, features)
         priority = self.classify_priority(anomaly)
         recommendations = self.generate_recommendations(anomaly)
-        
+
         return Alert(
             priority=priority,
             explanation=explanation,
@@ -183,7 +183,7 @@ Integrates with AI providers for contextual responses:
 class ChatbotConnector:
     def __init__(self, provider: str = "gemini"):
         self.provider = provider  # "gemini" or "ollama"
-    
+
     async def get_response(self, alert: Alert, user_query: str) -> str:
         prompt = self.build_prompt(alert, user_query)
         return await self.call_ai(prompt)
