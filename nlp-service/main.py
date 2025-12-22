@@ -128,6 +128,29 @@ from routes.generation import router as generation_router, chat_router
 from routes.structured_outputs import router as structured_outputs_router
 from routes.analytics_routes import router as analytics_router
 
+# Import Heart Health Chat router
+try:
+    from routes.heart_health_chat import router as heart_health_chat_router
+    HEART_HEALTH_CHAT_AVAILABLE = True
+    print("[STARTUP] Heart Health Chat routes loaded successfully")
+except ImportError as e:
+    logger.warning(f"Heart Health Chat module not available: {e}")
+    HEART_HEALTH_CHAT_AVAILABLE = False
+    heart_health_chat_router = None
+
+# Import Heart Health Data router
+try:
+    from routes.heart_health_data import router as heart_health_data_router
+    HEART_HEALTH_DATA_AVAILABLE = True
+    print("[STARTUP] Heart Health Data routes loaded successfully")
+except ImportError as e:
+    logger.warning(f"Heart Health Data module not available: {e}")
+    HEART_HEALTH_DATA_AVAILABLE = False
+    heart_health_data_router = None
+
+
+
+
 # PHASE 2: RAG & Memory Routes
 if RAG_ENABLED:
     from routes.document_routes import router as document_router
@@ -480,6 +503,18 @@ if vision_router:
 
 if evaluation_router:
     app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
+
+# Heart Health Chat router (new AI assistant endpoints)
+if HEART_HEALTH_CHAT_AVAILABLE and heart_health_chat_router:
+    app.include_router(heart_health_chat_router)  # Already has prefix /api/chat
+    logger.info("Heart Health Chat router enabled")
+
+# Heart Health Data router (new data endpoints)
+if HEART_HEALTH_DATA_AVAILABLE and heart_health_data_router:
+    app.include_router(heart_health_data_router)  # Already has prefix /api/heart-health
+    logger.info("Heart Health Data router enabled")
+
+
 
 # Initialize LLM Gateway (unified implementation)
 llm_gateway = None

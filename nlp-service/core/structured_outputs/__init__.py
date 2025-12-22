@@ -15,6 +15,8 @@ from .pydantic_ai_wrapper import (
     HealthAnalysisGenerator,
     IntentAnalysisGenerator,
     ConversationGenerator,
+    StructuredOutputParser,
+    StructuredGenerator,
 )
 
 __all__ = [
@@ -28,4 +30,6 @@ __all__ = [
     "HealthAnalysisGenerator",
     "IntentAnalysisGenerator",
     "ConversationGenerator",
+    "StructuredOutputParser",
+    "StructuredGenerator",
 ]

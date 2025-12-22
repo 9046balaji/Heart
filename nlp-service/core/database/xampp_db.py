@@ -115,7 +115,10 @@ class XAMPPDatabase:
                         "chat_messages",
                         "chat_sessions",
                         "medical_knowledge_base",
-                        "vitals_data",
+                        "health_alerts",
+                        "vitals",
+                        "vitals_data", # Legacy
+                        "devices",
                         "patient_records",
                         "users",
                     ]
@@ -134,10 +137,33 @@ class XAMPPDatabase:
                             user_id VARCHAR(255) UNIQUE NOT NULL,
                             name VARCHAR(255),
                             email VARCHAR(255),
+                            date_of_birth DATE,
+                            gender VARCHAR(20),
+                            blood_type VARCHAR(5),
+                            weight_kg FLOAT,
+                            height_cm FLOAT,
+                            known_conditions JSON,
+                            medications JSON,
+                            allergies JSON,
+                            is_active BOOLEAN DEFAULT TRUE,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
                     """
                     )
+
+                    # Create devices table
+                    await cursor.execute("""
+                        CREATE TABLE devices (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            device_id VARCHAR(255) UNIQUE NOT NULL,
+                            user_id VARCHAR(255) NOT NULL,
+                            device_type VARCHAR(50),
+                            model VARCHAR(100),
+                            last_sync TIMESTAMP,
+                            is_active BOOLEAN DEFAULT TRUE,
+                            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        )
+                    """)
 
                     # Create patient records table
                     await cursor.execute(
@@ -153,23 +179,38 @@ class XAMPPDatabase:
                     """
                     )
 
-                    # Create vitals data table
+                    # Create vitals table (renamed from vitals_data)
                     await cursor.execute(
                         """
-                        CREATE TABLE vitals_data (
+                        CREATE TABLE vitals (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             user_id VARCHAR(255) NOT NULL,
                             device_id VARCHAR(255),
                             metric_type VARCHAR(50),
                             value FLOAT,
                             unit VARCHAR(20),
-                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-                            INDEX idx_user_timestamp (user_id, timestamp),
+                            INDEX idx_user_recorded (user_id, recorded_at),
                             INDEX idx_metric_type (metric_type)
                         )
                     """
                     )
+
+                    # Create health alerts table
+                    await cursor.execute("""
+                        CREATE TABLE health_alerts (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            user_id VARCHAR(255) NOT NULL,
+                            alert_type VARCHAR(50),
+                            severity VARCHAR(20),
+                            message TEXT,
+                            is_resolved BOOLEAN DEFAULT FALSE,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            resolved_at TIMESTAMP NULL,
+                            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        )
+                    """)
 
                     # Create vector knowledge base table (for RAG)
                     # Try to create with VECTOR type first, fallback to BLOB if not supported
@@ -233,6 +274,12 @@ class XAMPPDatabase:
                         )
                     """
                     )
+                    
+                    # Seed default user
+                    await cursor.execute("""
+                        INSERT IGNORE INTO users (user_id, name, email, date_of_birth, gender, weight_kg, height_cm)
+                        VALUES ('user123', 'John Doe', 'john@example.com', '1980-01-01', 'Male', 80.0, 180.0)
+                    """)
 
                     logger.info("Database schema initialized successfully")
                 except Exception as e:
@@ -256,6 +303,13 @@ class XAMPPDatabase:
                 user_id VARCHAR(255) UNIQUE NOT NULL,
                 name VARCHAR(255),
                 email VARCHAR(255),
+                date_of_birth DATE,
+                gender VARCHAR(20),
+                weight_kg FLOAT,
+                height_cm FLOAT,
+                known_conditions JSON,
+                medications JSON,
+                allergies JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
@@ -275,23 +329,38 @@ class XAMPPDatabase:
         """
         )
 
-        # Create vitals data table (without foreign key)
+        # Create vitals table (without foreign key)
         await cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS vitals_data (
+            CREATE TABLE IF NOT EXISTS vitals (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
                 device_id VARCHAR(255),
                 metric_type VARCHAR(50),
                 value FLOAT,
                 unit VARCHAR(20),
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_user_id (user_id),
-                INDEX idx_user_timestamp (user_id, timestamp),
+                INDEX idx_user_recorded (user_id, recorded_at),
                 INDEX idx_metric_type (metric_type)
             )
         """
         )
+        
+        # Create health alerts table
+        await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS health_alerts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                alert_type VARCHAR(50),
+                severity VARCHAR(20),
+                message TEXT,
+                is_resolved BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP NULL,
+                INDEX idx_user_id (user_id)
+            )
+        """)
 
         # Create vector knowledge base table (for RAG)
         try:
@@ -352,6 +421,12 @@ class XAMPPDatabase:
             )
         """
         )
+        
+        # Seed default user
+        await cursor.execute("""
+            INSERT IGNORE INTO users (user_id, name, email, date_of_birth, gender, weight_kg, height_cm)
+            VALUES ('user123', 'John Doe', 'john@example.com', '1980-01-01', 'Male', 80.0, 180.0)
+        """)
 
         logger.info("Database schema initialized (simple approach)")
 
@@ -373,7 +448,7 @@ class XAMPPDatabase:
                 async with conn.cursor() as cursor:
                     await cursor.execute(
                         """
-                        INSERT INTO vitals_data (user_id, device_id, metric_type, value, unit)
+                        INSERT INTO vitals (user_id, device_id, metric_type, value, unit)
                         VALUES (%s, %s, %s, %s, %s)
                     """,
                         (user_id, device_id, metric_type, value, unit),
@@ -396,10 +471,10 @@ class XAMPPDatabase:
                     if metric_type:
                         await cursor.execute(
                             """
-                            SELECT device_id, metric_type, value, unit, timestamp
-                            FROM vitals_data
+                            SELECT device_id, metric_type, value, unit, recorded_at
+                            FROM vitals
                             WHERE user_id = %s AND metric_type = %s
-                            ORDER BY timestamp DESC
+                            ORDER BY recorded_at DESC
                             LIMIT %s
                         """,
                             (user_id, metric_type, limit),
@@ -407,10 +482,10 @@ class XAMPPDatabase:
                     else:
                         await cursor.execute(
                             """
-                            SELECT device_id, metric_type, value, unit, timestamp
-                            FROM vitals_data
+                            SELECT device_id, metric_type, value, unit, recorded_at
+                            FROM vitals
                             WHERE user_id = %s
-                            ORDER BY timestamp DESC
+                            ORDER BY recorded_at DESC
                             LIMIT %s
                         """,
                             (user_id, limit),
@@ -430,6 +505,7 @@ class XAMPPDatabase:
         except Exception as e:
             logger.error(f"Failed to retrieve vitals history: {e}")
             return []
+
 
     async def store_medical_knowledge(
         self,
@@ -612,6 +688,15 @@ class XAMPPDatabase:
         try:
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
+                    # Ensure session exists first
+                    await cursor.execute(
+                        """
+                        INSERT IGNORE INTO chat_sessions (session_id, user_id)
+                        VALUES (%s, %s)
+                        """,
+                        (session_id, "user123") # Default to user123 if not provided, or extract from metadata if possible
+                    )
+                    
                     await cursor.execute(
                         """
                         INSERT INTO chat_messages (session_id, message_type, content, metadata)

@@ -1,8 +1,20 @@
 # 🧠 Memory System Architecture
 
+> **Document Version:** 1.1  
+> **Last Updated:** December 22, 2025  
+> **Component:** NLP Service Memory Module
+
+---
+
+## Executive Summary
+
+The Memory System enables **context-aware, personalized healthcare conversations** by maintaining patient-specific memory isolation, intelligent context retrieval, and HIPAA-compliant data handling. It integrates with the AI service layer to provide relevant historical context for every interaction.
+
+---
+
 ## Overview
 
-The Cardio AI Assistant implements a sophisticated memory system based on the **chat.md** architecture principles. This enables context-aware, personalized healthcare conversations.
+The Cardio AI Assistant implements a sophisticated memory system based on the **Memori** architecture principles. This enables context-aware, personalized healthcare conversations with patient data isolation.
 
 ## Architecture
 

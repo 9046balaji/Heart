@@ -315,6 +315,14 @@ class CircuitBreaker:
             f"CircuitBreaker '{self.name}' manually reset ({old_state} -> CLOSED)"
         )
 
+    def record_success(self) -> None:
+        """Manually record a success (useful when not using call wrapper)."""
+        self._on_success()
+
+    def record_failure(self) -> None:
+        """Manually record a failure (useful when not using call wrapper)."""
+        self._on_failure()
+
     # ========================================================================
     # STATUS & MONITORING
     # ========================================================================

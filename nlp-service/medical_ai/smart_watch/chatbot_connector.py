@@ -294,7 +294,9 @@ class ChatbotManager:
             ollama_url: Optional Ollama server URL
         """
         self.gemini = GeminiChatbot(api_key=gemini_api_key)
-        self.ollama = OllamaChatbot(base_url=ollama_url or "http://localhost:11434")
+        self.ollama = OllamaChatbot(
+            base_url=ollama_url or "http://localhost:11434", model="gemma3:1b"
+        )
 
         # Determine primary backend
         if self.gemini.is_available():

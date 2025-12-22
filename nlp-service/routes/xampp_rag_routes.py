@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import logging
 
-from ..core.rag.xampp_rag import get_rag_service
+from core.rag.xampp_rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 

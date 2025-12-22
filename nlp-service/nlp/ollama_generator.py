@@ -134,7 +134,8 @@ class OllamaGenerator:
                     logger.debug(f"Health check request failed: {e}")
                     return False
 
-                return False
+            import asyncio
+            return await asyncio.to_thread(_check_health)
 
         except Exception as e:
             logger.error(f"Ollama server unavailable: {str(e)}")
@@ -593,7 +594,7 @@ _ollama_generator: Optional[OllamaGenerator] = None
 
 
 def get_ollama_generator(
-    model_name: str = "gemma3:4b", ollama_host: str = "http://localhost:11434"
+    model_name: str = "gemma3:1b", ollama_host: str = "http://localhost:11434"
 ) -> OllamaGenerator:
     """
     Get or create Ollama generator singleton

@@ -1,5 +1,11 @@
 # 🏗️ System Architecture Overview
 
+> **Document Version:** 1.1  
+> **Last Updated:** December 22, 2025  
+> **Purpose:** High-level technical overview for developers and stakeholders
+
+---
+
 ## High-Level Architecture
 
 ```
@@ -255,13 +261,15 @@
   - Image-based health analysis
   - Multi-model support
 
-### ML Anomaly Detection
-- **Location:** `cardio-ai-assistant/backend/ml/`
+### ML Anomaly Detection & Smart Watch
+- **Location:** `nlp-service/medical_ai/smart_watch/`
 - **Features:**
   - Isolation Forest anomaly detection
-  - Rule-based alert engine
-  - Natural language explanations
-  - Chatbot integration
+  - Rule-based alert engine with clinical thresholds
+  - Natural language health explanations
+  - Chatbot integration via Health Explainer
+  - Real-time WebSocket streaming
+  - MySQL/PostgreSQL support for time-series data
 
 ## Data Flow
 
@@ -295,8 +303,9 @@ User Input → Frontend → Flask Backend → NLP Service
 |----------|------------|---------|
 | Chat History | SQLite | Conversation storage |
 | User Preferences | SQLite | Settings, preferences |
-| Health Data | SQLite (`health_data.db`) | Metrics, assessments |
+| Health Data | SQLite / MySQL (XAMPP) | Vitals, metrics, assessments |
 | Appointments | SQLite (`appointments.db`) | Scheduling data |
+| Device Time-Series | MySQL (XAMPP) / PostgreSQL | High-frequency smartwatch data |
 | NLP Cache | SQLite (`nlp_cache.db`) | Response caching |
 
 ## External Integrations

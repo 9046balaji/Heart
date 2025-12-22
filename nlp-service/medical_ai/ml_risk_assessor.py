@@ -388,21 +388,15 @@ class MLRiskAssessor:
 
     MODEL_PATHS = [
         # Try to find the model in various locations
+        Path(__file__).parent / "models" / "stacking_ensemble_model.joblib",
+        Path(__file__).parent / "models" / "stacking_heart_disease_model.joblib",
+        Path(__file__).parent / "models" / "fitted_mlp_model.joblib",
+        # Fallback to legacy locations
         Path(__file__).parent.parent
         / "cardio-ai-assistant"
         / "backend"
         / "models"
         / "stacking_ensemble_model.joblib",
-        Path(__file__).parent.parent
-        / "cardio-ai-assistant"
-        / "backend"
-        / "models"
-        / "stacking_heart_disease_model.joblib",
-        Path(__file__).parent.parent
-        / "cardio-ai-assistant"
-        / "backend"
-        / "models"
-        / "fitted_mlp_model.joblib",
     ]
 
     def __init__(self, model_type="random_forest"):

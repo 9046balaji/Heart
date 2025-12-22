@@ -1,5 +1,17 @@
 # 🤖 ML Pipeline Architecture
 
+> **Document Version:** 1.1  
+> **Last Updated:** December 22, 2025  
+> **Component:** Smart Watch ML Anomaly Detection
+
+---
+
+## Executive Summary
+
+The ML pipeline provides **intelligent anomaly detection** for smartwatch health data, combining Isolation Forest algorithms with clinical rule engines to generate natural language explanations and priority-based alerts.
+
+---
+
 ## Overview
 
 The ML pipeline provides intelligent anomaly detection for smartwatch health data with natural language explanations and chatbot integration.
@@ -214,13 +226,14 @@ Provide a helpful, medically-informed response that:
 
 ## Model Files
 
-Located in `cardio-ai-assistant/backend/models/`:
+Located in `nlp-service/medical_ai/smart_watch/models/`:
 
 | File | Purpose |
 |------|---------|
-| `stacking_ensemble_model.joblib` | Heart disease prediction |
-| `stacking_heart_disease_model.joblib` | Alternative ensemble |
-| `fitted_mlp_model.joblib` | Neural network model |
+| `anomaly_detector.joblib` | Isolation Forest anomaly detection |
+| `feature_scaler.joblib` | Feature normalization scaler |
+| `stacking_ensemble_model.joblib` | Heart disease prediction (legacy) |
+| `fitted_mlp_model.joblib` | Neural network model (legacy) |
 
 ## Usage Example
 
@@ -275,8 +288,14 @@ ML_CONFIG = {
 ## Testing
 
 ```bash
-cd cardio-ai-assistant/backend
-python test_ml.py
+cd nlp-service
+python -m pytest tests/ -v
+```
+
+Alternatively, run specific ML tests:
+
+```bash
+python -m pytest tests/test_smart_watch.py -v
 ```
 
 Test coverage:

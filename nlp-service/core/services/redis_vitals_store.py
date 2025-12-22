@@ -34,7 +34,21 @@ class RedisVitalsStore:
 
     def __init__(self, redis_url: str = None, database_url: str = None):
         self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
-        self.client = redis.from_url(self.redis_url, decode_responses=True)
+        self.use_redis = True
+        self.memory_store: Dict[str, List[Dict]] = {}
+        
+        try:
+            self.client = redis.from_url(self.redis_url, decode_responses=True)
+            # Test connection
+            self.client.ping()
+            import logging
+            logging.info(f"Connected to Redis at {self.redis_url}")
+        except Exception as e:
+            import logging
+            logging.warning(f"Redis not available, falling back to in-memory store: {e}")
+            self.use_redis = False
+            self.client = None
+
         self.window_minutes = 30  # Keep last 30 mins of data
 
         # Database setup for cold storage
@@ -50,22 +64,55 @@ class RedisVitalsStore:
         key = f"vitals:{device_id}"
         timestamp = datetime.utcnow().timestamp()
 
-        # Add to ZSET
-        self.client.zadd(key, {json.dumps(reading): timestamp})
+        if self.use_redis and self.client:
+            try:
+                # Add to ZSET
+                self.client.zadd(key, {json.dumps(reading): timestamp})
 
-        # Trim data older than window
-        cutoff = timestamp - (self.window_minutes * 60)
-        self.client.zremrangebyscore(key, 0, cutoff)
+                # Trim data older than window
+                cutoff = timestamp - (self.window_minutes * 60)
+                self.client.zremrangebyscore(key, 0, cutoff)
+            except Exception as e:
+                import logging
+                logging.error(f"Redis error in add_reading: {e}")
+                self._add_to_memory(device_id, reading, timestamp)
+        else:
+            self._add_to_memory(device_id, reading, timestamp)
 
         # Store in cold storage database
         self._store_in_cold_storage(device_id, reading, datetime.utcnow())
 
+    def _add_to_memory(self, device_id: str, reading: Dict, timestamp: float) -> None:
+        """Fallback in-memory storage."""
+        if device_id not in self.memory_store:
+            self.memory_store[device_id] = []
+        
+        # Add timestamp to reading for sorting
+        reading_copy = reading.copy()
+        reading_copy["_internal_timestamp"] = timestamp
+        self.memory_store[device_id].append(reading_copy)
+        
+        # Trim
+        cutoff = timestamp - (self.window_minutes * 60)
+        self.memory_store[device_id] = [
+            r for r in self.memory_store[device_id] 
+            if r.get("_internal_timestamp", 0) > cutoff
+        ]
+
     def get_history(self, device_id: str) -> List[Dict]:
         """Get all readings in the current window."""
-        key = f"vitals:{device_id}"
-        # Get all items in set (already sorted by time)
-        items = self.client.zrange(key, 0, -1)
-        return [json.loads(item) for item in items]
+        if self.use_redis and self.client:
+            try:
+                key = f"vitals:{device_id}"
+                # Get all items in set (already sorted by time)
+                items = self.client.zrange(key, 0, -1)
+                return [json.loads(item) for item in items]
+            except Exception as e:
+                import logging
+                logging.error(f"Redis error in get_history: {e}")
+                return self.memory_store.get(device_id, [])
+        else:
+            return self.memory_store.get(device_id, [])
 
     def _store_in_cold_storage(
         self, device_id: str, reading: Dict, timestamp: datetime
