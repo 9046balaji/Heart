@@ -12,8 +12,11 @@
 # Environment files contain API keys, passwords, and other secrets
 # NEVER commit these files to version control
 
-logs/
+*.sql
 
+chroma_db/
+logs/
+docs/
 backups
 docs/memory
 file_list.txt
@@ -22,7 +25,7 @@ REMEDIATION_REPORT.md
 structure_reference.txt
 structure.md
 
-.gitignore
+
 .env
 .env.local
 .env.development
@@ -73,7 +76,7 @@ id_ed25519*
 *.sqlite3
 
 # Database dumps
-*.sql
+
 *.dump
 
 # ===================
@@ -316,3 +319,9 @@ pre_commit_output.txt
 # Pre-commit configuration files
 .pre-commit-config.yaml
 .secrets.baseline
+
+# Local log files
+*.log
+
+# Local startup scripts
+start_services.bat
