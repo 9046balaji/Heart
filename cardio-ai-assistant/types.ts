@@ -252,3 +252,41 @@ export interface FamilyMember {
   status: 'Critical' | 'Warning' | 'Stable';
   lastActive: string;
 }
+
+// ============================================================================
+// Structured Medical Data Types
+// ============================================================================
+
+export interface MedicationData {
+  name: string;
+  dosage_value?: number;
+  dosage_unit?: string;
+  frequency?: string;
+  confidence?: number;
+}
+
+export interface LabValueData {
+  test_name: string;
+  value: string | number;
+  unit: string;
+  reference_min?: number;
+  reference_max?: number;
+  is_abnormal?: boolean;
+}
+
+export interface VitalsSummaryData {
+  heart_rate?: number;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
+  spo2?: number;
+  status?: string;
+  summary_text?: string;
+}
+
+export interface StructuredMedicalData {
+  medications?: MedicationData[];
+  lab_values?: LabValueData[];
+  diagnoses?: string[];
+  vitals_summary?: VitalsSummaryData;
+  rag_sources?: string[];
+}

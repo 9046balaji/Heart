@@ -6,9 +6,12 @@ than bi-encoder similarity search.
 """
 
 import logging
+import time
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
+
+from core.services.performance_monitor import record_rerank_operation
 
 # Try to import sentence-transformers for cross-encoder
 try:
@@ -62,11 +65,12 @@ class MedicalReranker:
         Returns:
             Reranked documents with updated scores
         """
-        # If no model or no documents, return early
-        if not self.model or not documents:
-            return documents[:top_k] if documents else []
-
+        start_time = time.time()
         try:
+            # If no model or no documents, return early
+            if not self.model or not documents:
+                return documents[:top_k] if documents else []
+
             # Create query-document pairs
             pairs = [(query, doc["content"][:512]) for doc in documents]
 
@@ -86,6 +90,10 @@ class MedicalReranker:
             logger.error(f"Reranking failed: {e}")
             # Return original documents truncated to top_k
             return documents[:top_k]
+        finally:
+            # Record performance metrics
+            elapsed_ms = (time.time() - start_time) * 1000
+            record_rerank_operation(elapsed_ms)
 
     def is_available(self) -> bool:
         """Check if reranker is available."""

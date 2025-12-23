@@ -17,6 +17,12 @@
 
 
 
+
+text_quality.py
+simple_test.py
+nlp-service/core/testing/
+nlp-service/nlp/evaluation/real_world_queries.json
+
 chroma_db/
 logs/
 docs/

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:force": "npx kill-port 3000 && vite",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -13,6 +14,7 @@
     "@expo/webpack-config": "^19.0.1",
     "@types/dompurify": "^3.0.5",
     "dompurify": "^3.3.1",
+    "expo-asset": "^12.0.12",
     "expo-font": "^14.0.4",
     "expo-image-picker": "^17.0.10",
     "expo-linear-gradient": "^15.0.8",
@@ -33,6 +35,7 @@
     "zustand": "^4.4.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

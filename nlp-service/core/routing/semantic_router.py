@@ -37,6 +37,7 @@ class IntentCategory(str, Enum):
     EXERCISE = "exercise"
     GENERAL_HEALTH = "general_health"
     EMERGENCY = "emergency"
+    WEB_SEARCH_TRIGGER = "web_search_trigger"
     UNKNOWN = "unknown"
 
 
@@ -112,6 +113,15 @@ class SemanticRouterService:
         "doctor visit", "availability", "slot", "meeting", "consultation time"
     }
     
+    # Triggers for web search - route to Receptionist when appropriate
+    WEB_SEARCH_TRIGGER_KEYWORDS: Set[str] = {
+        "latest", "recent", "newest", "new study", "2024", "2025",
+        "fda approved", "fda approval", "new drug", "recent research",
+        "latest guidelines", "updated guidelines", "breaking news",
+        "clinical trial results", "just announced", "this week",
+        "this month", "recently published"
+    }
+    
     def __init__(self, complexity_threshold: float = 0.8):
         """
         Initialize the semantic router.
@@ -163,16 +173,16 @@ class SemanticRouterService:
         # Route to Doctor if:
         # - Complexity > threshold
         # - Intent is medical report, drug interaction, or vitals analysis
+        # - NOT a web search trigger (web search is for Receptionist)
         should_route_to_doctor = (
-            complexity_score > self.complexity_threshold or
-            intent in {
-                IntentCategory.MEDICAL_REPORT,
-                IntentCategory.DRUG_INTERACTION,
-                IntentCategory.SYMPTOM_CHECK,
-                IntentCategory.RISK_ASSESSMENT,
-                IntentCategory.VITALS_ANALYSIS
-            }
-        )
+            complexity_score > self.complexity_threshold and intent != IntentCategory.WEB_SEARCH_TRIGGER
+        ) or intent in {
+            IntentCategory.MEDICAL_REPORT,
+            IntentCategory.DRUG_INTERACTION,
+            IntentCategory.SYMPTOM_CHECK,
+            IntentCategory.RISK_ASSESSMENT,
+            IntentCategory.VITALS_ANALYSIS
+        }
         
         if should_route_to_doctor:
             reason = self._build_doctor_reason(complexity_score, intent)
@@ -299,6 +309,15 @@ class SemanticRouterService:
                 matches.append(keyword)
                 return IntentCategory.APPOINTMENT, 0.85, matches
         
+        # Check for web search trigger (after internal checks)
+        for keyword in self.WEB_SEARCH_TRIGGER_KEYWORDS:
+            if keyword in query_lower:
+                matches.append(keyword)
+                # Return special intent but DON'T auto-route
+                # Let complexity score determine Doctor vs Receptionist
+                # Web search is a TOOL, not a routing destination
+                return IntentCategory.WEB_SEARCH_TRIGGER, 0.60, matches
+        
         # Check for symptom-related queries
         symptom_keywords = ["symptom", "feeling", "pain", "ache", "hurt", "discomfort", "swelling"]
         for keyword in symptom_keywords:
@@ -373,6 +392,8 @@ class SemanticRouterService:
             return "General nutrition question - educational response"
         elif intent == IntentCategory.EXERCISE:
             return "Exercise question - lifestyle guidance"
+        elif intent == IntentCategory.WEB_SEARCH_TRIGGER:
+            return "Web search trigger detected - general information query appropriate for Receptionist"
         else:
             return f"Low complexity ({complexity_score:.2f}) - general assistance appropriate"
 

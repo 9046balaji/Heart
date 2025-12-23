@@ -11,6 +11,8 @@ Features:
 - Continuous improvement feedback
 """
 
+import json
+from pathlib import Path
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -45,6 +47,8 @@ class RAGEvaluator:
     - Context relevance scoring
     - Continuous improvement feedback
     """
+    
+    QUERIES_FILE = Path(__file__).parent / "real_world_queries.json"
 
     def __init__(self, rag_pipeline=None):
         """
@@ -166,45 +170,56 @@ class RAGEvaluator:
             }
 
     def create_test_dataset(self) -> Dict[str, List[str]]:
-        """
-        Create a sample test dataset for cardiovascular health.
-
-        Returns:
-            Dict with test questions, contexts, and ground truths
-        """
+        """Load test dataset from external file or fallback to defaults."""
+        if self.QUERIES_FILE.exists():
+            return self._load_external_dataset()
+        return self._get_default_dataset()
+    
+    def _load_external_dataset(self) -> Dict[str, List[str]]:
+        """Load queries from JSON file."""
+        with open(self.QUERIES_FILE, 'r') as f:
+            data = json.load(f)
+        
+        queries = data.get("queries", [])
         return {
-            "questions": [
-                "What are the symptoms of heart failure?",
-                "How does hypertension affect the heart?",
-                "What medications are used to treat atrial fibrillation?",
-                "What lifestyle changes can improve heart health?",
-                "When should I seek emergency care for chest pain?",
-            ],
-            "contexts": [
-                [
-                    "Heart failure symptoms include shortness of breath, fatigue, and swelling in legs."
-                ],
-                [
-                    "Hypertension increases the workload on the heart and can lead to heart failure."
-                ],
-                [
-                    "Common medications for atrial fibrillation include beta blockers and anticoagulants."
-                ],
-                [
-                    "Regular exercise, healthy diet, and stress management improve heart health."
-                ],
-                [
-                    "Seek emergency care for severe chest pain, especially with shortness of breath."
-                ],
-            ],
-            "ground_truths": [
-                "Heart failure symptoms include shortness of breath, fatigue, swelling in legs and ankles, rapid heartbeat, and persistent coughing.",
-                "Hypertension forces the heart to work harder, causing thickening of the heart muscle and increasing risk of heart failure and heart attack.",
-                "Atrial fibrillation is treated with beta blockers, calcium channel blockers, anticoagulants, and antiarrhythmic medications.",
-                "Heart-healthy lifestyle changes include regular aerobic exercise, Mediterranean diet, stress reduction, adequate sleep, and avoiding smoking.",
-                "Seek emergency care immediately for severe chest pain, especially with shortness of breath, nausea, or pain radiating to the arm or jaw.",
-            ],
+            "questions": [q["question"] for q in queries],
+            "contexts": [q.get("context", [""]) for q in queries],
+            "ground_truths": [q["ground_truth"] for q in queries]
         }
+    
+    def _get_default_dataset(self) -> Dict[str, List[str]]:
+        """Fallback hardcoded dataset."""
+        return {
+            "questions": ["What are the symptoms of heart failure?"],
+            "contexts": [["Heart failure symptoms include..."]],
+            "ground_truths": ["Heart failure symptoms include..."]
+        }
+    
+    def log_low_confidence_query(
+        self, 
+        question: str, 
+        confidence: float,
+        threshold: float = 0.5
+    ) -> None:
+        """Log query for expert review if below threshold."""
+        if confidence >= threshold:
+            return
+            
+        entry = {
+            "id": f"lcq_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "question": question,
+            "captured_at": datetime.now().isoformat(),
+            "original_confidence": confidence,
+            "status": "pending_review"
+        }
+        
+        # Append to queue
+        if self.QUERIES_FILE.exists():
+            with open(self.QUERIES_FILE, 'r+') as f:
+                data = json.load(f)
+                data.setdefault("low_confidence_queue", []).append(entry)
+                f.seek(0)
+                json.dump(data, f, indent=2)
 
     async def run_continuous_evaluation(self, interval_minutes: int = 60) -> None:
         """

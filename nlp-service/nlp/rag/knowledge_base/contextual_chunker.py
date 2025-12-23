@@ -24,6 +24,8 @@ class MedicalChunk:
     source_metadata: Dict
     char_start: int
     char_end: int
+    version: int = 1  # ADD: Version tracking
+    doc_id: str = ""  # ADD: Parent document reference
 
 
 class DrugDictionary:
@@ -287,7 +289,7 @@ class ContextualMedicalChunker:
         self.drug_dict = drug_dictionary or DrugDictionary.get_instance()
 
     def chunk_document(
-        self, text: str, doc_type: str = "medical_guideline", source: str = "unknown"
+        self, text: str, doc_type: str = "medical_guideline", source: str = "unknown", doc_id: str = ""
     ) -> List[MedicalChunk]:
         """
         Chunk a medical document with entity awareness.
@@ -307,7 +309,7 @@ class ContextualMedicalChunker:
         chunks = []
         for section in sections:
             section_chunks = self._chunk_section(
-                section["content"], section["heading"], doc_type, source
+                section["content"], section["heading"], doc_type, source, doc_id
             )
             chunks.extend(section_chunks)
 
@@ -349,7 +351,7 @@ class ContextualMedicalChunker:
         return sections
 
     def _chunk_section(
-        self, content: str, section_heading: str, doc_type: str, source: str
+        self, content: str, section_heading: str, doc_type: str, source: str, doc_id: str = ""
     ) -> List[MedicalChunk]:
         """Chunk a section with entity awareness."""
         chunks = []
@@ -368,13 +370,15 @@ class ContextualMedicalChunker:
                     source_metadata={"doc_type": doc_type, "source": source},
                     char_start=0,
                     char_end=len(content),
+                    version=1,
+                    doc_id=doc_id or source,  # Use doc_id if provided, otherwise source
                 )
             )
             return chunks
 
         # Split on entity boundaries with proper offset tracking
         return self._split_on_entities(
-            content, entities, section_heading, doc_type, source
+            content, entities, section_heading, doc_type, source, doc_id
         )
 
     def _extract_entities(self, text: str) -> List[Dict]:
@@ -432,6 +436,7 @@ class ContextualMedicalChunker:
         section: str,
         doc_type: str,
         source: str,
+        doc_id: str = "",
     ) -> List[MedicalChunk]:
         """Split content at entity boundaries."""
         chunks = []
@@ -468,6 +473,8 @@ class ContextualMedicalChunker:
                             source_metadata={"doc_type": doc_type, "source": source},
                             char_start=chunk_start,
                             char_end=chunk_end,
+                            version=1,
+                            doc_id=doc_id or source,  # Use doc_id if provided, otherwise source
                         )
                     )
 
@@ -503,6 +510,8 @@ class ContextualMedicalChunker:
                     source_metadata={"doc_type": doc_type, "source": source},
                     char_start=chunk_start,
                     char_end=chunk_end,
+                    version=1,
+                    doc_id=doc_id or source,  # Use doc_id if provided, otherwise source
                 )
             )
 

@@ -19,11 +19,14 @@ HIPAA Compliance Notes:
 import os
 import logging
 import hashlib
+import time
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 from collections import OrderedDict
 
 import numpy as np
+
+from core.services.performance_monitor import record_embedding_operation
 
 logger = logging.getLogger(__name__)
 
@@ -339,29 +342,35 @@ class ONNXEmbeddingService:
         Returns:
             Embedding vector as list of floats
         """
-        if not text or not text.strip():
-            return [0.0] * self.dimension
+        start_time = time.time()
+        try:
+            if not text or not text.strip():
+                return [0.0] * self.dimension
 
-        # Check cache
-        if use_cache:
-            cache_key = self._get_cache_key(text)
-            if cache_key in self._cache:
-                self._cache_hits += 1
-                # Move to end (LRU)
-                self._cache.move_to_end(cache_key)
-                return self._cache[cache_key]
-            self._cache_misses += 1
+            # Check cache
+            if use_cache:
+                cache_key = self._get_cache_key(text)
+                if cache_key in self._cache:
+                    self._cache_hits += 1
+                    # Move to end (LRU)
+                    self._cache.move_to_end(cache_key)
+                    return self._cache[cache_key]
+                self._cache_misses += 1
 
-        # Generate embedding
-        embeddings = self.embed_batch([text], use_cache=False)
-        embedding = embeddings[0]
+            # Generate embedding
+            embeddings = self.embed_batch([text], use_cache=False)
+            embedding = embeddings[0]
 
-        # Cache result
-        if use_cache:
-            self._manage_cache()
-            self._cache[cache_key] = embedding
+            # Cache result
+            if use_cache:
+                self._manage_cache()
+                self._cache[cache_key] = embedding
 
-        return embedding
+            return embedding
+        finally:
+            # Record performance metrics
+            elapsed_ms = (time.time() - start_time) * 1000
+            record_embedding_operation(elapsed_ms)
 
     def embed_batch(
         self,
@@ -382,72 +391,78 @@ class ONNXEmbeddingService:
         Returns:
             List of embedding vectors
         """
-        if not texts:
-            return []
+        start_time = time.time()
+        try:
+            if not texts:
+                return []
 
-        if self.session is None:
-            logger.warning("ONNX session not available, returning zero vectors")
-            return [[0.0] * self.dimension for _ in texts]
+            if self.session is None:
+                logger.warning("ONNX session not available, returning zero vectors")
+                return [[0.0] * self.dimension for _ in texts]
 
-        results: List[Optional[List[float]]] = [None] * len(texts)
-        texts_to_embed: List[tuple] = []  # (index, text)
+            results: List[Optional[List[float]]] = [None] * len(texts)
+            texts_to_embed: List[tuple] = []  # (index, text)
 
-        # Check cache first
-        if use_cache:
-            for i, text in enumerate(texts):
-                if not text or not text.strip():
-                    results[i] = [0.0] * self.dimension
-                    continue
+            # Check cache first
+            if use_cache:
+                for i, text in enumerate(texts):
+                    if not text or not text.strip():
+                        results[i] = [0.0] * self.dimension
+                        continue
 
-                cache_key = self._get_cache_key(text)
-                if cache_key in self._cache:
-                    self._cache_hits += 1
-                    self._cache.move_to_end(cache_key)
-                    results[i] = self._cache[cache_key]
-                else:
-                    self._cache_misses += 1
-                    texts_to_embed.append((i, text))
-        else:
-            texts_to_embed = [
-                (i, text) for i, text in enumerate(texts) if text and text.strip()
-            ]
-            for i, text in enumerate(texts):
-                if not text or not text.strip():
-                    results[i] = [0.0] * self.dimension
+                    cache_key = self._get_cache_key(text)
+                    if cache_key in self._cache:
+                        self._cache_hits += 1
+                        self._cache.move_to_end(cache_key)
+                        results[i] = self._cache[cache_key]
+                    else:
+                        self._cache_misses += 1
+                        texts_to_embed.append((i, text))
+            else:
+                texts_to_embed = [
+                    (i, text) for i, text in enumerate(texts) if text and text.strip()
+                ]
+                for i, text in enumerate(texts):
+                    if not text or not text.strip():
+                        results[i] = [0.0] * self.dimension
 
-        # Process uncached texts in batches
-        if texts_to_embed:
-            for batch_start in range(0, len(texts_to_embed), batch_size):
-                batch = texts_to_embed[batch_start : batch_start + batch_size]
-                batch_indices = [b[0] for b in batch]
-                batch_texts = [b[1] for b in batch]
+            # Process uncached texts in batches
+            if texts_to_embed:
+                for batch_start in range(0, len(texts_to_embed), batch_size):
+                    batch = texts_to_embed[batch_start : batch_start + batch_size]
+                    batch_indices = [b[0] for b in batch]
+                    batch_texts = [b[1] for b in batch]
 
-                # Tokenize
-                inputs = self._tokenize(batch_texts)
+                    # Tokenize
+                    inputs = self._tokenize(batch_texts)
 
-                # Run inference
-                outputs = self.session.run(
-                    None,
-                    {
-                        "input_ids": inputs["input_ids"],
-                        "attention_mask": inputs["attention_mask"],
-                    },
-                )
+                    # Run inference
+                    outputs = self.session.run(
+                        None,
+                        {
+                            "input_ids": inputs["input_ids"],
+                            "attention_mask": inputs["attention_mask"],
+                        },
+                    )
 
-                # Mean pooling
-                embeddings = self._mean_pooling(outputs[0], inputs["attention_mask"])
+                    # Mean pooling
+                    embeddings = self._mean_pooling(outputs[0], inputs["attention_mask"])
 
-                # Store results and cache
-                for j, idx in enumerate(batch_indices):
-                    embedding = embeddings[j].tolist()
-                    results[idx] = embedding
+                    # Store results and cache
+                    for j, idx in enumerate(batch_indices):
+                        embedding = embeddings[j].tolist()
+                        results[idx] = embedding
 
-                    if use_cache:
-                        cache_key = self._get_cache_key(batch_texts[j])
-                        self._manage_cache()
-                        self._cache[cache_key] = embedding
+                        if use_cache:
+                            cache_key = self._get_cache_key(batch_texts[j])
+                            self._manage_cache()
+                            self._cache[cache_key] = embedding
 
-        return results
+            return results
+        finally:
+            # Record performance metrics
+            elapsed_ms = (time.time() - start_time) * 1000
+            record_embedding_operation(elapsed_ms)
 
     def similarity(self, text1: str, text2: str) -> float:
         """
@@ -522,6 +537,42 @@ class ONNXEmbeddingService:
         self._cache.clear()
         self._cache_hits = 0
         self._cache_misses = 0
+    
+    def warm_cache(self, texts: List[str]) -> int:
+        """
+        Pre-warm the embedding cache with commonly used texts.
+        
+        Args:
+            texts: List of texts to pre-embed and cache
+            
+        Returns:
+            Number of embeddings successfully cached
+        """
+        if not texts:
+            return 0
+        
+        try:
+            # Generate embeddings for all texts in batch
+            embeddings = self.embed_batch(texts, use_cache=True)
+            
+            logger.info(f"Warmed {len(texts)} embeddings in cache")
+            return len(texts)
+        except Exception as e:
+            logger.error(f"Failed to warm embedding cache: {e}")
+            return 0
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        total_requests = self._cache_hits + self._cache_misses
+        hit_rate = self._cache_hits / total_requests if total_requests > 0 else 0
+        return {
+            "cache_size": len(self._cache),
+            "cache_max_size": self.cache_size,
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "cache_hit_rate": hit_rate,
+            "hit_rate_percent": hit_rate * 100
+        }
 
 
 # =============================================================================

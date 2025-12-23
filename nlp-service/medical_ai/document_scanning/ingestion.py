@@ -15,6 +15,10 @@ from pathlib import Path
 from enum import Enum
 import logging
 
+# Add import
+from nlp.rag.vector_store import VectorStore
+from .text_quality import validate_text_quality
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,6 +83,8 @@ class DocumentIngestionService:
         # Create subdirectories
         (self.storage_path / "originals").mkdir(exist_ok=True)
         (self.storage_path / "processed").mkdir(exist_ok=True)
+        
+        self.vector_store = VectorStore()
 
         logger.info(f"Document ingestion service initialized: {storage_path}")
 
@@ -122,6 +128,19 @@ class DocumentIngestionService:
             user_id=user_id,
             doc_type=doc_type,
         )
+        
+        # Step 4.5: Validate text quality (after OCR, before chunking)
+        extracted_text = self._extract_text(file_content, doc_type)
+        is_quality_ok, quality_details = validate_text_quality(extracted_text)
+        
+        if not is_quality_ok:
+            return {
+                "success": False,
+                "document_id": document_id,
+                "status": "quality_review_required",
+                "quality_issues": quality_details["issues"],
+                "quality_score": quality_details["score"]
+            }
 
         # Step 5: Create ingestion record
         ingestion_record = {
@@ -205,6 +224,39 @@ class DocumentIngestionService:
 
         return DocumentType.UNKNOWN
 
+    def _extract_text(self, file_content: bytes, doc_type: DocumentType) -> str:
+        """Extract text from document based on type."""
+        try:
+            if doc_type in [DocumentType.PDF_TEXT, DocumentType.PDF_SCANNED]:
+                # Extract text from PDF
+                import PyPDF2
+                from io import BytesIO
+                
+                pdf_file = BytesIO(file_content)
+                reader = PyPDF2.PdfReader(pdf_file)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+                return text
+            elif doc_type in [DocumentType.IMAGE_JPEG, DocumentType.IMAGE_PNG]:
+                # Extract text from image using OCR
+                import pytesseract
+                from PIL import Image
+                from io import BytesIO
+                
+                image = Image.open(BytesIO(file_content))
+                return pytesseract.image_to_string(image)
+            else:
+                # For unknown types, try to decode as text if possible
+                return file_content.decode('utf-8', errors='ignore')
+        except ImportError as e:
+            logger.warning(f"Required library not installed for text extraction: {e}")
+            # Return empty string if required libraries not available
+            return ""
+        except Exception as e:
+            logger.error(f"Error extracting text from document: {e}")
+            return ""
+
     def _generate_document_id(self, content: bytes, user_id: str) -> str:
         """Generate unique document ID."""
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
@@ -251,10 +303,17 @@ class DocumentIngestionService:
         return None
 
     def delete_document(self, document_id: str, user_id: str) -> bool:
-        """Delete a document (for GDPR compliance)."""
+        """Delete document and associated vectors."""
+        # Delete from file storage
         file_path = self.get_document_path(document_id, user_id)
+        file_deleted = False
         if file_path and file_path.exists():
             file_path.unlink()
-            logger.info(f"Document deleted: {document_id}")
-            return True
-        return False
+            file_deleted = True
+        
+        # Delete from vector store
+        vectors_deleted = self.vector_store.delete_document_vectors(document_id)
+        
+        logger.info(f"Document deleted: {document_id} "
+                   f"(file={file_deleted}, vectors={vectors_deleted})")
+        return file_deleted or vectors_deleted > 0

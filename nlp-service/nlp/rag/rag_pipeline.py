@@ -22,11 +22,12 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from dataclasses import dataclass, field
+import uuid
 
 logger = logging.getLogger(__name__)
 
 from .vector_store import VectorStore
-from core.compliance.medical_pii_scrubber import get_medical_pii_scrubber
+from core.compliance.pii_scrubber import get_pii_scrubber
 from .token_budget import TokenBudgetManager
 from .reranker import MedicalReranker
 
@@ -42,7 +43,7 @@ class RetrievedContext:
     def to_prompt_context(self) -> str:
         """Format retrieved context for LLM prompt with PII scrubbing."""
         sections = []
-        pii_scrubber = get_medical_pii_scrubber()
+        pii_scrubber = get_pii_scrubber()
 
         if self.medical_sources:
             medical_text = "\n".join(
@@ -116,6 +117,7 @@ class RAGResponse:
     query: str
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     processing_time_ms: float = 0.0
+    feedback_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # ADD
 
     def to_dict(self, include_sources: bool = False) -> Dict:
         """
@@ -133,6 +135,7 @@ class RAGResponse:
             "query": self.query,
             "timestamp": self.timestamp,
             "processing_time_ms": self.processing_time_ms,
+            "feedback_id": self.feedback_id,  # ADD
         }
 
         # Only include raw sources for internal debugging

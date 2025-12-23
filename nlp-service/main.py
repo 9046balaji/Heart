@@ -94,6 +94,9 @@ from core.services.nlp_service import NLPService
 from medical_ai.risk_assessor import RiskAssessor
 from medical_ai.model_versioning import ModelVersionManager
 
+# Import embedding services for cache warming
+from nlp.rag.embedding_onnx import ONNXEmbeddingService
+
 # Import Routes
 # PHASE 1: Core Routes
 from routes.health import router as health_router
@@ -412,6 +415,58 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("XAMPP RAG module not available")
 
+        # Warm up critical caches for better performance
+        try:
+            # Common medical terms and phrases that are frequently searched
+            common_medical_terms = [
+                # Cardiac terms
+                "chest pain", "heart attack", "myocardial infarction", "angina",
+                "arrhythmia", "irregular heartbeat", "atrial fibrillation",
+                "heart failure", "cardiac arrest", "coronary artery disease",
+                
+                # Vital signs
+                "blood pressure", "high blood pressure", "hypertension",
+                "low blood pressure", "hypotension", "heart rate",
+                "pulse rate", "temperature", "respiratory rate",
+                
+                # Symptoms
+                "shortness of breath", "difficulty breathing", "dyspnea",
+                "fatigue", "weakness", "dizziness", "fainting",
+                "nausea", "vomiting", "abdominal pain",
+                
+                # Lab values
+                "glucose", "blood sugar", "cholesterol", "lipid panel",
+                "creatinine", "bun", "gfr", "hemoglobin", "hgb",
+                "wbc", "rbc", "platelets", "tsh", "thyroid",
+                
+                # Common medications
+                "aspirin", "statins", "beta blockers", "ace inhibitors",
+                "diuretics", "metformin", "insulin", "warfarin",
+                
+                # Procedures and tests
+                "ecg", "ekg", "electrocardiogram", "echo", "echocardiogram",
+                "x-ray", "ct scan", "mri", "blood test", "urinalysis",
+                
+                # General medical terms
+                "diagnosis", "treatment", "symptoms", "medications",
+                "allergies", "medical history", "family history"
+            ]
+            
+            # Initialize ONNX embedding service and warm cache
+            embedding_service = ONNXEmbeddingService.get_instance(model_type="fast")
+            warmed_count = embedding_service.warm_cache(common_medical_terms)
+            logger.info(f"Warmed {warmed_count} embeddings in cache during startup")
+            
+            # Also warm cache for quality model if different
+            quality_embedding_service = ONNXEmbeddingService.get_instance(model_type="quality")
+            if quality_embedding_service != embedding_service:
+                quality_warmed_count = quality_embedding_service.warm_cache(common_medical_terms)
+                logger.info(f"Warmed {quality_warmed_count} embeddings in quality model cache during startup")
+                
+        except Exception as e:
+            logger.error(f"Error during cache warming: {e}")
+            # Continue startup even if cache warming fails
+
         logger.info("All AI components initialized successfully")
 
     except Exception as e:
@@ -503,6 +558,14 @@ if vision_router:
 
 if evaluation_router:
     app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
+
+# Import and include Feedback Routes
+try:
+    from routes.feedback_routes import router as feedback_router
+    app.include_router(feedback_router, tags=["Feedback"])
+    logger.info("Feedback routes loaded successfully")
+except ImportError as e:
+    logger.warning(f"Feedback routes not available: {e}")
 
 # Heart Health Chat router (new AI assistant endpoints)
 if HEART_HEALTH_CHAT_AVAILABLE and heart_health_chat_router:

@@ -27,6 +27,12 @@ from core.models import IntentEnum
 # Import NLPService for parallel processing
 from core.services.nlp_service import NLPService, NLPAnalysisResult
 
+# Import semantic router for intent detection
+from core.routing.semantic_router import get_semantic_router, AgentType, IntentCategory
+
+# Import web search tool
+from nlp.tools.web_search import search_verified_sources, WEB_SEARCH_TOOL_DEFINITION
+
 # Feature flag for LangChain Gateway
 # Feature flag for LangChain Gateway
 USE_LANGCHAIN_GATEWAY = os.getenv("USE_LANGCHAIN_GATEWAY", "false").lower() == "true"
@@ -420,140 +426,114 @@ async def agent_chat(
     Smart routing endpoint - classifies query and routes to appropriate agent.
 
     This endpoint:
-    1. Analyzes the user query using NLPService (parallel processing of intent, sentiment, entities, risk)
-    2. Routes to the appropriate agent (Health, Appointment, or Sequential)
-    3. Returns structured response with intent confidence
+    1. Analyzes the user query using semantic router (intent + complexity)
+    2. Routes to the appropriate agent (Doctor or Receptionist)
+    3. Optionally adds web search tool for Receptionist when appropriate
+    4. Returns structured response with intent confidence
 
     Query types:
-    - Health query: "I have a headache" → HealthAgent
-    - Appointment query: "Book an appointment" → AppointmentAgent
-    - Complex: "I have a fever and need an urgent appointment" → HealthAppointmentOrchestrator
+    - Clinical query: "Drug interaction between aspirin and lisinopril" → Doctor (MedGemma)
+    - General query: "What's the latest FDA approval for heart medication?" → Receptionist with web search
+    - Appointment query: "Book an appointment" → Receptionist
     """
     try:
         logger.info(f"Chat request from {token}: {request.query[:50]}...")
 
-        # Use NLPService for parallel analysis
-        analysis: NLPAnalysisResult = await nlp_service.analyze(
-            text=request.query, user_id=request.user_id, session_id=request.session_id
-        )
-
-        intent_result = analysis.intent
+        # Use semantic router to determine agent type and intent
+        semantic_router = get_semantic_router()
+        route_decision = semantic_router.route(request.query)
 
         logger.info(
-            f"Intent classified: {intent_result.intent.value} (confidence: {intent_result.confidence:.2f})"
+            f"Routing decision: {route_decision.agent_type.value} for intent {route_decision.intent.value} "
+            f"(complexity: {route_decision.complexity_score:.2f}, confidence: {route_decision.confidence:.2f})"
         )
 
-        # Define health-related intents
-        health_intents = {
-            IntentEnum.SYMPTOM_CHECK,
-            IntentEnum.MEDICATION_REMINDER,
-            IntentEnum.RISK_ASSESSMENT,
-            IntentEnum.HEALTH_EDUCATION,
-            IntentEnum.HEALTH_GOAL,
-            IntentEnum.NUTRITION_ADVICE,
-            IntentEnum.EXERCISE_COACHING,
-            IntentEnum.EMERGENCY,
-        }
-
-        # Check for high-risk queries first
-        if analysis.risk and analysis.risk.level == "HIGH":
-            # Handle high-risk queries immediately
-            result = {
-                "status": "success",
-                "data": {
-                    "response": "I've identified this as a high-risk situation. Please seek immediate medical attention or call emergency services.",
-                    "risk_level": analysis.risk.level,
-                    "risk_factors": analysis.risk.risk_factors,
-                },
-            }
-            agent_name = "EmergencyHandler"
-            action = "emergency_response"
-        # Route based on recognized intent
-        elif intent_result.intent == IntentEnum.APPOINTMENT_BOOKING:
-            # Route to Appointment Agent
-            result = await appointment_agent.manage_appointment(
-                appointment_data={
-                    "query": request.query,
-                    "context": request.context or {},
-                },
-                action="book",
-            )
-            agent_name = "AppointmentAgent"
-            action = "appointment_booking"
-
-        elif intent_result.intent in health_intents and intent_result.confidence >= 0.3:
-            # Route to Health Agent
+        # Determine if web search tool should be available
+        use_web_search = route_decision.intent == IntentCategory.WEB_SEARCH_TRIGGER
+        
+        # Process based on agent type
+        if route_decision.agent_type == AgentType.DOCTOR:
+            # Doctor (MedGemma) - for clinical analysis, drug interactions, etc.
+            # DO NOT use web search for clinical decisions
             result = await health_agent.process_health_data(
                 data={"query": request.query, "context": request.context or {}},
                 user_id=request.user_id,
             )
-            agent_name = "HealthAgent"
-            action = "health_data_collection"
-
-        elif intent_result.intent == IntentEnum.GREETING:
-            # Handle greetings directly
-            result = {
-                "status": "success",
-                "data": {
-                    "response": "Hello! How can I help you today with your health or appointments?",
-                    "intent": intent_result.intent.value,
-                },
-            }
-            agent_name = "GreetingHandler"
-            action = "greeting_response"
-
-        elif (
-            intent_result.confidence < 0.3 or intent_result.intent == IntentEnum.UNKNOWN
-        ):
-            # Low confidence or unknown intent: Use Sequential Orchestrator
-            result = await orchestrator.run(
-                {
-                    "query": request.query,
-                    "session_id": request.session_id,
-                    "user_id": request.user_id,
-                    "context": request.context or {},
-                }
-            )
-            agent_name = "HealthAppointmentOrchestrator"
-            action = "orchestration"
-
-        else:
-            # Default: Use Sequential Orchestrator for complex/ambiguous queries
-            result = await orchestrator.run(
-                {
-                    "query": request.query,
-                    "session_id": request.session_id,
-                    "user_id": request.user_id,
-                    "context": request.context or {},
-                }
-            )
-            agent_name = "HealthAppointmentOrchestrator"
-            action = "orchestration"
-
+            agent_name = "DoctorAgent (MedGemma)"
+            action = "clinical_analysis"
+            
+        elif route_decision.agent_type == AgentType.RECEPTIONIST:
+            # Receptionist - for general chat, appointments, non-clinical queries
+            # MAY use web search if appropriate
+            if use_web_search:
+                # Execute web search tool for recent/fresh information
+                web_search_result = search_verified_sources(request.query)
+                
+                # Include web search result in context for response generation
+                context_with_web = (request.context or {}).copy()
+                context_with_web["web_search_results"] = web_search_result
+                
+                # Process with web search context
+                result = await orchestrator.run(
+                    {
+                        "query": request.query,
+                        "session_id": request.session_id,
+                        "user_id": request.user_id,
+                        "context": context_with_web,
+                    }
+                )
+                agent_name = "ReceptionistAgent (Web-Enhanced)"
+                action = "web_search_response"
+            else:
+                # Regular receptionist processing
+                if route_decision.intent == IntentCategory.APPOINTMENT:
+                    # Route to Appointment Agent
+                    result = await appointment_agent.manage_appointment(
+                        appointment_data={
+                            "query": request.query,
+                            "context": request.context or {},
+                        },
+                        action="book",
+                    )
+                    agent_name = "ReceptionistAgent (Appointment)"
+                    action = "appointment_booking"
+                else:
+                    # General receptionist processing
+                    result = await orchestrator.run(
+                        {
+                            "query": request.query,
+                            "session_id": request.session_id,
+                            "user_id": request.user_id,
+                            "context": request.context or {},
+                        }
+                    )
+                    agent_name = "ReceptionistAgent (General)"
+                    action = "general_response"
+        
         # Include comprehensive analysis info in response data
         response_data = result.get("data", {})
-        response_data["nlp_analysis"] = {
-            "intent_classification": {
-                "intent": intent_result.intent.value,
-                "confidence": intent_result.confidence,
-                "keywords_matched": intent_result.keywords_matched or [],
-            },
-            "sentiment": {
-                "sentiment": analysis.sentiment.sentiment,
-                "score": analysis.sentiment.score,
-            },
-            "entities": [entity.to_dict() for entity in analysis.entities],
-            "risk_assessment": analysis.risk.to_dict() if analysis.risk else None,
-            "processing_time_ms": analysis.processing_time_ms,
+        response_data["routing_analysis"] = {
+            "agent_type": route_decision.agent_type.value,
+            "intent": route_decision.intent.value,
+            "complexity_score": route_decision.complexity_score,
+            "confidence": route_decision.confidence,
+            "is_emergency": route_decision.is_emergency,
+            "routing_reason": route_decision.routing_reason,
+            "matched_keywords": route_decision.matched_keywords,
         }
 
-        # Use LLM Gateway for health intents
-        if langchain_gateway and intent_result.intent in health_intents:
+        # Include web search information if used
+        if use_web_search:
+            response_data["web_search_used"] = True
+            response_data["web_search_tool"] = WEB_SEARCH_TOOL_DEFINITION["name"]
+
+        # Use LLM Gateway if available
+        if langchain_gateway:
             try:
                 # Generate response using unified LLM Gateway
                 response_text = await langchain_gateway.generate(
                     prompt=request.query,
-                    content_type="medical",  # Always use medical for health intents
+                    content_type="medical" if route_decision.agent_type == AgentType.DOCTOR else "general",
                 )
                 response_data["langchain_response"] = response_text
             except Exception as e:

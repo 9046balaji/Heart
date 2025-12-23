@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
 import { useUserStore } from '../store/useUserStore';
 import { DocumentUploadResponse } from '../services/api.types';
@@ -25,7 +26,8 @@ interface Document {
     content_type?: string;
 }
 
-export default function DocumentScreen({ navigation }: any) {
+export default function DocumentScreen() {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -75,7 +77,7 @@ export default function DocumentScreen({ navigation }: any) {
 
     const handleDocumentPress = (document: Document) => {
         // Navigate to document detail screen
-        navigation.navigate('DocumentDetail', { documentId: document.id });
+        navigate(`/scan-document?docId=${document.id}`);
     };
 
     const formatFileSize = (bytes?: number): string => {
@@ -91,7 +93,7 @@ export default function DocumentScreen({ navigation }: any) {
                 colors={['#1a1a2e', '#16213e']}
                 style={styles.header}
             >
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Documents</Text>
@@ -161,8 +163,8 @@ export default function DocumentScreen({ navigation }: any) {
                                     <Ionicons
                                         name={
                                             doc.content_type?.includes('pdf') ? 'document-text' :
-                                            doc.content_type?.includes('image') ? 'image' :
-                                            'document'
+                                                doc.content_type?.includes('image') ? 'image' :
+                                                    'document'
                                         }
                                         size={24}
                                         color="#4e54c8"
@@ -178,9 +180,9 @@ export default function DocumentScreen({ navigation }: any) {
                                 <View style={[
                                     styles.docStatus,
                                     doc.status === 'processed' ? styles.statusProcessed :
-                                    doc.status === 'processing' ? styles.statusProcessing :
-                                    doc.status === 'failed' ? styles.statusFailed :
-                                    styles.statusUploaded
+                                        doc.status === 'processing' ? styles.statusProcessing :
+                                            doc.status === 'failed' ? styles.statusFailed :
+                                                styles.statusUploaded
                                 ]}>
                                     <Text style={styles.statusText}>
                                         {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}

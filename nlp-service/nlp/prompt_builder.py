@@ -125,6 +125,22 @@ IMPORTANT GUIDELINES:
 {vitals}
 {recent_conversation}
 """
+    
+    # Web search context template
+    WEB_SEARCH_CONTEXT_TEMPLATE = """
+## Web Search Results (External Sources)
+
+The following information was retrieved from verified medical websites.
+This is supplementary information and should be cited appropriately.
+
+{web_results}
+
+**IMPORTANT**: 
+- Always cite the source URL when using this information
+- Indicate this is from web search, not internal clinical data
+- Include the standard medical disclaimer
+- Do not present web information as clinical advice
+"""
 
     # Style instruction templates
     STYLE_INSTRUCTIONS = {
@@ -158,6 +174,7 @@ IMPORTANT GUIDELINES:
         patient_age: Optional[int] = None,
         communication_style: Optional[CommunicationStyle] = None,
         minimal: bool = False,
+        user_query_context: Optional[Dict[str, Any]] = None,
     ) -> BuiltPrompt:
         """
         Build complete prompt from retrieved context.
@@ -169,6 +186,7 @@ IMPORTANT GUIDELINES:
             patient_age: Patient's age (optional)
             communication_style: Preferred communication style
             minimal: Use minimal context template
+            user_query_context: Additional context including web search results (optional)
 
         Returns:
             BuiltPrompt ready for AI API call
@@ -193,7 +211,21 @@ IMPORTANT GUIDELINES:
         risk_assessments = self._build_risk_section(context_by_type)
         conversation = self._build_conversation_section(context_by_type)
         preferences = self._build_preferences_section(context_by_type)
-
+        
+        # Check for web search results in context
+        web_results = None
+        if user_query_context and "web_search_results" in user_query_context:
+            web_results = user_query_context.get("web_search_results")
+        else:
+            # Check if any context contains web search results
+            for ctx_list in context_by_type.values():
+                for ctx in ctx_list:
+                    if ctx.context_type.value == "web_search" or "web_search" in str(ctx.data).lower():
+                        web_results = ctx.data.get("web_search_results") or ctx.data
+                        break
+                if web_results:
+                    break
+        
         # Build context section
         if minimal:
             context_section = self.MINIMAL_CONTEXT_TEMPLATE.format(
@@ -202,6 +234,11 @@ IMPORTANT GUIDELINES:
                 recent_conversation=conversation or "New conversation",
             )
         else:
+            # Add web search context if available
+            web_context = ""
+            if web_results:
+                web_context = self.WEB_SEARCH_CONTEXT_TEMPLATE.format(web_results=web_results)
+            
             context_section = self.CONTEXT_TEMPLATE.format(
                 patient_info=patient_info or "Not available",
                 vitals=vitals or "No recent vitals recorded",
@@ -210,7 +247,7 @@ IMPORTANT GUIDELINES:
                 risk_assessments=risk_assessments or "No assessments available",
                 conversation_summary=conversation or "New conversation",
                 preferences=preferences or "Default settings",
-            )
+            ) + web_context
 
         # Clean up empty sections
         context_section = self._clean_empty_sections(context_section)
@@ -640,6 +677,7 @@ def build_healthcare_prompt(
     retrieved_contexts: List[RetrievedContext],
     user_name: Optional[str] = None,
     patient_age: Optional[int] = None,
+    user_query_context: Optional[Dict[str, Any]] = None,
 ) -> BuiltPrompt:
     """
     Convenience function to build a healthcare prompt.
@@ -649,6 +687,7 @@ def build_healthcare_prompt(
         retrieved_contexts: List of context items
         user_name: Patient name
         patient_age: Patient age
+        user_query_context: Additional context including web search results (optional)
 
     Returns:
         BuiltPrompt ready for AI call
@@ -659,6 +698,7 @@ def build_healthcare_prompt(
         retrieved_contexts=retrieved_contexts,
         user_name=user_name,
         patient_age=patient_age,
+        user_query_context=user_query_context,
     )
 
 

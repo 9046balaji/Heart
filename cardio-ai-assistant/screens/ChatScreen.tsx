@@ -7,6 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Message, HealthAssessment, Medication, Appointment } from '../types';
 import { memoryService } from '../services/memoryService';
 import { ChatMessageMarkdown } from '../components/MarkdownRenderer';
+import { DoctorModeMessage } from '../components/DoctorModeMessage';
 import { useChatStore, ChatSession, chatActions } from '../store/useChatStore';
 
 // --- Audio Helpers ---

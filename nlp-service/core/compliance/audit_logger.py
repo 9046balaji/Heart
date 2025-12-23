@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
-from .pii_scrubber import get_medical_pii_scrubber
+from .pii_scrubber import get_pii_scrubber
 
 logger = logging.getLogger(__name__)
 
@@ -247,7 +247,7 @@ class AuditService:
         scrubbed_details = event.details
         if event.details:
             try:
-                scrubber = get_medical_pii_scrubber()
+                scrubber = get_pii_scrubber()
                 scrubbed_details = scrubber.scrub_dict(event.details)
             except Exception as e:
                 logger.warning(f"Failed to scrub PII from audit details: {e}")

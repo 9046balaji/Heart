@@ -36,6 +36,11 @@ except ImportError:
     logger.warning("chromadb not installed. " "Run: pip install chromadb")
 
 from .embedding_service import EmbeddingService
+try:
+    from .embedding_onnx import ONNXEmbeddingService
+    ONNX_AVAILABLE = True
+except ImportError:
+    ONNX_AVAILABLE = False
 
 
 class VectorStore:
@@ -114,10 +119,22 @@ class VectorStore:
             ),
         )
 
-        # Initialize embedding service
-        self.embedding_service = EmbeddingService.get_instance(
-            model_name=embedding_model
-        )
+        # Initialize embedding service - prefer ONNX for better performance
+        if ONNX_AVAILABLE:
+            try:
+                self.embedding_service = ONNXEmbeddingService.get_instance(
+                    model_type="fast" if "mini" in embedding_model.lower() else "quality"
+                )
+                logger.info("✅ Using ONNX-optimized embedding service")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ONNX embedding service: {e}, falling back to standard")
+                self.embedding_service = EmbeddingService.get_instance(
+                    model_name=embedding_model
+                )
+        else:
+            self.embedding_service = EmbeddingService.get_instance(
+                model_name=embedding_model
+            )
 
         # Collection cache
         self._collections: Dict[str, Any] = {}
@@ -516,6 +533,56 @@ class VectorStore:
             }
 
         return stats
+
+    def delete_document_vectors(
+        self,
+        doc_id: str,
+        collection_name: str = None
+    ) -> int:
+        """
+        Delete all vectors associated with a document.
+        
+        Args:
+            doc_id: Document ID (matches doc_id in metadata)
+            collection_name: Target collection
+            
+        Returns:
+            Number of vectors deleted
+        """
+        collection = self.get_or_create_collection(
+            collection_name or self.MEDICAL_COLLECTION
+        )
+        
+        # Query for all chunks with this doc_id
+        results = collection.get(
+            where={"doc_id": doc_id},
+            include=["metadatas"]
+        )
+        
+        if results and results.get("ids"):
+            collection.delete(ids=results["ids"])
+            logger.info(f"Deleted {len(results['ids'])} vectors for doc_id={doc_id}")
+            return len(results["ids"])
+        
+        return 0
+
+    def check_document_exists(self, doc_id: str) -> dict:
+        """Check if document exists and get its version."""
+        collection = self.get_or_create_collection(self.MEDICAL_COLLECTION)
+        results = collection.get(
+            where={"doc_id": doc_id},
+            include=["metadatas"],
+            limit=1
+        )
+        
+        if results and results.get("ids"):
+            metadata = results["metadatas"][0] if results["metadatas"] else {}
+            return {
+                "exists": True,
+                "version": metadata.get("version", 1),
+                "chunk_count": len(results["ids"])
+            }
+        return {"exists": False, "version": 0, "chunk_count": 0}
 
     def delete_collection(self, name: str) -> bool:
         """Delete a collection."""

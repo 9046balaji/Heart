@@ -291,7 +291,7 @@ class KnowledgeLoader:
         )
 
         # Chunk the document
-        chunks = chunker.chunk_document(text, "medical_document", "unknown")
+        chunks = chunker.chunk_document(text, "medical_document", "unknown", "unknown")
 
         # Return just the content of each chunk
         return [chunk.content for chunk in chunks]

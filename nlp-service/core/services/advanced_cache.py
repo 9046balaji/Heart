@@ -25,6 +25,8 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import json
 
+from .performance_monitor import record_cache_operation, CacheTimer
+
 # Optional Redis import
 try:
     import redis.asyncio as aioredis
@@ -168,8 +170,7 @@ class L1MemoryCache(CacheBackend):
 
     async def get(self, key: str) -> Optional[Any]:
         """Get from L1 cache"""
-        start = time.time()
-
+        start_time = time.time()
         try:
             entry = self._cache.get(key)
 
@@ -188,7 +189,9 @@ class L1MemoryCache(CacheBackend):
             return entry.value
 
         finally:
-            elapsed_ms = (time.time() - start) * 1000
+            elapsed_ms = (time.time() - start_time) * 1000
+            # Record performance metrics
+            record_cache_operation("get", hit=True, latency_ms=elapsed_ms)
             self.stats.total_get_duration_ms += elapsed_ms
 
     async def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
@@ -211,6 +214,8 @@ class L1MemoryCache(CacheBackend):
 
         finally:
             elapsed_ms = (time.time() - start) * 1000
+            # Record performance metrics
+            record_cache_operation("set", latency_ms=elapsed_ms)
             self.stats.total_set_duration_ms += elapsed_ms
 
     async def delete(self, key: str) -> None:
@@ -345,6 +350,8 @@ class L2RedisCache(CacheBackend):
 
         finally:
             elapsed_ms = (time.time() - start) * 1000
+            # Record performance metrics
+            record_cache_operation("get", hit=True, latency_ms=elapsed_ms)
             self.stats.total_get_duration_ms += elapsed_ms
 
     async def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
@@ -373,6 +380,8 @@ class L2RedisCache(CacheBackend):
 
         finally:
             elapsed_ms = (time.time() - start) * 1000
+            # Record performance metrics
+            record_cache_operation("set", latency_ms=elapsed_ms)
             self.stats.total_set_duration_ms += elapsed_ms
 
     async def delete(self, key: str) -> None:

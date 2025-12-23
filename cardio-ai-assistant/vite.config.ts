@@ -8,8 +8,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     server: {
-      port: 5176,
+      port: parseInt(env.VITE_FRONTEND_PORT) || 3000,
       host: '0.0.0.0',
+      strictPort: true,
       proxy: {
         '/api': {
           target: 'http://localhost:5001',

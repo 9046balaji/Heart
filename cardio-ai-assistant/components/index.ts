@@ -97,3 +97,25 @@ export {
 
 // Pull-to-Refresh
 export { PullToRefresh } from './PullToRefresh';
+
+// Confirmation Dialog
+export {
+  ConfirmDialog,
+  ConfirmDialogProvider,
+  useConfirmDialog,
+  useConfirm,
+} from './ConfirmDialog';
+
+// Doctor Mode Message (Medical Agent Rendering)
+export { DoctorModeMessage } from './DoctorModeMessage';
+
+// Structured Data Rendering
+export { StructuredDataRenderer } from './StructuredDataRenderer';
+
+// Memoized Charts (Performance Optimized)
+export {
+  MemoizedHeartRateChart,
+  MemoizedVitalsChart,
+  MemoizedStepsChart,
+  MemoizedBloodPressureChart,
+} from './MemoizedCharts';

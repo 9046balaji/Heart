@@ -187,6 +187,13 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
+    
+    # Web Search Rate Limits
+    WEB_SEARCH_RATE_LIMITS: dict = {
+        "per_user_per_hour": 20,
+        "per_user_per_day": 100,
+        "global_per_minute": 60
+    }
 
     # =========================================================================
     # MEMORI INTEGRATION SETTINGS (Phase 2: Enhanced Memory Features)
