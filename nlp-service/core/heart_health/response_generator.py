@@ -22,6 +22,9 @@ from medical_ai.smart_watch.chatbot_connector import ChatbotManager
 from medical_ai.smart_watch.feature_extractor import FeatureExtractor
 from medical_ai.smart_watch.rule_engine import RuleEngine
 
+# Import notification services
+from ..notifications.push_service import HealthPushNotificationService, PushNotificationService
+
 
 @dataclass
 class GenerationConfig:
@@ -105,6 +108,15 @@ class HeartHealthResponseGenerator:
                 logger.warning(f"Embedding model not loaded: {e}")
                 self.embedding_model = None
             
+            # Initialize Health Push Service
+            try:
+                push_service = PushNotificationService()
+                self.health_push = HealthPushNotificationService(push_service)
+                logger.info("Health Push Service initialized")
+            except Exception as e:
+                logger.warning(f"Health Push Service failed: {e}")
+                self.health_push = None
+
             # Check if we have minimum requirements
             if self.chatbot_manager is None:
                 logger.error("Chatbot Manager is required but not available")
@@ -160,6 +172,24 @@ class HeartHealthResponseGenerator:
             emergency_assessment = self.emergency_detector.detect(user_query)
             is_emergency = emergency_assessment.is_emergency
             urgency_level = emergency_assessment.urgency_level
+            
+            # Trigger alert if emergency or urgent
+            if (is_emergency or urgency_level == UrgencyLevel.URGENT) and self.health_push:
+                try:
+                    # Fetch device token (mock implementation - would come from user profile)
+                    # For now, we log it, but in production we'd look up the token
+                    # device_token = await self._get_user_device_token(user_id)
+                    # if device_token:
+                    #     severity = "critical" if is_emergency else "warning"
+                    #     await self.health_push.send_health_alert(
+                    #         device_token=device_token,
+                    #         alert_title="Health Alert",
+                    #         alert_message=emergency_assessment.recommended_action[:100],
+                    #         severity=severity
+                    #     )
+                    pass # Placeholder until device token lookup is implemented
+                except Exception as e:
+                    logger.error(f"Failed to send emergency alert: {e}")
             
             # ================================================================
             # STEP 2: Fetch User Profile from MySQL

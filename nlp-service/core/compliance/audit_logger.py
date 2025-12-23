@@ -14,6 +14,8 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 
+from .pii_scrubber import get_medical_pii_scrubber
+
 logger = logging.getLogger(__name__)
 
 
@@ -241,6 +243,17 @@ class AuditService:
         old_hash = self._hash_value(event.old_value) if event.old_value else None
         new_hash = self._hash_value(event.new_value) if event.new_value else None
 
+        # Scrub PII from details
+        scrubbed_details = event.details
+        if event.details:
+            try:
+                scrubber = get_medical_pii_scrubber()
+                scrubbed_details = scrubber.scrub_dict(event.details)
+            except Exception as e:
+                logger.warning(f"Failed to scrub PII from audit details: {e}")
+                # Fallback to original details if scrubbing fails, but log warning
+                scrubbed_details = event.details
+
         audit_log = AuditLog(
             id=0,  # Auto-increment in DB
             event_id=event_id,
@@ -255,7 +268,7 @@ class AuditService:
             resource_id=event.resource_id,
             resource_name=event.resource_name,
             action=event.action,
-            details=event.details,
+            details=scrubbed_details,
             result=event.result,
             error_message=event.error_message,
             old_value_hash=old_hash,

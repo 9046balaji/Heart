@@ -281,7 +281,15 @@ async def send_push(request: PushNotificationRequest):
 
         service = PushNotificationService()
 
-        notification = PushNotification(
+        # notification = PushNotification(
+        #     device_token=request.device_token,
+        #     title=request.title,
+        #     body=request.body,
+        #     data=request.data,
+        #     priority=PushPriority(request.priority),
+        # )
+
+        result = await service.send_to_device_async(
             device_token=request.device_token,
             title=request.title,
             body=request.body,
@@ -289,15 +297,13 @@ async def send_push(request: PushNotificationRequest):
             priority=PushPriority(request.priority),
         )
 
-        result = await service.send(notification)
-
         return NotificationResponse(
-            status="sent" if result.success else "failed",
-            message_id=result.message_id,
+            status="sent" if result.status == "sent" else "failed",
+            message_id=result.notification_id,
             channel="push",
             recipient=request.device_token[:20] + "...",  # Truncate for privacy
             sent_at=datetime.utcnow(),
-            error=result.error,
+            error=result.error_message,
         )
 
     except ImportError:

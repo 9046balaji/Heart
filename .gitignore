@@ -14,6 +14,9 @@
 
 *.sql
 
+
+
+
 chroma_db/
 logs/
 docs/
@@ -25,15 +28,15 @@ REMEDIATION_REPORT.md
 structure_reference.txt
 structure.md
 
-
+*.local
+.gitignore
 .env
 .env.local
 .env.development
 .env.production
 .env.*.local
-*.env
-!.env.example
 !.env.local.example
+
 
 # ===================
 # Credentials & Secrets (CRITICAL)
@@ -107,7 +110,6 @@ MANIFEST
 # Virtual environments
 venv/
 ENV/
-env/
 .venv/
 virtualenv/
 
@@ -139,7 +141,6 @@ celerybeat.pid
 node_modules/
 dist/
 dist-ssr/
-*.local
 
 # npm
 package-lock.json
@@ -325,3 +326,7 @@ pre_commit_output.txt
 
 # Local startup scripts
 start_services.bat
+
+# Test mocks and shims
+cardio-ai-assistant/mocks/
+cardio-ai-assistant/shims/

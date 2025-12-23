@@ -260,33 +260,43 @@ class PushNotificationService:
                 data=data or {},
             )
 
-    async def send_to_device_async(self, device_token: str, message: str) -> str:
+    async def send_to_device_async(
+        self,
+        device_token: str,
+        title: str,
+        body: str,
+        data: Optional[Dict[str, str]] = None,
+        priority: PushPriority = PushPriority.NORMAL,
+        image_url: Optional[str] = None,
+    ) -> PushNotification:
         """
-        Async version of send_to_device for scheduler compatibility.
-
+        Async version of send_to_device.
+        
         Args:
             device_token: FCM device token
-            message: Notification message (used as body)
-
+            title: Notification title
+            body: Notification body
+            data: Optional data payload
+            priority: Notification priority
+            image_url: Optional image URL
+            
         Returns:
-            Notification ID string
+            PushNotification with delivery details
         """
         import asyncio
-
+        
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
+        return await loop.run_in_executor(
             None,
             lambda: self.send_to_device(
                 device_token=device_token,
-                title="Health Summary",
-                body=message[:100] + "..." if len(message) > 100 else message,
-            ),
+                title=title,
+                body=body,
+                data=data,
+                priority=priority,
+                image_url=image_url
+            )
         )
-
-        if result.status == PushDeliveryStatus.FAILED:
-            raise Exception(result.error_message or "Failed to send push notification")
-
-        return result.notification_id
 
     def send_to_topic(
         self, topic: str, title: str, body: str, data: Optional[Dict[str, str]] = None
@@ -458,7 +468,7 @@ class HealthPushNotificationService:
         """Initialize with base push service."""
         self.push = push_service
 
-    def send_weekly_summary_notification(
+    async def send_weekly_summary_notification(
         self, device_token: str, user_name: Optional[str] = None
     ) -> PushNotification:
         """
@@ -475,7 +485,7 @@ class HealthPushNotificationService:
         body = f"Hi {user_name}! " if user_name else ""
         body += "Your weekly health report is ready. Tap to view your progress!"
 
-        return self.push.send_to_device(
+        return await self.push.send_to_device_async(
             device_token=device_token,
             title=title,
             body=body,
@@ -483,7 +493,7 @@ class HealthPushNotificationService:
             priority=PushPriority.NORMAL,
         )
 
-    def send_medication_reminder(
+    async def send_medication_reminder(
         self, device_token: str, medication_name: str, dose: str
     ) -> PushNotification:
         """
@@ -497,7 +507,7 @@ class HealthPushNotificationService:
         Returns:
             PushNotification result
         """
-        return self.push.send_to_device(
+        return await self.push.send_to_device_async(
             device_token=device_token,
             title="💊 Medication Reminder",
             body=f"Time to take {medication_name} ({dose})",
@@ -509,7 +519,7 @@ class HealthPushNotificationService:
             priority=PushPriority.HIGH,
         )
 
-    def send_health_alert(
+    async def send_health_alert(
         self,
         device_token: str,
         alert_title: str,
@@ -532,7 +542,7 @@ class HealthPushNotificationService:
             "⚠️" if severity == "warning" else "🚨" if severity == "critical" else "ℹ️"
         )
 
-        return self.push.send_to_device(
+        return await self.push.send_to_device_async(
             device_token=device_token,
             title=f"{emoji} {alert_title}",
             body=alert_message,
@@ -544,7 +554,7 @@ class HealthPushNotificationService:
             ),
         )
 
-    def send_goal_achievement(
+    async def send_goal_achievement(
         self, device_token: str, goal_name: str, achievement_message: str
     ) -> PushNotification:
         """
@@ -558,7 +568,7 @@ class HealthPushNotificationService:
         Returns:
             PushNotification result
         """
-        return self.push.send_to_device(
+        return await self.push.send_to_device_async(
             device_token=device_token,
             title=f"🎉 Goal Achieved: {goal_name}",
             body=achievement_message,
