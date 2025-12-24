@@ -45,23 +45,23 @@ def is_port_open(port):
 
 
 def verify_service_health(service_name, port, max_retries=15):
-    """Verify if a service is responding on the given port"""
-    logger.info(f"Verifying {service_name} health on port {port}")
+    """Verify if a service is responding on the given port(s)"""
+    ports = [port] if isinstance(port, int) else list(port)
+    logger.info(f"Verifying {service_name} health on port(s) {ports}")
     retry_delay = 0.5  # Reduced from 1 second to 0.5 seconds for faster startup
+    
     for attempt in range(max_retries):
-        try:
-            if is_port_open(port):
-                logger.info(f"{service_name} is responding on port {port}")
-                return True
-            time.sleep(retry_delay)
-        except Exception as e:
-            logger.debug(
-                f"Health check attempt {attempt + 1} failed for {service_name}: {e}"
-            )
-            time.sleep(retry_delay)
+        for p in ports:
+            try:
+                if is_port_open(p):
+                    logger.info(f"{service_name} is responding on port {p}")
+                    return p  # Return the active port
+            except Exception as e:
+                pass
+        time.sleep(retry_delay)
 
     logger.warning(
-        f"{service_name} on port {port} did not respond after {max_retries} attempts"
+        f"{service_name} on port(s) {ports} did not respond after {max_retries} attempts"
     )
     return False
 
@@ -155,7 +155,7 @@ def main():
             sys.exit(1)
 
     # --- STEP 1.5: CHECK MODEL ---
-    check_ollama_model()
+    # Model check skipped for faster startup
 
     # --- STEP 2: WARM UP GPU ---
     warm_up_gpu()
@@ -230,21 +230,22 @@ def main():
     )
 
     # Wait for Frontend to start
-    print("      Waiting for Frontend to initialize...")
-    logger.info("Waiting for Frontend to initialize on port 5174...")
-    if verify_service_health("Frontend", 5174, max_retries=30):
-        print("      [OK] Frontend is online")
-        logger.info("Frontend is online on port 5174")
+    logger.info("Waiting for Frontend to initialize on ports 5173-5180...")
+    frontend_port = verify_service_health("Frontend", range(5173, 5181), max_retries=30)
+    if frontend_port:
+        print(f"      [OK] Frontend is online on port {frontend_port}")
+        logger.info(f"Frontend is online on port {frontend_port}")
     else:
         print("      [WARNING] Frontend taking time to start. Continuing anyway...")
         logger.warning("Frontend taking longer than expected to start")
+        frontend_port = 5173  # Default fallback for display
 
     # --- FINAL SUMMARY ---
     print("\n" + "=" * 60)
     print("All services are starting up!")
     print("=" * 60)
     print("\nService URLs:")
-    print("  - Frontend:    http://localhost:5174")
+    print(f"  - Frontend:    http://localhost:{frontend_port}")
     print("  - NLP Service: http://localhost:5001")
     print("  - Ollama:      http://localhost:11434")
     print(f"\nLog files location: {LOG_DIR}")

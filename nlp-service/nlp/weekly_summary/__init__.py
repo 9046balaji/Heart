@@ -30,6 +30,8 @@ from .message_generator import WeeklySummaryMessageGenerator, GeneratedSummary
 
 from .scheduler_job import WeeklySummaryJob, DeliveryResult, register_weekly_summary_job
 
+from .chart_generator import ChartGenerator, get_chart_generator
+
 __all__ = [
     # Data Aggregation
     "WeeklyDataAggregator",
@@ -45,4 +47,7 @@ __all__ = [
     "WeeklySummaryJob",
     "DeliveryResult",
     "register_weekly_summary_job",
+    # Chart Generation
+    "ChartGenerator",
+    "get_chart_generator",
 ]

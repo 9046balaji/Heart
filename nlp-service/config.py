@@ -194,6 +194,10 @@ class Settings(BaseSettings):
         "per_user_per_day": 100,
         "global_per_minute": 60
     }
+    
+    # Redis Configuration
+    REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    REDIS_ALERT_TTL: int = Field(default=3600, env="REDIS_ALERT_TTL")  # 1 hour default cooldown
 
     # =========================================================================
     # MEMORI INTEGRATION SETTINGS (Phase 2: Enhanced Memory Features)
@@ -353,6 +357,10 @@ EVALUATION_ENABLED = settings.EVALUATION_ENABLED
 STRUCTURED_OUTPUTS_ENABLED = settings.STRUCTURED_OUTPUTS_ENABLED
 GENERATION_ENABLED = settings.GENERATION_ENABLED
 
+# Redis Configuration Exports
+REDIS_URL = settings.REDIS_URL
+REDIS_ALERT_TTL = settings.REDIS_ALERT_TTL
+
 # Constants (Not Settings)
 EMERGENCY_KEYWORDS = [
     "emergency",
@@ -476,3 +484,73 @@ OLLAMA_AVAILABLE_MODELS = [
     "mistral",  # Alternative: powerful general-purpose
     "llama2",  # Alternative: larger context window
 ]
+
+
+def startup_check() -> None:
+    """
+    Perform security checks at application startup.
+    
+    MUST be called in main.py before starting the server.
+    Will immediately exit if critical security issues are found.
+    
+    Raises:
+        SystemExit: If running in production with insecure configuration
+    """
+    import secrets
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    
+    # === Check 1: SECRET_KEY in Production ===
+    if environment == "production":
+        secret_key = settings.SECRET_KEY
+        
+        # Check for default key
+        if secret_key == "default-secret-key":
+            logger.critical(
+                "🚨 FATAL: Cannot start in production with default SECRET_KEY!\n"
+                "Generate a secure key with:\n"
+                "  python -c 'import secrets; print(secrets.token_urlsafe(32))'\n"
+                "Then set SECRET_KEY environment variable."
+            )
+            raise SystemExit(1)
+        
+        # Check for minimum length (32 chars = 256 bits)
+        if len(secret_key) < 32:
+            logger.critical(
+                f"🚨 FATAL: SECRET_KEY too short ({len(secret_key)} chars)!\n"
+                "Production requires at least 32 characters."
+            )
+            raise SystemExit(1)
+        
+        # Check for low entropy (repeated characters)
+        entropy = len(set(secret_key)) / len(secret_key)
+        if entropy < 0.5:
+            logger.critical(
+                f"🚨 FATAL: SECRET_KEY has insufficient entropy ({entropy:.2f})!\n"
+                "Use a cryptographically random value."
+            )
+            raise SystemExit(1)
+        
+        logger.info("✅ SECRET_KEY passes production security checks")
+    
+    # === Check 2: Database Configuration ===
+    if environment == "production":
+        db_password = os.getenv("MYSQL_PASSWORD", "")
+        if not db_password:
+            logger.warning(
+                "⚠️ WARNING: MYSQL_PASSWORD is empty in production. "
+                "This may be a security risk."
+            )
+    
+    # === Check 3: Redis for Rate Limiting ===
+    if environment == "production":
+        redis_url = os.getenv("REDIS_URL")
+        if not redis_url:
+            logger.warning(
+                "⚠️ WARNING: REDIS_URL not set. "
+                "Rate limiting will be per-process only."
+            )
+    
+    logger.info(f"Startup checks complete for environment: {environment}")

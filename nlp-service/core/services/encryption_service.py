@@ -23,14 +23,50 @@ class EncryptionService:
     Uses AES-256-GCM for authenticated encryption with integrity checking.
     """
 
-    def __init__(self, master_key: str = "default-dev-key-change-in-production"):
+    def __init__(self, master_key: str = None):
         """
         Initialize encryption service with master key.
-
+        
         Args:
-            master_key: Master encryption key (should be from config in production)
+            master_key: Master encryption key (MUST be from secure config)
+            
+        Raises:
+            ValueError: If master key is missing or uses default value
         """
-        self.master_key = master_key
+        # Get key from parameter or environment
+        key = master_key or os.getenv("ENCRYPTION_MASTER_KEY")
+        
+        # STRICT VALIDATION: Reject missing or default keys
+        if not key:
+            raise ValueError(
+                "ENCRYPTION_MASTER_KEY environment variable is required. "
+                "Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        
+        # STRICT VALIDATION: Reject known default keys
+        FORBIDDEN_KEYS = [
+            "default-dev-key-change-in-production",
+            "changeme",
+            "test",
+            "dev",
+            "localhost",
+        ]
+        
+        if key.lower() in FORBIDDEN_KEYS:
+            raise ValueError(
+                f"Cannot use default/test master key: '{key}'. "
+                "You MUST provide a cryptographically secure random key. "
+                "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        
+        # STRICT VALIDATION: Minimum key length
+        if len(key) < 32:
+            raise ValueError(
+                f"Master key too short ({len(key)} characters). "
+                "Minimum 32 characters required for security."
+            )
+        
+        self.master_key = key
         self.algorithm = "AES-256-GCM"
         self._key_cache = (
             {}
@@ -234,18 +270,20 @@ _encryption_service: Union[EncryptionService, None] = None
 def get_encryption_service(master_key: str = None) -> EncryptionService:
     """
     Get or create encryption service singleton.
-
+    
     Args:
-        master_key: Optional master key (uses default if not provided)
-
+        master_key: Optional master key (uses env var if not provided)
+        
     Returns:
         EncryptionService instance
+        
+    Raises:
+        ValueError: If master key is not configured
     """
     global _encryption_service
     if _encryption_service is None:
-        _encryption_service = EncryptionService(
-            master_key or "default-dev-key-change-in-production"
-        )
+        # NO DEFAULT VALUE - will raise ValueError if missing
+        _encryption_service = EncryptionService(master_key)
     return _encryption_service
 
 

@@ -31,6 +31,8 @@ from nlp.keywords import (
     IntentKeywords,
 )  # PHASE 2.4: Unified keywords
 
+logger = logging.getLogger(__name__)
+
 # Import scikit-learn for TF-IDF vectorization
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np

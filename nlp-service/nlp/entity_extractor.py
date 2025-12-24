@@ -39,6 +39,7 @@ from config import (
 )
 from core.models import Entity
 from core.cache import cache_manager
+from fastapi.concurrency import run_in_threadpool
 from core.error_handling import (
     ProcessingError,
     CacheError,

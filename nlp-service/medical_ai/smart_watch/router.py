@@ -25,6 +25,16 @@ except ImportError:
     AIOMYSQL_AVAILABLE = False
     aiomysql = None
 
+# Import aiosqlite for SQLite support
+try:
+    import aiosqlite
+    AIOSQLITE_AVAILABLE = True
+except ImportError:
+    AIOSQLITE_AVAILABLE = False
+    aiosqlite = None
+
+from contextlib import asynccontextmanager
+
 import pandas as pd
 from dateutil import parser as dt_parser
 from fastapi import (
@@ -72,6 +82,19 @@ MAX_SAMPLES_PER_REQUEST = int(os.getenv("MAX_SAMPLES_PER_REQUEST", "1000"))
 db_pool = None
 health_explainer: Optional[HealthExplainer] = None
 USE_MYSQL = DATABASE_URL.startswith("mysql")
+USE_SQLITE = DATABASE_URL.startswith("sqlite")
+
+
+class SQLitePoolWrapper:
+    """Wrapper to make aiosqlite behave like a pool context manager."""
+    def __init__(self, db_path):
+        self.db_path = db_path
+
+    @asynccontextmanager
+    async def acquire(self):
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            yield conn
 
 
 # --------- Pydantic Models ----------
@@ -155,9 +178,9 @@ async def _persist_samples(
     """
     Background task: Bulk insert samples into PostgreSQL using efficient executemany.
     """
-    # Skip if asyncpg is not available
-    if not ASYNCPG_AVAILABLE:
-        logger.debug("Skipping sample persistence - asyncpg not available")
+    # Skip if no DB driver available
+    if not ASYNCPG_AVAILABLE and not AIOMYSQL_AVAILABLE and not AIOSQLITE_AVAILABLE:
+        logger.debug("Skipping sample persistence - no DB driver available")
         return
 
     # We need to access the DB pool. In a router, this is tricky without DI.
@@ -175,6 +198,8 @@ async def _persist_samples(
     if USE_MYSQL:
         insert_sql = insert_sql.replace("$1", "%s").replace("$2", "%s").replace("$3", "%s").replace("$4", "%s").replace("$5", "%s")
         insert_sql = insert_sql.replace("ON CONFLICT DO NOTHING", "ON DUPLICATE KEY UPDATE device_id=device_id")
+    elif USE_SQLITE:
+        insert_sql = insert_sql.replace("$1", "?").replace("$2", "?").replace("$3", "?").replace("$4", "?").replace("$5", "?")
 
     data_tuples = [
         (device_id, s.metric_type, s.value, s.timestamp, idempotency_key)
@@ -189,6 +214,14 @@ async def _persist_samples(
                     logger.info(f"Persisted {len(samples)} samples for {device_id}")
                 except Exception as e:
                     logger.exception(f"Failed to persist samples: {e}")
+    elif USE_SQLITE:
+        async with db_pool.acquire() as conn:
+            try:
+                await conn.executemany(insert_sql, data_tuples)
+                await conn.commit()
+                logger.info(f"Persisted {len(samples)} samples for {device_id}")
+            except Exception as e:
+                logger.exception(f"Failed to persist samples: {e}")
     else:
         async with db_pool.acquire() as conn:
             try:
@@ -229,12 +262,23 @@ async def ingest_timeseries_data(
         """
         if USE_MYSQL:
             query = query.replace("$1", "%s")
+        elif USE_SQLITE:
+            query = query.replace("$1", "?")
 
         if USE_MYSQL:
             async with db_pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
                     await cur.execute(query, (payload.device_id,))
                     row = await cur.fetchone()
+                    if not row or row["user_id"] != current_user.get("user_id"):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Device not registered to your account",
+                        )
+        elif USE_SQLITE:
+            async with db_pool.acquire() as conn:
+                async with conn.execute(query, (payload.device_id,)) as cursor:
+                    row = await cursor.fetchone()
                     if not row or row["user_id"] != current_user.get("user_id"):
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
@@ -291,12 +335,23 @@ async def ingest_vitals_with_schema(
         """
         if USE_MYSQL:
             query = query.replace("$1", "%s")
+        elif USE_SQLITE:
+            query = query.replace("$1", "?")
 
         if USE_MYSQL:
             async with db_pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cur:
                     await cur.execute(query, (submission.device_id,))
                     row = await cur.fetchone()
+                    if not row or row["user_id"] != current_user.get("user_id"):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Device not registered to your account",
+                        )
+        elif USE_SQLITE:
+            async with db_pool.acquire() as conn:
+                async with conn.execute(query, (submission.device_id,)) as cursor:
+                    row = await cursor.fetchone()
                     if not row or row["user_id"] != current_user.get("user_id"):
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
@@ -422,12 +477,18 @@ async def aggregate_device_timeseries(
     """
     if USE_MYSQL:
         query = query.replace("$1", "%s").replace("$2", "%s").replace("$3", "%s").replace("$4", "%s")
+    elif USE_SQLITE:
+        query = query.replace("$1", "?").replace("$2", "?").replace("$3", "?").replace("$4", "?")
 
     if USE_MYSQL:
         async with db_pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, (device_id, metric_type, start_dt, end_dt))
                 rows = await cur.fetchall()
+    elif USE_SQLITE:
+        async with db_pool.acquire() as conn:
+            async with conn.execute(query, (device_id, metric_type, start_dt, end_dt)) as cursor:
+                rows = await cursor.fetchall()
     else:
         async with db_pool.acquire() as conn:
             rows = await conn.fetch(query, device_id, metric_type, start_dt, end_dt)
@@ -628,6 +689,39 @@ async def register_device(
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Failed to register device",
                         )
+        elif USE_SQLITE:
+            async with db_pool.acquire() as conn:
+                # Check if device already exists
+                async with conn.execute(check_query.replace("$1", "?"), (request.device_id,)) as cursor:
+                    existing = await cursor.fetchone()
+                    if existing:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT, detail="Device already registered"
+                        )
+
+                # Register new device
+                try:
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    # SQLite supports RETURNING in newer versions, but let's be safe and just insert then return constructed response
+                    await conn.execute(
+                        insert_query.replace("$1", "?").replace("$2", "?").replace("$3", "?").replace("$4", "?").replace("$5", "?").replace("RETURNING id, user_id, device_id, device_type, registered_at, is_active", ""),
+                        (user_id, request.device_id, request.device_type, now, True),
+                    )
+                    await conn.commit()
+                    
+                    return DeviceRegistrationResponse(
+                        device_id=request.device_id,
+                        user_id=user_id,
+                        device_type=request.device_type,
+                        registered_at=now,
+                        is_active=True,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to register device: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to register device",
+                    )
         else:
             async with db_pool.acquire() as conn:
                 # Check if device already exists
@@ -675,9 +769,9 @@ async def init_smartwatch_module():
     global db_pool
     logger.info("Initializing Smart Watch module...")
 
-    # Skip database initialization if asyncpg is not available
-    if not ASYNCPG_AVAILABLE:
-        logger.warning("asyncpg not available, skipping database initialization")
+    # Skip database initialization if no driver available
+    if not ASYNCPG_AVAILABLE and not AIOMYSQL_AVAILABLE and not AIOSQLITE_AVAILABLE:
+        logger.warning("No DB driver available, skipping database initialization")
         return
 
     try:
@@ -703,6 +797,15 @@ async def init_smartwatch_module():
                     minsize=1, maxsize=10, autocommit=True
                 )
             logger.info("Smart Watch MySQL pool created.")
+        elif USE_SQLITE:
+            if not AIOSQLITE_AVAILABLE:
+                logger.warning("aiosqlite not available, skipping database initialization")
+                return
+            
+            # Parse path from sqlite:///./nlp_cache.db -> ./nlp_cache.db
+            db_path = DATABASE_URL.replace("sqlite:///", "")
+            db_pool = SQLitePoolWrapper(db_path)
+            logger.info(f"Smart Watch SQLite wrapper initialized for {db_path}")
         else:
             db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
             logger.info("Smart Watch Postgres pool created.")
@@ -721,6 +824,20 @@ async def init_smartwatch_module():
 
             CREATE INDEX user_devices_user_id_idx ON user_devices (user_id);
             CREATE INDEX user_devices_device_id_idx ON user_devices (device_id);
+            """
+        elif USE_SQLITE:
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS user_devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                device_id TEXT UNIQUE NOT NULL,
+                device_type TEXT,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT 1
+            );
+            
+            CREATE INDEX IF NOT EXISTS user_devices_user_id_idx ON user_devices (user_id);
+            CREATE INDEX IF NOT EXISTS user_devices_device_id_idx ON user_devices (device_id);
             """
         else:
             create_table_sql = """
@@ -748,6 +865,11 @@ async def init_smartwatch_module():
                             except Exception as e:
                                 logger.debug(f"Statement failed: {e}")
             logger.info("User devices table ensured (MySQL)")
+        elif USE_SQLITE:
+            async with db_pool.acquire() as conn:
+                await conn.executescript(create_table_sql)
+                await conn.commit()
+                logger.info("User devices table ensured (SQLite)")
         else:
             async with db_pool.acquire() as conn:
                 await conn.execute(create_table_sql)
@@ -803,7 +925,7 @@ async def shutdown_smartwatch_module():
                 db_pool.close()
                 await db_pool.wait_closed()
                 logger.info("Smart Watch MySQL pool closed.")
-            elif ASYNCPG_AVAILABLE:
+            elif ASYNCPG_AVAILABLE and not USE_SQLITE:
                 await db_pool.close()
                 logger.info("Smart Watch Postgres pool closed.")
         except Exception as e:

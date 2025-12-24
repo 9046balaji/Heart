@@ -30,6 +30,9 @@ from enum import Enum
 from pydantic import ValidationError
 from .medgemma_validators import MedGemmaExtractionResult
 
+# Import MultiTierCache
+from core.services.advanced_cache import MultiTierCache, get_cache_service
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,6 +97,7 @@ class MedGemmaService:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         mock_mode: Optional[bool] = None,
+        cache: Optional[MultiTierCache] = None,
     ):
         """
         Initialize MedGemma service.
@@ -103,6 +107,7 @@ class MedGemmaService:
             api_key: API key for Google AI or custom endpoint
             base_url: Custom base URL (for Ollama or local deployment)
             mock_mode: Skip actual API calls (for testing)
+            cache: MultiTierCache instance for response caching
         """
         self.model = model
         self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
@@ -115,29 +120,37 @@ class MedGemmaService:
             mock_mode = os.getenv("MEDGEMMA_MOCK_MODE", "false").lower() == "true"
         self.mock_mode = mock_mode or not self.api_key
 
-        # Response caching
-        self._response_cache = {}
+        # Use injected cache or get singleton
+        self._cache = cache
+        self._cache_namespace = "medgemma"
         self._cache_ttl = 3600  # 1 hour
 
-    def _get_cache_key(self, prompt: str) -> str:
+    async def _ensure_cache(self):
+        """Lazy initialize cache if not injected."""
+        if self._cache is None:
+            self._cache = await get_cache_service()
+
+    def _get_cache_key(self, prompt: str, task_type: str) -> str:
         """Generate cache key for prompt."""
-        return hashlib.sha256(prompt.encode()).hexdigest()[:16]
+        return f"{self._cache_namespace}:{task_type}:{hashlib.sha256(prompt.encode()).hexdigest()[:16]}"
 
     async def _call_model_cached(
         self, prompt: str, task_type: str = "extraction", cache_enabled: bool = True
     ) -> str:
-        """Call model with response caching."""
+        """Call model with response caching via MultiTierCache."""
+        await self._ensure_cache()
+        
         if cache_enabled:
-            key = self._get_cache_key(prompt)
-            if key in self._response_cache:
-                cached = self._response_cache[key]
-                if time.time() - cached["timestamp"] < self._cache_ttl:
-                    return cached["response"]
+            key = self._get_cache_key(prompt, task_type)
+            cached = await self._cache.get(key)
+            if cached is not None:
+                logger.debug(f"Cache hit for {task_type}")
+                return cached
 
         response = await self._call_model(prompt, task_type)
 
         if cache_enabled:
-            self._response_cache[key] = {"response": response, "timestamp": time.time()}
+            await self._cache.set(key, response, ttl_seconds=self._cache_ttl)
 
         return response
 

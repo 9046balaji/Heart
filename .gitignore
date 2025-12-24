@@ -34,8 +34,36 @@ REMEDIATION_REPORT.md
 structure_reference.txt
 structure.md
 
+
+
+# ===================
+# Uploads & User Data
+# ===================
+uploads/
+user_uploads/
+attachments/
+documents/
+# Development phase files and internal documentation
+files/
+report.md
+CRITICAL_GAPS_REPORT.md
+DETAILED-SOLUTION_REPORT.md
+remaining
+# Technical reports (development artifacts)
+docs/guides/
+docs/api
+docs/README.md
+# Additional documentation and test files to exclude
+UNWANTED_FILES_EXCLUDED.md
+GITIGNORE_DOCUMENTATION.md
+MEMORI_FEATURES_AUDIT.md
+SECURITY.md
+not-sure/
+IMPLEMENTATION_AUDIT_REPORT.md
+
+
+
 *.local
-.gitignore
 .env
 .env.local
 .env.development
@@ -224,13 +252,6 @@ temp/
 # Exception: Allow pre-trained models in specific directory
 !cardio-ai-assistant/backend/models/*.joblib
 
-# ===================
-# Uploads & User Data
-# ===================
-uploads/
-user_uploads/
-attachments/
-documents/
 
 # ===================
 # OCR & Image Processing Temp Files
@@ -264,46 +285,16 @@ scripts
 # ===================
 # Temporary Documentation (Internal/Drafts)
 # ===================
-# Development phase files and internal documentation
-files/
-report.md
-CRITICAL_GAPS_REPORT.md
-DETAILED-SOLUTION_REPORT.md
-remaining
-
 
 # Phase completion reports (kept during development, excluded from release)
-*_COMPLETION.md
-*_QUICK_REFERENCE.md
-*_AUDIT_REPORT.md
-*_IMPLEMENTATION_*.md
-*_IMPLEMENTATION_REPORT.md
+
 
 # Temporary fix and guide documents
-*_FIX_*.md
-*FAST_STARTUP_*.md
-*VERIFICATION_*.md
-*500_ERROR_*.md
-
-# Analysis and reference documents
-*ANALYSIS_*.md
-*COMPETITIVE_*.md
 
 
-# Technical reports (development artifacts)
-TECHNICAL_REPORT_*.md
-WATCH_PREDICTION_*.md
-SMARTWATCH_*.md
-MEDICAL_MD_REPORT_*.md
-docs/guides/
-docs/api
-docs/README.md
-# Additional documentation and test files to exclude
-UNWANTED_FILES_EXCLUDED.md
-GITIGNORE_DOCUMENTATION.md
-MEMORI_FEATURES_AUDIT.md
-SECURITY.md
-not-sure/
+
+
+
 
 
 # Test files (unit/integration tests)

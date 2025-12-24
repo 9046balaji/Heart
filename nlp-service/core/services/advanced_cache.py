@@ -29,17 +29,17 @@ from .performance_monitor import record_cache_operation, CacheTimer
 
 # Optional Redis import
 try:
-    import redis.asyncio as aioredis
+    import redis.asyncio as redis
 
     REDIS_AVAILABLE = True
 except ImportError:
     try:
-        import aioredis
+        import redis.asyncio as redis
 
         REDIS_AVAILABLE = True
     except ImportError:
         REDIS_AVAILABLE = False
-        aioredis = None
+        redis = None
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +270,7 @@ class L2RedisCache(CacheBackend):
         if not REDIS_AVAILABLE:
             logger.warning(
                 "Redis libraries not available. Install with: "
-                "pip install redis[asyncio] or pip install aioredis"
+                "pip install redis[asyncio]"
             )
 
     async def connect(self) -> bool:
@@ -287,7 +287,7 @@ class L2RedisCache(CacheBackend):
             return False
 
         try:
-            self._client = aioredis.from_url(
+            self._client = await redis.from_url(
                 self.url,
                 db=self.db,
                 password=self.password,
@@ -688,3 +688,17 @@ __all__ = [
     "CacheKeyBuilder",
     "REDIS_AVAILABLE",
 ]
+
+
+# Add get_cache_service helper
+_cache_instance: Optional[MultiTierCache] = None
+
+async def get_cache_service() -> MultiTierCache:
+    """Get singleton MultiTierCache instance."""
+    global _cache_instance
+    if _cache_instance is None:
+        _cache_instance = MultiTierCache(
+            l1_max_size=10000,
+            enable_l2=True  # Enable Redis L2 if available
+        )
+    return _cache_instance

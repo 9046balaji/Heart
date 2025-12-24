@@ -384,50 +384,54 @@ class Memori:
     def _create_database_manager(
         self, database_connect: str, template: str, schema_init: bool
     ):
-        """Create appropriate database manager based on connection string with fallback"""
+        """
+        Create SQL database manager for Memori storage.
+        
+        All data storage uses MySQL/SQLite via SQLAlchemy.
+        MongoDB support has been removed to ensure consistency.
+        
+        Args:
+            database_connect: SQLAlchemy connection string
+                Examples:
+                - "sqlite:///memori.db" (local development)
+                - "mysql+pymysql://user:pass@localhost:3307/heartguard" (XAMPP MySQL)
+                - "mysql+aiomysql://user:pass@localhost:3307/heartguard" (async MySQL)
+            template: Memory template to use
+            schema_init: Whether to initialize schema
+            
+        Returns:
+            SQLAlchemyDatabaseManager instance
+            
+        Raises:
+            DatabaseError: If connection fails and SQLite fallback also fails
+        """
         try:
-            # Detect MongoDB connection strings
-            if self._is_mongodb_connection(database_connect):
-                logger.info(
-                    "Detected MongoDB connection string - attempting MongoDB manager"
+            # Validate connection string format
+            if database_connect.startswith(("mongodb://", "mongodb+srv://")):
+                logger.warning(
+                    "MongoDB connection strings are no longer supported. "
+                    "Please migrate to MySQL: mysql+pymysql://user:pass@host/db"
                 )
-                try:
-                    from ..database.mongodb_manager import MongoDBDatabaseManager
-
-                    # Test MongoDB connection before proceeding
-                    manager = MongoDBDatabaseManager(
-                        database_connect, template, schema_init
-                    )
-                    # Verify connection works
-                    _ = manager._get_client()
-                    logger.info("MongoDB manager initialized successfully")
-                    return manager
-                except ImportError:
-                    logger.error(
-                        "MongoDB support requires pymongo. Install with: pip install pymongo"
-                    )
-                    logger.info("Falling back to SQLite for compatibility")
-                    return self._create_fallback_sqlite_manager(template, schema_init)
-                except Exception as e:
-                    logger.error(f"MongoDB connection failed: {e}")
-                    logger.info("Falling back to SQLite for compatibility")
-                    return self._create_fallback_sqlite_manager(template, schema_init)
-            else:
-                logger.info("Detected SQL connection string - using SQLAlchemy manager")
-                return SQLAlchemyDatabaseManager(
-                    database_connect,
-                    template,
-                    schema_init,
-                    pool_size=self.pool_size,
-                    max_overflow=self.max_overflow,
-                    pool_timeout=self.pool_timeout,
-                    pool_recycle=self.pool_recycle,
-                    pool_pre_ping=self.pool_pre_ping,
+                raise ValueError(
+                    "MongoDB is not supported. Use MySQL or SQLite connection string."
                 )
-
+            
+            logger.info(f"Initializing SQL database manager: {database_connect.split('@')[-1] if '@' in database_connect else database_connect}")
+            
+            return SQLAlchemyDatabaseManager(
+                database_connect,
+                template,
+                schema_init,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+                pool_pre_ping=self.pool_pre_ping,
+            )
+            
         except Exception as e:
             logger.error(f"Failed to create database manager: {e}")
-            logger.info("Creating fallback SQLite manager")
+            logger.info("Attempting fallback to SQLite...")
             return self._create_fallback_sqlite_manager(template, schema_init)
 
     def _create_fallback_sqlite_manager(self, template: str, schema_init: bool):
@@ -445,13 +449,7 @@ class Memori:
             pool_pre_ping=self.pool_pre_ping,
         )
 
-    def _is_mongodb_connection(self, database_connect: str) -> bool:
-        """Detect if connection string is for MongoDB"""
-        mongodb_prefixes = [
-            "mongodb://",
-            "mongodb+srv://",
-        ]
-        return any(database_connect.startswith(prefix) for prefix in mongodb_prefixes)
+
 
     def _setup_database(self):
         """Setup database tables based on template"""
@@ -1181,86 +1179,57 @@ class Memori:
 
     def _get_conscious_context(self) -> list[dict[str, Any]]:
         """
-        Get conscious context from ALL short-term memory summaries.
-        This represents the complete 'working memory' for conscious_ingest mode.
-        Used only at program startup when conscious_ingest=True.
-        Database-agnostic version that works with both SQL and MongoDB.
+        Get conscious context from short-term memory summaries.
+        
+        This represents the 'working memory' for conscious_ingest mode.
+        Limited to prevent token explosion in LLM context.
+        
+        Returns:
+            List of memory dictionaries, limited to conscious_memory_limit
         """
         try:
-            # Detect database type from the db_manager
-            db_type = getattr(self.db_manager, "database_type", "sql")
+            from sqlalchemy import text
+            from datetime import datetime
 
-            if db_type == "mongodb":
-                # Use MongoDB-specific method
-                memories = self.db_manager.get_short_term_memory(
-                    user_id=self.user_id,
-                    limit=1000,  # Large limit to get all memories
-                    include_expired=False,
+            with self.db_manager._get_connection() as conn:
+                # ✅ FIX: Add LIMIT to prevent token explosion
+                result = conn.execute(
+                    text("""SELECT memory_id, processed_data, importance_score,
+                           category_primary, summary, searchable_content,
+                           created_at, access_count
+                    FROM short_term_memory
+                    WHERE user_id = :user_id 
+                      AND (expires_at IS NULL OR expires_at > :current_time)
+                    ORDER BY importance_score DESC, created_at DESC
+                    LIMIT :limit
+                    """),
+                    {
+                        "user_id": self.user_id,
+                        "current_time": datetime.now(),
+                        "limit": self.conscious_memory_limit  # Default: 10
+                    },
                 )
 
-                # Convert to consistent format
-                formatted_memories = []
-                for memory in memories:
-                    formatted_memories.append(
+                memories = []
+                for row in result:
+                    memories.append(
                         {
-                            "memory_id": memory.get("memory_id"),
-                            "processed_data": memory.get("processed_data"),
-                            "importance_score": memory.get("importance_score", 0),
-                            "category_primary": memory.get("category_primary", ""),
-                            "summary": memory.get("summary", ""),
-                            "searchable_content": memory.get("searchable_content", ""),
-                            "created_at": memory.get("created_at"),
-                            "access_count": memory.get("access_count", 0),
+                            "memory_id": row[0],
+                            "processed_data": row[1],
+                            "importance_score": row[2],
+                            "category_primary": row[3],
+                            "summary": row[4],
+                            "searchable_content": row[5],
+                            "created_at": row[6],
+                            "access_count": row[7],
                             "memory_type": "short_term",
                         }
                     )
 
                 logger.debug(
-                    f"Retrieved {len(formatted_memories)} conscious memories from MongoDB short-term storage"
+                    f"Retrieved {len(memories)} conscious memories (limit: {self.conscious_memory_limit})"
                 )
-                return formatted_memories
-
-            else:
-                # Use SQL method
-                from sqlalchemy import text
-
-                with self.db_manager._get_connection() as conn:
-                    # Get ALL short-term memories (no limit) ordered by importance and recency
-                    # This gives the complete conscious context as single initial injection
-                    result = conn.execute(
-                        text(
-                            """
-                        SELECT memory_id, processed_data, importance_score,
-                               category_primary, summary, searchable_content,
-                               created_at, access_count
-                        FROM short_term_memory
-                        WHERE user_id = :user_id AND (expires_at IS NULL OR expires_at > :current_time)
-                        ORDER BY importance_score DESC, created_at DESC
-                        """
-                        ),
-                        {"user_id": self.user_id, "current_time": datetime.now()},
-                    )
-
-                    memories = []
-                    for row in result:
-                        memories.append(
-                            {
-                                "memory_id": row[0],
-                                "processed_data": row[1],
-                                "importance_score": row[2],
-                                "category_primary": row[3],
-                                "summary": row[4],
-                                "searchable_content": row[5],
-                                "created_at": row[6],
-                                "access_count": row[7],
-                                "memory_type": "short_term",
-                            }
-                        )
-
-                    logger.debug(
-                        f"Retrieved {len(memories)} conscious memories from SQL short-term storage"
-                    )
-                    return memories
+                return memories
 
         except Exception as e:
             logger.error(f"Failed to get conscious context: {e}")

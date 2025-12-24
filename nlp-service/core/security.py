@@ -14,6 +14,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
+# Import Redis rate limiter
+from .rate_limiter_redis import get_redis_rate_limiter, REDIS_AVAILABLE
+
+# Import PII filter
+from .compliance.pii_filter import PIIScrubFilter
+
 logger = logging.getLogger(__name__)
 
 # Import Argon2 for secure password hashing
@@ -79,6 +85,7 @@ class AuditLogger:
     def __init__(self, log_file: str = "audit.log"):
         self.log_file = log_file
         self.file_handler = None
+        self._pii_filter = PIIScrubFilter()
 
     def log_event(
         self,
@@ -89,7 +96,7 @@ class AuditLogger:
         details: Optional[Dict[str, Any]] = None,
     ):
         """
-        Log security audit event.
+        Log security audit event with PII scrubbing.
 
         Args:
             event_type: Type of event (auth, rate_limit, access, etc)
@@ -98,6 +105,17 @@ class AuditLogger:
             status_code: HTTP status code
             details: Additional details
         """
+        # Scrub PII from user_id if it looks like an email
+        if user_id:
+            user_id = self._pii_filter._scrub(user_id)
+        
+        # Scrub PII from all details values
+        if details:
+            details = {
+                k: self._pii_filter._scrub(str(v)) if isinstance(v, str) else v
+                for k, v in details.items()
+            }
+        
         audit_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_type": event_type,
@@ -321,27 +339,34 @@ def get_current_user(
 
 
 async def check_rate_limit_dependency(request: Request):
-    """Rate limiting dependency"""
-    # Get client IP
+    """Rate limiting dependency - uses Redis if available."""
     client_ip = request.client.host
-
-    # Get current time
+    
+    # Try Redis first
+    if REDIS_AVAILABLE:
+        limiter = await get_redis_rate_limiter()
+        allowed, reason = await limiter.check_rate_limit(client_ip)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=reason
+            )
+        return True
+    
+    # Fallback to in-memory (single process only)
+    logger.warning("Using in-memory rate limiting (Redis unavailable)")
     current_time = time.time()
-
-    # Remove requests older than 1 minute
     rate_limit_storage[client_ip] = [
         req_time
         for req_time in rate_limit_storage[client_ip]
         if current_time - req_time < 60
     ]
-
-    # Check if limit exceeded (100 requests per minute)
+    
     if len(rate_limit_storage[client_ip]) >= 100:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded"
         )
-
-    # Add current request
+    
     rate_limit_storage[client_ip].append(current_time)
-
     return True

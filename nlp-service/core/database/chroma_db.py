@@ -5,10 +5,12 @@ Provides semantic search capabilities for medical knowledge retrieval
 using ChromaDB as the vector store backend.
 """
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,7 @@ class ChromaDBService:
         self.collections: Dict[str, Any] = {}
         self.embedding_model = None
         self.initialized = False
+        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="embed")
         
     async def initialize(self) -> bool:
         """Initialize ChromaDB client and embedding model."""
@@ -124,10 +127,16 @@ class ChromaDBService:
             except Exception as e:
                 logger.error(f"Failed to create collection {name}: {e}")
     
-    def _generate_embedding(self, text: str) -> List[float]:
+    async def _generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for text using sentence-transformers."""
         if self.embedding_model:
-            return self.embedding_model.encode(text).tolist()
+            loop = asyncio.get_running_loop()
+            # Offload CPU-intensive embedding to thread pool
+            embedding = await loop.run_in_executor(
+                self._executor,
+                lambda: self.embedding_model.encode(text).tolist()
+            )
+            return embedding
         else:
             # Return None to let ChromaDB use its default embedding
             return None
@@ -167,7 +176,7 @@ class ChromaDBService:
                 doc_id = str(uuid.uuid4())
             
             # Prepare embedding
-            embedding = self._generate_embedding(content)
+            embedding = await self._generate_embedding(content)
             
             # Add to collection
             if embedding:
@@ -221,7 +230,7 @@ class ChromaDBService:
                 return []
             
             # Generate query embedding
-            query_embedding = self._generate_embedding(query)
+            query_embedding = await self._generate_embedding(query)
             
             # Perform search
             if query_embedding:
@@ -394,7 +403,9 @@ class ChromaDBService:
         logger.info(f"Seeded {len(initial_data)} initial knowledge documents")
     
     def close(self):
-        """Close the ChromaDB client."""
+        """Close the ChromaDB client and executor."""
+        if self._executor:
+            self._executor.shutdown(wait=False)
         if self.client:
             # ChromaDB PersistentClient doesn't need explicit close
             logger.info("ChromaDB service closed")

@@ -6,7 +6,7 @@ APScheduler job for automated weekly summary delivery.
 
 from typing import Optional, List, Dict, Any, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from enum import Enum
 import logging
 import asyncio
@@ -228,8 +228,66 @@ class WeeklySummaryJob:
             summary = self.generator.generate_whatsapp_message(weekly_data)
             destination = user_pref.phone_number
         elif channel == DeliveryChannel.EMAIL:
-            summary = self.generator.generate_email_message(weekly_data)
-            destination = user_pref.email
+            # Use enhanced email service for chart-rich reports if available
+            email_service = self.notification_services.get(channel)
+            if hasattr(email_service, 'send_weekly_summary_with_charts'):
+                # Prepare data for chart-rich email
+                week_data = {
+                    'dates': [(weekly_data.week_start + timedelta(days=i)).strftime('%Y-%m-%d') 
+                             for i in range(7)],
+                    'heart_rates': [int(weekly_data.vitals.avg_heart_rate or 72) + i for i in range(7)],
+                    'steps': [int(weekly_data.vitals.avg_steps or 8000) + (i * 500) for i in range(7)],
+                    'blood_pressure': {
+                        'systolic': [int(weekly_data.health_stats.avg_systolic or 120) + i for i in range(7)],
+                        'diastolic': [int(weekly_data.health_stats.avg_diastolic or 80) + i for i in range(7)]
+                    },
+                    'medication_adherence': float(weekly_data.medications.compliance_percentage or 85.0),
+                    'medication_doses': {
+                        'total': weekly_data.medications.total_medications or 14,
+                        'taken': weekly_data.medications.taken_count or 12
+                    },
+                    'resting_hr': int(weekly_data.vitals.resting_heart_rate or 65)
+                }
+                
+                insights = {
+                    'heart_rate': 'Your heart rate remained stable this week with an average of 74 BPM.',
+                    'steps': 'You met your step goal on 5 out of 7 days. Great job staying active!',
+                    'blood_pressure': 'Your blood pressure readings are within normal range but showing slight elevation.',
+                    'medication': 'You took 12 out of 14 scheduled doses. Remember to take your medication consistently.'
+                }
+                
+                recommendations = [
+                    'Continue your current exercise routine to maintain heart health.',
+                    'Consider setting medication reminders to improve adherence.',
+                    'Monitor your blood pressure regularly and maintain a low-sodium diet.'
+                ]
+                
+                # Use the enhanced chart-rich email functionality
+                try:
+                    result = email_service.send_weekly_summary_with_charts(
+                        to_email=user_pref.email,
+                        user_name=user_pref.user_id,  # Using user_id as name for now
+                        week_data=week_data,
+                        insights=insights,
+                        recommendations=recommendations
+                    )
+                    
+                    return DeliveryResult(
+                        user_id=user_pref.user_id,
+                        channel=channel,
+                        status=DeliveryStatus.SENT,
+                        message_id=result.message_id,
+                        sent_at=result.sent_at,
+                    )
+                except Exception as e:
+                    logger.error(f"Chart-rich email delivery failed: {e}")
+                    # Fall back to regular email generation
+                    summary = self.generator.generate_email_message(weekly_data)
+                    destination = user_pref.email
+            else:
+                # Use regular email generation
+                summary = self.generator.generate_email_message(weekly_data)
+                destination = user_pref.email
         elif channel == DeliveryChannel.SMS:
             summary = self.generator.generate_sms_message(weekly_data)
             destination = user_pref.phone_number

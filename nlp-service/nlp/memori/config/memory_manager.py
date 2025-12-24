@@ -15,12 +15,12 @@ from loguru import logger
 
 # Redis for distributed caching (optional)
 try:
-    import aioredis
+    import redis.asyncio as redis
 
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
-    logger.debug("aioredis not available - Redis persistence disabled")
+    logger.debug("redis not available - Redis persistence disabled")
 
 # Interceptor system removed - using LiteLLM native callbacks only
 
@@ -133,14 +133,14 @@ class RedisPersistence(MemoryPersistenceBackend):
         self.redis_url = redis_url
         self.key_prefix = key_prefix
         self.ttl = ttl
-        self._redis: Optional[aioredis.Redis] = None
+        self._redis: Optional[redis.Redis] = None
         self._sync_mode = True  # Will use sync wrappers for compatibility
         logger.debug(f"RedisPersistence initialized with prefix {key_prefix}")
 
-    async def _get_redis(self) -> "aioredis.Redis":
+    async def _get_redis(self) -> "redis.Redis":
         """Get or create Redis connection."""
         if self._redis is None:
-            self._redis = await aioredis.from_url(
+            self._redis = await redis.from_url(
                 self.redis_url, encoding="utf-8", decode_responses=True
             )
         return self._redis
@@ -486,7 +486,7 @@ class MemoryManager:
         if backend_type == "redis":
             if not REDIS_AVAILABLE:
                 logger.warning(
-                    "Redis requested but aioredis not available, falling back to filesystem"
+                    "Redis requested but redis not available, falling back to filesystem"
                 )
                 backend_type = "filesystem"
             else:

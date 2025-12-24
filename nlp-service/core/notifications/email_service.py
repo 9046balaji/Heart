@@ -4,7 +4,7 @@ Email Notification Service.
 SMTP and SendGrid integration for health summary emails.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -15,6 +15,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -382,11 +385,19 @@ class HealthSummaryEmailService:
     - Pre-designed email templates
     - PDF report generation
     - Unsubscribe handling
+    - Enhanced chart-rich reports
     """
 
     def __init__(self, email_service: EmailService):
         """Initialize with base email service."""
         self.email = email_service
+        
+        # Setup Jinja2 environment
+        template_dir = Path(__file__).parent.parent.parent / 'templates'
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(str(template_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
 
     def send_weekly_summary(
         self,
@@ -443,6 +454,125 @@ class HealthSummaryEmailService:
         except ImportError:
             logger.warning("weasyprint not installed, PDF generation skipped")
             return None
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            return None
+
+    def send_weekly_summary_with_charts(
+        self,
+        to_email: str,
+        user_name: str,
+        week_data: Dict[str, Any],
+        insights: Dict[str, str],
+        recommendations: List[str]
+    ) -> EmailMessage:
+        """
+        Send visually rich weekly summary with charts.
+        
+        Args:
+            to_email: Recipient email
+            user_name: User's name
+            week_data: Dictionary with health data:
+                {
+                    'dates': ['2024-01-01', ...],
+                    'heart_rates': [72, 75, ...],
+                    'steps': [8000, 10500, ...],
+                    'blood_pressure': {'systolic': [...], 'diastolic': [...]},
+                    'medication_adherence': 85.0,
+                    'medication_doses': {'total': 14, 'taken': 12}
+                }
+            insights: AI-generated insights for each metric
+            recommendations: List of health recommendations
+            
+        Returns:
+            EmailMessage result
+        """
+        from nlp.weekly_summary.chart_generator import get_chart_generator
+        
+        chart_gen = get_chart_generator()
+        
+        # Generate all charts
+        charts = {
+            'heart_rate': chart_gen.generate_heart_rate_chart(
+                dates=week_data['dates'],
+                values=week_data['heart_rates'],
+                resting_hr=week_data.get('resting_hr')
+            ),
+            'steps': chart_gen.generate_activity_bar_chart(
+                days=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                steps=week_data['steps'],
+                goal=10000
+            ),
+            'blood_pressure': chart_gen.generate_blood_pressure_chart(
+                dates=week_data['dates'],
+                systolic=week_data['blood_pressure']['systolic'],
+                diastolic=week_data['blood_pressure']['diastolic']
+            ),
+            'medication': chart_gen.generate_medication_gauge(
+                adherence_percent=week_data['medication_adherence'],
+                total_doses=week_data['medication_doses']['total'],
+                taken_doses=week_data['medication_doses']['taken']
+            )
+        }
+        
+        # Render template
+        template = self.jinja_env.get_template('weekly_report.html')
+        html_content = template.render(
+            user_name=user_name,
+            week_range=f"{week_data['dates'][0]} to {week_data['dates'][-1]}",
+            charts=charts,
+            insights=insights,
+            scores={
+                'medication': week_data['medication_adherence'],
+                'medication_message': self._get_adherence_message(
+                    week_data['medication_adherence']
+                )
+            },
+            recommendations=recommendations
+        )
+        
+        # Generate PDF
+        pdf_content = self._generate_rich_pdf(html_content)
+        
+        attachments = []
+        if pdf_content:
+            attachments.append(
+                EmailAttachment(
+                    filename="weekly_health_summary.pdf",
+                    content=pdf_content,
+                    content_type="application/pdf",
+                )
+            )
+        
+        return self.email.send(
+            to=to_email,
+            subject=f"{user_name}, Your Weekly Health Summary",
+            body_html=html_content,
+            attachments=attachments if attachments else None,
+        )
+
+    def _get_adherence_message(self, percent: float) -> str:
+        """Get adherence message based on percentage."""
+        if percent >= 90:
+            return "Excellent! Keep up the great work."
+        elif percent >= 80:
+            return "Good adherence. Try to maintain this level."
+        elif percent >= 70:
+            return "Fair adherence. Consider setting reminders."
+        else:
+            return "Low adherence detected. Please consult your doctor."
+
+    def _generate_rich_pdf(self, html_content: str) -> Optional[bytes]:
+        """Enhanced PDF generation with proper CSS rendering."""
+        try:
+            from weasyprint import HTML, CSS
+            
+            # Generate PDF with CSS support
+            return HTML(string=html_content).write_pdf(
+                stylesheets=[
+                    CSS(string='@page { size: A4; margin: 1.5cm; }')
+                ]
+            )
         except Exception as e:
             logger.error(f"PDF generation failed: {e}")
             return None

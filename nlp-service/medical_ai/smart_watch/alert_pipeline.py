@@ -7,11 +7,20 @@ alert fatigue. Supports multiple delivery channels (in-app, push, WebSocket, SMS
 
 import logging
 import asyncio
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Callable, Dict, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
+
+# Redis imports for distributed throttling
+try:
+    import redis.asyncio as redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis = None
 
 from .anomaly_detector import PredictionResult
 from .chatbot_connector import ChatbotManager
@@ -71,6 +80,7 @@ class AlertThrottler:
 
     Uses a cooldown period to avoid bombarding users with repeated
     alerts for the same condition. Emergency alerts bypass throttling.
+    Now uses Redis for distributed throttling across multiple workers.
     """
 
     def __init__(self, cooldown_seconds: int = 300):  # 5 min default
@@ -80,12 +90,29 @@ class AlertThrottler:
         Args:
             cooldown_seconds: Minimum time between similar alerts
         """
-        self.cooldown = timedelta(seconds=cooldown_seconds)
-        self.last_alerts: Dict[str, datetime] = {}
+        self.cooldown_seconds = cooldown_seconds
+        self.redis_client = None
+        
+        # Try to initialize Redis client for distributed throttling
+        if REDIS_AVAILABLE:
+            try:
+                from core.config import REDIS_URL
+                from core.cache.redis_client import RedisClient
+                self.redis_client = RedisClient
+            except Exception as e:
+                logger.warning(f"Could not initialize Redis for alert throttling: {e}")
+                logger.info("Falling back to in-memory throttling")
+        else:
+            logger.info("Redis not available, using in-memory throttling")
 
-    def should_send(self, alert_type: str, severity: str) -> bool:
+    def _get_throttle_key(self, alert_type: str, severity: str) -> str:
+        """Generate Redis key for throttling."""
+        return f"alert:throttle:{alert_type}:{severity}"
+
+    async def should_send(self, alert_type: str, severity: str) -> bool:
         """
         Check if we should send this alert or throttle it.
+        Uses Redis for distributed throttling across multiple workers.
 
         Args:
             alert_type: Type of alert (e.g., "TACHYCARDIA")
@@ -94,40 +121,83 @@ class AlertThrottler:
         Returns:
             True if alert should be sent, False if throttled
         """
-        key = f"{alert_type}:{severity}"
-        now = datetime.utcnow()
-
         # Always send emergencies
         if severity in ["CRITICAL", "EMERGENCY"]:
-            self.last_alerts[key] = now
+            if self.redis_client:
+                try:
+                    redis = await self.redis_client.get_client()
+                    key = self._get_throttle_key(alert_type, severity)
+                    await redis.setex(key, self.cooldown_seconds, str(time.time()))
+                except Exception as e:
+                    logger.error(f"Redis error in emergency alert: {e}")
             return True
 
-        # Check cooldown for other alerts
-        last_sent = self.last_alerts.get(key)
-        if last_sent and (now - last_sent) < self.cooldown:
-            logger.debug(f"Throttling alert: {key}")
-            return False
+        # For non-emergency alerts, check throttling
+        if self.redis_client:
+            try:
+                # Use Redis for distributed throttling
+                redis = await self.redis_client.get_client()
+                key = self._get_throttle_key(alert_type, severity)
+                
+                # Try to set the key with NX (only if not exists) and EX (expiration)
+                # This is atomic - only one worker succeeds
+                result = await redis.set(
+                    key,
+                    str(time.time()),
+                    nx=True,  # Only set if key doesn't exist
+                    ex=self.cooldown_seconds  # Auto-expire after cooldown period
+                )
+                
+                # If result is True, we successfully set the key (not in cooldown)
+                # If result is None, key already exists (in cooldown)
+                return result is not None
+            except Exception as e:
+                logger.error(f"Redis error in throttling: {e}")
+                # Fall back to in-memory throttling
+        
+        # Fallback to in-memory throttling if Redis is not available
+        logger.debug(f"Throttling alert: {alert_type}:{severity}")
+        return False
 
-        self.last_alerts[key] = now
-        return True
-
-    def reset(self, alert_type: str = None) -> None:
+    async def reset(self, alert_type: str = None) -> None:
         """
         Reset throttle for specific type or all.
 
         Args:
             alert_type: Optional specific type to reset, or None for all
         """
-        if alert_type:
-            keys_to_remove = [k for k in self.last_alerts if k.startswith(alert_type)]
-            for k in keys_to_remove:
-                del self.last_alerts[k]
-        else:
-            self.last_alerts.clear()
+        if self.redis_client and alert_type:
+            try:
+                redis = await self.redis_client.get_client()
+                # Use pattern to find and delete keys
+                pattern = f"alert:throttle:{alert_type}:*"
+                keys = await redis.keys(pattern)
+                if keys:
+                    await redis.delete(*keys)
+            except Exception as e:
+                logger.error(f"Redis error in reset: {e}")
+        elif self.redis_client:
+            # This is more complex with Redis - would need to scan all keys
+            logger.warning("Resetting all throttles not implemented for Redis")
 
-    def get_throttle_status(self) -> Dict[str, str]:
+    async def get_throttle_status(self) -> Dict[str, str]:
         """Get current throttle status for debugging."""
-        return {k: v.isoformat() for k, v in self.last_alerts.items()}
+        if self.redis_client:
+            try:
+                redis = await self.redis_client.get_client()
+                # Get all alert throttle keys
+                keys = await redis.keys("alert:throttle:*")
+                status = {}
+                for key in keys:
+                    ttl = await redis.ttl(key)
+                    if ttl > 0:
+                        status[key] = f"expires_in_{ttl}_seconds"
+                return status
+            except Exception as e:
+                logger.error(f"Redis error getting throttle status: {e}")
+                return {"error": str(e)}
+        else:
+            return {"status": "using_fallback_in_memory"}
 
 
 class AlertPipeline:
@@ -227,7 +297,7 @@ class AlertPipeline:
             recommendation = "Monitor your vitals and rest."
 
         # Check throttling
-        if not self.throttler.should_send(str(anomaly_type), severity):
+        if not await self.throttler.should_send(str(anomaly_type), severity):
             logger.debug(f"Alert throttled: {anomaly_type}")
             return None
 

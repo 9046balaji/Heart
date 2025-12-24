@@ -17,6 +17,8 @@ Model: all-MiniLM-L6-v2
 
 import logging
 import hashlib
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict
 
 import numpy as np
@@ -92,6 +94,9 @@ class EmbeddingService:
         self.model_name = model_name
         self._cache: Dict[str, np.ndarray] = {}
         self._cache_size = cache_size
+        
+        # Thread pool executor for non-blocking embedding operations
+        self._executor = ThreadPoolExecutor(max_workers=4)
 
         # Load model
         logger.info(f"Loading embedding model: {model_name}")
@@ -121,6 +126,11 @@ class EmbeddingService:
     def reset_instance(cls):
         """Reset singleton instance (for testing)."""
         cls._instance = None
+    
+    def shutdown(self):
+        """Shutdown the executor to free resources."""
+        if hasattr(self, '_executor') and self._executor:
+            self._executor.shutdown(wait=True)
 
     def _get_cache_key(self, text: str) -> str:
         """Generate cache key for text."""
@@ -135,9 +145,9 @@ class EmbeddingService:
             for key in keys_to_remove:
                 del self._cache[key]
 
-    def embed_text(self, text: str, use_cache: bool = True) -> List[float]:
+    async def embed_text(self, text: str, use_cache: bool = True) -> List[float]:
         """
-        Generate embedding for single text.
+        Generate embedding for single text (non-blocking).
 
         Args:
             text: Input text to embed
@@ -147,7 +157,7 @@ class EmbeddingService:
             List of floats (embedding vector)
 
         Example:
-            embedding = service.embed_text("chest pain symptoms")
+            embedding = await service.embed_text("chest pain symptoms")
             # Returns: [0.023, -0.156, 0.089, ...] (384 floats)
         """
         if not text or not text.strip():
@@ -159,28 +169,41 @@ class EmbeddingService:
         if use_cache and cache_key in self._cache:
             return self._cache[cache_key].tolist()
 
+        # Run blocking operation in thread pool
+        loop = asyncio.get_event_loop()
+        embedding = await loop.run_in_executor(
+            self._executor,
+            self._encode_sync,
+            text
+        )
+
+        # Cache result
+        if use_cache:
+            self._manage_cache()
+            self._cache[cache_key] = np.array(embedding)
+
+        return embedding
+    
+    def _encode_sync(self, text: str) -> List[float]:
+        """
+        Synchronous embedding method that runs in thread pool.
+        """
         # Generate embedding
         embedding = self.model.encode(
             text,
             normalize_embeddings=True,  # L2 normalize for cosine similarity
             show_progress_bar=False,
         )
-
-        # Cache result
-        if use_cache:
-            self._manage_cache()
-            self._cache[cache_key] = embedding
-
         return embedding.tolist()
 
-    def embed_batch(
+    async def embed_batch(
         self,
         texts: List[str],
         batch_size: int = 32,
         show_progress: bool = False,
     ) -> List[List[float]]:
         """
-        Generate embeddings for multiple texts efficiently.
+        Generate embeddings for multiple texts efficiently (non-blocking).
 
         Args:
             texts: List of texts to embed
@@ -191,7 +214,7 @@ class EmbeddingService:
             List of embedding vectors
 
         Example:
-            embeddings = service.embed_batch([
+            embeddings = await service.embed_batch([
                 "chest pain",
                 "cardiac discomfort",
                 "heart problems"
@@ -207,6 +230,35 @@ class EmbeddingService:
         if not valid_texts:
             return [[0.0] * self.dimension] * len(texts)
 
+        # Run blocking operation in thread pool
+        loop = asyncio.get_event_loop()
+        embeddings = await loop.run_in_executor(
+            self._executor,
+            self._encode_batch_sync,
+            valid_texts,
+            batch_size,
+            show_progress
+        )
+
+        # Map back to original indices
+        result = [[0.0] * self.dimension] * len(texts)
+        for i, idx in enumerate(valid_indices):
+            result[idx] = embeddings[i]
+            # Cache
+            cache_key = self._get_cache_key(valid_texts[i])
+            self._cache[cache_key] = np.array(embeddings[i])
+
+        return result
+    
+    def _encode_batch_sync(
+        self,
+        valid_texts: List[str],
+        batch_size: int,
+        show_progress: bool
+    ) -> List[List[float]]:
+        """
+        Synchronous batch embedding method that runs in thread pool.
+        """
         # Generate embeddings
         embeddings = self.model.encode(
             valid_texts,
@@ -214,21 +266,12 @@ class EmbeddingService:
             batch_size=batch_size,
             show_progress_bar=show_progress,
         )
+        
+        return embeddings.tolist()
 
-        # Map back to original indices
-        result = [[0.0] * self.dimension] * len(texts)
-        for i, idx in enumerate(valid_indices):
-            result[idx] = embeddings[i].tolist()
-            # Cache
-            cache_key = self._get_cache_key(valid_texts[i])
-            self._cache[cache_key] = embeddings[i]
-
-        return result
-
-    def similarity(self, text1: str, text2: str) -> float:
+    async def similarity(self, text1: str, text2: str) -> float:
         """
         Calculate semantic similarity between two texts (0-1).
-
         Uses cosine similarity of normalized embeddings.
 
         Args:
@@ -239,17 +282,22 @@ class EmbeddingService:
             Similarity score (0-1, higher = more similar)
 
         Example:
-            sim = service.similarity("chest pain", "cardiac discomfort")
+            sim = await service.similarity("chest pain", "cardiac discomfort")
             # Returns: ~0.78 (high similarity)
 
-            sim = service.similarity("chest pain", "headache")
+            sim = await service.similarity("chest pain", "headache")
             # Returns: ~0.35 (lower similarity)
         """
-        emb1 = self.model.encode(text1, normalize_embeddings=True)
-        emb2 = self.model.encode(text2, normalize_embeddings=True)
-        return float(np.dot(emb1, emb2))
+        emb1 = await self.embed_text(text1)
+        emb2 = await self.embed_text(text2)
+        
+        # Convert to numpy arrays for dot product
+        emb1_np = np.array(emb1)
+        emb2_np = np.array(emb2)
+        
+        return float(np.dot(emb1_np, emb2_np))
 
-    def find_most_similar(
+    async def find_most_similar(
         self,
         query: str,
         candidates: List[str],
@@ -269,7 +317,7 @@ class EmbeddingService:
             List of dicts with text, score, and index
 
         Example:
-            results = service.find_most_similar(
+            results = await service.find_most_similar(
                 "heart attack symptoms",
                 ["chest pain", "headache", "cardiac arrest", "fever"]
             )
@@ -282,17 +330,18 @@ class EmbeddingService:
             return []
 
         # Embed query
-        query_emb = self.model.encode(query, normalize_embeddings=True)
+        query_emb = await self.embed_text(query)
 
         # Embed candidates
-        candidate_embs = self.model.encode(
+        candidate_embs = await self.embed_batch(
             candidates,
-            normalize_embeddings=True,
-            show_progress_bar=len(candidates) > 100,
+            show_progress=len(candidates) > 100,
         )
 
         # Calculate similarities
-        similarities = np.dot(candidate_embs, query_emb)
+        query_emb_np = np.array(query_emb)
+        candidate_embs_np = np.array(candidate_embs)
+        similarities = np.dot(candidate_embs_np, query_emb_np)
 
         # Get top-k
         results = []
@@ -311,7 +360,7 @@ class EmbeddingService:
 
         return results[:top_k]
 
-    def compute_similarity_matrix(self, texts: List[str]) -> np.ndarray:
+    async def compute_similarity_matrix(self, texts: List[str]) -> np.ndarray:
         """
         Compute pairwise similarity matrix for texts.
 
@@ -321,8 +370,9 @@ class EmbeddingService:
         Returns:
             NxN similarity matrix
         """
-        embeddings = self.model.encode(texts, normalize_embeddings=True)
-        return np.dot(embeddings, embeddings.T)
+        embeddings = await self.embed_batch(texts)
+        embeddings_np = np.array(embeddings)
+        return np.dot(embeddings_np, embeddings_np.T)
 
     def get_model_info(self) -> Dict:
         """Get information about the loaded model."""
@@ -334,7 +384,7 @@ class EmbeddingService:
             "max_cache_size": self._cache_size,
         }
 
-    def warm_cache(self, texts: List[str]) -> int:
+    async def warm_cache(self, texts: List[str]) -> int:
         """
         Pre-warm the embedding cache with commonly used texts.
 
@@ -356,7 +406,7 @@ class EmbeddingService:
                 "shortness of breath",
                 "medication"
             ]
-            warmed = service.warm_cache(common_terms)
+            warmed = await service.warm_cache(common_terms)
             print(f"Warmed {warmed} embeddings")
         """
         if not texts:
@@ -364,11 +414,7 @@ class EmbeddingService:
 
         try:
             # Generate embeddings for all texts in batch
-            embeddings = self.model.encode(
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+            embeddings = await self.embed_batch(texts)
 
             # Cache each embedding
             warmed_count = 0
@@ -376,7 +422,7 @@ class EmbeddingService:
                 if text and text.strip():
                     cache_key = self._get_cache_key(text)
                     self._manage_cache()
-                    self._cache[cache_key] = embeddings[i]
+                    self._cache[cache_key] = np.array(embeddings[i])
                     warmed_count += 1
 
             logger.info(f"Warmed {warmed_count} embeddings in cache")
@@ -392,14 +438,13 @@ class EmbeddingService:
 # =============================================================================
 
 
-def embed(text: str) -> List[float]:
+async def embed(text: str) -> List[float]:
     """Quick embedding for single text."""
-    return EmbeddingService.get_instance().embed_text(text)
+    return await EmbeddingService.get_instance().embed_text(text)
 
-
-def similarity(text1: str, text2: str) -> float:
+async def similarity(text1: str, text2: str) -> float:
     """Quick similarity calculation."""
-    return EmbeddingService.get_instance().similarity(text1, text2)
+    return await EmbeddingService.get_instance().similarity(text1, text2)
 
 
 def get_embedding_service() -> EmbeddingService:

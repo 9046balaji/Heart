@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Health Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #FF4B4B 0%, #FF6B6B 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .grid-2-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .card h3 {
+            margin: 0 0 15px 0;
+            color: #FF4B4B;
+            font-size: 18px;
+            border-bottom: 2px solid #FF4B4B;
+            padding-bottom: 10px;
+        }
+        
+        .card img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        
+        .insight {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 14px;
+            border-left: 4px solid #FF4B4B;
+        }
+        
+        .medication-section {
+            background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .medication-section h3 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .recommendations {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .recommendations h3 {
+            color: #856404;
+            margin-top: 0;
+        }
+        
+        .recommendations ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>❤️ Weekly Health Insights</h1>
+        <p>Patient: {{ user_name }} | Week: {{ week_range }}</p>
+    </div>
+
+    <div class="grid-2-col">
+        <div class="card">
+            <h3>❤️ Heart Health</h3>
+            <img src="data:image/png;base64,{{ charts.heart_rate }}" alt="Heart Rate Trend" />
+            <div class="insight">
+                <strong>Analysis:</strong> {{ insights.heart_rate }}
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>👣 Activity Levels</h3>
+            <img src="data:image/png;base64,{{ charts.steps }}" alt="Daily Steps" />
+            <div class="insight">
+                <strong>Analysis:</strong> {{ insights.steps }}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2-col">
+        <div class="card">
+            <h3>🩺 Blood Pressure</h3>
+            <img src="data:image/png;base64,{{ charts.blood_pressure }}" alt="Blood Pressure Trend" />
+            <div class="insight">
+                <strong>Analysis:</strong> {{ insights.blood_pressure }}
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>💊 Medication Adherence</h3>
+            <img src="data:image/png;base64,{{ charts.medication }}" alt="Medication Adherence" />
+            <div class="insight">
+                <strong>Status:</strong> {{ insights.medication }}
+            </div>
+        </div>
+    </div>
+
+    <div class="medication-section">
+        <h3>💊 Weekly Adherence Score: {{ scores.medication }}%</h3>
+        <p>{{ scores.medication_message }}</p>
+    </div>
+
+    {% if recommendations %}
+    <div class="recommendations">
+        <h3>⚠️ Health Recommendations</h3>
+        <ul>
+            {% for rec in recommendations %}
+            <li>{{ rec }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>This report is generated automatically. Always consult your healthcare provider for medical advice.</p>
+        <p>© 2024 Heart Health AI Assistant</p>
+    </div>
+</body>
+</html>

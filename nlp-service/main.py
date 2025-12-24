@@ -263,10 +263,7 @@ else:
 
 # PHASE 18: Import New AI Frameworks (LangGraph, CrewAI, etc.)
 if NEW_AI_FRAMEWORKS_ENABLED:
-    pass
-
     # Use unified LLM gateway instead of observable_llm_gateway
-
     print("[STARTUP] New AI frameworks loaded successfully")
 else:
     print("[STARTUP] New AI frameworks DISABLED via config")
@@ -286,31 +283,14 @@ if STRUCTURED_OUTPUTS_ENABLED:
         CardioHealthAnalysis,
         SimpleIntentAnalysis,
         ConversationResponse,
-        # VitalSignsAnalysis,
-        # MedicationInfo,
-        # HealthIntent,
-        # UrgencyLevel,
-        # ResponseConfidence,
-        # StructuredOutputParser,
-        # StructuredGenerator,
-        # HealthAnalysisGenerator,
-        # pydantic_to_json_schema,
     )
 else:
     print("[STARTUP] Structured outputs DISABLED via config")
 
 from nlp.memory_manager import MemoryManager
 
-# from nlp.memory_middleware import (
-#     # MemoryMiddleware,
-#     # MemoryContext,
-#     # MemoryOperation,
-# )
 from nlp.memory_observability import (
     MemoriMetricsCollector,
-    # MemoryObservability,
-    # MemoryMetricType,
-    # MemoryEvent
 )
 
 # Global instances
@@ -332,6 +312,45 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     # Startup
+    from config import startup_check
+    startup_check()  # Check on startup
+    
+    # Check encryption key is configured
+    try:
+        from core.services.encryption_service import get_encryption_service
+        encryption = get_encryption_service()
+        logger.info("✅ Encryption service configured correctly")
+    except ValueError as e:
+        logger.critical(f"❌ STARTUP FAILED: {e}")
+        raise SystemExit(1)
+    
+    # Check if Alembic migrations are up to date
+    try:
+        import subprocess
+        import sys
+        
+        # Run alembic check to verify migrations are current
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "current"],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(__file__),  # Run from project root
+        )
+        
+        if result.returncode != 0:
+            logger.warning(f"⚠️  Alembic migration check failed: {result.stderr}")
+        else:
+            # If output doesn't contain "(head)" then migrations are not up to date
+            if "(head)" not in result.stdout:
+                logger.warning(
+                    "⚠️  Database migrations are not up to date! "
+                    "Run 'alembic upgrade head' to update schema."
+                )
+            else:
+                logger.info("✅ Database migrations are up to date")
+    except Exception as e:
+        logger.warning(f"⚠️  Could not verify Alembic migrations: {e}")
+    
     logger.info(f"Starting {SERVICE_NAME} v{SERVICE_VERSION}...")
 
     global intent_recognizer, entity_extractor, sentiment_analyzer, ollama_generator
@@ -603,6 +622,9 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+    from config import startup_check
+    
+    startup_check()  # Will exit if production config is insecure
 
     uvicorn.run(
         "main:app",
