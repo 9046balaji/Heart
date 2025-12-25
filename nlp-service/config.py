@@ -291,6 +291,10 @@ class Settings(BaseSettings):
 # Initialize Settings
 settings = Settings()
 
+def get_settings():
+    """Return application settings."""
+    return settings
+
 # Export variables for backward compatibility
 SERVICE_NAME = settings.SERVICE_NAME
 SERVICE_VERSION = settings.SERVICE_VERSION

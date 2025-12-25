@@ -202,7 +202,7 @@ class XAMPPDatabase:
 
     async def _initialize_schema(self):
         """Initialize database schema with tables for healthcare data."""
-        if not self.pool:
+        if not self.read_pool:
             return
 
         logger.warning(
@@ -218,10 +218,10 @@ class XAMPPDatabase:
 
     async def _verify_schema(self):
         """Verify that required tables exist in the database."""
-        if not self.pool:
+        if not self.read_pool:
             return
 
-        async with self.pool.acquire() as conn:
+        async with self.read_pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 try:
                     # Check if users table exists
@@ -231,7 +231,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'users'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'users' does not exist")
@@ -244,7 +244,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'devices'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'devices' does not exist")
@@ -257,7 +257,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'patient_records'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'patient_records' does not exist")
@@ -270,7 +270,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'vitals'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'vitals' does not exist")
@@ -283,7 +283,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'health_alerts'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'health_alerts' does not exist")
@@ -296,7 +296,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'medical_knowledge_base'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'medical_knowledge_base' does not exist")
@@ -309,7 +309,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'chat_sessions'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'chat_sessions' does not exist")
@@ -322,7 +322,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'chat_messages'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'chat_messages' does not exist")
@@ -335,7 +335,7 @@ class XAMPPDatabase:
                         FROM information_schema.tables
                         WHERE table_schema = %s AND table_name = 'notification_failures'
                         """,
-                        (DB_CONFIG["database"],),
+                        (self.database,),
                     )
                     if not await cursor.fetchone():
                         logger.error("Table 'notification_failures' does not exist")
@@ -671,11 +671,11 @@ class XAMPPDatabase:
         This implementation handles both modern MariaDB with VECTOR support and older versions.
         For older versions, it performs application-level cosine similarity calculations.
         """
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.read_pool:
             return []
 
         try:
-            async with self.pool.acquire() as conn:
+            async with self.read_pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     # First, try to use native vector search (modern MariaDB)
                     try:

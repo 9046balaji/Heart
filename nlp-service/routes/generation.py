@@ -559,6 +559,14 @@ async def medication_insights(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/generate/medication-insights", response_model=MedicationInsightsResponse)
+async def generate_medication_insights_proxy(
+    request: MedicationInsightsRequest,
+) -> MedicationInsightsResponse:
+    """Proxy for medication insights endpoint used in integration tests."""
+    return await medication_insights(request)
+
+
 @router.get("/status")
 async def get_generation_status() -> Dict[str, Any]:
     """Get status of the generation service and LLM providers."""

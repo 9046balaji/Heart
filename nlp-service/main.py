@@ -99,6 +99,7 @@ from nlp.rag.embedding_onnx import ONNXEmbeddingService
 
 # Import Routes
 # PHASE 1: Core Routes
+from routes.auth_routes import router as auth_router
 from routes.health import router as health_router
 
 # Try to import smartwatch router, but handle if it fails
@@ -200,7 +201,7 @@ else:
 
 # PHASE 12: Integration Routes
 if INTEGRATIONS_ENABLED:
-    from routes.integration_routes import router as integration_router
+    from routes.integrations_routes import router as integration_router
 
     print("[STARTUP] Integration routes loaded successfully")
 else:
@@ -524,6 +525,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(health_router, tags=["Health"])
 
 # Only include smartwatch router if available

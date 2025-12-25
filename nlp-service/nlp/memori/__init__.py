@@ -14,6 +14,7 @@ from typing import Any
 # Configuration system
 
 # Core components
+from .core.memory import Memori
 
 # Database system (Connectors removed - use DatabaseManager directly)
 # from .database.connectors import MySQLConnector, PostgreSQLConnector, SQLiteConnector

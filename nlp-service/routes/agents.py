@@ -22,7 +22,7 @@ from core.app_dependencies import get_nlp_service
 from nlp.agents.base import HealthAgent, AppointmentAgent, HealthAppointmentOrchestrator
 
 # Import IntentRecognizer for smart query routing
-from core.models import IntentEnum
+from core.models import IntentEnum, AgentResponse
 
 # Import NLPService for parallel processing
 from core.services.nlp_service import NLPService, NLPAnalysisResult
@@ -177,29 +177,7 @@ class QueryRequest(BaseModel):
         }
 
 
-class AgentResponse(BaseModel):
-    """Response from agent processing."""
 
-    agent: str = Field(..., description="Agent name that handled request")
-    response: str = Field(..., description="Agent's response")
-    action: Optional[str] = Field(
-        None, description="Action taken (e.g., 'health_data_collection')"
-    )
-    data: Optional[Dict[str, Any]] = Field(
-        None, description="Structured data extracted"
-    )
-    status: str = Field("success", description="Status: success, warning, error")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "agent": "HealthAgent",
-                "response": "Thank you for sharing that information. Your heart rate is normal.",
-                "action": "health_data_collection",
-                "data": {"heart_rate": 72, "symptom": "headache", "severity": 5},
-                "status": "success",
-            }
-        }
 
 
 class HealthDataRequest(BaseModel):
@@ -290,8 +268,9 @@ async def legacy_intent_handler(
     response = {
         "query": query,
         "intent": intent.value if isinstance(intent, IntentEnum) else str(intent),
-        "response": None,
+        "response": "Processing query...",
         "confidence": 0.0,
+        "timestamp": datetime.now().isoformat(),
     }
 
     try:
@@ -316,6 +295,7 @@ async def legacy_intent_handler(
 
     except Exception as e:
         response["error"] = str(e)
+        response["response"] = f"I encountered an error while processing your request: {str(e)}"
         response["confidence"] = 0.0
 
     return response
@@ -358,6 +338,7 @@ async def health_query(
             action="health_data_collection",
             data=result.get("data", {}),
             status=result.get("status", "success"),
+            timestamp=datetime.now().isoformat(),
         )
 
     except Exception as e:
@@ -406,6 +387,7 @@ async def appointment_query(
             action="appointment_booking",
             data=result.get("data", {}),
             status=result.get("status", "success"),
+            timestamp=datetime.now().isoformat(),
         )
 
     except Exception as e:
@@ -545,6 +527,7 @@ async def agent_chat(
             action=action,
             data=response_data,
             status=result.get("status", "success"),
+            timestamp=datetime.now().isoformat(),
         )
 
     except Exception as e:
@@ -651,10 +634,12 @@ async def process_nlp(
             "processing_time_ms": analysis.processing_time_ms,
         }
 
-        if "response" in response_data:
+        if "response" in response_data and response_data["response"] is not None:
             response_text = response_data["response"]
+        elif "result" in response_data and response_data["result"] is not None:
+            response_text = str(response_data["result"])
         else:
-            response_text = str(response_data)
+            response_text = "I've processed your request but couldn't generate a specific response text."
 
         return AgentResponse(
             agent=agent_name,
@@ -662,6 +647,7 @@ async def process_nlp(
             action=action,
             data=response_data,
             status="success",
+            timestamp=datetime.now().isoformat(),
         )
 
     except Exception as e:

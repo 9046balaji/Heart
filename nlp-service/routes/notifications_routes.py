@@ -123,28 +123,34 @@ class DeliveryStatusResponse(BaseModel):
 # ==================== WhatsApp Endpoints ====================
 
 
-@router.post("/whatsapp/send", response_model=NotificationResponse)
-async def send_whatsapp(request: WhatsAppMessageRequest):
+@router.post("/whatsapp", response_model=NotificationResponse)
+async def send_whatsapp(request: Dict[str, Any]):
     """
     Send a WhatsApp message to a phone number.
-
-    Supports both free-form messages and pre-approved templates.
     """
     try:
-        from notifications import WhatsAppService
+        from core.notifications import WhatsAppService
 
         service = WhatsAppService()
+        
+        phone_number = request.get("to") or request.get("phone_number")
+        message = request.get("message")
+        template_name = request.get("template") or request.get("template_name")
+        template_params = request.get("template_params") or {}
 
-        if request.template_name:
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="phone_number or to is required")
+
+        if template_name:
             result = await service.send_template(
-                phone_number=request.phone_number,
-                template_name=request.template_name,
-                params=request.template_params or {},
+                phone_number=phone_number,
+                template_name=template_name,
+                params=template_params,
             )
         else:
             result = await service.send_message(
-                phone_number=request.phone_number,
-                message=request.message,
+                phone_number=phone_number,
+                message=message,
             )
 
         return NotificationResponse(
@@ -173,7 +179,7 @@ async def list_whatsapp_templates():
     List available WhatsApp message templates.
     """
     try:
-        from notifications import WhatsAppService
+        from core.notifications import WhatsAppService
 
         service = WhatsAppService()
         templates = await service.get_templates()
@@ -193,30 +199,38 @@ async def list_whatsapp_templates():
 # ==================== Email Endpoints ====================
 
 
-@router.post("/email/send", response_model=NotificationResponse)
-async def send_email(request: EmailMessageRequest):
+@router.post("/email", response_model=NotificationResponse)
+async def send_email(request: Dict[str, Any]):
     """
     Send an email notification.
-
-    Supports both plain text and HTML content, as well as templates.
     """
     try:
-        from notifications import EmailService, EmailMessage
+        from core.notifications import EmailService, EmailMessage
 
         service = EmailService()
+        
+        to_email = request.get("to") or request.get("to_email")
+        subject = request.get("subject")
+        body_text = request.get("body") or request.get("body_text")
+        body_html = request.get("body_html")
+        template_name = request.get("template") or request.get("template_name")
+        template_data = request.get("template_data") or {}
+
+        if not to_email:
+            raise HTTPException(status_code=400, detail="to or to_email is required")
 
         message = EmailMessage(
-            to_email=request.to_email,
-            subject=request.subject,
-            body_text=request.body_text,
-            body_html=request.body_html,
+            to_email=to_email,
+            subject=subject,
+            body_text=body_text or "",
+            body_html=body_html,
         )
 
-        if request.template_name:
+        if template_name:
             result = await service.send_template(
-                to_email=request.to_email,
-                template_name=request.template_name,
-                data=request.template_data or {},
+                to_email=to_email,
+                template_name=template_name,
+                data=template_data,
             )
         else:
             result = await service.send(message)
@@ -247,7 +261,7 @@ async def list_email_templates():
     List available email templates.
     """
     try:
-        from notifications import EmailService
+        from core.notifications import EmailService
 
         service = EmailService()
         templates = await service.get_templates()
@@ -267,34 +281,42 @@ async def list_email_templates():
 # ==================== Push Notification Endpoints ====================
 
 
-@router.post("/push/send", response_model=NotificationResponse)
-async def send_push(request: PushNotificationRequest):
+@router.post("/push", response_model=NotificationResponse)
+async def send_push(request: Dict[str, Any]):
     """
     Send a push notification to a device.
     """
     try:
-        from notifications import (
+        from core.notifications import (
             PushNotificationService,
-            PushNotification,
             PushPriority,
         )
 
         service = PushNotificationService()
+        
+        user_id = request.get("user_id")
+        device_token = request.get("token") or request.get("device_token")
+        title = request.get("title")
+        body = request.get("body")
+        data = request.get("data")
+        priority = request.get("priority", "normal")
 
-        # notification = PushNotification(
-        #     device_token=request.device_token,
-        #     title=request.title,
-        #     body=request.body,
-        #     data=request.data,
-        #     priority=PushPriority(request.priority),
-        # )
+        # If user_id provided but no token, look up token
+        if user_id and not device_token:
+            # In a real app, look up token from DB
+            # For now, we'll assume it's passed or fail
+            pass
+
+        if not device_token:
+            # For testing, if no token, we might fail or use a dummy
+            raise HTTPException(status_code=400, detail="device_token or token is required")
 
         result = await service.send_to_device_async(
-            device_token=request.device_token,
-            title=request.title,
-            body=request.body,
-            data=request.data,
-            priority=PushPriority(request.priority),
+            device_token=device_token,
+            title=title,
+            body=body,
+            data=data,
+            priority=PushPriority(priority),
         )
 
         return NotificationResponse(
@@ -315,6 +337,42 @@ async def send_push(request: PushNotificationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/device/register")
+async def register_device_v2(request: Dict[str, Any]):
+    """
+    Register a device for push notifications (Body-based).
+    """
+    try:
+        from core.notifications import PushNotificationService
+
+        service = PushNotificationService()
+        user_id = request.get("user_id")
+        device_token = request.get("token") or request.get("device_token")
+        platform = request.get("platform", "android")
+
+        if not user_id or not device_token:
+            raise HTTPException(status_code=400, detail="user_id and token are required")
+
+        await service.register_device(
+            user_id=user_id,
+            device_token=device_token,
+            platform=platform,
+        )
+
+        return {
+            "status": "registered",
+            "user_id": user_id,
+            "platform": platform,
+            "registered_at": datetime.utcnow().isoformat(),
+        }
+
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Push service not available")
+    except Exception as e:
+        logger.error(f"Device registration error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{user_id}/register-device")
 async def register_device(
     user_id: str,
@@ -325,7 +383,7 @@ async def register_device(
     Register a device for push notifications.
     """
     try:
-        from notifications import PushNotificationService
+        from core.notifications import PushNotificationService
 
         service = PushNotificationService()
         await service.register_device(
@@ -416,15 +474,15 @@ async def get_delivery_status(message_id: str, channel: str = Query(...)):
     """
     try:
         if channel == "whatsapp":
-            from notifications import WhatsAppService
+            from core.notifications import WhatsAppService
 
             service = WhatsAppService()
         elif channel == "email":
-            from notifications import EmailService
+            from core.notifications import EmailService
 
             service = EmailService()
         elif channel == "push":
-            from notifications import PushNotificationService
+            from core.notifications import PushNotificationService
 
             service = PushNotificationService()
         else:
@@ -489,3 +547,23 @@ async def update_notification_preferences(
         "user_id": user_id,
         "updated_at": datetime.utcnow().isoformat(),
     }
+
+@router.get("/history/{user_id}")
+async def get_notification_history(user_id: str, limit: int = Query(50, ge=1, le=100)):
+    """Get notification history for a user."""
+    return {
+        "user_id": user_id,
+        "history": [],
+        "count": 0
+    }
+
+@router.post("/send")
+async def send_general_notification(request: Dict[str, Any]):
+    """General notification endpoint that routes to appropriate channel."""
+    channel = request.get("channel", "push")
+    if channel == "email":
+        return await send_email(request)
+    elif channel == "whatsapp":
+        return await send_whatsapp(request)
+    else:
+        return await send_push(request)

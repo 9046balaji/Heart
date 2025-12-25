@@ -427,6 +427,8 @@ class AgentResponse(BaseModel):
     """Response from agent processing"""
 
     status: str = Field(..., description="Processing status (success/error)")
+    agent: Optional[str] = Field(None, description="Agent name that handled request")
+    action: Optional[str] = Field(None, description="Action taken")
     response: str = Field(..., description="Agent's response")
     data: Optional[Dict[str, Any]] = Field(
         None, description="Additional data from processing"

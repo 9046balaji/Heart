@@ -44,7 +44,7 @@ async def get_intent_distribution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/sentiments")
+@router.get("/sentiment")
 async def get_sentiment_distribution(
     current_user: dict = Depends(get_current_user),
 ) -> Dict[str, int]:
@@ -115,4 +115,16 @@ async def detect_anomalies(
         return analytics_manager.detect_anomalies()
     except Exception as e:
         logger.error(f"Error detecting anomalies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{user_id}")
+async def get_user_analytics(
+    user_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get analytics for a specific user."""
+    try:
+        return analytics_manager.get_user_analytics(user_id)
+    except Exception as e:
+        logger.error(f"Error getting user analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))

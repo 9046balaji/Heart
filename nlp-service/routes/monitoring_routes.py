@@ -149,17 +149,32 @@ async def get_monitoring_status():
                 "/monitoring/icd10/performance/detailed", 
                 "/monitoring/icd10/test-mapping",
                 "/monitoring/health",
-                "/monitoring/status"
+                "/monitoring/status",
+                "/monitoring/metrics"
             ],
             "features": [
                 "ICD-10 mapping performance tracking",
                 "Cache hit rate monitoring",
                 "Processing time analytics",
-                "System health monitoring"
+                "System health monitoring",
+                "System metrics"
             ]
         }
     except Exception as e:
         logger.error(f"Error getting monitoring status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/metrics")
+async def get_system_metrics():
+    """
+    Get detailed system metrics.
+    """
+    try:
+        from core.analytics import analytics_manager
+        return analytics_manager.get_analytics_summary()
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

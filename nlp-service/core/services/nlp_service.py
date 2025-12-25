@@ -215,17 +215,36 @@ class NLPService:
 
     async def _assess_risk(
         self, text: str, health_metrics: Optional[dict] = None
-    ) -> RiskAssessmentResult:
+    ) -> Optional[RiskAssessmentResult]:
         """Assess health risk (component execution)"""
         try:
             start = time.time()
-            result = await self.risk_assessor.assess_risk_async(text, health_metrics)
+            if not health_metrics:
+                # Cannot assess risk without metrics
+                return None
+            
+            # Convert dict to HealthMetrics object
+            from core.models import HealthMetrics
+            
+            # Map fields if necessary or assume direct mapping
+            # HealthMetrics expects specific fields
+            try:
+                metrics = HealthMetrics(**health_metrics)
+            except Exception as e:
+                logger.warning(f"Invalid health metrics format: {e}")
+                return None
+
+            # Run in thread pool since assess_risk is synchronous
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, self.risk_assessor.assess_risk, metrics
+            )
             elapsed_ms = (time.time() - start) * 1000
             logger.debug(f"Risk assessment: {elapsed_ms:.1f}ms")
             return result
         except Exception as e:
             logger.error(f"Risk assessment failed: {e}")
-            raise
+            # Return None on failure to avoid failing the entire NLP pipeline
+            return None
 
     def get_metrics(self) -> dict:
         """Get service metrics"""

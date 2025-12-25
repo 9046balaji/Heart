@@ -25,6 +25,8 @@ nlp-service/nlp/evaluation/real_world_queries.json
 
 chroma_db/
 logs/
+#npm-debug.log*
+#*.log
 docs/
 backups
 docs/memory
@@ -60,9 +62,6 @@ MEMORI_FEATURES_AUDIT.md
 SECURITY.md
 not-sure/
 IMPLEMENTATION_AUDIT_REPORT.md
-VERIFICATION_REPORT.md
-FRONTEND_*.md
-*_SETUP.md
 nlp-service/*_SETUP.md
 
 
@@ -182,7 +181,7 @@ dist-ssr/
 
 # npm
 package-lock.json
-npm-debug.log*
+
 .npm
 
 # yarn
@@ -323,7 +322,7 @@ pre_commit_output.txt
 .secrets.baseline
 
 # Local log files
-*.log
+
 
 # Local startup scripts
 start_services.bat

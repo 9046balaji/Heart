@@ -231,7 +231,7 @@ async def _persist_samples(
                 logger.exception(f"Failed to persist samples: {e}")
 
 
-@router.post("/vitals", status_code=201)
+@router.post("/vitals/ingest", status_code=201)
 async def ingest_timeseries_data(
     payload: TimeSeriesPayload,
     background: BackgroundTasks,
@@ -429,7 +429,7 @@ def _calculate_aggregates(rows, interval: str):
     return buckets
 
 
-@router.get("/{device_id}/aggregate")
+@router.get("/vitals/{device_id}/aggregated")
 async def aggregate_device_timeseries(
     device_id: str,
     metric_type: str = Query("hr", description="Metric (hr, ppg, steps, spo2)"),
@@ -576,7 +576,7 @@ async def ask_health_question(
     return {"response": response}
 
 
-@router.get("/system/status")
+@router.get("/status")
 async def get_system_status():
     """
     Get health analysis system status.

@@ -15,6 +15,7 @@ import os
 import pickle
 from pathlib import Path
 from datetime import datetime
+import logging
 from config import (
     EMERGENCY_KEYWORDS,
     INTENT_CONFIDENCE_THRESHOLD,

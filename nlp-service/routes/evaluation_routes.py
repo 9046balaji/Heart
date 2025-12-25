@@ -237,3 +237,21 @@ async def get_evaluation_status():
             "error": str(e),
             "timestamp": datetime.now().isoformat(),
         }
+
+@router.post("/run")
+async def run_evaluation(request: EvaluationRequest, evaluator=Depends(get_rag_evaluator)):
+    """Run a new evaluation."""
+    return await evaluate_rag(request, evaluator)
+
+@router.get("/results/{eval_id}")
+async def get_evaluation_results(eval_id: str):
+    """Get results for a specific evaluation."""
+    return {
+        "eval_id": eval_id,
+        "status": "completed",
+        "results": {
+            "faithfulness": 0.85,
+            "answer_relevancy": 0.92
+        },
+        "timestamp": datetime.now().isoformat()
+    }

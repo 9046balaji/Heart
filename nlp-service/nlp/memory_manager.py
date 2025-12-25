@@ -749,7 +749,7 @@ class MemoryManager:
 
             # Lazy load Memori here
             try:
-                from memori import Memori
+                from nlp.memori import Memori
             except ImportError:
                 raise MemoryManagerException(
                     "Memori library not installed. " "Install with: pip install memori"
@@ -857,6 +857,33 @@ class MemoryManager:
             self.metrics.errors_total += 1
             logger.error(f"Memory search error: {e}", exc_info=True)
             raise
+
+    async def get_user_context(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get user context (convenience method).
+
+        Combines conversation context and health summary.
+        """
+        if not self.enabled:
+            return {}
+
+        try:
+            patient_memory = await self.get_patient_memory(user_id)
+            
+            # Run in parallel
+            conv_task = patient_memory.get_conversation_context()
+            health_task = patient_memory.get_health_summary()
+            
+            conv_context, health_context = await asyncio.gather(conv_task, health_task)
+            
+            return {
+                **conv_context,
+                **health_context,
+                "user_id": user_id
+            }
+        except Exception as e:
+            logger.error(f"Error getting user context: {e}")
+            return {}
 
     @retry(
         stop=stop_after_attempt(3),

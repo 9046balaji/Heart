@@ -16,6 +16,11 @@ from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
+try:
+    from config import OLLAMA_HOST
+except ImportError:
+    OLLAMA_HOST = "http://localhost:11434"
+
 
 @dataclass
 class ChatResponse:
@@ -295,7 +300,7 @@ class ChatbotManager:
         """
         self.gemini = GeminiChatbot(api_key=gemini_api_key)
         self.ollama = OllamaChatbot(
-            base_url=ollama_url or "http://localhost:11434", model="gemma3:1b"
+            base_url=ollama_url or OLLAMA_HOST, model="gemma3:1b"
         )
 
         # Determine primary backend

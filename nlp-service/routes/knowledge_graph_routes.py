@@ -15,7 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/knowledge-graph", tags=["Knowledge Graph"])
+router = APIRouter(prefix="/knowledge", tags=["Knowledge Graph"])
 
 
 # ==================== Request/Response Models ====================
@@ -448,7 +448,7 @@ async def execute_cypher_query(
 # ==================== Graph RAG Endpoints ====================
 
 
-@router.post("/rag/query", response_model=GraphRAGResponse)
+@router.post("/rag", response_model=GraphRAGResponse)
 async def graph_rag_query(
     query: str = Body(..., embed=True),
     user_id: Optional[str] = Body(None, embed=True),
@@ -517,7 +517,7 @@ async def get_graph_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/health")
+@router.get("/status")
 async def graph_health():
     """
     Check knowledge graph service health.

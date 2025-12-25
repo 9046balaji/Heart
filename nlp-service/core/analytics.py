@@ -37,6 +37,14 @@ class AnalyticsManager:
                 "request_count": 0,
             }
         )
+        self.user_patterns: Dict[str, Dict] = defaultdict(
+            lambda: {
+                "intents": Counter(),
+                "sentiments": Counter(),
+                "entities": Counter(),
+                "request_count": 0,
+            }
+        )
 
         # Trend analysis data
         self.hourly_intent_trends: Dict[str, List[Tuple[datetime, int]]] = defaultdict(
@@ -98,6 +106,16 @@ class AnalyticsManager:
 
                 for entity in entities:
                     session_data["entities"][entity.type] += 1
+
+            # Track user patterns
+            if user_id:
+                user_data = self.user_patterns[user_id]
+                user_data["intents"][intent.value] += 1
+                user_data["sentiments"][sentiment.value] += 1
+                user_data["request_count"] += 1
+
+                for entity in entities:
+                    user_data["entities"][entity.type] += 1
 
             # Track trends
             self._track_intent_trend(current_time, intent.value)
@@ -238,6 +256,26 @@ class AnalyticsManager:
             if session_id in self.session_patterns
             else {}
         )
+
+    def get_user_analytics(self, user_id: str) -> Dict:
+        """
+        Get analytics for a specific user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dictionary with user analytics
+        """
+        if user_id in self.user_patterns:
+            data = self.user_patterns[user_id]
+            return {
+                "intents": dict(data["intents"]),
+                "sentiments": dict(data["sentiments"]),
+                "entities": dict(data["entities"]),
+                "request_count": data["request_count"],
+            }
+        return {}
 
     def get_top_intents(self, limit: int = 10) -> List[tuple]:
         """

@@ -1,174 +1,807 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekly Health Report</title>
     <style>
+        /* --- VARIABLES & RESET --- */
+        :root {
+            --primary-color: #E11D48;
+            /* Professional Rose Red */
+            --primary-light: #FFE4E6;
+            --secondary-color: #0F172A;
+            /* Deep Slate */
+            --text-muted: #64748B;
+            --success-color: #10B981;
+            --warning-bg: #FFFBEB;
+            --warning-border: #F59E0B;
+            --danger-bg: #FEF2F2;
+            --danger-text: #991B1B;
+            --bg-body: #F8FAFC;
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
         @page {
             size: A4;
-            margin: 2cm;
+            margin: 0;
+            /* We handle margins in the body for better web/print consistency */
         }
-        
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.5;
+            color: var(--secondary-color);
+            background-color: var(--bg-body);
+            max-width: 210mm;
+            /* A4 Width */
             margin: 0 auto;
+            padding: 2cm;
+            /* Visual margin */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        
+
+        /* --- HEADER SECTION --- */
         .header {
-            background: linear-gradient(135deg, #FF4B4B 0%, #FF6B6B 100%);
+            background: linear-gradient(135deg, #BE123C 0%, #E11D48 100%);
             color: white;
-            padding: 30px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            text-align: center;
+            padding: 2.5rem;
+            border-radius: 16px;
+            margin-bottom: 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+            position: relative;
+            overflow: hidden;
         }
-        
-        .header h1 {
+
+        /* Decorative circle in header */
+        .header::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 300px;
+            height: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .header-content h1 {
             margin: 0;
             font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
-        
-        .header p {
-            margin: 10px 0 0 0;
-            font-size: 14px;
+
+        .header-content p {
+            margin: 8px 0 0 0;
+            font-size: 15px;
             opacity: 0.9;
+            font-weight: 400;
         }
-        
+
+        .header-meta {
+            text-align: right;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 10px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+        }
+
+        .header-meta span {
+            display: block;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .header-meta strong {
+            font-size: 18px;
+        }
+
+        /* --- GRID LAYOUT --- */
         .grid-2-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 24px;
+            margin-bottom: 24px;
         }
-        
+
+        /* --- CARDS --- */
         .card {
             background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            padding: 0;
+            /* Content padding handled inside */
+            box-shadow: var(--card-shadow);
+            border: 1px solid #E2E8F0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
-        
-        .card h3 {
-            margin: 0 0 15px 0;
-            color: #FF4B4B;
-            font-size: 18px;
-            border-bottom: 2px solid #FF4B4B;
-            padding-bottom: 10px;
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #F1F5F9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        
-        .card img {
-            width: 100%;
-            height: auto;
-            border-radius: 5px;
-        }
-        
-        .insight {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 15px;
-            font-size: 14px;
-            border-left: 4px solid #FF4B4B;
-        }
-        
-        .medication-section {
-            background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .medication-section h3 {
+
+        .card-header h3 {
             margin: 0;
-            font-size: 24px;
+            color: var(--secondary-color);
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        .recommendations {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 8px;
+
+        .card-body {
             padding: 20px;
-            margin-top: 20px;
+            flex-grow: 1;
         }
-        
+
+        /* Mock Chart Placeholder Styling */
+        .chart-container {
+            width: 100%;
+            height: 180px;
+            background-color: #F8FAFC;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed #CBD5E1;
+            overflow: hidden;
+        }
+
+        .chart-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .insight-box {
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary-color);
+            padding: 12px 16px;
+            border-radius: 0 4px 4px 0;
+            font-size: 14px;
+            color: #881337;
+            line-height: 1.4;
+        }
+
+        /* --- NUTRITION SPECIFIC STYLES --- */
+
+        /* Micronutrient Gauges */
+        .nutrient-row {
+            margin-bottom: 16px;
+        }
+
+        .nutrient-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .nutrient-track {
+            height: 8px;
+            background-color: #F1F5F9;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .nutrient-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .water-tracker {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .water-glass {
+            width: 24px;
+            height: 32px;
+            background-color: #E2E8F0;
+            border-radius: 0 0 4px 4px;
+            position: relative;
+            border: 1px solid #CBD5E1;
+        }
+
+        .water-glass.filled {
+            background-color: #3B82F6;
+            /* Blue */
+            border-color: #2563EB;
+        }
+
+        /* Detailed Food List */
+        .food-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .food-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #F1F5F9;
+        }
+
+        .food-list li:last-child {
+            border-bottom: none;
+        }
+
+        .food-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .food-name {
+            font-weight: 600;
+            color: var(--secondary-color);
+            font-size: 14px;
+        }
+
+        .food-cals {
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .food-macros {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .macro-item span {
+            font-weight: 600;
+        }
+
+        .nutrient-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: #F0FDF4;
+            /* Green background */
+            color: #166534;
+            /* Green text */
+            font-weight: 600;
+            margin-left: 6px;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .nutrient-badge.warning {
+            background: #FFFBEB;
+            color: #B45309;
+        }
+
+        .nutrient-badge.danger {
+            background: #FEF2F2;
+            color: #991B1B;
+        }
+
+        /* --- DIET STRATEGY STYLES (NEW) --- */
+        .diet-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .diet-list li {
+            padding: 12px 0;
+            border-bottom: 1px dashed #E2E8F0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .diet-list li:last-child {
+            border-bottom: none;
+        }
+
+        .diet-list li strong {
+            color: var(--secondary-color);
+            font-size: 14px;
+        }
+
+        .diet-list li span {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .section-title {
+            margin: 30px 0 16px 0;
+            color: var(--secondary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            border-left: 4px solid var(--primary-color);
+            padding-left: 12px;
+        }
+
+        /* --- MEDICATION SECTION --- */
+        .medication-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid #E2E8F0;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .score-circle {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            flex-shrink: 0;
+        }
+
+        /* CSS Progress Bar Container */
+        .progress-container {
+            flex-grow: 1;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 12px;
+            background-color: #E2E8F0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+            border-radius: 6px;
+
+            /* Inline style will set width dynamically */
+            width: {
+                    {
+                    scores.medication
+                }
+            }
+
+            %;
+            min-width: 5%;
+        }
+
+        .med-message {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* --- RECOMMENDATIONS --- */
+        .recommendations {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            border-left: 6px solid var(--warning-border);
+        }
+
         .recommendations h3 {
-            color: #856404;
-            margin-top: 0;
+            margin: 0 0 16px 0;
+            color: var(--secondary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
-        .recommendations ul {
-            margin: 10px 0;
-            padding-left: 20px;
+
+        .rec-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
         }
-        
+
+        .rec-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #F1F5F9;
+            display: flex;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .rec-list li:last-child {
+            border-bottom: none;
+        }
+
+        .rec-list li::before {
+            content: '•';
+            color: var(--warning-border);
+            font-weight: bold;
+            font-size: 1.2em;
+            line-height: 1.4;
+        }
+
+        /* --- FOOTER --- */
         .footer {
-            text-align: center;
-            font-size: 12px;
-            color: #999;
             margin-top: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            border-top: 1px solid #E2E8F0;
             padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
+        }
+
+        /* --- UTILITIES --- */
+        .text-rose {
+            color: var(--primary-color);
+        }
+
+        .text-green {
+            color: var(--success-color);
+        }
+
+        .text-blue {
+            color: #3B82F6;
+        }
+
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+
+            .header-meta {
+                width: 100%;
+                text-align: center;
+            }
+
+            .grid-2-col {
+                grid-template-columns: 1fr;
+            }
+
+            .medication-section {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        /* --- PRINT SPECIFIC --- */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+                max-width: 100%;
+            }
+
+            .card,
+            .header,
+            .medication-section {
+                box-shadow: none;
+                border: 1px solid #ddd;
+                break-inside: avoid;
+            }
+
+            .grid-2-col {
+                grid-template-columns: 1fr 1fr;
+                /* Force 2 columns on print */
+            }
         }
     </style>
 </head>
+
 <body>
+
+    <!-- Header -->
     <div class="header">
-        <h1>❤️ Weekly Health Insights</h1>
-        <p>Patient: {{ user_name }} | Week: {{ week_range }}</p>
+        <div class="header-content">
+            <h1>Health Intelligence Report</h1>
+            <p>Comprehensive weekly analysis generated by Heart Health AI</p>
+        </div>
+        <div class="header-meta">
+            <span>Patient Profile</span>
+            <strong>{{ user_name }}</strong>
+            <div style="font-size: 12px; margin-top: 4px; opacity: 0.8;">{{ week_range }}</div>
+        </div>
+    </div>
+
+    <!-- Vitals Grid -->
+    <div class="grid-2-col">
+        <!-- Heart Rate Card -->
+        <div class="card">
+            <div class="card-header">
+                <h3>❤️ Heart Rate</h3>
+                <span
+                    style="font-size: 12px; background: #FEF2F2; color: #E11D48; padding: 4px 8px; border-radius: 4px; font-weight: bold;">BPM
+                    Trend</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{{ charts.heart_rate }}" alt="Heart Rate Chart"
+                        onerror="this.style.display='none'; this.parentElement.innerHTML='Chart Unavailable';" />
+                </div>
+                <div class="insight-box">
+                    <strong>Analysis:</strong> {{ insights.heart_rate }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Card -->
+        <div class="card">
+            <div class="card-header">
+                <h3>👣 Physical Activity</h3>
+                <span
+                    style="font-size: 12px; background: #F0FDF4; color: #15803D; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Daily
+                    Steps</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{{ charts.steps }}" alt="Steps Chart"
+                        onerror="this.style.display='none'; this.parentElement.innerHTML='Chart Unavailable';" />
+                </div>
+                <div class="insight-box" style="background-color: #F0FDF4; border-color: #15803D; color: #14532D;">
+                    <strong>Analysis:</strong> {{ insights.steps }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vitals Row 2: BP & Meds -->
+    <div class="grid-2-col">
+        <!-- Blood Pressure Card -->
+        <div class="card">
+            <div class="card-header">
+                <h3>🩺 Blood Pressure</h3>
+                <span
+                    style="font-size: 12px; background: #EFF6FF; color: #1D4ED8; padding: 4px 8px; border-radius: 4px; font-weight: bold;">mmHg</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{{ charts.blood_pressure }}" alt="BP Chart"
+                        onerror="this.style.display='none'; this.parentElement.innerHTML='Chart Unavailable';" />
+                </div>
+                <div class="insight-box" style="background-color: #EFF6FF; border-color: #1D4ED8; color: #1E3A8A;">
+                    <strong>Analysis:</strong> {{ insights.blood_pressure }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Medication Adherence Chart Card -->
+        <div class="card">
+            <div class="card-header">
+                <h3>💊 Dosing History</h3>
+                <span
+                    style="font-size: 12px; background: #FFF7ED; color: #C2410C; padding: 4px 8px; border-radius: 4px; font-weight: bold;">7-Day
+                    Log</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <img src="data:image/png;base64,{{ charts.medication }}" alt="Medication Chart"
+                        onerror="this.style.display='none'; this.parentElement.innerHTML='Chart Unavailable';" />
+                </div>
+                <div class="insight-box" style="background-color: #FFF7ED; border-color: #EA580C; color: #7C2D12;">
+                    <strong>Status:</strong> {{ insights.medication }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nutrition & Food Log Section -->
+    <div class="grid-2-col">
+        <!-- Micronutrients & Hydration -->
+        <div class="card">
+            <div class="card-header">
+                <h3>💧 Hydration & Micronutrients</h3>
+                <span
+                    style="font-size: 12px; background: #EFF6FF; color: #2563EB; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Daily
+                    Avg</span>
+            </div>
+            <div class="card-body">
+                <!-- Water Visualization -->
+                <div style="text-align:center; font-size: 13px; font-weight:600; color:var(--text-muted);">Daily Water
+                    Intake (Cups)</div>
+                <div class="water-tracker">
+                    <div class="water-glass filled"></div>
+                    <div class="water-glass filled"></div>
+                    <div class="water-glass filled"></div>
+                    <div class="water-glass filled"></div>
+                    <div class="water-glass filled"></div>
+                    <div class="water-glass"></div>
+                    <div class="water-glass"></div>
+                    <div class="water-glass"></div>
+                </div>
+
+                <hr style="border:0; border-top:1px solid #F1F5F9; margin: 20px 0;">
+
+                <!-- Sodium Monitor -->
+                <div class="nutrient-row">
+                    <div class="nutrient-label">
+                        <span>Sodium</span>
+                        <span style="color: #EF4444;">{{ nutrition.sodium_avg }} mg (High)</span>
+                    </div>
+                    <div class="nutrient-track">
+                        <div class="nutrient-bar" style="width: 85%; background-color: #EF4444;"></div>
+                    </div>
+                    <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Limit: 2300mg / day</div>
+                </div>
+
+                <!-- Fiber Monitor -->
+                <div class="nutrient-row">
+                    <div class="nutrient-label">
+                        <span>Fiber</span>
+                        <span style="color: #10B981;">{{ nutrition.fiber_avg }} g (Good)</span>
+                    </div>
+                    <div class="nutrient-track">
+                        <div class="nutrient-bar" style="width: 70%; background-color: #10B981;"></div>
+                    </div>
+                    <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Target: >25g / day</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Food Intake Log -->
+        <div class="card">
+            <div class="card-header">
+                <h3>🥗 Detailed Meal Log</h3>
+                <span
+                    style="font-size: 12px; background: #F0FDF4; color: #166534; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Recent</span>
+            </div>
+            <div class="card-body">
+                <ul class="food-list">
+                    {% if food_log %}
+                    {% for item in food_log %}
+                    <li>
+                        <div class="food-main">
+                            <span class="food-name">
+                                {{ item.name }}
+                                {% if item.sodium_tag == 'high' %}
+                                <span class="nutrient-badge danger">High Sodium</span>
+                                {% elif item.sodium_tag == 'low' %}
+                                <span class="nutrient-badge">Low Sodium</span>
+                                {% endif %}
+                            </span>
+                            <span class="food-cals">{{ item.calories }} kcal</span>
+                        </div>
+                        <!-- Detailed Macros -->
+                        <div class="food-macros">
+                            <div class="macro-item">Carbs: <span>{{ item.carbs }}g</span></div>
+                            <div class="macro-item">Protein: <span>{{ item.protein }}g</span></div>
+                            <div class="macro-item">Fat: <span>{{ item.fat }}g</span></div>
+                            <div class="macro-item" style="margin-left:auto; color:#64748B;">{{ item.timestamp }}</div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                    {% else %}
+                    <li style="justify-content: center; color: #94A3B8; padding: 20px;">
+                        No food logs available for this week.
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW SECTION: PERSONALIZED DIETARY GUIDELINES (DO'S & DON'TS) -->
+    <div class="section-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+        </svg>
+        Dietary Strategy for {{ diet_plan.condition_focus }}
     </div>
 
     <div class="grid-2-col">
-        <div class="card">
-            <h3>❤️ Heart Health</h3>
-            <img src="data:image/png;base64,{{ charts.heart_rate }}" alt="Heart Rate Trend" />
-            <div class="insight">
-                <strong>Analysis:</strong> {{ insights.heart_rate }}
+        <!-- Recommended Foods (Do's) -->
+        <div class="card diet-card recommended">
+            <div class="card-header" style="background-color: #F0FDF4; border-bottom: 1px solid #DCFCE7;">
+                <h3 style="color: #166534;">
+                    <span style="font-size: 18px;">✅</span> Foods to Embrace
+                </h3>
+            </div>
+            <div class="card-body">
+                <ul class="diet-list">
+                    {% for food in diet_plan.recommended %}
+                    <li>
+                        <strong>{{ food.category }}</strong>
+                        <span>{{ food.items }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="insight-box"
+                    style="margin-top: 15px; background: #F0FDF4; border-color: #166534; color: #14532D;">
+                    <strong>Why?</strong> {{ diet_plan.recommended_reason }}
+                </div>
             </div>
         </div>
-        
-        <div class="card">
-            <h3>👣 Activity Levels</h3>
-            <img src="data:image/png;base64,{{ charts.steps }}" alt="Daily Steps" />
-            <div class="insight">
-                <strong>Analysis:</strong> {{ insights.steps }}
+
+        <!-- Restricted Foods (Don'ts) -->
+        <div class="card diet-card restricted">
+            <div class="card-header" style="background-color: #FEF2F2; border-bottom: 1px solid #FEE2E2;">
+                <h3 style="color: #991B1B;">
+                    <span style="font-size: 18px;">⚠️</span> Foods to Limit
+                </h3>
+            </div>
+            <div class="card-body">
+                <ul class="diet-list">
+                    {% for food in diet_plan.restricted %}
+                    <li>
+                        <strong>{{ food.category }}</strong>
+                        <span>{{ food.items }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="insight-box"
+                    style="margin-top: 15px; background: #FEF2F2; border-color: #991B1B; color: #7F1D1D;">
+                    <strong>Risk:</strong> {{ diet_plan.restricted_reason }}
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="grid-2-col">
-        <div class="card">
-            <h3>🩺 Blood Pressure</h3>
-            <img src="data:image/png;base64,{{ charts.blood_pressure }}" alt="Blood Pressure Trend" />
-            <div class="insight">
-                <strong>Analysis:</strong> {{ insights.blood_pressure }}
-            </div>
-        </div>
-        
-        <div class="card">
-            <h3>💊 Medication Adherence</h3>
-            <img src="data:image/png;base64,{{ charts.medication }}" alt="Medication Adherence" />
-            <div class="insight">
-                <strong>Status:</strong> {{ insights.medication }}
-            </div>
-        </div>
-    </div>
-
+    <!-- Medication Summary Strip -->
     <div class="medication-section">
-        <h3>💊 Weekly Adherence Score: {{ scores.medication }}%</h3>
-        <p>{{ scores.medication_message }}</p>
+        <div style="font-size: 32px;">💊</div>
+        <div class="progress-container">
+            <div class="progress-header">
+                <span>Weekly Adherence Score</span>
+                <span class="text-green">{{ scores.medication }}%</span>
+            </div>
+            <!-- Visual Progress Bar -->
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {{ scores.medication }}%;"></div>
+            </div>
+            <p class="med-message">{{ scores.medication_message }}</p>
+        </div>
     </div>
 
+    <!-- Recommendations -->
     {% if recommendations %}
     <div class="recommendations">
-        <h3>⚠️ Health Recommendations</h3>
-        <ul>
+        <h3>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                </path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Clinical Recommendations
+        </h3>
+        <ul class="rec-list">
             {% for rec in recommendations %}
             <li>{{ rec }}</li>
             {% endfor %}
@@ -176,9 +809,14 @@
     </div>
     {% endif %}
 
+    <!-- Footer -->
     <div class="footer">
-        <p>This report is generated automatically. Always consult your healthcare provider for medical advice.</p>
-        <p>© 2024 Heart Health AI Assistant</p>
+        <p><strong>Confidential Medical Document.</strong> Generated by Heart Health AI Assistant.</p>
+        <p>This report is strictly for informational purposes. Always consult your healthcare provider for medical
+            advice.</p>
+        <p>© 2024 Heart Health AI Project</p>
     </div>
+
 </body>
+
 </html>

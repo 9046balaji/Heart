@@ -10,7 +10,7 @@ FastAPI routes for LLM function calling and health tools:
 
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Query
 from pydantic import BaseModel, Field
 import logging
 
@@ -126,16 +126,19 @@ class BPAnalysisRequest(BaseModel):
     systolic: int = Field(..., ge=60, le=250, description="Systolic pressure (mmHg)")
     diastolic: int = Field(..., ge=40, le=150, description="Diastolic pressure (mmHg)")
     pulse: Optional[int] = Field(None, ge=30, le=220, description="Pulse rate (bpm)")
+    user_id: Optional[str] = Field(None, description="User ID")
     context: Optional[str] = Field(None, description="Additional context")
 
 
 class HeartRateAnalysisRequest(BaseModel):
     """Heart rate analysis request."""
 
-    heart_rate: int = Field(..., ge=30, le=220, description="Heart rate (bpm)")
+    heart_rate: Optional[int] = Field(None, ge=30, le=220, description="Heart rate (bpm)")
+    bpm: Optional[int] = Field(None, ge=30, le=220, description="Heart rate (bpm) - alias for heart_rate")
     activity: str = Field(
         "resting", description="Activity: resting, light, moderate, intense"
     )
+    user_id: Optional[str] = Field(None, description="User ID")
     age: Optional[int] = Field(None, ge=1, le=120)
 
 
@@ -165,7 +168,7 @@ async def list_tools():
     List all available tools.
     """
     try:
-        from tools import get_tool_registry
+        from nlp.tools import get_tool_registry
 
         registry = get_tool_registry()
         tools = registry.list_tools()
@@ -222,7 +225,7 @@ async def get_tool_schema(tool_name: str):
     Get JSON schema for a specific tool (for LLM function calling).
     """
     try:
-        from tools import get_tool_registry
+        from nlp.tools import get_tool_registry
 
         registry = get_tool_registry()
         tool = registry.get_tool(tool_name)
@@ -255,7 +258,7 @@ async def get_all_schemas():
     Returns schemas in OpenAI function calling format.
     """
     try:
-        from tools import get_tool_registry
+        from nlp.tools import get_tool_registry
 
         registry = get_tool_registry()
         tools = registry.list_tools()
@@ -299,7 +302,7 @@ async def execute_tool(request: ToolExecutionRequest):
     start_time = time.time()
 
     try:
-        from tools import execute_tool as run_tool
+        from nlp.tools import execute_tool as run_tool
 
         result = await run_tool(
             tool_name=request.tool_name,
@@ -332,7 +335,7 @@ async def execute_tool(request: ToolExecutionRequest):
 # ==================== Health Tool Endpoints ====================
 
 
-@router.post("/analyze/blood-pressure")
+@router.post("/blood-pressure")
 async def analyze_blood_pressure(request: BPAnalysisRequest):
     """
     Analyze blood pressure reading.
@@ -340,7 +343,7 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
     Returns classification, risk assessment, and recommendations.
     """
     try:
-        from tools import blood_pressure_analyzer
+        from nlp.tools import blood_pressure_analyzer
 
         result = blood_pressure_analyzer(
             systolic=request.systolic,
@@ -349,13 +352,14 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
             context=request.context,
         )
 
+        data = result.data or {}
         return {
-            "classification": result.classification,
-            "risk_level": result.risk_level,
-            "is_hypertensive": result.is_hypertensive,
-            "pulse_pressure": request.systolic - request.diastolic,
-            "recommendations": result.recommendations,
-            "warning": result.warning,
+            "classification": data.get("category", data.get("classification")),
+            "risk_level": data.get("severity", data.get("risk_level")),
+            "is_hypertensive": data.get("is_hypertensive", request.systolic >= 130 or request.diastolic >= 80),
+            "pulse_pressure": data.get("pulse_pressure", request.systolic - request.diastolic),
+            "recommendations": data.get("recommendations", []),
+            "warning": result.warnings[0] if result.warnings else None,
             "disclaimer": (
                 "This analysis is for informational purposes only. "
                 "Consult your healthcare provider for medical advice."
@@ -404,25 +408,31 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
         }
 
 
-@router.post("/analyze/heart-rate")
+@router.post("/heart-rate")
 async def analyze_heart_rate(request: HeartRateAnalysisRequest):
     """
     Analyze heart rate.
     """
     try:
-        from tools import heart_rate_analyzer
+        from nlp.tools import heart_rate_analyzer
+
+        hr_value = request.heart_rate or request.bpm
+        if hr_value is None:
+            raise HTTPException(status_code=400, detail="heart_rate or bpm is required")
 
         result = heart_rate_analyzer(
-            heart_rate=request.heart_rate,
+            heart_rate=hr_value,
             activity=request.activity,
             age=request.age,
         )
 
-        return result.__dict__
+        return result.to_dict()
 
     except ImportError:
         # Fallback implementation
-        hr = request.heart_rate
+        hr = request.heart_rate or request.bpm
+        if hr is None:
+            raise HTTPException(status_code=400, detail="heart_rate or bpm is required")
         activity = request.activity
 
         if activity == "resting":
@@ -457,7 +467,7 @@ async def analyze_heart_rate(request: HeartRateAnalysisRequest):
         }
 
 
-@router.post("/check/drug-interactions")
+@router.post("/drug-interactions")
 async def check_drug_interactions(request: DrugInteractionRequest):
     """
     Check for potential drug interactions.
@@ -465,18 +475,19 @@ async def check_drug_interactions(request: DrugInteractionRequest):
     ⚠️ This is for informational purposes only - always consult a pharmacist.
     """
     try:
-        from tools import drug_interaction_checker
+        from nlp.tools import drug_interaction_checker
 
         result = drug_interaction_checker(
             medications=request.medications,
             include_foods=request.include_foods,
         )
 
+        data = result.data or {}
         return {
             "medications_checked": request.medications,
-            "interactions": result.interactions,
-            "severity_summary": result.severity_summary,
-            "recommendations": result.recommendations,
+            "interactions": data.get("interactions", []),
+            "severity_summary": data.get("summary", "No interactions found"),
+            "recommendations": data.get("recommendations", []),
             "disclaimer": "⚠️ Always consult a pharmacist or healthcare provider about drug interactions.",
         }
 
@@ -491,7 +502,7 @@ async def check_drug_interactions(request: DrugInteractionRequest):
         }
 
 
-@router.post("/triage/symptoms")
+@router.post("/symptom-triage")
 async def triage_symptoms(request: SymptomTriageRequest):
     """
     Triage symptoms for urgency level.
@@ -499,7 +510,7 @@ async def triage_symptoms(request: SymptomTriageRequest):
     ⚠️ This is not a substitute for professional medical evaluation.
     """
     try:
-        from tools import symptom_triage
+        from nlp.tools import symptom_triage
 
         result = symptom_triage(
             symptoms=request.symptoms,
@@ -509,13 +520,14 @@ async def triage_symptoms(request: SymptomTriageRequest):
             medical_history=request.medical_history,
         )
 
+        data = result.data or {}
         return {
-            "urgency_level": result.urgency_level,
-            "recommended_action": result.recommended_action,
-            "possible_conditions": result.possible_conditions,
-            "red_flags": result.red_flags,
-            "next_steps": result.next_steps,
-            "disclaimer": result.disclaimer,
+            "urgency_level": data.get("urgency", "routine"),
+            "recommended_action": data.get("action", "Monitor symptoms"),
+            "possible_conditions": data.get("possible_conditions", []),
+            "red_flags": result.warnings,
+            "next_steps": data.get("recommendations", []),
+            "disclaimer": data.get("disclaimer", "This is not a diagnosis."),
         }
 
     except ImportError:
@@ -577,7 +589,7 @@ async def calculate_bmi(
     Calculate BMI and provide classification.
     """
     try:
-        from tools import bmi_calculator
+        from nlp.tools import bmi_calculator
 
         return bmi_calculator(weight_kg=weight_kg, height_cm=height_cm).__dict__
     except ImportError:
@@ -623,7 +635,7 @@ async def calculate_cv_risk(
     Calculate 10-year cardiovascular risk using Framingham algorithm.
     """
     try:
-        from tools import cardiovascular_risk_calculator
+        from nlp.tools import cardiovascular_risk_calculator
 
         return cardiovascular_risk_calculator(
             age=age,
@@ -846,3 +858,24 @@ async def get_memory_tool_status():
         },
         "timestamp": datetime.now().isoformat(),
     }
+
+@router.get("/patient-summary/{user_id}")
+async def get_patient_summary_proxy(user_id: str):
+    """Proxy to patient summary generation."""
+    from routes.medical_ai_routes import generate_patient_summary, PatientSummaryRequest
+    request = PatientSummaryRequest(patient_id=user_id, document_texts=[])
+    return await generate_patient_summary(request, user_id=user_id)
+
+@router.post("/extract-entities")
+async def extract_entities_proxy(request: Dict[str, Any], user_id: str = Query("default")):
+    """Proxy to entity extraction."""
+    from routes.medical_ai_routes import extract_entities, EntityExtractionRequest
+    req = EntityExtractionRequest(text=request.get("text", ""), document_type=request.get("document_type"))
+    return await extract_entities(req, user_id=user_id)
+
+@router.post("/terminology/expand")
+async def expand_terminology_proxy(request: Dict[str, Any], user_id: str = Query("default")):
+    """Proxy to terminology expansion."""
+    from routes.medical_ai_routes import expand_terminology, TerminologyRequest
+    req = TerminologyRequest(terms=[request.get("term", "")] if "term" in request else request.get("terms", []))
+    return await expand_terminology(req, user_id=user_id)

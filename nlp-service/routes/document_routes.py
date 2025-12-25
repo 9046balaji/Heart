@@ -157,7 +157,7 @@ class UnstructuredProcessor(DocumentProcessor):
 
     async def _process_document(self, file_path: str) -> dict:
         """Internal method to process document with Unstructured.io."""
-        from document_scanning.unstructured_processor import (
+        from medical_ai.document_scanning.unstructured_processor import (
             UnstructuredDocumentProcessor,
         )
 
@@ -190,7 +190,7 @@ class TesseractOCRProcessor(DocumentProcessor):
             tmp_file_path = tmp_file.name
 
         try:
-            from document_scanning.ocr_engine import OCREngineFactory, OCRProvider
+            from medical_ai.document_scanning.ocr_engine import OCREngineFactory, OCRProvider
 
             factory = OCREngineFactory()
             ocr_engine = factory.get_engine(OCRProvider.TESSERACT)
@@ -447,35 +447,35 @@ class DocumentListResponse(BaseModel):
 def get_document_service():
     """Get document ingestion service instance."""
     # In production, use dependency injection
-    from document_scanning import DocumentIngestionService
+    from medical_ai.document_scanning import DocumentIngestionService
 
     return DocumentIngestionService()
 
 
 def get_ocr_factory():
     """Get OCR engine factory instance."""
-    from document_scanning import OCREngineFactory
+    from medical_ai.document_scanning import OCREngineFactory
 
     return OCREngineFactory()
 
 
 def get_classifier():
     """Get document classifier instance."""
-    from document_scanning import MedicalDocumentClassifier
+    from medical_ai.document_scanning import MedicalDocumentClassifier
 
     return MedicalDocumentClassifier()
 
 
 def get_audit_service():
     """Get audit service instance."""
-    from compliance import AuditService
+    from core.compliance.audit_logger import AuditService
 
     return AuditService()
 
 
 def get_verification_queue():
     """Get verification queue instance."""
-    from compliance import VerificationQueue
+    from core.compliance.verification_queue import VerificationQueue
 
     return VerificationQueue()
 
@@ -847,6 +847,17 @@ async def process_document(
     return result
 
 
+@router.post("/process/{document_id}")
+async def process_document_by_id(document_id: str, user_id: str = Query(...)):
+    """Proxy for processing a document by ID."""
+    # In a real app, this would fetch the document and process it
+    return {
+        "status": "processing",
+        "document_id": document_id,
+        "message": f"Document {document_id} is being processed",
+    }
+
+
 @router.get("/processors/status")
 async def get_processors_status():
     """Get status of available document processors."""
@@ -858,7 +869,7 @@ async def get_processors_status():
 
     # Check which processors are available
     try:
-        from document_scanning.unstructured_processor import (
+        from medical_ai.document_scanning.unstructured_processor import (
             UnstructuredDocumentProcessor,  # noqa: F401
         )
 

@@ -13,7 +13,7 @@ import logging
 import pytz
 import uuid
 from core.concurrency.redis_lock import RedisLock
-from core.config import get_settings
+from config import get_settings
 from core.app_dependencies import get_current_user
 from core.database.xampp_db import get_database
 

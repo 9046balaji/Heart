@@ -96,7 +96,7 @@ class AlertThrottler:
         # Try to initialize Redis client for distributed throttling
         if REDIS_AVAILABLE:
             try:
-                from core.config import REDIS_URL
+                from config import REDIS_URL
                 from core.cache.redis_client import RedisClient
                 self.redis_client = RedisClient
             except Exception as e:

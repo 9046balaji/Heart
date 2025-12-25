@@ -106,7 +106,7 @@ async def get_document_audit_trail(
     - Access events
     """
     try:
-        from compliance.audit_logger import get_audit_service
+        from core.compliance.audit_logger import get_audit_service
 
         service = get_audit_service()
         events = service.get_document_audit_trail(document_id, limit=limit)
@@ -130,7 +130,7 @@ async def get_document_audit_trail(
         raise HTTPException(status_code=500, detail="Audit service error")
 
 
-@router.get("/audit/user/{user_id}")
+@router.get("/audit-log/{user_id}")
 async def get_user_activity(
     user_id: str,
     days: int = Query(default=30, ge=1, le=365),
@@ -142,7 +142,7 @@ async def get_user_activity(
     Returns all audit events for a specific user.
     """
     try:
-        from compliance.audit_logger import get_audit_service
+        from core.compliance.audit_logger import get_audit_service
 
         service = get_audit_service()
         events = service.get_user_activity(user_id, days=days)
@@ -169,7 +169,7 @@ async def get_phi_access_log(
     Returns all events where PHI was accessed.
     """
     try:
-        from compliance.audit_logger import get_audit_service
+        from core.compliance.audit_logger import get_audit_service
 
         service = get_audit_service()
 
@@ -194,7 +194,7 @@ async def get_phi_access_log(
 # ============================================================================
 
 
-@router.get("/verification/pending", response_model=List[VerificationRequestResponse])
+@router.get("/verification-queue", response_model=List[VerificationRequestResponse])
 async def get_pending_verifications(
     user_id: Optional[str] = None,
     priority: bool = Query(
@@ -207,7 +207,7 @@ async def get_pending_verifications(
     Returns extraction results awaiting human review.
     """
     try:
-        from compliance.verification_queue import get_verification_queue
+        from core.compliance.verification_queue import get_verification_queue
 
         queue = get_verification_queue()
         requests = queue.get_pending_requests(user_id=user_id)
@@ -239,7 +239,7 @@ async def get_pending_verifications(
 async def get_verification_request(request_id: str):
     """Get details of a specific verification request."""
     try:
-        from compliance.verification_queue import get_verification_queue
+        from core.compliance.verification_queue import get_verification_queue
 
         queue = get_verification_queue()
         request = queue.get_request(request_id)
@@ -274,7 +274,7 @@ async def get_verification_request(request_id: str):
         raise HTTPException(status_code=500, detail="Verification service error")
 
 
-@router.post("/verification/submit")
+@router.post("/verify")
 async def submit_verification(submission: VerificationSubmission):
     """
     Submit human verification decision.
@@ -282,7 +282,7 @@ async def submit_verification(submission: VerificationSubmission):
     Approves or rejects AI extraction with optional corrections.
     """
     try:
-        from compliance.verification_queue import get_verification_queue
+        from core.compliance.verification_queue import get_verification_queue
 
         queue = get_verification_queue()
 
@@ -315,7 +315,7 @@ async def submit_verification(submission: VerificationSubmission):
 async def get_verification_stats():
     """Get verification statistics."""
     try:
-        from compliance.verification_queue import get_verification_queue
+        from core.compliance.verification_queue import get_verification_queue
 
         queue = get_verification_queue()
         stats = queue.get_stats()
@@ -332,7 +332,7 @@ async def get_verification_stats():
 # ============================================================================
 
 
-@router.get("/disclaimers/{disclaimer_type}", response_model=DisclaimerResponse)
+@router.get("/disclaimer/{disclaimer_type}", response_model=DisclaimerResponse)
 async def get_disclaimer(disclaimer_type: str):
     """
     Get a specific disclaimer by type.
@@ -341,7 +341,7 @@ async def get_disclaimer(disclaimer_type: str):
            health_advice, risk_assessment, weekly_summary
     """
     try:
-        from compliance.disclaimer_service import get_disclaimer_service, DisclaimerType
+        from core.compliance.disclaimer_service import get_disclaimer_service, DisclaimerType
 
         service = get_disclaimer_service()
 
@@ -379,7 +379,7 @@ async def get_disclaimers_for_content(content_type: str):
                    health_advice, recommendation, risk_assessment, prediction
     """
     try:
-        from compliance.disclaimer_service import get_disclaimer_service
+        from core.compliance.disclaimer_service import get_disclaimer_service
 
         service = get_disclaimer_service()
         disclaimers = service.get_disclaimers_for_content(content_type)
@@ -411,7 +411,7 @@ async def wrap_content_with_disclaimer(request: WrapContentRequest):
     Formats: text, markdown, html, whatsapp
     """
     try:
-        from compliance.disclaimer_service import get_disclaimer_service
+        from core.compliance.disclaimer_service import get_disclaimer_service
 
         service = get_disclaimer_service()
         wrapped = service.wrap_with_disclaimer(
@@ -432,7 +432,7 @@ async def wrap_content_with_disclaimer(request: WrapContentRequest):
 # ============================================================================
 
 
-@router.post("/encryption/encrypt")
+@router.post("/encrypt")
 async def encrypt_phi_fields(request: EncryptRequest):
     """
     Encrypt PHI fields in data.
@@ -441,7 +441,7 @@ async def encrypt_phi_fields(request: EncryptRequest):
     patient_name, date_of_birth, ssn, medical_record_number, etc.
     """
     try:
-        from compliance.encryption_service import get_encryption_service
+        from core.compliance.encryption_service import get_encryption_service
 
         service = get_encryption_service()
         encrypted = service.encrypt_phi_fields(request.data, fields=request.fields)
@@ -464,7 +464,7 @@ async def decrypt_phi_fields(request: EncryptRequest):
     Decrypts fields that were previously encrypted with ENC: prefix.
     """
     try:
-        from compliance.encryption_service import get_encryption_service
+        from core.compliance.encryption_service import get_encryption_service
 
         service = get_encryption_service()
         decrypted = service.decrypt_phi_fields(request.data, fields=request.fields)
@@ -486,7 +486,7 @@ async def mask_phi_fields(
     Example: "John Smith" -> "********ith"
     """
     try:
-        from compliance.encryption_service import get_encryption_service
+        from core.compliance.encryption_service import get_encryption_service
 
         service = get_encryption_service()
         masked = service.mask_phi(request.data, show_last=show_last)
@@ -507,10 +507,10 @@ async def mask_phi_fields(
 async def get_user_consents(user_id: str):
     """Get all consent records for a user."""
     try:
-        from compliance.consent_manager import get_consent_manager
+        from core.compliance.consent_manager import get_consent_manager
 
         manager = get_consent_manager()
-        consents = manager.get_user_consents(user_id)
+        consents = manager.get_all_consents(user_id)
 
         return {
             "user_id": user_id,
@@ -539,7 +539,7 @@ async def grant_consent(
 ):
     """Grant consent for a specific feature/purpose."""
     try:
-        from compliance.consent_manager import get_consent_manager, ConsentType
+        from core.compliance.consent_manager import get_consent_manager, ConsentType
 
         manager = get_consent_manager()
 
@@ -573,7 +573,7 @@ async def withdraw_consent(
 ):
     """Withdraw previously granted consent."""
     try:
-        from compliance.consent_manager import get_consent_manager, ConsentType
+        from core.compliance.consent_manager import get_consent_manager, ConsentType
 
         manager = get_consent_manager()
 
@@ -605,7 +605,7 @@ async def withdraw_consent(
 async def get_retention_policy():
     """Get current data retention policy."""
     try:
-        from compliance.data_retention import get_retention_service
+        from core.compliance.data_retention import get_retention_service
 
         service = get_retention_service()
         policy = service.get_policy()
@@ -626,7 +626,7 @@ async def get_retention_policy():
 async def check_retention_status(document_id: str):
     """Check retention status of a document."""
     try:
-        from compliance.data_retention import get_retention_service
+        from core.compliance.data_retention import get_retention_service
 
         service = get_retention_service()
         status = service.check_document_retention(document_id)
@@ -636,3 +636,15 @@ async def check_retention_status(document_id: str):
     except Exception as e:
         logger.error(f"Check retention failed: {e}")
         raise HTTPException(status_code=500, detail="Retention service error")
+
+@router.get("/gdpr/export/{user_id}")
+async def export_user_data(user_id: str):
+    """Export all user data for GDPR compliance."""
+    try:
+        from core.compliance.consent_manager import get_consent_manager
+        manager = get_consent_manager()
+        report = manager.export_consent_report(user_id)
+        return report
+    except Exception as e:
+        logger.error(f"GDPR export failed: {e}")
+        raise HTTPException(status_code=500, detail="Compliance service error")

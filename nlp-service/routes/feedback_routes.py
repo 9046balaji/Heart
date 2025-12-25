@@ -47,3 +47,13 @@ async def get_stats():
     """Get feedback statistics."""
     store = get_feedback_store()
     return store.get_feedback_stats()
+
+
+@router.get("/list")
+async def list_feedback(limit: int = 50):
+    """List recent feedback."""
+    store = get_feedback_store()
+    # Assuming store has a method to list feedback, if not return empty
+    if hasattr(store, "list_feedback"):
+        return store.list_feedback(limit=limit)
+    return {"feedback": [], "count": 0}
