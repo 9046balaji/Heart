@@ -18,12 +18,17 @@ import time
 import pickle
 import hashlib
 import os
+import random
+import asyncio
+import math
 from typing import Optional, Any, Dict, List, Callable, Coroutine
 from dataclasses import dataclass, field
 from datetime import datetime
 from abc import ABC, abstractmethod
 from enum import Enum
 import json
+
+import lz4.frame
 
 from .performance_monitor import record_cache_operation, CacheTimer
 
@@ -319,6 +324,41 @@ class L2RedisCache(CacheBackend):
         """Add prefix to cache key."""
         return f"{self.key_prefix}{key}"
 
+    def _serialize(self, value: Any) -> bytes:
+        """Serialize and optionally compress value."""
+        # Pickle the object
+        serialized = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        # Compression threshold (1KB)
+        compression_threshold = 1024
+        
+        # Compress if above threshold
+        if len(serialized) > compression_threshold:
+            compressed = lz4.frame.compress(serialized)
+            
+            # Only use compression if it actually reduces size
+            if len(compressed) < len(serialized):
+                # Prepend magic byte to indicate compression
+                return b'\x01' + compressed
+        
+        # No compression (prepend null byte)
+        return b'\x00' + serialized
+
+    def _deserialize(self, data: bytes) -> Any:
+        """Deserialize and decompress value."""
+        if not data:
+            return None
+        
+        # Check compression flag
+        is_compressed = data[0] == 1
+        payload = data[1:]
+        
+        if is_compressed:
+            decompressed = lz4.frame.decompress(payload)
+            return pickle.loads(decompressed)
+        else:
+            return pickle.loads(payload)
+
     async def get(self, key: str) -> Optional[Any]:
         """Get from Redis cache."""
         if not self._connected or not self._client:
@@ -336,10 +376,8 @@ class L2RedisCache(CacheBackend):
                 self.stats.misses += 1
                 return None
 
-            # Deserialize
-            value = pickle.loads(
-                data
-            )  # nosec B301 # Internal cache data, not from untrusted sources
+            # Deserialize and decompress
+            value = self._deserialize(data)
             self.stats.hits += 1
             return value
 
@@ -366,10 +404,8 @@ class L2RedisCache(CacheBackend):
         try:
             prefixed_key = self._make_key(key)
 
-            # Serialize value
-            data = pickle.dumps(
-                value
-            )  # nosec B301 # Internal cache data, not from untrusted sources
+            # Serialize and compress value
+            data = self._serialize(value)
 
             # Set with TTL
             await self._client.setex(prefixed_key, ttl_seconds, data)
@@ -584,6 +620,72 @@ class MultiTierCache:
         await self.set(key, value, ttl_seconds)
 
         return value
+
+    async def get_with_early_expiration(
+        self, 
+        key: str, 
+        factory_func: Callable[..., Coroutine[Any, Any, Any]],
+        ttl: int = 3600,
+        beta: float = 1.0,
+        args: tuple = (),
+        kwargs: dict = None
+    ) -> Any:
+        """
+        Probabilistic early expiration to prevent cache stampedes.
+        
+        Based on "Optimal Probabilistic Cache Stampede Prevention"
+        https://cseweb.ucsd.edu/~avattani/papers/cache_stampede.pdf
+        
+        Args:
+            key: Cache key
+            factory_func: Async function to regenerate value
+            ttl: Time to live
+            beta: Tuning parameter (higher = less aggressive, default: 1.0)
+            args: Arguments for factory function
+            kwargs: Keyword arguments for factory function
+        """
+        kwargs = kwargs or {}
+        
+        # Check if key exists with TTL
+        if self.l2_enabled and self.l2 and self.l2._connected and self.l2._client:
+            prefixed_key = self.l2._make_key(key)
+            value_data = await self.l2._client.get(prefixed_key)
+            remaining_ttl = await self.l2._client.ttl(prefixed_key)
+            
+            if value_data and remaining_ttl > 0:
+                value = self.l2._deserialize(value_data)
+                
+                # Calculate early expiration probability
+                # As TTL decreases, probability of refresh increases
+                delta = ttl - remaining_ttl  # How much time has passed
+                
+                # Probabilistic early refresh
+                # If delta is large (key is old), more likely to refresh
+                random_value = random.random()
+                if delta > 0:
+                    threshold = delta * beta * math.log(random_value) / ttl
+                    
+                    if threshold < 0:
+                        # Early refresh triggered - regenerate in background
+                        # Return stale value immediately
+                        asyncio.create_task(self._refresh_key(key, factory_func, ttl, args, kwargs))
+                        return value
+                
+                return value
+        
+        # Cache miss or expired - regenerate
+        value = await factory_func(*args, **kwargs)
+        await self.set(key, value, ttl)
+        return value
+    
+    async def _refresh_key(self, key: str, factory_func, ttl: int, args: tuple = (), kwargs: dict = None):
+        """Background task to refresh cache key."""
+        try:
+            kwargs = kwargs or {}
+            value = await factory_func(*args, **kwargs)
+            await self.set(key, value, ttl)
+        except Exception as e:
+            logger.error(f"Failed to refresh cache key {key}: {e}")
 
     async def warm_up(self, keys_and_values: List[tuple]) -> None:
         """

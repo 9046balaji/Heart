@@ -1,0 +1,733 @@
+{
+    "I21.9": {
+        "name": "Acute myocardial infarction, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Heart attack",
+            "MI",
+            "AMI",
+            "Myocardial infarction",
+            "STEMI",
+            "NSTEMI"
+        ]
+    },
+    "I21.0": {
+        "name": "ST elevation myocardial infarction of anterior wall",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Anterior STEMI",
+            "Anterior MI",
+            "Anterior wall MI"
+        ]
+    },
+    "I21.1": {
+        "name": "ST elevation myocardial infarction of inferior wall",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Inferior STEMI",
+            "Inferior MI",
+            "Inferior wall MI"
+        ]
+    },
+    "I50.9": {
+        "name": "Heart failure, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "CHF",
+            "Congestive heart failure",
+            "Heart failure",
+            "Cardiac failure"
+        ]
+    },
+    "I50.1": {
+        "name": "Left ventricular failure, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Left heart failure",
+            "LV failure",
+            "Left ventricular dysfunction"
+        ]
+    },
+    "I50.20": {
+        "name": "Unspecified systolic (congestive) heart failure",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "HFrEF",
+            "Systolic heart failure",
+            "Heart failure reduced EF"
+        ]
+    },
+    "I50.30": {
+        "name": "Unspecified diastolic (congestive) heart failure",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "HFpEF",
+            "Diastolic heart failure",
+            "Heart failure preserved EF"
+        ]
+    },
+    "I10": {
+        "name": "Essential (primary) hypertension",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "High blood pressure",
+            "Hypertension",
+            "HTN",
+            "BP high"
+        ]
+    },
+    "I11.0": {
+        "name": "Hypertensive heart disease with heart failure",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Hypertensive heart failure",
+            "HTN with CHF"
+        ]
+    },
+    "I13.0": {
+        "name": "Hypertensive heart and chronic kidney disease with heart failure",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Hypertensive heart and kidney disease",
+            "Cardiorenal syndrome"
+        ]
+    },
+    "I48.91": {
+        "name": "Atrial fibrillation, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "AFib",
+            "Atrial fibrillation",
+            "A-fib",
+            "AF"
+        ]
+    },
+    "I48.0": {
+        "name": "Paroxysmal atrial fibrillation",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Paroxysmal AFib",
+            "Intermittent atrial fibrillation"
+        ]
+    },
+    "I48.1": {
+        "name": "Persistent atrial fibrillation",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Persistent AFib",
+            "Chronic atrial fibrillation"
+        ]
+    },
+    "I48.2": {
+        "name": "Chronic atrial fibrillation",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Permanent AFib",
+            "Longstanding atrial fibrillation"
+        ]
+    },
+    "I48.92": {
+        "name": "Unspecified atrial flutter",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Atrial flutter",
+            "A-flutter",
+            "AFL"
+        ]
+    },
+    "I25.10": {
+        "name": "Atherosclerotic heart disease of native coronary artery without angina pectoris",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Coronary artery disease",
+            "CAD",
+            "Atherosclerotic heart disease",
+            "Ischemic heart disease"
+        ]
+    },
+    "I25.110": {
+        "name": "Atherosclerotic heart disease of native coronary artery with unstable angina pectoris",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Unstable angina",
+            "CAD with unstable angina",
+            "ACS"
+        ]
+    },
+    "I63.9": {
+        "name": "Cerebral infarction, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Stroke",
+            "Brain attack",
+            "Cerebral infarction",
+            "CVA",
+            "Ischemic stroke"
+        ]
+    },
+    "I61.9": {
+        "name": "Nontraumatic intracerebral hemorrhage, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Hemorrhagic stroke",
+            "Brain bleed",
+            "Intracerebral hemorrhage"
+        ]
+    },
+    "G45.9": {
+        "name": "Transient cerebral ischemic attack, unspecified",
+        "category": "Diseases of the nervous system",
+        "chapter": "Diseases of the nervous system (G00-G99)",
+        "aliases": [
+            "TIA",
+            "Mini stroke",
+            "Transient ischemic attack"
+        ]
+    },
+    "E11.9": {
+        "name": "Type 2 diabetes mellitus without complications",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "Diabetes",
+            "Type 2 diabetes",
+            "Diabetes mellitus",
+            "T2DM",
+            "DM2"
+        ]
+    },
+    "E10.9": {
+        "name": "Type 1 diabetes mellitus without complications",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "Type 1 diabetes",
+            "T1DM",
+            "Juvenile diabetes",
+            "Insulin-dependent diabetes"
+        ]
+    },
+    "E78.5": {
+        "name": "Hyperlipidemia, unspecified",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "High cholesterol",
+            "Hyperlipidemia",
+            "High lipids",
+            "Dyslipidemia"
+        ]
+    },
+    "E78.0": {
+        "name": "Pure hypercholesterolemia",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "High LDL",
+            "Hypercholesterolemia",
+            "Elevated cholesterol"
+        ]
+    },
+    "E78.1": {
+        "name": "Pure hyperglyceridemia",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "High triglycerides",
+            "Hypertriglyceridemia",
+            "Elevated TG"
+        ]
+    },
+    "E66.9": {
+        "name": "Obesity, unspecified",
+        "category": "Endocrine, nutritional and metabolic diseases",
+        "chapter": "Endocrine, nutritional and metabolic diseases (E00-E89)",
+        "aliases": [
+            "Obesity",
+            "Overweight",
+            "Morbid obesity"
+        ]
+    },
+    "I20.9": {
+        "name": "Angina pectoris, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Angina",
+            "Chest pain",
+            "Angina pectoris",
+            "Stable angina"
+        ]
+    },
+    "I20.0": {
+        "name": "Unstable angina",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Unstable angina",
+            "ACS",
+            "Acute coronary syndrome"
+        ]
+    },
+    "I49.9": {
+        "name": "Cardiac arrhythmia, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Arrhythmia",
+            "Irregular heartbeat",
+            "Cardiac arrhythmia",
+            "Dysrhythmia"
+        ]
+    },
+    "I49.5": {
+        "name": "Sick sinus syndrome",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Sick sinus",
+            "SSS",
+            "Sinus node dysfunction"
+        ]
+    },
+    "I49.01": {
+        "name": "Ventricular fibrillation",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "V-fib",
+            "VF",
+            "Ventricular fibrillation"
+        ]
+    },
+    "I47.2": {
+        "name": "Ventricular tachycardia",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "V-tach",
+            "VT",
+            "Ventricular tachycardia"
+        ]
+    },
+    "R00.0": {
+        "name": "Tachycardia, unspecified",
+        "category": "Symptoms, signs and abnormal clinical findings",
+        "chapter": "Symptoms, signs and abnormal clinical and laboratory findings (R00-R99)",
+        "aliases": [
+            "Tachycardia",
+            "Fast heart rate",
+            "Racing heart"
+        ]
+    },
+    "R00.1": {
+        "name": "Bradycardia, unspecified",
+        "category": "Symptoms, signs and abnormal clinical findings",
+        "chapter": "Symptoms, signs and abnormal clinical and laboratory findings (R00-R99)",
+        "aliases": [
+            "Bradycardia",
+            "Slow heart rate",
+            "Low pulse"
+        ]
+    },
+    "R00.2": {
+        "name": "Palpitations",
+        "category": "Symptoms, signs and abnormal clinical findings",
+        "chapter": "Symptoms, signs and abnormal clinical and laboratory findings (R00-R99)",
+        "aliases": [
+            "Palpitations",
+            "Heart fluttering",
+            "Skipped beats"
+        ]
+    },
+    "I34.0": {
+        "name": "Nonrheumatic mitral (valve) insufficiency",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Mitral regurgitation",
+            "Mitral valve insufficiency",
+            "MR",
+            "Leaky mitral valve"
+        ]
+    },
+    "I34.1": {
+        "name": "Nonrheumatic mitral (valve) prolapse",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Mitral prolapse",
+            "MVP",
+            "Mitral valve prolapse"
+        ]
+    },
+    "I35.0": {
+        "name": "Nonrheumatic aortic (valve) stenosis",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Aortic stenosis",
+            "AS",
+            "Aortic valve stenosis"
+        ]
+    },
+    "I35.1": {
+        "name": "Nonrheumatic aortic (valve) insufficiency",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Aortic regurgitation",
+            "AR",
+            "Aortic insufficiency"
+        ]
+    },
+    "I36.0": {
+        "name": "Nonrheumatic tricuspid (valve) stenosis",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Tricuspid stenosis",
+            "TS"
+        ]
+    },
+    "I36.1": {
+        "name": "Nonrheumatic tricuspid (valve) insufficiency",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Tricuspid regurgitation",
+            "TR",
+            "Tricuspid insufficiency"
+        ]
+    },
+    "I47.1": {
+        "name": "Supraventricular tachycardia",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "SVT",
+            "Supraventricular tachycardia",
+            "PSVT"
+        ]
+    },
+    "I44.0": {
+        "name": "Atrioventricular block, first degree",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "First degree AV block",
+            "1st degree heart block",
+            "First degree block"
+        ]
+    },
+    "I44.1": {
+        "name": "Atrioventricular block, second degree",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Second degree AV block",
+            "2nd degree heart block",
+            "Mobitz",
+            "Wenckebach"
+        ]
+    },
+    "I44.2": {
+        "name": "Atrioventricular block, complete",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Third degree AV block",
+            "Complete heart block",
+            "3rd degree block",
+            "CHB"
+        ]
+    },
+    "I44.7": {
+        "name": "Left bundle-branch block, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "LBBB",
+            "Left bundle branch block"
+        ]
+    },
+    "I45.10": {
+        "name": "Unspecified right bundle-branch block",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "RBBB",
+            "Right bundle branch block"
+        ]
+    },
+    "I45.5": {
+        "name": "Other specified heart block",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Bifascicular block",
+            "Trifascicular block",
+            "Hemiblock"
+        ]
+    },
+    "I27.0": {
+        "name": "Primary pulmonary hypertension",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Pulmonary hypertension",
+            "PAH",
+            "Pulmonary arterial hypertension"
+        ]
+    },
+    "I26.99": {
+        "name": "Other pulmonary embolism without acute cor pulmonale",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Pulmonary embolism",
+            "PE",
+            "Blood clot in lung",
+            "Lung clot"
+        ]
+    },
+    "I42.0": {
+        "name": "Dilated cardiomyopathy",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Cardiomyopathy",
+            "Dilated cardiomyopathy",
+            "DCM"
+        ]
+    },
+    "I42.1": {
+        "name": "Obstructive hypertrophic cardiomyopathy",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "HCM",
+            "Hypertrophic cardiomyopathy",
+            "HOCM"
+        ]
+    },
+    "I42.9": {
+        "name": "Cardiomyopathy, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Cardiomyopathy",
+            "Enlarged heart"
+        ]
+    },
+    "I70.0": {
+        "name": "Atherosclerosis of aorta",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Atherosclerosis",
+            "Hardening of the arteries",
+            "Aortic atherosclerosis"
+        ]
+    },
+    "I71.4": {
+        "name": "Abdominal aortic aneurysm, without rupture",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "AAA",
+            "Abdominal aortic aneurysm",
+            "Aortic aneurysm"
+        ]
+    },
+    "I71.2": {
+        "name": "Thoracic aortic aneurysm, without rupture",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "TAA",
+            "Thoracic aortic aneurysm"
+        ]
+    },
+    "I73.9": {
+        "name": "Peripheral vascular disease, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "PVD",
+            "PAD",
+            "Peripheral artery disease",
+            "Claudication"
+        ]
+    },
+    "I80.10": {
+        "name": "Phlebitis and thrombophlebitis of femoral vein",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "DVT",
+            "Deep vein thrombosis",
+            "Blood clot in leg"
+        ]
+    },
+    "I30.9": {
+        "name": "Acute pericarditis, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Pericarditis",
+            "Inflammation of pericardium"
+        ]
+    },
+    "I31.9": {
+        "name": "Disease of pericardium, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Pericardial disease",
+            "Pericardial effusion"
+        ]
+    },
+    "I40.9": {
+        "name": "Acute myocarditis, unspecified",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Myocarditis",
+            "Inflammation of heart muscle"
+        ]
+    },
+    "I33.0": {
+        "name": "Acute and subacute infective endocarditis",
+        "category": "Diseases of the circulatory system",
+        "chapter": "Diseases of the circulatory system (I00-I99)",
+        "aliases": [
+            "Endocarditis",
+            "Infective endocarditis",
+            "IE",
+            "SBE"
+        ]
+    },
+    "Z95.0": {
+        "name": "Presence of cardiac pacemaker",
+        "category": "Factors influencing health status",
+        "chapter": "Factors influencing health status and contact with health services (Z00-Z99)",
+        "aliases": [
+            "Pacemaker",
+            "PPM",
+            "Pacemaker implant"
+        ]
+    },
+    "Z95.1": {
+        "name": "Presence of aortocoronary bypass graft",
+        "category": "Factors influencing health status",
+        "chapter": "Factors influencing health status and contact with health services (Z00-Z99)",
+        "aliases": [
+            "CABG",
+            "Coronary bypass",
+            "Bypass surgery",
+            "Open heart surgery"
+        ]
+    },
+    "Z95.5": {
+        "name": "Presence of coronary angioplasty implant and graft",
+        "category": "Factors influencing health status",
+        "chapter": "Factors influencing health status and contact with health services (Z00-Z99)",
+        "aliases": [
+            "Stent",
+            "Coronary stent",
+            "PCI",
+            "Angioplasty"
+        ]
+    },
+    "Z95.810": {
+        "name": "Presence of automatic implantable cardiac defibrillator",
+        "category": "Factors influencing health status",
+        "chapter": "Factors influencing health status and contact with health services (Z00-Z99)",
+        "aliases": [
+            "ICD",
+            "AICD",
+            "Defibrillator",
+            "Implantable defibrillator"
+        ]
+    },
+    "Z86.79": {
+        "name": "Personal history of other diseases of the circulatory system",
+        "category": "Factors influencing health status",
+        "chapter": "Factors influencing health status and contact with health services (Z00-Z99)",
+        "aliases": [
+            "History of heart disease",
+            "Prior cardiac event"
+        ]
+    },
+    "N18.6": {
+        "name": "End stage renal disease",
+        "category": "Diseases of the genitourinary system",
+        "chapter": "Diseases of the genitourinary system (N00-N99)",
+        "aliases": [
+            "ESRD",
+            "Kidney failure",
+            "End stage kidney disease",
+            "Dialysis"
+        ]
+    },
+    "N18.3": {
+        "name": "Chronic kidney disease, stage 3",
+        "category": "Diseases of the genitourinary system",
+        "chapter": "Diseases of the genitourinary system (N00-N99)",
+        "aliases": [
+            "CKD stage 3",
+            "Moderate kidney disease",
+            "CKD3"
+        ]
+    },
+    "J96.10": {
+        "name": "Chronic respiratory failure, unspecified whether with hypoxia or hypercapnia",
+        "category": "Diseases of the respiratory system",
+        "chapter": "Diseases of the respiratory system (J00-J99)",
+        "aliases": [
+            "Respiratory failure",
+            "Chronic respiratory failure"
+        ]
+    },
+    "J44.9": {
+        "name": "Chronic obstructive pulmonary disease, unspecified",
+        "category": "Diseases of the respiratory system",
+        "chapter": "Diseases of the respiratory system (J00-J99)",
+        "aliases": [
+            "COPD",
+            "Emphysema",
+            "Chronic bronchitis",
+            "Lung disease"
+        ]
+    },
+    "G47.33": {
+        "name": "Obstructive sleep apnea",
+        "category": "Diseases of the nervous system",
+        "chapter": "Diseases of the nervous system (G00-G99)",
+        "aliases": [
+            "Sleep apnea",
+            "OSA",
+            "Obstructive sleep apnea"
+        ]
+    }
+}

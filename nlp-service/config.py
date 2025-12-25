@@ -3,7 +3,7 @@ Configuration for NLP Microservice
 """
 
 import os
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
@@ -198,6 +198,23 @@ class Settings(BaseSettings):
     # Redis Configuration
     REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
     REDIS_ALERT_TTL: int = Field(default=3600, env="REDIS_ALERT_TTL")  # 1 hour default cooldown
+    
+    # Vitals Storage Configuration (Phase 1: Advanced Data Reliability)
+    VITALS_HOT_STORAGE_DAYS: int = Field(default=7, env="VITALS_HOT_STORAGE_DAYS")  # Days to keep in Redis
+    
+    # Agent Safety Configuration (Phase 2: Advanced Data Reliability)
+    AGENT_MAX_ITERATIONS: int = Field(default=10, env="AGENT_MAX_ITERATIONS")  # Circuit breaker limit
+    CHECKPOINT_BACKEND: str = Field(default="postgres", env="CHECKPOINT_BACKEND")  # "postgres" or "redis"
+    CHECKPOINT_THREADS_RETENTION_DAYS: int = Field(default=30, env="CHECKPOINT_THREADS_RETENTION_DAYS")
+    
+    # Database Pooling
+    DB_POOL_MIN_SIZE: int = 5
+    DB_POOL_MAX_SIZE: int = 20
+    DB_POOL_TIMEOUT: int = 30  # Connection timeout in seconds
+    DB_POOL_RECYCLE: int = 3600  # Recycle connections after 1 hour
+    
+    # Read/Write Splitting (optional)
+    DB_READ_REPLICA_URL: Optional[str] = None  # e.g., mysql://readonly@slave:3306/cardio
 
     # =========================================================================
     # MEMORI INTEGRATION SETTINGS (Phase 2: Enhanced Memory Features)
@@ -338,6 +355,13 @@ MEMORI_RATE_LIMIT_SEARCH = settings.MEMORI_RATE_LIMIT_SEARCH
 MEMORI_RATE_LIMIT_STORE = settings.MEMORI_RATE_LIMIT_STORE
 MEMORI_AUTH_PROVIDER = settings.MEMORI_AUTH_PROVIDER
 MEMORI_CIRCUIT_BREAKER_THRESHOLD = settings.MEMORI_CIRCUIT_BREAKER_THRESHOLD
+    
+# Database Pooling Exports
+DB_POOL_MIN_SIZE = settings.DB_POOL_MIN_SIZE
+DB_POOL_MAX_SIZE = settings.DB_POOL_MAX_SIZE
+DB_POOL_TIMEOUT = settings.DB_POOL_TIMEOUT
+DB_POOL_RECYCLE = settings.DB_POOL_RECYCLE
+DB_READ_REPLICA_URL = settings.DB_READ_REPLICA_URL
 
 # Feature Flags Exports
 RAG_ENABLED = settings.RAG_ENABLED
@@ -360,6 +384,14 @@ GENERATION_ENABLED = settings.GENERATION_ENABLED
 # Redis Configuration Exports
 REDIS_URL = settings.REDIS_URL
 REDIS_ALERT_TTL = settings.REDIS_ALERT_TTL
+
+# Vitals Storage Exports (Phase 1)
+VITALS_HOT_STORAGE_DAYS = settings.VITALS_HOT_STORAGE_DAYS
+
+# Agent Safety Exports (Phase 2)
+AGENT_MAX_ITERATIONS = settings.AGENT_MAX_ITERATIONS
+CHECKPOINT_BACKEND = settings.CHECKPOINT_BACKEND
+CHECKPOINT_THREADS_RETENTION_DAYS = settings.CHECKPOINT_THREADS_RETENTION_DAYS
 
 # Constants (Not Settings)
 EMERGENCY_KEYWORDS = [

@@ -105,6 +105,11 @@ Pillow>=10.2.0  # Image processing
 PyPDF2>=3.0.0  # PDF parsing
 pdf2image>=1.17.0  # PDF to image conversion
 
+# Vision / ECG Preprocessing (Phase 3 - ADVANCED_VISION_INTELLIGENCE)
+opencv-python-headless>=4.9.0  # OpenCV for ECG image preprocessing
+# Note: opencv-python-headless is preferred over opencv-python for server environments
+# It includes CLAHE, adaptive thresholding, morphological operations
+
 # Optional: PDF generation for reports
 weasyprint>=60.0  # HTML to PDF (has system dependencies)
 matplotlib>=3.8.0        # Chart generation
@@ -123,6 +128,9 @@ argon2-cffi>=23.1.0
 redis>=5.0.0
 aioredis>=2.0.1
 
+# LZ4 compression for cache optimization
+lz4>=4.3.2
+
 # ============================================================
 
 # Text Quality Validation
@@ -136,6 +144,8 @@ presidio-anonymizer>=2.2.0  # PII anonymization
 # Testing & Development
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
+pytest-recording>=0.13.0
+vcrpy>=5.1.0
 httpx>=0.25.0
 protobuf>=5.29.1
 

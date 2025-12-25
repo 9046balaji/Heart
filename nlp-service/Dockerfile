@@ -52,10 +52,9 @@ RUN groupadd --gid 1000 nlpservice && \
 WORKDIR /app
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+# Install runtime dependencies only
+# No extra system dependencies needed for runtime currently
+# RUN apt-get update && apt-get install -y ...
 
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
@@ -85,7 +84,7 @@ EXPOSE 5001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5001/health || exit 1
+    CMD python healthcheck.py || exit 1
 
 # Run application
 CMD ["python", "main.py"]

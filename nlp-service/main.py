@@ -277,6 +277,10 @@ else:
     evaluation_router = None
     print("[STARTUP] Evaluation routes DISABLED via config")
 
+# PHASE 20: Import Monitoring Routes
+from routes.monitoring_routes import router as monitoring_router
+print("[STARTUP] Monitoring routes loaded successfully")
+
 # PHASE 4: Import structured output schemas
 if STRUCTURED_OUTPUTS_ENABLED:
     from core.structured_outputs import (
@@ -577,6 +581,9 @@ if vision_router:
 
 if evaluation_router:
     app.include_router(evaluation_router, prefix="/api", tags=["Evaluation"])
+
+app.include_router(monitoring_router, prefix="/api", tags=["Monitoring"])
+logger.info("Monitoring routes loaded successfully")
 
 # Import and include Feedback Routes
 try:

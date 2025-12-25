@@ -5,11 +5,13 @@ Supports both traditional relational data and vector search capabilities.
 
 import os
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from contextlib import asynccontextmanager
 import json
 import math
 import numpy as np
+
+from config import get_settings
 
 # Try to import database drivers
 try:
@@ -24,16 +26,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Database configuration
-DB_CONFIG = {
-    "host": os.getenv("MYSQL_HOST", "localhost"),
-    "port": int(os.getenv("MYSQL_PORT", 3307)),  # XAMPP default port
-    "user": os.getenv("MYSQL_USER", "root"),
-    "password": os.getenv("MYSQL_PASSWORD", ""),
-    "database": os.getenv("MYSQL_DATABASE", "heartguard"),
-    "charset": "utf8mb4",
-    "autocommit": True,
-}
+settings = get_settings()
 
 
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -104,11 +97,40 @@ class XAMPPDatabase:
     """Database connector for XAMPP MySQL with vector search support."""
 
     def __init__(self):
-        self.pool = None
+        self.write_pool: Optional[aiomysql.Pool] = None
+        self.read_pool: Optional[aiomysql.Pool] = None
         self.initialized = False
+        
+        # Parse connection URL
+        # For compatibility, we'll extract from the DATABASE_URL setting
+        database_url = settings.DATABASE_URL
+        if database_url.startswith('mysql://'):
+            # Parse mysql://user:password@host:port/database format
+            import re
+            match = re.match(r'mysql://([^:]+):([^@]+)@([^:]+):([0-9]+)/(.+)', database_url)
+            if match:
+                self.user = match.group(1)
+                self.password = match.group(2)
+                self.host = match.group(3)
+                self.port = int(match.group(4))
+                self.database = match.group(5)
+            else:
+                # Fallback to environment variables
+                self.host = os.getenv("MYSQL_HOST", "localhost")
+                self.port = int(os.getenv("MYSQL_PORT", 3307))  # XAMPP default port
+                self.user = os.getenv("MYSQL_USER", "root")
+                self.password = os.getenv("MYSQL_PASSWORD", "")
+                self.database = os.getenv("MYSQL_DATABASE", "heartguard")
+        else:
+            # Fallback to environment variables
+            self.host = os.getenv("MYSQL_HOST", "localhost")
+            self.port = int(os.getenv("MYSQL_PORT", 3307))  # XAMPP default port
+            self.user = os.getenv("MYSQL_USER", "root")
+            self.password = os.getenv("MYSQL_PASSWORD", "")
+            self.database = os.getenv("MYSQL_DATABASE", "heartguard")
 
     async def initialize(self):
-        """Initialize database connection pool."""
+        """Initialize database connection pools with read/write splitting."""
         if not MYSQL_AVAILABLE:
             logger.warning(
                 "MySQL drivers not available, skipping database initialization"
@@ -116,23 +138,62 @@ class XAMPPDatabase:
             return False
 
         try:
-            # Create connection pool
-            self.pool = await aiomysql.create_pool(
-                host=DB_CONFIG["host"],
-                port=DB_CONFIG["port"],
-                user=DB_CONFIG["user"],
-                password=DB_CONFIG["password"],
-                db=DB_CONFIG["database"],
-                charset=DB_CONFIG["charset"],
-                autocommit=DB_CONFIG["autocommit"],
-                minsize=1,
-                maxsize=10,
+            # Write pool (Master)
+            self.write_pool = await aiomysql.create_pool(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                db=self.database,
+                minsize=settings.DB_POOL_MIN_SIZE,
+                maxsize=settings.DB_POOL_MAX_SIZE,
+                pool_recycle=settings.DB_POOL_RECYCLE,
+                autocommit=False,
+                charset='utf8mb4'
             )
+            
+            logger.info(
+                f"✓ Write pool created (min={settings.DB_POOL_MIN_SIZE}, "
+                f"max={settings.DB_POOL_MAX_SIZE})"
+            )
+            
+            # Read pool (Replica) - optional
+            if settings.DB_READ_REPLICA_URL:
+                # Parse replica URL
+                import re
+                replica_match = re.match(r'mysql://([^:]+):([^@]+)@([^:]+):([0-9]+)/(.+)', settings.DB_READ_REPLICA_URL)
+                if replica_match:
+                    replica_user = replica_match.group(1)
+                    replica_password = replica_match.group(2)
+                    replica_host = replica_match.group(3)
+                    replica_port = int(replica_match.group(4))
+                    
+                    self.read_pool = await aiomysql.create_pool(
+                        host=replica_host,
+                        port=replica_port,
+                        user=replica_user,
+                        password=replica_password,
+                        db=self.database,  # Same database name
+                        minsize=settings.DB_POOL_MIN_SIZE * 2,  # More read connections
+                        maxsize=settings.DB_POOL_MAX_SIZE * 2,
+                        pool_recycle=settings.DB_POOL_RECYCLE,
+                        autocommit=True,  # Read-only, can autocommit
+                        charset='utf8mb4'
+                    )
+                    
+                    logger.info("✓ Read pool created (replica)")
+                else:
+                    logger.error("Invalid DB_READ_REPLICA_URL format")
+                    return False
+            else:
+                # Use write pool for reads if no replica
+                self.read_pool = self.write_pool
+                logger.info("✓ Using write pool for reads (no replica configured)")
 
             # Test connection and initialize schema
             await self._initialize_schema()
             self.initialized = True
-            logger.info("XAMPP MySQL database initialized successfully")
+            logger.info("XAMPP MySQL database initialized successfully with read/write splitting")
             return True
 
         except Exception as e:
@@ -456,6 +517,45 @@ class XAMPPDatabase:
 
         logger.info("Database schema initialized (simple approach)")
 
+    def get_pool(self, operation: Literal["read", "write"] = "write") -> aiomysql.Pool:
+        """Get appropriate pool for operation."""
+        if operation == "read":
+            return self.read_pool
+        return self.write_pool
+    
+    async def execute_query(
+        self, 
+        query: str, 
+        params: tuple = None,
+        operation: Literal["read", "write"] = "write",
+        fetch_one: bool = False,
+        fetch_all: bool = False
+    ):
+        """
+        Execute query with appropriate pool.
+        
+        Args:
+            query: SQL query
+            params: Query parameters
+            operation: "read" or "write"
+            fetch_one: Return single row
+            fetch_all: Return all rows
+        """
+        pool = self.get_pool(operation)
+        
+        async with pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(query, params or ())
+                
+                if fetch_one:
+                    return await cursor.fetchone()
+                elif fetch_all:
+                    return await cursor.fetchall()
+                else:
+                    if operation == "write":
+                        await conn.commit()
+                    return cursor.lastrowid
+    
     async def store_vitals(
         self,
         user_id: str,
@@ -465,12 +565,12 @@ class XAMPPDatabase:
         unit: str = "",
     ) -> bool:
         """Store vitals data in the database."""
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.write_pool:
             logger.warning("Database not initialized, skipping vitals storage")
             return False
 
         try:
-            async with self.pool.acquire() as conn:
+            async with self.write_pool.acquire() as conn:
                 async with conn.cursor() as cursor:
                     await cursor.execute(
                         """
@@ -479,6 +579,7 @@ class XAMPPDatabase:
                     """,
                         (user_id, device_id, metric_type, value, unit),
                     )
+                    await conn.commit()
                     return True
         except Exception as e:
             logger.error(f"Failed to store vitals data: {e}")
@@ -488,46 +589,41 @@ class XAMPPDatabase:
         self, user_id: str, metric_type: str = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Retrieve user vitals history."""
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.read_pool:
             return []
 
         try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    if metric_type:
-                        await cursor.execute(
-                            """
-                            SELECT device_id, metric_type, value, unit, recorded_at
-                            FROM vitals
-                            WHERE user_id = %s AND metric_type = %s
-                            ORDER BY recorded_at DESC
-                            LIMIT %s
-                        """,
-                            (user_id, metric_type, limit),
-                        )
-                    else:
-                        await cursor.execute(
-                            """
-                            SELECT device_id, metric_type, value, unit, recorded_at
-                            FROM vitals
-                            WHERE user_id = %s
-                            ORDER BY recorded_at DESC
-                            LIMIT %s
-                        """,
-                            (user_id, limit),
-                        )
-
-                    results = await cursor.fetchall()
-                    return [
-                        {
-                            "device_id": row[0],
-                            "metric_type": row[1],
-                            "value": row[2],
-                            "unit": row[3],
-                            "timestamp": row[4],
-                        }
-                        for row in results
-                    ]
+            query = """
+                SELECT device_id, metric_type, value, unit, recorded_at
+                FROM vitals
+                WHERE user_id = %s
+            """
+            params = [user_id]
+            
+            if metric_type:
+                query += "AND metric_type = %s "
+                params.append(metric_type)
+            
+            query += "ORDER BY recorded_at DESC LIMIT %s"
+            params.append(limit)
+            
+            results = await self.execute_query(
+                query,
+                tuple(params),
+                operation="read",
+                fetch_all=True
+            )
+            
+            return [
+                {
+                    "device_id": row["device_id"],
+                    "metric_type": row["metric_type"],
+                    "value": row["value"],
+                    "unit": row["unit"],
+                    "timestamp": row["recorded_at"],
+                }
+                for row in results
+            ]
         except Exception as e:
             logger.error(f"Failed to retrieve vitals history: {e}")
             return []
@@ -541,29 +637,28 @@ class XAMPPDatabase:
         metadata: Dict = None,
     ) -> bool:
         """Store medical knowledge with embedding vector for RAG."""
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.write_pool:
             logger.warning("Database not initialized, skipping knowledge storage")
             return False
 
         try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # Convert embedding to bytes for BLOB storage
-                    embedding_bytes = json.dumps(embedding).encode("utf-8")
+            # Convert embedding to bytes for BLOB storage
+            embedding_bytes = json.dumps(embedding).encode("utf-8")
 
-                    await cursor.execute(
-                        """
-                        INSERT INTO medical_knowledge_base (content, content_type, embedding, metadata)
-                        VALUES (%s, %s, %s, %s)
-                    """,
-                        (
-                            content,
-                            content_type,
-                            embedding_bytes,
-                            json.dumps(metadata or {}),
-                        ),
-                    )
-                    return True
+            await self.execute_query(
+                """
+                INSERT INTO medical_knowledge_base (content, content_type, embedding, metadata)
+                VALUES (%s, %s, %s, %s)
+            """,
+                (
+                    content,
+                    content_type,
+                    embedding_bytes,
+                    json.dumps(metadata or {}),
+                ),
+                operation="write"
+            )
+            return True
         except Exception as e:
             logger.error(f"Failed to store medical knowledge: {e}")
             return False
@@ -712,29 +807,29 @@ class XAMPPDatabase:
         self, session_id: str, message_type: str, content: str, metadata: Dict = None
     ) -> bool:
         """Store chat message in the database."""
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.write_pool:
             return False
 
         try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    # Ensure session exists first
-                    await cursor.execute(
-                        """
-                        INSERT IGNORE INTO chat_sessions (session_id, user_id)
-                        VALUES (%s, %s)
-                        """,
-                        (session_id, "user123") # Default to user123 if not provided, or extract from metadata if possible
-                    )
-                    
-                    await cursor.execute(
-                        """
-                        INSERT INTO chat_messages (session_id, message_type, content, metadata)
-                        VALUES (%s, %s, %s, %s)
-                    """,
-                        (session_id, message_type, content, json.dumps(metadata or {})),
-                    )
-                    return True
+            # Ensure session exists first
+            await self.execute_query(
+                """
+                INSERT IGNORE INTO chat_sessions (session_id, user_id)
+                VALUES (%s, %s)
+                """,
+                (session_id, "user123"), # Default to user123 if not provided, or extract from metadata if possible
+                operation="write"
+            )
+            
+            await self.execute_query(
+                """
+                INSERT INTO chat_messages (session_id, message_type, content, metadata)
+                VALUES (%s, %s, %s, %s)
+            """,
+                (session_id, message_type, content, json.dumps(metadata or {})),
+                operation="write"
+            )
+            return True
         except Exception as e:
             logger.error(f"Failed to store chat message: {e}")
             return False
@@ -743,43 +838,65 @@ class XAMPPDatabase:
         self, session_id: str, limit: int = 50
     ) -> List[Dict[str, Any]]:
         """Retrieve chat history for a session."""
-        if not self.initialized or not self.pool:
+        if not self.initialized or not self.read_pool:
             return []
 
         try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        SELECT message_type, content, metadata, timestamp
-                        FROM chat_messages
-                        WHERE session_id = %s
-                        ORDER BY timestamp ASC
-                        LIMIT %s
-                    """,
-                        (session_id, limit),
-                    )
-
-                    results = await cursor.fetchall()
-                    return [
-                        {
-                            "message_type": row[0],
-                            "content": row[1],
-                            "metadata": json.loads(row[2]) if row[2] else {},
-                            "timestamp": row[3],
-                        }
-                        for row in results
-                    ]
+            results = await self.execute_query(
+                """
+                SELECT message_type, content, metadata, timestamp
+                FROM chat_messages
+                WHERE session_id = %s
+                ORDER BY timestamp ASC
+                LIMIT %s
+            """,
+                (session_id, limit),
+                operation="read",
+                fetch_all=True
+            )
+            
+            return [
+                {
+                    "message_type": row["message_type"],
+                    "content": row["content"],
+                    "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+                    "timestamp": row["timestamp"],
+                }
+                for row in results
+            ]
         except Exception as e:
             logger.error(f"Failed to retrieve chat history: {e}")
             return []
 
+    async def get_pool_status(self) -> dict:
+        """Get pool connection statistics."""
+        if not self.initialized:
+            return {"error": "Database not initialized"}
+        
+        return {
+            "write_pool": {
+                "size": self.write_pool.size(),
+                "free": self.write_pool.freesize(),
+                "used": self.write_pool.size() - self.write_pool.freesize(),
+                "max": settings.DB_POOL_MAX_SIZE
+            },
+            "read_pool": {
+                "size": self.read_pool.size() if self.read_pool != self.write_pool else "N/A",
+                "free": self.read_pool.freesize() if self.read_pool != self.write_pool else "N/A",
+            } if settings.DB_READ_REPLICA_URL else "shared_with_write"
+        }
+    
     async def close(self):
-        """Close database connections."""
-        if self.pool:
-            self.pool.close()
-            await self.pool.wait_closed()
-            logger.info("Database connections closed")
+        """Close all pools."""
+        if self.write_pool:
+            self.write_pool.close()
+            await self.write_pool.wait_closed()
+        
+        if self.read_pool and self.read_pool != self.write_pool:
+            self.read_pool.close()
+            await self.read_pool.wait_closed()
+            
+        logger.info("Database connections closed")
 
 
 # Global database instance
