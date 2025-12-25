@@ -284,7 +284,11 @@ export const useChatStore = create<ChatState>()(
 export const chatActions = {
   sendMessage: async (content: string, model?: ModelType) => {
     const store = useChatStore.getState();
-    const userId = localStorage.getItem('user_id') || 'user_123'; // Get real user ID
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+      console.error("User ID not found. Please log in.");
+      return;
+    }
     const sessionId = store.currentSessionId || store.createSession();
 
     // Add user message

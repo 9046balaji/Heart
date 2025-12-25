@@ -25,10 +25,52 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
     Query,
+    HTTPException,
+    Depends,
 )
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
+from jose import jwt, JWTError
+import redis.asyncio as redis
+import os
+
+# JWT configuration
+JWT_SECRET = os.getenv("JWT_SECRET_KEY", "dev_secret_key")
+JWT_ALGORITHM = "HS256"
+
+security = HTTPBearer()
 
 logger = logging.getLogger(__name__)
+
+
+class WebSocketException(Exception):
+    """Custom exception for WebSocket authentication errors."""
+
+    def __init__(self, code: int, reason: str):
+        self.code = code
+        self.reason = reason
+        super().__init__(reason)
+
+
+async def validate_websocket_token(token: Optional[str] = Query(None)) -> str:
+    """
+    Validate JWT token and extract user_id.
+    """
+    if not token:
+        # For backward compatibility/dev, allow anonymous if configured
+        if os.getenv("ALLOW_ANONYMOUS_WS", "false").lower() == "true":
+            return "anonymous"
+        raise WebSocketException(code=1008, reason="Missing authentication token")
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise WebSocketException(code=1008, reason="Invalid token: missing user_id")
+        return user_id
+    except JWTError as e:
+        logger.warning(f"WebSocket JWT validation failed: {e}")
+        raise WebSocketException(code=1008, reason="Invalid or expired token")
 
 # ============================================================================
 # Message Types
@@ -106,11 +148,76 @@ class ConnectionManager:
     - Connection health monitoring
     """
 
-    def __init__(self):
+    def __init__(self, redis_url: Optional[str] = None):
         self._connections: Dict[str, ClientConnection] = {}  # session_id -> connection
         self._user_sessions: Dict[str, Set[str]] = {}  # user_id -> set of session_ids
         self._lock = asyncio.Lock()
         self._message_handlers: Dict[MessageType, List[Callable]] = {}
+
+        # Redis Pub/Sub (cross-instance)
+        self.redis_url = redis_url or os.getenv("REDIS_URL")
+        self._redis: Optional[redis.Redis] = None
+        self._pubsub: Optional[redis.client.PubSub] = None
+        self._redis_enabled = False
+
+        # Start Redis connection in background
+        if self.redis_url:
+            asyncio.create_task(self._init_redis())
+
+    async def _init_redis(self):
+        """Initialize Redis Pub/Sub connection."""
+        try:
+            self._redis = redis.from_url(
+                self.redis_url, encoding="utf-8", decode_responses=True
+            )
+            await self._redis.ping()
+
+            self._pubsub = self._redis.pubsub()
+            await self._pubsub.subscribe("websocket_broadcast")
+
+            self._redis_enabled = True
+            logger.info("Redis Pub/Sub enabled for WebSocket scaling")
+
+            # Start background listener
+            asyncio.create_task(self._redis_listener())
+
+        except Exception as e:
+            logger.warning(f"Redis Pub/Sub unavailable: {e}. Using local-only mode.")
+            self._redis_enabled = False
+
+    async def _redis_listener(self):
+        """Listen for messages from other instances."""
+        try:
+            async for message in self._pubsub.listen():
+                if message["type"] == "message":
+                    data = json.loads(message["data"])
+
+                    # Deliver to local connections
+                    session_id = data.get("session_id")
+                    user_id = data.get("user_id")
+                    
+                    # Check if broadcast
+                    if data.get("broadcast"):
+                        msg = WebSocketMessage(**data["message"])
+                        exclude = set(data.get("exclude", []))
+                        # Local broadcast
+                        for sid, conn in self._connections.items():
+                            if sid not in exclude:
+                                await self._send_message(conn, msg)
+                        continue
+
+                    msg = WebSocketMessage(**data["message"])
+
+                    if session_id and session_id in self._connections:
+                        await self._send_message(self._connections[session_id], msg)
+                    elif user_id:
+                        # Send to all local sessions for this user
+                        if user_id in self._user_sessions:
+                            for sid in self._user_sessions[user_id]:
+                                await self._send_message(self._connections[sid], msg)
+
+        except Exception as e:
+            logger.error(f"Redis listener error: {e}")
 
     async def connect(
         self,
@@ -186,21 +293,52 @@ class ConnectionManager:
 
     async def send_to_user(self, user_id: str, message: WebSocketMessage):
         """Send a message to all sessions of a user."""
+        # Send to local connections
         if user_id in self._user_sessions:
             for session_id in self._user_sessions[user_id]:
                 await self.send_to_session(session_id, message)
+
+        # Publish to Redis for other instances
+        if self._redis_enabled:
+            try:
+                await self._redis.publish(
+                    "websocket_broadcast",
+                    json.dumps(
+                        {"user_id": user_id, "message": message.model_dump()}
+                    ),
+                )
+            except Exception as e:
+                logger.warning(f"Redis publish failed: {e}")
 
     async def broadcast(
         self, message: WebSocketMessage, exclude: Optional[Set[str]] = None
     ):
         """Broadcast a message to all connected clients."""
         exclude = exclude or set()
+        
+        # Broadcast locally
         for session_id, connection in self._connections.items():
             if session_id not in exclude:
                 try:
                     await self._send_message(connection, message)
                 except Exception as e:
                     logger.warning(f"Broadcast failed for {session_id}: {e}")
+
+        # Publish to Redis for other instances
+        if self._redis_enabled:
+            try:
+                await self._redis.publish(
+                    "websocket_broadcast",
+                    json.dumps(
+                        {
+                            "broadcast": True,
+                            "message": message.model_dump(),
+                            "exclude": list(exclude),
+                        }
+                    ),
+                )
+            except Exception as e:
+                logger.warning(f"Redis broadcast publish failed: {e}")
 
     async def stream_tokens(self, session_id: str, token_generator, message_id: str):
         """Stream tokens from a generator to a client."""
@@ -294,39 +432,21 @@ websocket_router = APIRouter(prefix="/ws", tags=["websocket"])
 async def websocket_chat_endpoint(
     websocket: WebSocket,
     session_id: str,
-    user_id: str = Query(default="anonymous"),
+    token: Optional[str] = Query(None),
 ):
     """
-    WebSocket endpoint for real-time chat.
-
-    Protocol:
-    1. Client connects with session_id and optional user_id
-    2. Server sends CONNECTED message
-    3. Client sends CHAT_MESSAGE messages
-    4. Server responds with CHAT_TOKEN (streaming) or CHAT_RESPONSE (complete)
-    5. Server sends CHAT_COMPLETE when done
-
-    Example client usage:
-    ```javascript
-    const ws = new WebSocket('ws://localhost:8003/ws/chat/session123?user_id=user1');
-
-    ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'chat_token') {
-            // Append token to response
-        }
-    };
-
-    ws.send(JSON.stringify({
-        type: 'chat_message',
-        data: { message: 'Hello', stream: true }
-    }));
-    ```
+    Secured WebSocket endpoint for real-time chat.
+    Requires JWT token in query parameter: ?token=...
     """
     manager = get_connection_manager()
 
     try:
+        # Step 1: Validate token BEFORE accepting connection
+        user_id = await validate_websocket_token(token)
+        
+        # Step 2: Accept connection only after authentication
         connection = await manager.connect(websocket, user_id, session_id)
+
 
         while True:
             # Receive message from client
@@ -398,6 +518,11 @@ async def websocket_chat_endpoint(
                         },
                     ),
                 )
+
+    except WebSocketException as e:
+        # Authentication failed - close connection immediately
+        logger.warning(f"WebSocket authentication failed: {e.reason}")
+        await websocket.close(code=e.code, reason=e.reason)
 
     except WebSocketDisconnect:
         await manager.disconnect(session_id)

@@ -1,0 +1,525 @@
+
+> cardio-ai-assistant@0.0.0 test
+> npx tsx tests/run-all-tests.ts
+
+
+================================================================================
+  CARDIO AI - FRONTEND-BACKEND INTEGRATION TEST SUITE
+================================================================================
+
+Backend URL: http://127.0.0.1:5001
+Start Time: 2025-12-25T06:22:01.741Z
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+Γ£à Backend is available
+
+Running Authentication Tests...
+Skipping - no document uploaded
+Skipping - no document uploaded
+Skipping - no document uploaded
+
+============================================================
+Test Suite: Document Tests
+============================================================
+  Γ¥î FAIL - Document Upload (48ms)
+    Error: Document upload failed with status 422
+  Γ£à PASS - Document Processing (1ms)
+  Γ£à PASS - Get Document (0ms)
+  Γ£à PASS - Predict From Document (0ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/4 passed
+Duration: 49ms
+============================================================
+
+Skipping update - no medication created
+Skipping delete - no medication created
+
+============================================================
+Test Suite: Medications Tests
+============================================================
+  Γ£à PASS - Get Medications (45ms)
+  Γ¥î FAIL - Add Medication (6ms)
+    Error: Add medication failed with status 404
+  Γ£à PASS - Update Medication (0ms)
+  Γ£à PASS - Delete Medication (0ms)
+  Γ£à PASS - Medication Insights (7ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 4/5 passed
+Duration: 58ms
+============================================================
+
+
+============================================================
+Test Suite: Notifications Tests
+============================================================
+  Γ¥î FAIL - Send Email (46ms)
+    Error: Send email failed with status 404
+  Γ¥î FAIL - Register Device (5ms)
+    Error: Register device failed with status 404
+  Γ£à PASS - Send Push Notification (7ms)
+  Γ¥î FAIL - Send WhatsApp (7ms)
+    Error: Send WhatsApp failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 65ms
+============================================================
+
+
+============================================================
+Test Suite: Knowledge Graph Tests
+============================================================
+  Γ£à PASS - Knowledge Graph Status (34ms)
+  Γ£à PASS - Search Graph (17ms)
+  Γ¥î FAIL - Create Node (6ms)
+    Error: Create node failed with status 404
+  Γ£à PASS - RAG Query (7ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/4 passed
+Duration: 64ms
+============================================================
+
+
+============================================================
+Test Suite: Calendar Tests
+============================================================
+  Γ£à PASS - Get Calendar Events (39ms)
+  Γ¥î FAIL - Sync Calendar (17ms)
+    Error: Sync calendar failed with status 404
+  Γ¥î FAIL - Schedule Reminder (8ms)
+    Error: Schedule reminder failed with status 404
+  Γ¥î FAIL - Store Calendar Credentials (4ms)
+    Error: Store credentials failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 68ms
+============================================================
+
+
+============================================================
+Test Suite: Authentication Tests
+============================================================
+  Γ¥î FAIL - User Registration (65ms)
+    Error: Registration failed: {"detail":"Not Found"}
+  Γ¥î FAIL - User Login (5ms)
+    Error: Login failed with status 404
+  Γ¥î FAIL - Get Current User (7ms)
+    Error: Get current user failed with status 404
+  Γ¥î FAIL - Token Refresh (7ms)
+    Error: Token refresh failed with status 404
+  Γ¥î FAIL - User Logout (4ms)
+    Error: Logout failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 0/5 passed
+Duration: 88ms
+============================================================
+
+
+============================================================
+Test Suite: Vision Analysis Tests
+============================================================
+  Γ£à PASS - Vision Health Check (40ms)
+  Γ¥î FAIL - ECG Analysis Endpoint (25ms)
+    Error: ECG analysis endpoint returned unexpected status 404
+  Γ¥î FAIL - Food Recognition Endpoint (4ms)
+    Error: Food recognition endpoint returned unexpected status 404
+  Γ¥î FAIL - Meal Logging Endpoint (5ms)
+    Error: Meal logging endpoint returned unexpected status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 74ms
+============================================================
+
+
+============================================================
+Test Suite: Smartwatch Tests
+============================================================
+  Γ£à PASS - Smartwatch Status (34ms)
+  Γ¥î FAIL - Register Smartwatch (17ms)
+    Error: Smartwatch registration failed with status 401
+  Γ¥î FAIL - Ingest Vitals (6ms)
+    Error: Vitals ingestion failed with status 404
+  Γ£à PASS - Get Aggregated Vitals (11ms)
+  Γ¥î FAIL - Analyze Health (4ms)
+    Error: Analyze health failed with status 401
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 2/5 passed
+Duration: 72ms
+============================================================
+
+
+============================================================
+Test Suite: Authentication Tests
+============================================================
+  Γ¥î FAIL - User Registration (13ms)
+    Error: Registration failed: {"detail":"Not Found"}
+  Γ¥î FAIL - User Login (7ms)
+    Error: Login failed with status 404
+  Γ¥î FAIL - Get Current User (6ms)
+    Error: Get current user failed with status 404
+  Γ¥î FAIL - Token Refresh (5ms)
+    Error: Token refresh failed with status 404
+  Γ¥î FAIL - User Logout (3ms)
+    Error: Logout failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 0/5 passed
+Duration: 34ms
+============================================================
+
+Running Chat/NLP Tests...
+
+============================================================
+Test Suite: Analytics Tests
+============================================================
+  Γ¥î FAIL - Get Analytics Summary (38ms)
+    Error: Get analytics summary failed with status 401
+  Γ¥î FAIL - Get Intent Analytics (14ms)
+    Error: Get intent analytics failed with status 401
+  Γ£à PASS - Get Sentiment Analytics (6ms)
+  Γ¥î FAIL - Get Entity Analytics (6ms)
+    Error: Get entity analytics failed with status 401
+  Γ¥î FAIL - Get Top Intents (5ms)
+    Error: Get top intents failed with status 401
+  Γ¥î FAIL - Get Top Entities (3ms)
+    Error: Get top entities failed with status 401
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/6 passed
+Duration: 72ms
+============================================================
+
+
+============================================================
+Test Suite: Chat/NLP Tests
+============================================================
+  Γ¥î FAIL - Health Check (37ms)
+    Error: Health check failed with status 404
+  Γ¥î FAIL - NLP Processing (19ms)
+    Error: NLP processing failed with status 404
+  Γ¥î FAIL - Chat Endpoint (7ms)
+    Error: Chat request failed with status 404
+  Γ¥î FAIL - Structured Outputs Status (6ms)
+    Error: Structured outputs status failed with status 404
+  Γ¥î FAIL - Structured Health Analysis (5ms)
+    Error: Structured health analysis failed with status 404
+  Γ¥î FAIL - Generate Insight (3ms)
+    Error: Generate insight failed with status 404
+  Γ£à PASS - Health Assessment (3ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/7 passed
+Duration: 80ms
+============================================================
+
+
+============================================================
+Test Suite: Health Data Tests
+============================================================
+  Γ¥î FAIL - Record Blood Pressure (47ms)
+    Error: Record blood pressure failed with status 404
+  Γ¥î FAIL - Record Heart Rate (5ms)
+    Error: Record heart rate failed with status 404
+  Γ¥î FAIL - Check Drug Interactions (6ms)
+    Error: Check drug interactions failed with status 404
+  Γ¥î FAIL - Symptom Triage (7ms)
+    Error: Symptom triage failed with status 404
+  Γ£à PASS - Get Patient Timeline (4ms)
+  Γ£à PASS - Get Weekly Summary (6ms)
+  Γ£à PASS - Get Patient Summary (2ms)
+  Γ¥î FAIL - Extract Medical Entities (2ms)
+    Error: Extract medical entities failed with status 404
+  Γ¥î FAIL - Expand Terminology (1ms)
+    Error: Expand terminology failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/9 passed
+Duration: 80ms
+============================================================
+
+
+============================================================
+Test Suite: Compliance Tests
+============================================================
+  Γ£à PASS - Get Disclaimer (35ms)
+  Γ¥î FAIL - Encrypt PHI (18ms)
+    Error: Encrypt PHI failed with status 404
+  Γ¥î FAIL - Get Verification Queue (5ms)
+    Error: Get verification queue failed with status 404
+  Γ£à PASS - Submit Verification (7ms)
+  Γ¥î FAIL - Get Consent (5ms)
+    Error: Get consent failed with status 500
+  Γ¥î FAIL - Update Consent (2ms)
+    Error: Update consent failed with status 405
+  Γ£à PASS - Revoke Consent (4ms)
+  Γ£à PASS - Export User Data (GDPR) (1ms)
+  Γ£à PASS - Get Audit Log (1ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 5/9 passed
+Duration: 78ms
+============================================================
+
+
+============================================================
+Test Suite: Chat/NLP Tests
+============================================================
+  Γ¥î FAIL - Health Check (1ms)
+    Error: Health check failed with status 404
+  Γ¥î FAIL - NLP Processing (2ms)
+    Error: NLP processing failed with status 404
+  Γ¥î FAIL - Chat Endpoint (2ms)
+    Error: Chat request failed with status 404
+  Γ¥î FAIL - Structured Outputs Status (1ms)
+    Error: Structured outputs status failed with status 404
+  Γ¥î FAIL - Structured Health Analysis (1ms)
+    Error: Structured health analysis failed with status 404
+  Γ¥î FAIL - Generate Insight (1ms)
+    Error: Generate insight failed with status 404
+  Γ£à PASS - Health Assessment (1ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/7 passed
+Duration: 9ms
+============================================================
+
+Running Health Data Tests...
+
+============================================================
+Test Suite: Health Data Tests
+============================================================
+  Γ¥î FAIL - Record Blood Pressure (1ms)
+    Error: Record blood pressure failed with status 404
+  Γ¥î FAIL - Record Heart Rate (1ms)
+    Error: Record heart rate failed with status 404
+  Γ¥î FAIL - Check Drug Interactions (1ms)
+    Error: Check drug interactions failed with status 404
+  Γ¥î FAIL - Symptom Triage (1ms)
+    Error: Symptom triage failed with status 404
+  Γ£à PASS - Get Patient Timeline (1ms)
+  Γ£à PASS - Get Weekly Summary (0ms)
+  Γ£à PASS - Get Patient Summary (1ms)
+  Γ¥î FAIL - Extract Medical Entities (1ms)
+    Error: Extract medical entities failed with status 404
+  Γ¥î FAIL - Expand Terminology (1ms)
+    Error: Expand terminology failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/9 passed
+Duration: 8ms
+============================================================
+
+Running Medication Tests...
+Skipping update - no medication created
+Skipping delete - no medication created
+
+============================================================
+Test Suite: Medications Tests
+============================================================
+  Γ£à PASS - Get Medications (1ms)
+  Γ¥î FAIL - Add Medication (1ms)
+    Error: Add medication failed with status 404
+  Γ£à PASS - Update Medication (0ms)
+  Γ£à PASS - Delete Medication (0ms)
+  Γ£à PASS - Medication Insights (0ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 4/5 passed
+Duration: 2ms
+============================================================
+
+Running Calendar Tests...
+
+============================================================
+Test Suite: Calendar Tests
+============================================================
+  Γ£à PASS - Get Calendar Events (0ms)
+  Γ¥î FAIL - Sync Calendar (1ms)
+    Error: Sync calendar failed with status 404
+  Γ¥î FAIL - Schedule Reminder (1ms)
+    Error: Schedule reminder failed with status 404
+  Γ¥î FAIL - Store Calendar Credentials (1ms)
+    Error: Store credentials failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 3ms
+============================================================
+
+Running Notification Tests...
+
+============================================================
+Test Suite: Notifications Tests
+============================================================
+  Γ¥î FAIL - Send Email (1ms)
+    Error: Send email failed with status 404
+  Γ¥î FAIL - Register Device (1ms)
+    Error: Register device failed with status 404
+  Γ£à PASS - Send Push Notification (1ms)
+  Γ¥î FAIL - Send WhatsApp (1ms)
+    Error: Send WhatsApp failed with status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 4ms
+============================================================
+
+Running Vision Tests...
+
+============================================================
+Test Suite: Vision Analysis Tests
+============================================================
+  Γ£à PASS - Vision Health Check (1ms)
+  Γ¥î FAIL - ECG Analysis Endpoint (1ms)
+    Error: ECG analysis endpoint returned unexpected status 404
+  Γ¥î FAIL - Food Recognition Endpoint (1ms)
+    Error: Food recognition endpoint returned unexpected status 404
+  Γ¥î FAIL - Meal Logging Endpoint (1ms)
+    Error: Meal logging endpoint returned unexpected status 404
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/4 passed
+Duration: 4ms
+============================================================
+
+Running Document Tests...
+Skipping - no document uploaded
+Skipping - no document uploaded
+Skipping - no document uploaded
+
+============================================================
+Test Suite: Document Tests
+============================================================
+  Γ¥î FAIL - Document Upload (1ms)
+    Error: Document upload failed with status 422
+  Γ£à PASS - Document Processing (0ms)
+  Γ£à PASS - Get Document (0ms)
+  Γ£à PASS - Predict From Document (0ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/4 passed
+Duration: 1ms
+============================================================
+
+Running Smartwatch Tests...
+
+============================================================
+Test Suite: Smartwatch Tests
+============================================================
+  Γ£à PASS - Smartwatch Status (1ms)
+  Γ¥î FAIL - Register Smartwatch (1ms)
+    Error: Smartwatch registration failed with status 401
+  Γ¥î FAIL - Ingest Vitals (0ms)
+    Error: Vitals ingestion failed with status 404
+  Γ£à PASS - Get Aggregated Vitals (1ms)
+  Γ¥î FAIL - Analyze Health (1ms)
+    Error: Analyze health failed with status 401
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 2/5 passed
+Duration: 4ms
+============================================================
+
+Running Compliance Tests...
+
+============================================================
+Test Suite: Compliance Tests
+============================================================
+  Γ£à PASS - Get Disclaimer (1ms)
+  Γ¥î FAIL - Encrypt PHI (1ms)
+    Error: Encrypt PHI failed with status 404
+  Γ¥î FAIL - Get Verification Queue (1ms)
+    Error: Get verification queue failed with status 404
+  Γ£à PASS - Submit Verification (1ms)
+  Γ¥î FAIL - Get Consent (2ms)
+    Error: Get consent failed with status 500
+  Γ¥î FAIL - Update Consent (1ms)
+    Error: Update consent failed with status 405
+  Γ£à PASS - Revoke Consent (1ms)
+  Γ£à PASS - Export User Data (GDPR) (1ms)
+  Γ£à PASS - Get Audit Log (1ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 5/9 passed
+Duration: 10ms
+============================================================
+
+Running Analytics Tests...
+
+============================================================
+Test Suite: Analytics Tests
+============================================================
+  Γ¥î FAIL - Get Analytics Summary (0ms)
+    Error: Get analytics summary failed with status 401
+  Γ¥î FAIL - Get Intent Analytics (1ms)
+    Error: Get intent analytics failed with status 401
+  Γ£à PASS - Get Sentiment Analytics (1ms)
+  Γ¥î FAIL - Get Entity Analytics (1ms)
+    Error: Get entity analytics failed with status 401
+  Γ¥î FAIL - Get Top Intents (1ms)
+    Error: Get top intents failed with status 401
+  Γ¥î FAIL - Get Top Entities (0ms)
+    Error: Get top entities failed with status 401
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 1/6 passed
+Duration: 4ms
+============================================================
+
+Running Knowledge Graph Tests...
+
+============================================================
+Test Suite: Knowledge Graph Tests
+============================================================
+  Γ£à PASS - Knowledge Graph Status (1ms)
+  Γ£à PASS - Search Graph (1ms)
+  Γ¥î FAIL - Create Node (1ms)
+    Error: Create node failed with status 404
+  Γ£à PASS - RAG Query (1ms)
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Results: 3/4 passed
+Duration: 4ms
+============================================================
+
+
+================================================================================
+  FINAL TEST SUMMARY
+================================================================================
+
+  Total Test Suites: 12
+  Total Tests:       66
+  Passed:            25
+  Failed:            41
+  Pass Rate:         37.9%
+  Duration:          89ms
+
+================================================================================
+
+  SUITE BREAKDOWN:
+  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ  ΓöÇ
+  Γ¥î Authentication Tests: 0/5 passed
+  Γ¥î Chat/NLP Tests: 1/7 passed
+  Γ¥î Health Data Tests: 3/9 passed
+  Γ¥î Medications Tests: 4/5 passed
+  Γ¥î Calendar Tests: 1/4 passed
+  Γ¥î Notifications Tests: 1/4 passed
+  Γ¥î Vision Analysis Tests: 1/4 passed
+  Γ¥î Document Tests: 3/4 passed
+  Γ¥î Smartwatch Tests: 2/5 passed
+  Γ¥î Compliance Tests: 5/9 passed
+  Γ¥î Analytics Tests: 1/6 passed
+  Γ¥î Knowledge Graph Tests: 3/4 passed
+
+================================================================================
+
+Test runner failed: ReferenceError: require is not defined
+    at <anonymous> (C:\Users\ggvfj\Downloads\Google 5 Days Ai Agents Training\project\cardio-ai-assistant\tests\run-all-tests.ts:192:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)

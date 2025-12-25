@@ -33,6 +33,7 @@ const PatientSummaryScreen = lazy(() => import('./screens/PatientSummaryScreen')
 const ConsentScreen = lazy(() => import('./screens/ConsentScreen'));
 const DocumentScreen = lazy(() => import('./screens/DocumentScreen'));
 const AnalyticsDashboard = lazy(() => import('./screens/AnalyticsDashboard'));
+const AgentSettingsScreen = lazy(() => import('./screens/AgentSettingsScreen'));
 
 import BottomNav from './components/BottomNav';
 import VoiceControl from './components/VoiceControl';
@@ -40,6 +41,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PageSkeleton, ChatListSkeleton } from './components/Skeleton';
 import { ConfirmDialogProvider } from './components/ConfirmDialog';
+import { AuthProvider } from './hooks/useAuth';
 
 // Loading fallback components for different screen types
 const DashboardFallback = () => <PageSkeleton type="dashboard" className="h-screen bg-background-light dark:bg-background-dark" />;
@@ -206,6 +208,11 @@ const AppContent: React.FC = () => {
                 <AnalyticsDashboard />
               </Suspense>
             } />
+            <Route path="/agent-settings" element={
+              <Suspense fallback={<ListFallback />}>
+                <AgentSettingsScreen />
+              </Suspense>
+            } />
           </Routes>
         </div>
 
@@ -216,15 +223,19 @@ const AppContent: React.FC = () => {
   );
 };
 
+
+
 const App: React.FC = () => {
   return (
-    <LanguageProvider>
-      <ConfirmDialogProvider>
-        <HashRouter>
-          <AppContent />
-        </HashRouter>
-      </ConfirmDialogProvider>
-    </LanguageProvider>
+    <AuthProvider>
+      <LanguageProvider>
+        <ConfirmDialogProvider>
+          <HashRouter>
+            <AppContent />
+          </HashRouter>
+        </ConfirmDialogProvider>
+      </LanguageProvider>
+    </AuthProvider>
   );
 };
 

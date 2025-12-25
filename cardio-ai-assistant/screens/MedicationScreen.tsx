@@ -4,6 +4,7 @@ import { apiClient, APIError } from '../services/apiClient';
 import { visionService, VisionServiceError } from '../services/visionService';
 import { ParsedMedication } from '../services/api.types';
 import { Medication } from '../types';
+import { useMedications } from '../hooks/useMedications';
 
 /**
  * Convert service errors to user-friendly messages
@@ -23,11 +24,10 @@ function getUserFriendlyError(error: unknown): string {
 
 const MedicationScreen: React.FC = () => {
     const navigate = useNavigate();
-    const [medications, setMedications] = useState<Medication[]>([]);
+    const { medications, loading: isLoading, addMedication, updateMedication, deleteMedication: removeMedication } = useMedications();
     const [showAddModal, setShowAddModal] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
     const [analysisResult, setAnalysisResult] = useState<string | null>(null);
     const [scanError, setScanError] = useState<string | null>(null);
 
@@ -43,30 +43,9 @@ const MedicationScreen: React.FC = () => {
         quantity: '30' // Default quantity
     });
 
-    const USER_ID = 'demo_user_123';
 
-    useEffect(() => {
-        fetchMedications();
-    }, []);
 
-    // Sync state to local storage whenever it changes to support Chat RAG context
-    useEffect(() => {
-        if (medications.length > 0) {
-            localStorage.setItem('user_medications', JSON.stringify(medications));
-        }
-    }, [medications]);
 
-    const fetchMedications = async () => {
-        setIsLoading(true);
-        // Simulate async load
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        const saved = localStorage.getItem('user_medications');
-        if (saved) {
-            setMedications(JSON.parse(saved));
-        }
-        setIsLoading(false);
-    };
 
     const handleAddMedication = async () => {
         if (!newMed.name || !newMed.dosage) return;
@@ -83,7 +62,7 @@ const MedicationScreen: React.FC = () => {
             // userId not needed for local type but kept for structure consistency if needed
         } as any; // Cast to avoid strict type check on extra fields
 
-        setMedications(prev => [...prev, medData]);
+        addMedication(medData);
         setShowAddModal(false);
         setNewMed({ name: '', dosage: '', frequency: 'Daily', time: '08:00', instructions: '', quantity: '30' });
     };
@@ -101,9 +80,8 @@ const MedicationScreen: React.FC = () => {
         if (isTaking && newQuantity > 0) newQuantity -= 1;
         else if (!isTaking) newQuantity += 1;
 
-        const updatedMeds = [...medications];
-        updatedMeds[medIndex] = { ...med, takenToday: newTaken, quantity: newQuantity };
-        setMedications(updatedMeds);
+        const updatedMed = { ...med, takenToday: newTaken, quantity: newQuantity };
+        updateMedication(updatedMed);
     };
 
     const checkInteractions = async () => {
@@ -141,12 +119,7 @@ const MedicationScreen: React.FC = () => {
 
     const deleteMed = async (id: string) => {
         if (confirm("Are you sure you want to delete this medication?")) {
-            const newMeds = medications.filter(m => m.id !== id);
-            setMedications(newMeds);
-            // Force update local storage if array becomes empty (useEffect might skip empty array based on existing logic, so we do it manually here just in case)
-            if (newMeds.length === 0) {
-                localStorage.setItem('user_medications', JSON.stringify([]));
-            }
+            removeMedication(id);
         }
     };
 
@@ -194,9 +167,7 @@ const MedicationScreen: React.FC = () => {
                 quantity: medData.quantity || 30,
             };
 
-            const newMeds = [newMed, ...medications];
-            setMedications(newMeds);
-            localStorage.setItem('user_medications', JSON.stringify(newMeds));
+            addMedication(newMed);
 
             // Close the modal on success
             setShowAddModal(false);

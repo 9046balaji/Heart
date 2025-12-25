@@ -6,10 +6,16 @@ Integrates Google Calendar, Outlook Calendar, and notification services.
 """
 
 from typing import Optional, List
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, Query, Depends
+from pydantic import BaseModel, Field, field_validator
 import logging
+import pytz
+import uuid
+from core.concurrency.redis_lock import RedisLock
+from core.config import get_settings
+from core.app_dependencies import get_current_user
+from core.database.xampp_db import get_database
 
 logger = logging.getLogger(__name__)
 
@@ -400,3 +406,195 @@ async def cancel_reminder(user_id: str, reminder_id: str):
     except Exception as e:
         logger.error(f"Error cancelling reminder: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Internal Appointment Management (UTC & Locking) ====================
+
+class AppointmentCreate(BaseModel):
+    """Appointment creation request."""
+    
+    # Frontend sends ISO 8601 with timezone
+    start_time: datetime  # e.g., "2024-12-24T14:00:00-05:00"
+    end_time: datetime
+    doctor_id: str
+    notes: Optional[str] = None
+    
+    @field_validator('start_time', 'end_time')
+    @classmethod
+    def convert_to_utc(cls, v: datetime) -> datetime:
+        """
+        Convert all incoming times to UTC.
+        """
+        if v.tzinfo is None:
+            raise ValueError(
+                "Timestamp must include timezone information. "
+                "Use ISO 8601 format: '2024-12-24T14:00:00-05:00'"
+            )
+        
+        # Convert to UTC
+        utc_time = v.astimezone(timezone.utc)
+        
+        # Remove timezone info for storage (we know it's UTC)
+        return utc_time.replace(tzinfo=None)
+
+
+class AppointmentResponse(BaseModel):
+    """Appointment response."""
+    
+    id: str
+    start_time: datetime  # Stored as UTC
+    end_time: datetime
+    doctor_id: str
+    user_id: str
+    notes: Optional[str] = None
+    
+    # User's timezone for conversion
+    user_timezone: str = "America/New_York"
+    
+    @property
+    def start_time_local(self) -> str:
+        """Convert stored UTC time to user's local timezone."""
+        utc_time = self.start_time.replace(tzinfo=timezone.utc)
+        user_tz = pytz.timezone(self.user_timezone)
+        local_time = utc_time.astimezone(user_tz)
+        return local_time.isoformat()
+    
+    @property
+    def end_time_local(self) -> str:
+        """Convert end time to user's local timezone."""
+        utc_time = self.end_time.replace(tzinfo=timezone.utc)
+        user_tz = pytz.timezone(self.user_timezone)
+        local_time = utc_time.astimezone(user_tz)
+        return local_time.isoformat()
+
+
+def _to_user_timezone(utc_time: datetime, timezone_name: str) -> str:
+    """Convert UTC datetime to user's timezone."""
+    if utc_time.tzinfo is None:
+        utc_time = utc_time.replace(tzinfo=timezone.utc)
+    
+    user_tz = pytz.timezone(timezone_name)
+    local_time = utc_time.astimezone(user_tz)
+    return local_time.isoformat()
+
+
+@router.post("/appointments")
+async def create_appointment(
+    appointment: AppointmentCreate,
+    user_id: dict = Depends(get_current_user)
+):
+    """
+    Create appointment with concurrency protection.
+    Uses Redis mutex to prevent double booking.
+    """
+    # Handle user_id from dependency (might be dict or str)
+    uid = user_id.get("id", "anonymous") if isinstance(user_id, dict) else str(user_id)
+    
+    settings = get_settings()
+    redis_lock = RedisLock(settings.REDIS_URL or "redis://localhost:6379")
+    db = get_database()
+    
+    # Validation: Start time must be in the future
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    if appointment.start_time <= now_utc:
+        raise HTTPException(status_code=400, detail="Appointment must be in the future")
+    
+    if appointment.end_time <= appointment.start_time:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+    
+    # Generate lock key based on doctor and time slot
+    lock_key = f"booking:{appointment.doctor_id}:{appointment.start_time.timestamp()}"
+    
+    try:
+        # Acquire lock (blocks other requests for this slot)
+        async with redis_lock.acquire(lock_key, timeout=10, blocking_timeout=5):
+            # Double-check availability (inside lock)
+            conflict = await db.execute_query(
+                """
+                SELECT id FROM appointments
+                WHERE doctor_id = %s
+                  AND (
+                    (start_time < %s AND end_time > %s) OR
+                    (start_time < %s AND end_time > %s)
+                  )
+                """,
+                (
+                    appointment.doctor_id,
+                    appointment.end_time, appointment.start_time,
+                    appointment.end_time, appointment.start_time
+                ),
+                operation="read",
+                fetch_one=True
+            )
+            
+            if conflict:
+                raise HTTPException(status_code=409, detail="This time slot is no longer available")
+            
+            # Slot is available, create appointment
+            apt_id = str(uuid.uuid4())
+            await db.execute_query(
+                """
+                INSERT INTO appointments 
+                (id, user_id, doctor_id, start_time, end_time, notes, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())
+                """,
+                (
+                    apt_id,
+                    uid,
+                    appointment.doctor_id,
+                    appointment.start_time,
+                    appointment.end_time,
+                    appointment.notes
+                ),
+                operation="write"
+            )
+            
+            return {"id": apt_id, "message": "Appointment created"}
+            
+    except TimeoutError:
+        raise HTTPException(
+            status_code=409,
+            detail="Someone else is currently booking this slot. Please try again."
+        )
+
+
+@router.get("/appointments/{target_user_id}")
+async def get_appointments(target_user_id: str):
+    """Get appointments with times converted to user's local timezone."""
+    db = get_database()
+    
+    # Get user's preferred timezone
+    user = await db.execute_query(
+        "SELECT timezone FROM users WHERE id = %s",
+        (target_user_id,),
+        operation="read",
+        fetch_one=True
+    )
+    
+    user_timezone = user.get("timezone", "America/New_York") if user else "America/New_York"
+    
+    # Fetch appointments (stored in UTC)
+    appointments = await db.execute_query(
+        """
+        SELECT id, user_id, doctor_id, start_time, end_time, notes
+        FROM appointments
+        WHERE user_id = %s AND start_time >= UTC_TIMESTAMP()
+        ORDER BY start_time ASC
+        """,
+        (target_user_id,),
+        operation="read",
+        fetch_all=True
+    )
+    
+    formatted_appointments = []
+    if appointments:
+        for apt in appointments:
+            formatted_appointments.append({
+                "id": apt["id"],
+                "doctor_id": apt["doctor_id"],
+                "start_time": _to_user_timezone(apt["start_time"], user_timezone),
+                "end_time": _to_user_timezone(apt["end_time"], user_timezone),
+                "notes": apt["notes"]
+            })
+    
+    return {"appointments": formatted_appointments}

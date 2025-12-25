@@ -13,12 +13,16 @@ const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.me
   : 'http://localhost:5001';
 
 import { handleError, retryWithBackoff, ErrorType } from '../utils/errorHandling';
+import { authService } from './authService';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
   body?: any;
   timeout?: number;
+  skipAuth?: boolean; // Skip authentication for login/register endpoints
+  skipDedup?: boolean; // Skip request deduplication
+  retries?: number; // Number of retries for failed requests
 }
 
 class APIError extends Error {
@@ -32,16 +36,108 @@ class APIError extends Error {
   }
 }
 
+// ============================================================================
+// Request Deduplication
+// ============================================================================
+
+// In-flight requests map for deduplication
+const inFlightRequests = new Map<string, Promise<any>>();
+
+/**
+ * Generate a cache key for request deduplication
+ */
+function getRequestKey(endpoint: string, options: RequestOptions): string {
+  return `${options.method || 'GET'}:${endpoint}:${JSON.stringify(options.body || {})}`;
+}
+
+// ============================================================================
+// Request/Response Interceptors
+// ============================================================================
+
+type RequestInterceptor = (endpoint: string, options: RequestOptions) => RequestOptions;
+type ResponseInterceptor = <T>(response: T, endpoint: string) => T;
+
+const requestInterceptors: RequestInterceptor[] = [];
+const responseInterceptors: ResponseInterceptor[] = [];
+
+/**
+ * Add a request interceptor
+ */
+export function addRequestInterceptor(interceptor: RequestInterceptor): void {
+  requestInterceptors.push(interceptor);
+}
+
+/**
+ * Add a response interceptor
+ */
+export function addResponseInterceptor(interceptor: ResponseInterceptor): void {
+  responseInterceptors.push(interceptor);
+}
+
+/**
+ * Clear all interceptors
+ */
+export function clearInterceptors(): void {
+  requestInterceptors.length = 0;
+  responseInterceptors.length = 0;
+}
+
+// ============================================================================
+// Centralized Error Handler
+// ============================================================================
+
+/**
+ * Process API errors with user-friendly messages
+ */
+function processApiError(error: unknown): APIError {
+  if (error instanceof APIError) {
+    return error;
+  }
+
+  if (error instanceof TypeError && error.message === 'Failed to fetch') {
+    return new APIError(0, 'Network error. Please check your connection.', { type: ErrorType.NETWORK });
+  }
+
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return new APIError(0, 'Request timeout. Please try again.', { type: ErrorType.TIMEOUT });
+  }
+
+  return new APIError(
+    0,
+    error instanceof Error ? error.message : 'Unknown error occurred',
+    error
+  );
+}
+
 async function apiCall<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
+  // Apply request interceptors
+  let processedOptions = { ...options };
+  for (const interceptor of requestInterceptors) {
+    processedOptions = interceptor(endpoint, processedOptions);
+  }
+
   const {
     method = 'GET',
     headers = {},
     body,
     timeout = 30000,
-  } = options;
+    skipAuth = false,
+    skipDedup = false,
+    retries = 0,
+  } = processedOptions;
+
+  // Request deduplication for GET requests
+  const requestKey = getRequestKey(endpoint, processedOptions);
+  if (method === 'GET' && !skipDedup) {
+    const existingRequest = inFlightRequests.get(requestKey);
+    if (existingRequest) {
+      console.log(`[API] Deduplicating request: ${requestKey}`);
+      return existingRequest;
+    }
+  }
 
   // Check for offline status before making request
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -50,6 +146,15 @@ async function apiCall<T>(
       'Device is offline',
       { type: ErrorType.OFFLINE }
     );
+  }
+
+  // Inject auth header if available and not skipped
+  const authHeaders: Record<string, string> = {};
+  if (!skipAuth) {
+    const authHeader = authService.getAuthHeader();
+    if (authHeader) {
+      authHeaders['Authorization'] = authHeader;
+    }
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
@@ -61,6 +166,7 @@ async function apiCall<T>(
       method,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -68,6 +174,24 @@ async function apiCall<T>(
     });
 
     clearTimeout(timeoutId);
+
+    // Handle 401 Unauthorized - token expired or invalid
+    if (response.status === 401 && !skipAuth) {
+      // Try to refresh token
+      const refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        // Retry request with new token
+        return apiCall<T>(endpoint, options);
+      } else {
+        // Refresh failed, clear auth
+        authService.clearAuth();
+        // Redirect to login if in browser (window defined)
+        if (typeof window !== 'undefined') {
+          window.location.hash = '#/login';
+        }
+        throw new APIError(401, 'Session expired. Please log in again.');
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -78,35 +202,78 @@ async function apiCall<T>(
       );
     }
 
-    return (await response.json()) as T;
+    let result = (await response.json()) as T;
+
+    // Apply response interceptors
+    for (const interceptor of responseInterceptors) {
+      result = interceptor(result, endpoint);
+    }
+
+    // Clear from in-flight on success
+    inFlightRequests.delete(requestKey);
+
+    return result;
   } catch (error) {
     clearTimeout(timeoutId);
 
-    if (error instanceof APIError) {
-      throw error;
+    // Clear from in-flight on error
+    inFlightRequests.delete(requestKey);
+
+    // Retry logic for transient errors
+    if (retries > 0 && error instanceof APIError) {
+      // Retry on network errors or 5xx errors
+      if (error.status === 0 || error.status >= 500) {
+        console.log(`[API] Retrying request (${retries} attempts left): ${endpoint}`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return apiCall<T>(endpoint, { ...processedOptions, retries: retries - 1 });
+      }
     }
 
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw new APIError(
-        0,
-        'Network error. Please check your connection.',
-        error
-      );
+    throw processApiError(error);
+  }
+}
+
+// ============================================================================
+// Token Refresh Helper
+// ============================================================================
+
+/**
+ * Attempt to refresh the access token using the refresh token
+ * Returns true if successful, false otherwise
+ */
+async function handleTokenRefresh(): Promise<boolean> {
+  try {
+    const refreshToken = authService.getRefreshToken();
+    if (!refreshToken) {
+      console.log('[Auth] No refresh token available');
+      return false;
     }
 
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new APIError(
-        0,
-        'Request timeout. Please try again.',
-        error
-      );
+    console.log('[Auth] Attempting token refresh...');
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (!response.ok) {
+      console.log('[Auth] Token refresh failed:', response.status);
+      return false;
     }
 
-    throw new APIError(
-      0,
-      error instanceof Error ? error.message : 'Unknown error occurred',
-      error
-    );
+    const data = await response.json();
+
+    // Store new tokens
+    authService.setToken(data.token);
+    if (data.refresh_token) {
+      authService.setRefreshToken(data.refresh_token);
+    }
+
+    console.log('[Auth] Token refreshed successfully');
+    return true;
+  } catch (error) {
+    console.error('[Auth] Token refresh error:', error);
+    return false;
   }
 }
 
@@ -172,6 +339,88 @@ async function apiCallWithRetry<T>(
 // ============================================================================
 
 export const apiClient = {
+  // ==========================================================================
+  // AUTHENTICATION API
+  // ==========================================================================
+
+  /**
+   * Login with email and password
+   */
+  login: async (email: string, password: string) => {
+    return apiCall<{
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: string;
+      };
+      token: string;
+      refresh_token?: string;
+    }>('/auth/login', {
+      method: 'POST',
+      body: { email, password },
+      skipAuth: true,
+    });
+  },
+
+  /**
+   * Register new user
+   */
+  register: async (data: {
+    email: string;
+    password: string;
+    name: string;
+  }) => {
+    return apiCall<{
+      user: {
+        id: string;
+        email: string;
+        name: string;
+      };
+      token: string;
+      refresh_token?: string;
+    }>('/auth/register', {
+      method: 'POST',
+      body: data,
+      skipAuth: true,
+    });
+  },
+
+  /**
+   * Logout current user
+   */
+  logout: async () => {
+    return apiCall<{ message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Get current authenticated user
+   */
+  me: async () => {
+    return apiCall<{
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+    }>('/auth/me');
+  },
+
+  /**
+   * Refresh authentication token
+   */
+  refreshToken: async (refreshToken: string) => {
+    return apiCall<{
+      token: string;
+      refresh_token?: string;
+    }>('/auth/refresh', {
+      method: 'POST',
+      body: { refresh_token: refreshToken },
+      skipAuth: true,
+    });
+  },
+
   /**
    * Generate daily health insight
    */
@@ -768,6 +1017,89 @@ export const apiClient = {
     return apiCall<any>('/api/smartwatch/analyze', {
       method: 'POST',
       body: data,
+    });
+  },
+
+  // ==========================================================================
+  // MEDICATIONS API
+  // ==========================================================================
+
+  /**
+   * Get all medications for a user
+   */
+  getMedications: async (userId: string) => {
+    return apiCall<Array<{
+      id: string;
+      name: string;
+      dosage: string;
+      schedule: string[];
+      frequency: string;
+      startDate?: string;
+      endDate?: string;
+      notes?: string;
+    }>>(`/api/users/${userId}/medications`);
+  },
+
+  /**
+   * Add a new medication for a user
+   */
+  addMedication: async (userId: string, medication: {
+    name: string;
+    dosage: string;
+    schedule: string[];
+    frequency: string;
+    startDate?: string;
+    endDate?: string;
+    notes?: string;
+  }) => {
+    return apiCall<{
+      id: string;
+      name: string;
+      dosage: string;
+      schedule: string[];
+      frequency: string;
+      startDate?: string;
+      endDate?: string;
+      notes?: string;
+    }>(`/api/users/${userId}/medications`, {
+      method: 'POST',
+      body: medication,
+    });
+  },
+
+  /**
+   * Update an existing medication
+   */
+  updateMedication: async (userId: string, medicationId: string, medication: Partial<{
+    name: string;
+    dosage: string;
+    schedule: string[];
+    frequency: string;
+    startDate?: string;
+    endDate?: string;
+    notes?: string;
+  }>) => {
+    return apiCall<{
+      id: string;
+      name: string;
+      dosage: string;
+      schedule: string[];
+      frequency: string;
+      startDate?: string;
+      endDate?: string;
+      notes?: string;
+    }>(`/api/users/${userId}/medications/${medicationId}`, {
+      method: 'PUT',
+      body: medication,
+    });
+  },
+
+  /**
+   * Delete a medication
+   */
+  deleteMedication: async (userId: string, medicationId: string) => {
+    return apiCall<{ message: string }>(`/api/users/${userId}/medications/${medicationId}`, {
+      method: 'DELETE',
     });
   },
 

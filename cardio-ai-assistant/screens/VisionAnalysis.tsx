@@ -58,8 +58,13 @@ function getConfidenceBadge(confidence: number): { class: string; label: string 
     return { class: 'bg-orange-100 text-orange-700', label: 'Low' };
 }
 
+import { useAuth } from '../hooks/useAuth';
+
+// ...
+
 const VisionAnalysis: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const ecgFileRef = useRef<HTMLInputElement>(null);
     const foodFileRef = useRef<HTMLInputElement>(null);
 
@@ -79,8 +84,6 @@ const VisionAnalysis: React.FC = () => {
         error: null,
         mealLogged: false,
     });
-
-    const USER_ID = 'demo_user_123';
 
     // ============================================================================
     // ECG Analysis
@@ -125,10 +128,10 @@ const VisionAnalysis: React.FC = () => {
     };
 
     const handleLogMeal = async () => {
-        if (!foodFileRef.current?.files?.[0] || !foodState.result) return;
+        if (!foodFileRef.current?.files?.[0] || !foodState.result || !user) return;
 
         try {
-            await visionService.logMeal(USER_ID, foodFileRef.current.files[0], mealType);
+            await visionService.logMeal(user.id, foodFileRef.current.files[0], mealType);
             setFoodState(prev => ({ ...prev, mealLogged: true }));
         } catch (error) {
             setFoodState(prev => ({ ...prev, error: getUserFriendlyError(error) }));
@@ -164,8 +167,8 @@ const VisionAnalysis: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('ecg')}
                         className={`flex-1 py-3 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors ${activeTab === 'ecg'
-                                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                                : 'text-slate-500 dark:text-slate-400'
+                            ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                            : 'text-slate-500 dark:text-slate-400'
                             }`}
                     >
                         <span className="material-symbols-outlined text-xl">monitor_heart</span>
@@ -174,8 +177,8 @@ const VisionAnalysis: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('food')}
                         className={`flex-1 py-3 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors ${activeTab === 'food'
-                                ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                                : 'text-slate-500 dark:text-slate-400'
+                            ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                            : 'text-slate-500 dark:text-slate-400'
                             }`}
                     >
                         <span className="material-symbols-outlined text-xl">restaurant</span>
@@ -421,8 +424,8 @@ const VisionAnalysis: React.FC = () => {
                                                 key={type}
                                                 onClick={() => setMealType(type)}
                                                 className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${mealType === type
-                                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                                     }`}
                                             >
                                                 {type}

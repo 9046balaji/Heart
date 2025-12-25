@@ -366,6 +366,140 @@ class Neo4jService:
         result = await self.query(query, {"node_id": node_id})
         return result.records[0].get("deleted", 0) > 0 if result.records else False
 
+    async def create_disease_node(
+        self,
+        disease_name: str,
+        use_icd10: bool = True
+    ) -> Optional[str]:
+        """
+        Create disease node with ICD-10 standardization.
+        
+        Uses MERGE to prevent duplicates when the same condition
+        is mentioned with different names (e.g., "Heart Attack" vs "MI").
+        
+        Args:
+            disease_name: Disease/condition name
+            use_icd10: Whether to use ICD-10 mapping (default: True)
+        
+        Returns:
+            ICD-10 code if mapped, otherwise node ID
+        
+        Example:
+            # These all create/reference the same node:
+            code1 = await service.create_disease_node("heart attack")   # I21.9
+            code2 = await service.create_disease_node("MI")             # I21.9
+            code3 = await service.create_disease_node("AMI")            # I21.9
+        """
+        if not use_icd10:
+            # Fallback: create without ICD-10 mapping
+            node = GraphNode(
+                labels=["Condition"],
+                properties={"name": disease_name}
+            )
+            await self.create_node(node)
+            return node.id
+        
+        # Map disease to ICD-10 code
+        try:
+            from nlp.knowledge_graph.medical_ontology import get_medical_ontology_mapper
+            
+            mapper = get_medical_ontology_mapper()
+            mapping = await mapper.map_disease(disease_name)
+            
+            if not mapping:
+                logger.warning(
+                    f"Could not map '{disease_name}' to ICD-10, "
+                    "creating without standardization"
+                )
+                # Create node with original name
+                node = GraphNode(
+                    labels=["Condition"],
+                    properties={
+                        "name": disease_name,
+                        "icd10_mapped": False
+                    }
+                )
+                await self.create_node(node)
+                return node.id
+            
+            icd10_code = mapping["icd10_code"]
+            standard_name = mapping["standard_name"]
+            category = mapping.get("category", "Unknown")
+            
+            if self.mock_mode:
+                # Mock mode: just create node
+                node = GraphNode(
+                    labels=["Condition"],
+                    properties={
+                        "name": standard_name,
+                        "icd10_code": icd10_code,
+                        "category": category,
+                        "alias": [disease_name]
+                    }
+                )
+                self._mock_nodes[icd10_code] = node
+                logger.info(
+                    f"Mock: Created disease node '{disease_name}' → "
+                    f"ICD-10: {icd10_code} ({standard_name})"
+                )
+                return icd10_code
+            
+            # Use MERGE to prevent duplicates
+            # Creates node if doesn't exist, finds if it does
+            query = """
+            MERGE (d:Condition {icd10_code: $icd10_code})
+            ON CREATE SET
+                d.name = $standard_name,
+                d.category = $category,
+                d.created_at = datetime(),
+                d.alias = [$original_name]
+            ON MATCH SET
+                d.updated_at = datetime()
+            SET d.alias = 
+                CASE
+                    WHEN d.alias IS NULL THEN [$original_name]
+                    WHEN NOT $original_name IN d.alias THEN d.alias + $original_name
+                    ELSE d.alias
+                END
+            RETURN d.icd10_code AS code, d.name AS name, d.alias AS aliases
+            """
+            
+            result = await self.query(
+                query,
+                {
+                    "icd10_code": icd10_code,
+                    "standard_name": standard_name,
+                    "category": category,
+                    "original_name": disease_name
+                }
+            )
+            
+            if result.records:
+                record = result.records[0]
+                logger.info(
+                    f"Disease node: '{disease_name}' → "
+                    f"ICD-10: {icd10_code} ({standard_name})"
+                )
+                logger.debug(f"Aliases: {record.get('aliases', [])}")
+                return icd10_code
+            
+            return None
+        
+        except Exception as e:
+            logger.error(f"Failed to create disease node for '{disease_name}': {e}")
+            # Fallback: create without ICD-10
+            node = GraphNode(
+                labels=["Condition"],
+                properties={
+                    "name": disease_name,
+                    "icd10_mapped": False,
+                    "mapping_error": str(e)
+                }
+            )
+            await self.create_node(node)
+            return node.id
+
+
     # Relationship operations
 
     async def create_relationship(

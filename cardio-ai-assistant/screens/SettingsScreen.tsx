@@ -7,6 +7,7 @@ import { pdfExportService } from '../services/pdfExport';
 import { calendarService, CalendarServiceError } from '../services/calendarService';
 import { notificationService, NotificationServiceError } from '../services/notificationService';
 import type { CalendarProvider, WeeklySummaryPreferences, DeliveryChannel } from '../services/api.types';
+import { Modal } from '../components/Modal';
 
 interface SettingsProps {
   isDark: boolean;
@@ -31,7 +32,7 @@ interface CalendarConnection {
   lastSync?: string;
 }
 
-const USER_ID = 'demo_user_123'; // Would come from auth context in production
+import { useAuth } from '../hooks/useAuth';
 
 // --- Extracted Modal Components ---
 
@@ -102,77 +103,68 @@ const DevicesModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold dark:text-white">{t('settings.devices')}</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        {/* My Devices List */}
-        <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-1">
-          {devices.length > 0 ? devices.map(device => (
-            <div key={device.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 animate-in slide-in-from-right">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <span className="material-symbols-outlined">
-                    {device.type === 'watch' ? 'watch' : device.type === 'chest-strap' ? 'monitor_heart' : 'ring_volume'}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-bold dark:text-white">{device.name}</p>
-                  <p className="text-xs text-green-500 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                    {t('settings.connected')} {device.battery && `• ${device.battery}%`}
-                  </p>
-                </div>
+    <Modal isOpen={true} onClose={onClose} title={t('settings.devices')}>
+      {/* My Devices List */}
+      <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-1">
+        {devices.length > 0 ? devices.map(device => (
+          <div key={device.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 animate-in slide-in-from-right">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <span className="material-symbols-outlined">
+                  {device.type === 'watch' ? 'watch' : device.type === 'chest-strap' ? 'monitor_heart' : 'ring_volume'}
+                </span>
               </div>
-              <button
-                onClick={() => onDisconnect(device.id)}
-                className="text-xs text-red-500 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded-lg transition-colors"
-              >
-                {t('settings.disconnect')}
-              </button>
+              <div>
+                <p className="text-sm font-bold dark:text-white">{device.name}</p>
+                <p className="text-xs text-green-500 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                  {t('settings.connected')} {device.battery && `• ${device.battery}%`}
+                </p>
+              </div>
             </div>
-          )) : (
-            <div className="text-center py-6 text-slate-500 text-sm italic">No devices connected.</div>
-          )}
-        </div>
-
-        <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-          {errorMsg && (
-            <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm">error</span>
-              {errorMsg}
-            </div>
-          )}
-
-          <button
-            onClick={startScan}
-            disabled={isScanning}
-            className={`w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 ${isScanning ? 'opacity-70 cursor-wait' : ''}`}
-          >
-            {isScanning ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
-                Scanning...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined">bluetooth_searching</span>
-                {t('settings.pair_device')}
-              </>
-            )}
-          </button>
-
-          <p className="text-[10px] text-slate-400 text-center mt-2">
-            Make sure your device is in pairing mode.
-          </p>
-        </div>
+            <button
+              onClick={() => onDisconnect(device.id)}
+              className="text-xs text-red-500 font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-2 py-1 rounded-lg transition-colors"
+            >
+              {t('settings.disconnect')}
+            </button>
+          </div>
+        )) : (
+          <div className="text-center py-6 text-slate-500 text-sm italic">No devices connected.</div>
+        )}
       </div>
-    </div>
+
+      <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+        {errorMsg && (
+          <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">error</span>
+            {errorMsg}
+          </div>
+        )}
+
+        <button
+          onClick={startScan}
+          disabled={isScanning}
+          className={`w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 ${isScanning ? 'opacity-70 cursor-wait' : ''}`}
+        >
+          {isScanning ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+              Scanning...
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined">bluetooth_searching</span>
+              {t('settings.pair_device')}
+            </>
+          )}
+        </button>
+
+        <p className="text-[10px] text-slate-400 text-center mt-2">
+          Make sure your device is in pairing mode.
+        </p>
+      </div>
+    </Modal>
   );
 };
 
@@ -180,42 +172,39 @@ const PasswordModal = ({ onClose }: { onClose: () => void }) => {
   const [step, setStep] = useState('form');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        {step === 'form' ? (
-          <>
-            <h3 className="text-xl font-bold dark:text-white mb-4">Change Password</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Current Password</label>
-                <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">New Password</label>
-                <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Confirm Password</label>
-                <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
-                <button onClick={() => setStep('success')} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Update</button>
-              </div>
+    <Modal isOpen={true} onClose={onClose} title={step === 'form' ? "Change Password" : "Password Updated"}>
+      {step === 'form' ? (
+        <>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Current Password</label>
+              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
             </div>
-          </>
-        ) : (
-          <div className="text-center py-6 animate-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
-              <span className="material-symbols-outlined text-3xl">check</span>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">New Password</label>
+              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
             </div>
-            <h3 className="text-xl font-bold dark:text-white mb-2">Password Updated</h3>
-            <p className="text-slate-500 text-sm mb-6">Your password has been changed successfully.</p>
-            <button onClick={onClose} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl">Close</button>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Confirm Password</label>
+              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
+              <button onClick={() => setStep('success')} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Update</button>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      ) : (
+        <div className="text-center py-6 animate-in zoom-in-95 duration-300">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600 dark:text-green-400">
+            <span className="material-symbols-outlined text-3xl">check</span>
+          </div>
+          <h3 className="text-xl font-bold dark:text-white mb-2">Password Updated</h3>
+          <p className="text-slate-500 text-sm mb-6">Your password has been changed successfully.</p>
+          <button onClick={onClose} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl">Close</button>
+        </div>
+      )}
+    </Modal>
   );
 };
 
@@ -223,89 +212,76 @@ const FeedbackModal = ({ onClose }: { onClose: () => void }) => {
   const [sent, setSent] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        {!sent ? (
-          <>
-            <h3 className="text-xl font-bold dark:text-white mb-2">Send Feedback</h3>
-            <p className="text-slate-500 text-sm mb-4">Let us know how we can improve your experience.</p>
-            <textarea
-              className="w-full h-32 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white resize-none mb-4 placeholder:text-slate-400 focus:ring-2 focus:ring-primary"
-              placeholder="Type your message here..."
-            ></textarea>
-            <div className="flex gap-3">
-              <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancel</button>
-              <button onClick={() => setSent(true)} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Send</button>
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-6 animate-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 dark:text-blue-400">
-              <span className="material-symbols-outlined text-3xl">send</span>
-            </div>
-            <h3 className="text-xl font-bold dark:text-white mb-2">Feedback Sent!</h3>
-            <p className="text-slate-500 text-sm mb-6">Thank you for helping us improve.</p>
-            <button onClick={onClose} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl">Close</button>
+    <Modal isOpen={true} onClose={onClose} title={!sent ? "Send Feedback" : "Feedback Sent!"}>
+      {!sent ? (
+        <>
+          <p className="text-slate-500 text-sm mb-4">Let us know how we can improve your experience.</p>
+          <textarea
+            className="w-full h-32 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white resize-none mb-4 placeholder:text-slate-400 focus:ring-2 focus:ring-primary"
+            placeholder="Type your message here..."
+          ></textarea>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancel</button>
+            <button onClick={() => setSent(true)} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Send</button>
           </div>
-        )}
-      </div>
-    </div>
+        </>
+      ) : (
+        <div className="text-center py-6 animate-in zoom-in-95 duration-300">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 dark:text-blue-400">
+            <span className="material-symbols-outlined text-3xl">send</span>
+          </div>
+          <h3 className="text-xl font-bold dark:text-white mb-2">Feedback Sent!</h3>
+          <p className="text-slate-500 text-sm mb-6">Thank you for helping us improve.</p>
+          <button onClick={onClose} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl">Close</button>
+        </div>
+      )}
+    </Modal>
   );
 };
 
 const HelpModal = ({ onClose }: { onClose: () => void }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-    <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-      <div className="flex justify-between items-center mb-4 shrink-0">
-        <h3 className="text-xl font-bold dark:text-white">Help Center</h3>
-        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
-          <span className="material-symbols-outlined">close</span>
-        </button>
-      </div>
-      <div className="overflow-y-auto pr-2 space-y-4">
-        {[
-          { q: "How is my risk score calculated?", a: "Your score is based on the vitals you enter (BP, Cholesterol) combined with lifestyle factors like smoking and activity level." },
-          { q: "Is my data private?", a: "Yes, all data is stored locally on your device. We do not share your personal health info." },
-          { q: "Can I connect my Fitbit?", a: "Yes! Use the 'Manage Connected Devices' option to scan and pair your Bluetooth trackers." },
-          { q: "How do I book an appointment?", a: "Go to the 'Book' tab, search for a specialist, and select an available time slot." }
-        ].map((faq, i) => (
-          <details key={i} className="group bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
-            <summary className="flex justify-between items-center cursor-pointer font-bold text-sm dark:text-white list-none">
-              {faq.q}
-              <span className="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
-            </summary>
-            <p className="text-slate-500 dark:text-slate-400 text-xs mt-2 leading-relaxed">
-              {faq.a}
-            </p>
-          </details>
-        ))}
-      </div>
-      <button className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors">
-        Contact Support
-      </button>
+  <Modal isOpen={true} onClose={onClose} title="Help Center">
+    <div className="overflow-y-auto pr-2 space-y-4">
+      {[
+        { q: "How is my risk score calculated?", a: "Your score is based on the vitals you enter (BP, Cholesterol) combined with lifestyle factors like smoking and activity level." },
+        { q: "Is my data private?", a: "Yes, all data is stored locally on your device. We do not share your personal health info." },
+        { q: "Can I connect my Fitbit?", a: "Yes! Use the 'Manage Connected Devices' option to scan and pair your Bluetooth trackers." },
+        { q: "How do I book an appointment?", a: "Go to the 'Book' tab, search for a specialist, and select an available time slot." }
+      ].map((faq, i) => (
+        <details key={i} className="group bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+          <summary className="flex justify-between items-center cursor-pointer font-bold text-sm dark:text-white list-none">
+            {faq.q}
+            <span className="material-symbols-outlined text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
+          </summary>
+          <p className="text-slate-500 dark:text-slate-400 text-xs mt-2 leading-relaxed">
+            {faq.a}
+          </p>
+        </details>
+      ))}
     </div>
-  </div>
+    <button className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors">
+      Contact Support
+    </button>
+  </Modal>
 );
 
 const TermsModal = ({ onClose }: { onClose: () => void }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-    <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-      <h3 className="text-xl font-bold dark:text-white mb-4 shrink-0">Terms of Service</h3>
-      <div className="overflow-y-auto pr-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-3">
-        <p><strong>1. Acceptance of Terms</strong><br />By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.</p>
-        <p><strong>2. Medical Disclaimer</strong><br />This app provides information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician.</p>
-        <p><strong>3. User Data</strong><br />We are committed to protecting your privacy. Your personal health data is processed in accordance with our Privacy Policy.</p>
-        <p><strong>4. Modifications</strong><br />We reserve the right to modify these terms at any time.</p>
-      </div>
-      <button onClick={onClose} className="w-full mt-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-        I Agree
-      </button>
+  <Modal isOpen={true} onClose={onClose} title="Terms of Service">
+    <div className="overflow-y-auto pr-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed space-y-3">
+      <p><strong>1. Acceptance of Terms</strong><br />By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.</p>
+      <p><strong>2. Medical Disclaimer</strong><br />This app provides information for educational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of your physician.</p>
+      <p><strong>3. User Data</strong><br />We are committed to protecting your privacy. Your personal health data is processed in accordance with our Privacy Policy.</p>
+      <p><strong>4. Modifications</strong><br />We reserve the right to modify these terms at any time.</p>
     </div>
-  </div>
+    <button onClick={onClose} className="w-full mt-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl shrink-0 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+      I Agree
+    </button>
+  </Modal>
 );
 
 // --- Calendar Connections Modal ---
 const CalendarModal = ({ onClose }: { onClose: () => void }) => {
+  const { user } = useAuth();
   const [connections, setConnections] = useState<CalendarConnection[]>(() => {
     const saved = localStorage.getItem('calendar_connections');
     return saved ? JSON.parse(saved) : [
@@ -318,6 +294,7 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
   const [error, setError] = useState<string | null>(null);
 
   const handleConnect = async (provider: CalendarProvider) => {
+    if (!user) return;
     setIsConnecting(provider);
     setError(null);
 
@@ -325,7 +302,7 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
       // In production, this would trigger OAuth flow
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      await calendarService.storeCalendarCredentials(USER_ID, {
+      await calendarService.storeCalendarCredentials(user.id, {
         provider,
         access_token: 'demo_token_' + Date.now(),
       });
@@ -350,8 +327,9 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
   };
 
   const handleDisconnect = async (provider: CalendarProvider) => {
+    if (!user) return;
     try {
-      await calendarService.revokeCalendarCredentials(USER_ID, provider);
+      await calendarService.revokeCalendarCredentials(user.id, provider);
 
       const updated = connections.map(c =>
         c.provider === provider
@@ -366,11 +344,12 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
   };
 
   const handleSync = async (provider: CalendarProvider) => {
+    if (!user) return;
     setIsSyncing(provider);
     setError(null);
 
     try {
-      await calendarService.syncCalendar(USER_ID, {
+      await calendarService.syncCalendar(user.id, {
         provider,
         days_ahead: 30,
         include_reminders: true,
@@ -402,103 +381,95 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold dark:text-white">Calendar Connections</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
-            <span className="material-symbols-outlined">close</span>
-          </button>
+    <Modal isOpen={true} onClose={onClose} title="Calendar Connections">
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+        Connect your calendars to sync appointments and set reminders.
+      </p>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+          <p className="text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">error</span>
+            {error}
+          </p>
         </div>
+      )}
 
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-          Connect your calendars to sync appointments and set reminders.
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-            <p className="text-red-700 dark:text-red-400 text-sm flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm">error</span>
-              {error}
-            </p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {connections.map(conn => (
-            <div key={conn.provider} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getProviderColor(conn.provider)}`}>
-                    <span className="material-symbols-outlined">{conn.provider === 'google' ? 'event' : 'calendar_month'}</span>
-                  </div>
-                  <div>
-                    <p className="font-medium dark:text-white capitalize">{conn.provider}</p>
-                    {conn.connected && conn.email && (
-                      <p className="text-xs text-slate-500">{conn.email}</p>
-                    )}
-                  </div>
+      <div className="space-y-3">
+        {connections.map(conn => (
+          <div key={conn.provider} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getProviderColor(conn.provider)}`}>
+                  <span className="material-symbols-outlined">{conn.provider === 'google' ? 'event' : 'calendar_month'}</span>
                 </div>
-                {conn.connected ? (
-                  <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                    Connected
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-400">Not connected</span>
-                )}
-              </div>
-
-              {conn.connected ? (
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => handleSync(conn.provider)}
-                    disabled={isSyncing === conn.provider}
-                    className="flex-1 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium flex items-center justify-center gap-1 hover:bg-primary/20 transition-colors disabled:opacity-50"
-                  >
-                    {isSyncing === conn.provider ? (
-                      <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      <span className="material-symbols-outlined text-sm">sync</span>
-                    )}
-                    {conn.lastSync ? `Last: ${conn.lastSync}` : 'Sync Now'}
-                  </button>
-                  <button
-                    onClick={() => handleDisconnect(conn.provider)}
-                    className="py-2 px-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleConnect(conn.provider)}
-                  disabled={isConnecting === conn.provider}
-                  className="w-full mt-3 py-2 bg-primary text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
-                >
-                  {isConnecting === conn.provider ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-sm">link</span>
-                      Connect {conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1)}
-                    </>
+                <div>
+                  <p className="font-medium dark:text-white capitalize">{conn.provider}</p>
+                  {conn.connected && conn.email && (
+                    <p className="text-xs text-slate-500">{conn.email}</p>
                   )}
-                </button>
+                </div>
+              </div>
+              {conn.connected ? (
+                <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                  Connected
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 dark:text-slate-400">Not connected</span>
               )}
             </div>
-          ))}
-        </div>
+
+            {conn.connected ? (
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => handleSync(conn.provider)}
+                  disabled={isSyncing === conn.provider}
+                  className="flex-1 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium flex items-center justify-center gap-1 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                >
+                  {isSyncing === conn.provider ? (
+                    <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <span className="material-symbols-outlined text-sm">sync</span>
+                  )}
+                  {conn.lastSync ? `Last: ${conn.lastSync}` : 'Sync Now'}
+                </button>
+                <button
+                  onClick={() => handleDisconnect(conn.provider)}
+                  className="py-2 px-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => handleConnect(conn.provider)}
+                disabled={isConnecting === conn.provider}
+                className="w-full mt-3 py-2 bg-primary text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
+              >
+                {isConnecting === conn.provider ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">link</span>
+                    Connect {conn.provider.charAt(0).toUpperCase() + conn.provider.slice(1)}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 };
 
 // --- Weekly Summary Modal ---
 const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
+  const { user } = useAuth();
   const [preferences, setPreferences] = useState<WeeklySummaryPreferences>({
     enabled: false,
     delivery_channels: [
@@ -516,22 +487,24 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
 
   useEffect(() => {
     const loadPrefs = async () => {
+      if (!user) return;
       try {
-        const prefs = await notificationService.getWeeklySummaryPreferences(USER_ID);
+        const prefs = await notificationService.getWeeklySummaryPreferences(user.id);
         setPreferences(prefs);
       } catch (err) {
         console.log('Using default weekly summary preferences');
       }
     };
     loadPrefs();
-  }, []);
+  }, [user]);
 
   const handleSave = async () => {
+    if (!user) return;
     setIsSaving(true);
     setError(null);
 
     try {
-      await notificationService.updateWeeklySummaryPreferences(USER_ID, preferences);
+      await notificationService.updateWeeklySummaryPreferences(user.id, preferences);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {

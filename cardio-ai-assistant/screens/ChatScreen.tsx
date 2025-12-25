@@ -8,7 +8,10 @@ import { Message, HealthAssessment, Medication, Appointment } from '../types';
 import { memoryService } from '../services/memoryService';
 import { ChatMessageMarkdown } from '../components/MarkdownRenderer';
 import { DoctorModeMessage } from '../components/DoctorModeMessage';
+import { ChatHeader } from '../components/ChatHeader';
 import { useChatStore, ChatSession, chatActions } from '../store/useChatStore';
+import { useAuth } from '../hooks/useAuth';
+import { useOfflineStatus } from '../hooks/useOfflineStatus';
 
 // --- Audio Helpers ---
 function base64ToUint8Array(base64: string) {
@@ -141,6 +144,8 @@ interface ExtendedMessage extends Message {
 
 const ChatScreen: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isOnline } = useOfflineStatus();
   const location = useLocation();
   const [input, setInput] = useState('');
   const [attachment, setAttachment] = useState<string | null>(null);
@@ -150,7 +155,6 @@ const ChatScreen: React.FC = () => {
 
   // UI State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
 
   // Feature States
   const [isRecording, setIsRecording] = useState(false);
@@ -184,15 +188,16 @@ const ChatScreen: React.FC = () => {
   } = useChatStore();
 
   // Load sessions on mount
+  // Load sessions on mount
   useEffect(() => {
-    const userId = localStorage.getItem('user_id') || 'user_123';
-    loadSessions(userId);
+    if (!user) return;
+    loadSessions(user.id);
 
     // Create a new session if none exists
     if (!currentSessionId && sessions.length === 0) {
       createSession();
     }
-  }, [loadSessions, createSession, currentSessionId, sessions.length]);
+  }, [loadSessions, createSession, currentSessionId, sessions.length, user]);
 
   // Init Memory Service & Handle Voice Commands
   useEffect(() => {
@@ -262,6 +267,12 @@ const ChatScreen: React.FC = () => {
     // Allow sending if there's text OR an attachment
     if ((!messageText.trim() && !attachment) || isLoading) return;
 
+    // Check online status
+    if (!isOnline) {
+      alert('You are currently offline. Please check your internet connection.');
+      return;
+    }
+
     // Clear input immediately
     setInput('');
     setAttachment(null);
@@ -273,6 +284,12 @@ const ChatScreen: React.FC = () => {
 
   // --- Audio Recording & Transcription ---
   const startRecording = async () => {
+    // Check online status
+    if (!isOnline) {
+      alert('Voice recording requires an internet connection for transcription.');
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -523,86 +540,12 @@ const ChatScreen: React.FC = () => {
       )}
 
       {/* --- Header --- */}
-      <div className="flex items-center justify-between p-4 z-10 bg-[#101922] border-b border-slate-800/50">
-        <button onClick={() => setIsMenuOpen(true)} className="p-2 -ml-2 text-slate-300 hover:text-white transition-colors">
-          <span className="material-symbols-outlined text-2xl">menu</span>
-        </button>
-        <div className="flex flex-col items-center">
-          <h1 className="font-bold text-lg text-white">Cardio AI Agent</h1>
-
-          {/* Model Selector Dropdown */}
-          <div className="relative mt-1">
-            <button
-              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">
-                {selectedModel === 'ollama' ? 'memory' : 'auto_awesome'}
-              </span>
-              <span className="font-medium">
-                {selectedModel === 'ollama' ? 'Ollama (Local)' : 'Gemini'}
-              </span>
-              <span className="material-symbols-outlined text-sm">
-                {isModelDropdownOpen ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
-
-            {/* Dropdown Menu */}
-            {isModelDropdownOpen && (
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-[#192633] border border-slate-700 rounded-lg shadow-lg z-50 min-w-48">
-                <button
-                  onClick={() => {
-                    setSelectedModel('gemini');
-                    setIsModelDropdownOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${selectedModel === 'gemini'
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
-                    }`}
-                >
-                  <span className="material-symbols-outlined text-base">auto_awesome</span>
-                  <div className="flex-1">
-                    <div className="font-medium">Gemini</div>
-                    <div className="text-xs text-slate-500">Google's advanced AI model</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setSelectedModel('ollama');
-                    setIsModelDropdownOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors border-t border-slate-700 ${selectedModel === 'ollama'
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
-                    }`}
-                >
-                  <span className="material-symbols-outlined text-base">memory</span>
-                  <div className="flex-1">
-                    <div className="font-medium">Ollama (Local)</div>
-                    <div className="text-xs text-slate-500">Run locally on your machine</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {isSearchingMemories ? (
-            <span className="text-[10px] text-blue-400 flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></span>
-              Searching memories...
-            </span>
-          ) : (
-            <span className="text-[10px] text-green-500 flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-              Memory Active
-            </span>
-          )}
-        </div>
-        <button onClick={() => navigate('/profile')} className="w-9 h-9 rounded-full bg-slate-700 overflow-hidden border border-slate-600">
-          <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Profile" className="w-full h-full object-cover" />
-        </button>
-      </div>
+      <ChatHeader
+        onMenuClick={() => setIsMenuOpen(true)}
+        selectedModel={selectedModel}
+        onModelSelect={setSelectedModel}
+        isSearchingMemories={isSearchingMemories}
+      />
 
       {/* --- Messages --- */}
       <div

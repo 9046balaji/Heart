@@ -13,8 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import { useAuth } from '../hooks/useAuth';
 
 export default function CalendarScreen({ navigation }: any) {
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [events, setEvents] = useState<any[]>([]);
     const [syncing, setSyncing] = useState(false);
@@ -24,12 +26,11 @@ export default function CalendarScreen({ navigation }: any) {
     }, []);
 
     const loadEvents = async () => {
+        if (!user) return;
+
         setLoading(true);
         try {
-            // Get user ID from storage or default
-            const savedProfile = localStorage.getItem('user_profile');
-            const userId = savedProfile ? JSON.parse(savedProfile).id || 'user_123' : 'user_123';
-            const data = await apiClient.getCalendarEvents(userId);
+            const data = await apiClient.getCalendarEvents(user.id);
             setEvents(data);
         } catch (error) {
             console.error('Load events error:', error);
@@ -41,11 +42,11 @@ export default function CalendarScreen({ navigation }: any) {
     };
 
     const handleSync = async () => {
+        if (!user) return;
+
         setSyncing(true);
         try {
-            const savedProfile = localStorage.getItem('user_profile');
-            const userId = savedProfile ? JSON.parse(savedProfile).id || 'user_123' : 'user_123';
-            await apiClient.syncCalendar(userId, { provider: 'google' });
+            await apiClient.syncCalendar(user.id, { provider: 'google' });
             Alert.alert('Success', 'Calendar synced successfully');
             loadEvents();
         } catch (error) {

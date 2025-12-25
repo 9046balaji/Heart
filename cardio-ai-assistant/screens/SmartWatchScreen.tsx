@@ -1,22 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    AreaChart,
+    Area
+} from 'recharts';
 
-export default function SmartWatchScreen({ navigation }: any) {
+interface VitalData {
+    time: string;
+    value: number;
+}
+
+export default function SmartWatchScreen() {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [vitals, setVitals] = useState<any>(null);
     const [deviceStatus, setDeviceStatus] = useState('Connected');
     const [isLive, setIsLive] = useState(false);
+    const [heartRateHistory, setHeartRateHistory] = useState<VitalData[]>([]);
 
     useEffect(() => {
         loadVitals();
@@ -38,6 +46,19 @@ export default function SmartWatchScreen({ navigation }: any) {
                         ...prev,
                         ...data.payload
                     }));
+
+                    // Update chart history
+                    if (data.payload.heart_rate) {
+                        setHeartRateHistory(prev => {
+                            const newPoint = {
+                                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                                value: data.payload.heart_rate
+                            };
+                            const newHistory = [...prev, newPoint];
+                            // Keep last 20 points
+                            return newHistory.slice(-20);
+                        });
+                    }
                 }
             } catch (e) {
                 console.error('WS parse error:', e);
@@ -68,7 +89,6 @@ export default function SmartWatchScreen({ navigation }: any) {
                     setDeviceStatus('Connected');
                 } else {
                     setDeviceStatus('Disconnected');
-                    // We can still try to load data or return early
                 }
             }
 
@@ -90,226 +110,151 @@ export default function SmartWatchScreen({ navigation }: any) {
             setVitals({
                 heart_rate: Math.round(getValue(hrData)),
                 steps: Math.round(getValue(stepsData)),
-                calories: 0, // Not supported by backend yet
-                sleep: '0h 0m', // Not supported by backend yet
+                calories: 0,
+                sleep: '0h 0m',
                 spo2: Math.round(getValue(spo2Data)),
             });
+
+            // Initialize history with some dummy data if empty
+            if (heartRateHistory.length === 0) {
+                const initialHistory = Array.from({ length: 10 }, (_, i) => ({
+                    time: new Date(Date.now() - (10 - i) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    value: 60 + Math.random() * 20
+                }));
+                setHeartRateHistory(initialHistory);
+            }
+
         } catch (error) {
             console.error('Load vitals error:', error);
-            // Keep empty state on error
             setVitals(null);
         } finally {
             setLoading(false);
         }
     };
 
-    const renderVitalCard = (icon: any, title: string, value: string, unit: string, color: string) => (
-        <View style={styles.vitalCard}>
-            <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
-                <Ionicons name={icon} size={24} color={color} />
-            </View>
-            <View style={styles.vitalInfo}>
-                <Text style={styles.vitalTitle}>{title}</Text>
-                <View style={styles.valueContainer}>
-                    <Text style={styles.vitalValue}>{value}</Text>
-                    <Text style={styles.vitalUnit}>{unit}</Text>
-                </View>
-            </View>
-        </View>
+    const renderVitalCard = (icon: string, title: string, value: string | number, unit: string, color: string, bgColor: string) => (
+        <div className="bg-white dark:bg-card-dark p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bgColor} ${color}`}>
+                <span className="material-symbols-outlined">{icon}</span>
+            </div>
+            <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
+                <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-900 dark:text-white">{value}</span>
+                    <span className="text-sm text-slate-400">{unit}</span>
+                </div>
+            </div>
+        </div>
     );
 
     return (
-        <SafeAreaView style={styles.container}>
-            <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Smart Watch</Text>
-                <View style={styles.statusContainer}>
-                    <View style={[styles.statusDot, { backgroundColor: isLive ? '#4caf50' : '#888' }]} />
-                    <Text style={styles.statusText}>{isLive ? 'Live Stream' : deviceStatus}</Text>
-                </View>
-            </LinearGradient>
-
-            <ScrollView style={styles.content}>
-                <View style={styles.deviceCard}>
-                    <LinearGradient
-                        colors={['#2c3e50', '#3498db']}
-                        style={styles.deviceGradient}
+        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 pb-12 rounded-b-[2.5rem] shadow-xl">
+                <div className="flex items-center justify-between mb-6">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
                     >
-                        <View>
-                            <Text style={styles.deviceName}>Apple Watch Series 8</Text>
-                            <Text style={styles.deviceBattery}>Battery: 78%</Text>
-                        </View>
-                        <Ionicons name="watch" size={48} color="rgba(255,255,255,0.8)" />
-                    </LinearGradient>
-                </View>
+                        <span className="material-symbols-outlined">arrow_back</span>
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Smart Watch</h2>
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${isLive ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                        <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
+                        <span className="text-xs font-medium">{isLive ? 'Live' : deviceStatus}</span>
+                    </div>
+                </div>
 
-                <Text style={styles.sectionTitle}>Today's Vitals</Text>
+                {/* Device Card */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Apple Watch Series 8</h3>
+                        <p className="text-slate-300 text-sm">Battery: 78%</p>
+                    </div>
+                    <span className="material-symbols-outlined text-4xl text-white/80">watch</span>
+                </div>
+            </div>
 
+            <div className="px-4 -mt-8 space-y-6">
+                {/* Vitals Grid */}
                 {loading ? (
-                    <ActivityIndicator size="large" color="#4e54c8" style={{ marginTop: 50 }} />
+                    <div className="flex justify-center py-10">
+                        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></span>
+                    </div>
                 ) : vitals ? (
-                    <View style={styles.grid}>
-                        {renderVitalCard('heart', 'Heart Rate', vitals.heart_rate, 'BPM', '#e91e63')}
-                        {renderVitalCard('walk', 'Steps', vitals.steps.toLocaleString(), 'steps', '#2196f3')}
-                        {renderVitalCard('flame', 'Calories', vitals.calories, 'kcal', '#ff9800')}
-                        {renderVitalCard('moon', 'Sleep', vitals.sleep, '', '#673ab7')}
-                        {renderVitalCard('water', 'SpO2', vitals.spo2, '%', '#00bcd4')}
-                    </View>
+                    <div className="grid grid-cols-2 gap-3">
+                        {renderVitalCard('monitor_heart', 'Heart Rate', vitals.heart_rate, 'BPM', 'text-pink-500', 'bg-pink-50 dark:bg-pink-900/20')}
+                        {renderVitalCard('directions_walk', 'Steps', vitals.steps?.toLocaleString(), 'steps', 'text-blue-500', 'bg-blue-50 dark:bg-blue-900/20')}
+                        {renderVitalCard('local_fire_department', 'Calories', vitals.calories, 'kcal', 'text-orange-500', 'bg-orange-50 dark:bg-orange-900/20')}
+                        {renderVitalCard('bedtime', 'Sleep', vitals.sleep, '', 'text-purple-500', 'bg-purple-50 dark:bg-purple-900/20')}
+                        {renderVitalCard('water_drop', 'SpO2', vitals.spo2, '%', 'text-cyan-500', 'bg-cyan-50 dark:bg-cyan-900/20')}
+                    </div>
                 ) : (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>No data available</Text>
-                    </View>
+                    <div className="text-center py-10 text-slate-500">No data available</div>
                 )}
 
-                <TouchableOpacity style={styles.syncButton} onPress={loadVitals}>
-                    <Text style={styles.syncButtonText}>Sync Now</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
+                {/* Live Chart */}
+                <div className="bg-white dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <span className="material-symbols-outlined text-pink-500">ecg_heart</span>
+                            Live Heart Rate
+                        </h3>
+                        <span className="text-xs text-slate-400">Last 20 seconds</span>
+                    </div>
+
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={heartRateHistory}>
+                                <defs>
+                                    <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis
+                                    dataKey="time"
+                                    hide={true}
+                                />
+                                <YAxis
+                                    domain={['auto', 'auto']}
+                                    orientation="right"
+                                    tick={{ fontSize: 12, fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: '#1e293b',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                    }}
+                                    itemStyle={{ color: '#fff' }}
+                                    labelStyle={{ display: 'none' }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="value"
+                                    stroke="#ec4899"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorHr)"
+                                    isAnimationActive={false}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <button
+                    onClick={loadVitals}
+                    className="w-full py-4 bg-white dark:bg-card-dark rounded-xl font-bold text-slate-700 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                    Sync Now
+                </button>
+            </div>
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    statusContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 15,
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 6,
-    },
-    statusText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    content: {
-        flex: 1,
-        padding: 20,
-    },
-    deviceCard: {
-        borderRadius: 15,
-        overflow: 'hidden',
-        marginBottom: 25,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-    },
-    deviceGradient: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    deviceName: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 5,
-    },
-    deviceBattery: {
-        color: 'rgba(255,255,255,0.9)',
-        fontSize: 14,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 15,
-    },
-    grid: {
-        gap: 15,
-    },
-    vitalCard: {
-        flexDirection: 'row',
-        backgroundColor: '#fff',
-        padding: 15,
-        borderRadius: 12,
-        alignItems: 'center',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-    },
-    iconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 15,
-    },
-    vitalInfo: {
-        flex: 1,
-    },
-    vitalTitle: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
-    },
-    valueContainer: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-    },
-    vitalValue: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333',
-        marginRight: 5,
-    },
-    vitalUnit: {
-        fontSize: 14,
-        color: '#888',
-    },
-    emptyState: {
-        alignItems: 'center',
-        padding: 30,
-    },
-    emptyText: {
-        color: '#999',
-        fontSize: 16,
-    },
-    syncButton: {
-        marginTop: 30,
-        backgroundColor: '#fff',
-        padding: 15,
-        borderRadius: 10,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#ddd',
-    },
-    syncButtonText: {
-        color: '#333',
-        fontWeight: '600',
-        fontSize: 16,
-    },
-});

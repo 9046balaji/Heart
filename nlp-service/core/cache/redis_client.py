@@ -3,7 +3,7 @@ Redis client for distributed caching and throttling.
 """
 import redis.asyncio as redis
 from typing import Optional
-from core.config import get_settings
+from config import get_settings
 import logging
 
 logger = logging.getLogger(__name__)

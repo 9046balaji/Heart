@@ -13,13 +13,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
 
+import { useAuth } from '../hooks/useAuth';
+
 export default function NotificationScreen({ navigation }: any) {
+    const { user } = useAuth();
     const [whatsappEnabled, setWhatsappEnabled] = useState(false);
     const [emailEnabled, setEmailEnabled] = useState(true);
     const [pushEnabled, setPushEnabled] = useState(true);
     const [loading, setLoading] = useState(false);
 
     const handleSave = async () => {
+        if (!user) return;
         setLoading(true);
         try {
             // Mock saving preferences
@@ -28,7 +32,7 @@ export default function NotificationScreen({ navigation }: any) {
 
             // We can also register the device here if needed
             if (pushEnabled) {
-                await apiClient.registerDevice('current_user', 'mock_token', 'ios');
+                await apiClient.registerDevice(user.id, 'mock_token', 'ios');
             }
 
             Alert.alert('Success', 'Notification preferences saved');
@@ -112,9 +116,10 @@ export default function NotificationScreen({ navigation }: any) {
                         <TouchableOpacity
                             style={{ marginTop: 10, backgroundColor: '#4e54c8', borderRadius: 8, padding: 10, alignItems: 'center' }}
                             onPress={async () => {
+                                if (!user) return;
                                 try {
                                     await apiClient.sendPushNotification({
-                                        user_id: 'current_user',
+                                        user_id: user.id,
                                         title: 'Test Notification',
                                         body: 'This is a test push notification from Cardio AI.'
                                     });

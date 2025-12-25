@@ -56,12 +56,13 @@ export default defineConfig(({ mode }) => {
         'react-dom',
         'react-native-web',
         '@expo/vector-icons',
-        'expo-linear-gradient',
-        'expo-font',
-        'expo-modules-core',
       ],
       exclude: [
         '@react-native/assets-registry',
+        'expo',
+        'expo-modules-core',
+        'expo-linear-gradient',
+        'expo-font',
       ],
     },
   };
