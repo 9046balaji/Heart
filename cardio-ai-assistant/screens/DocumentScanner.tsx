@@ -127,6 +127,40 @@ const DocumentScanner: React.FC = () => {
     };
 
     /**
+     * Compress image file before upload
+     */
+    const compressFile = async (file: File): Promise<{ uri: string; compressionResult: CompressionResult | null }> => {
+        // Only compress images, not PDFs
+        if (!file.type.startsWith('image/')) {
+            return {
+                uri: URL.createObjectURL(file),
+                compressionResult: null
+            };
+        }
+
+        try {
+            const fileUri = URL.createObjectURL(file);
+            const compressionResult = await compressImageEnhanced(
+                fileUri,
+                EnhancedCompressionPresets.MEDICAL_DOCUMENT
+            );
+
+            console.log(`📷 Compression: ${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.ratio}% saved)`);
+
+            return {
+                uri: compressionResult.uri,
+                compressionResult
+            };
+        } catch (err) {
+            console.warn('[DocumentScanner] Compression failed, using original:', err);
+            return {
+                uri: URL.createObjectURL(file),
+                compressionResult: null
+            };
+        }
+    };
+
+    /**
      * Handle file selection
      */
     const handleFileSelect = useCallback(async (file: File) => {

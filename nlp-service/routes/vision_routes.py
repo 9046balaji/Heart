@@ -520,6 +520,7 @@ async def analyze_medical_document(
     except Exception as e:
         logger.error(f'Medical document analysis error: {e}')
         raise HTTPException(status_code=500, detail=str(e))
+<<<<<<< HEAD
 
 @router.post("/ocr")
 async def perform_ocr(file: UploadFile = File(...)):
@@ -556,3 +557,5 @@ async def get_vision_status():
         "service": "Vision Analysis",
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+    

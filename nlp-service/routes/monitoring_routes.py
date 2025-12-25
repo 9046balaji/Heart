@@ -149,15 +149,19 @@ async def get_monitoring_status():
                 "/monitoring/icd10/performance/detailed", 
                 "/monitoring/icd10/test-mapping",
                 "/monitoring/health",
+<<<<<<< HEAD
                 "/monitoring/status",
                 "/monitoring/metrics"
+=======
             ],
             "features": [
                 "ICD-10 mapping performance tracking",
                 "Cache hit rate monitoring",
                 "Processing time analytics",
+<<<<<<< HEAD
                 "System health monitoring",
                 "System metrics"
+=======
             ]
         }
     except Exception as e:
@@ -165,6 +169,7 @@ async def get_monitoring_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+<<<<<<< HEAD
 @router.get("/metrics")
 async def get_system_metrics():
     """
@@ -178,4 +183,6 @@ async def get_system_metrics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+=======
+>>>>>>> f48c675fc38c60f589e805445edbc4ffd012b108
 # Include additional monitoring endpoints as needed

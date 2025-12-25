@@ -39,7 +39,9 @@ class VitalsArchive(Base):
     user_id = Column(String(255), index=True, nullable=False)
     vital_type = Column(String(50), index=True, nullable=False)  # "heart_rate", "blood_pressure", etc.
     value = Column(Float, nullable=False)
+<<<<<<< HEAD
     extra_metadata = Column(JSON, nullable=True)  # Additional data (device, spo2, etc.)
+=======
     timestamp = Column(DateTime, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -383,7 +385,11 @@ class RedisVitalsStore:
                     user_id=user_id,
                     vital_type=vital_type,
                     value=vital["value"],
+<<<<<<< HEAD
                     extra_metadata={k: v for k, v in vital.items() if k not in ["value", "timestamp"]},
+=======
+                    metadata={k: v for k, v in vital.items() if k not in ["value", "timestamp"]},
+>>>>>>> f48c675fc38c60f589e805445edbc4ffd012b108
                     timestamp=datetime.fromtimestamp(vital["timestamp"]),
                 )
 
