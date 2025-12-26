@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, Depends
 from datetime import datetime
 
 from core.services.performance_monitor import get_performance_metrics, performance_health_check
-from core.testing.performance_tester import run_performance_tests
+# from core.testing.performance_tester import run_performance_tests
 from core.database.xampp_db import get_database, XAMPPDatabase
 
 router = APIRouter(prefix="/api")
@@ -46,11 +46,12 @@ async def performance_test_endpoint():
     Run comprehensive performance tests.
     Tests all three critical patterns: Caching, ONNX, Reranking.
     """
-    tester = await run_performance_tests()
+    # tester = await run_performance_tests()
     return {
-        "status": "completed",
-        "summary": tester.get_summary_stats(),
-        "report": tester.generate_report()
+        "status": "disabled",
+        "message": "Performance tests are currently unavailable"
+        # "summary": tester.get_summary_stats(),
+        # "report": tester.generate_report()
     }
 
 

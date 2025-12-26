@@ -36,7 +36,7 @@ from .food_recognition import (
 # Document scanning is available from the document_scanning package
 # Import from parent package for convenience
 try:
-    from document_scanning import (
+    from ..document_scanning import (
         DocumentIngestionService as DocumentScanner,
         DocumentType as ScannedDocumentType,
         MedicalDocumentCategory as DocumentType,

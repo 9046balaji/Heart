@@ -104,8 +104,8 @@ from routes.health import router as health_router
 
 # Try to import smartwatch router, but handle if it fails
 try:
-    from medical_ai.smart_watch.router import router as smartwatch_router
-    from medical_ai.smart_watch.router import (
+    from medical_ai.smart_watch import (
+        router as smartwatch_router,
         init_smartwatch_module,
         shutdown_smartwatch_module,
     )
