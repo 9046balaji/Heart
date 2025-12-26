@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.Column('user_id', sa.String(255)),
         sa.Column('metadata_json', sa.JSON),
         sa.Column('created_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.Column('updated_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')),
+        sa.Column('updated_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP')),
         mysql_charset='utf8mb4'
     )
     

@@ -39,9 +39,7 @@ class VitalsArchive(Base):
     user_id = Column(String(255), index=True, nullable=False)
     vital_type = Column(String(50), index=True, nullable=False)  # "heart_rate", "blood_pressure", etc.
     value = Column(Float, nullable=False)
-<<<<<<< HEAD
     extra_metadata = Column(JSON, nullable=True)  # Additional data (device, spo2, etc.)
-=======
     timestamp = Column(DateTime, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -385,11 +383,7 @@ class RedisVitalsStore:
                     user_id=user_id,
                     vital_type=vital_type,
                     value=vital["value"],
-<<<<<<< HEAD
                     extra_metadata={k: v for k, v in vital.items() if k not in ["value", "timestamp"]},
-=======
-                    metadata={k: v for k, v in vital.items() if k not in ["value", "timestamp"]},
->>>>>>> f48c675fc38c60f589e805445edbc4ffd012b108
                     timestamp=datetime.fromtimestamp(vital["timestamp"]),
                 )
 
@@ -508,42 +502,20 @@ class RedisVitalsStore:
         # Also store in cold storage for legacy compatibility
         self._store_in_cold_storage(device_id, reading, datetime.utcnow())
 
-    def get_history(self, device_id: str) -> List[Dict]:
+    async def get_history(self, device_id: str) -> List[Dict]:
         """
         Get all readings in the current window (legacy method).
 
         Returns readings from last 30 minutes for backward compatibility.
         """
-        import asyncio
-        
         # Get last 30 minutes of data
-        try:
-            loop = asyncio.get_event_loop()
-            vitals = loop.run_until_complete(
-                self.get_vitals_range(
-                    device_id,
-                    "heart_rate",
-                    start_time=time.time() - (self.window_minutes * 60),
-                    end_time=time.time(),
-                )
-            )
-            return vitals
-        except RuntimeError:
-            # No event loop running, create one
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                vitals = loop.run_until_complete(
-                    self.get_vitals_range(
-                        device_id,
-                        "heart_rate",
-                        start_time=time.time() - (self.window_minutes * 60),
-                        end_time=time.time(),
-                    )
-                )
-                return vitals
-            finally:
-                loop.close()
+        vitals = await self.get_vitals_range(
+            device_id,
+            "heart_rate",
+            start_time=time.time() - (self.window_minutes * 60),
+            end_time=time.time(),
+        )
+        return vitals
 
     def _add_to_memory(self, user_id: str, vital_type: str, reading: Dict, timestamp: float) -> None:
         """Fallback in-memory storage."""

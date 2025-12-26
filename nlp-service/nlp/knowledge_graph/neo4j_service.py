@@ -913,3 +913,216 @@ class Neo4jService:
             f"Initialized mock graph with {len(self._mock_nodes)} nodes "
             f"and {len(self._mock_relationships)} relationships"
         )
+
+    async def search(self, query: str, node_types: Optional[List[str]] = None, max_depth: int = 2, limit: int = 10):
+        """
+        Search the knowledge graph with natural language queries.
+        """
+        if self.mock_mode:
+            # Return mock search results
+            from dataclasses import dataclass
+            
+            @dataclass
+            class MockResult:
+                nodes: List[Any] = None
+                relationships: List[Any] = None
+                paths: List[Any] = None
+                
+            return MockResult(
+                nodes=[
+                    {
+                        "id": "mock_node_1",
+                        "label": "Condition",
+                        "properties": {"name": "Hypertension", "icd10": "I10"}
+                    },
+                    {
+                        "id": "mock_node_2",
+                        "label": "Medication",
+                        "properties": {"name": "Lisinopril", "class": "ACE Inhibitor"}
+                    }
+                ],
+                relationships=[
+                    {
+                        "type": "TREATS",
+                        "properties": {"effectiveness": 0.85}
+                    }
+                ],
+                paths=[["mock_node_1", "mock_node_2"]]
+            )
+        
+        # In real Neo4j, we would implement the search logic
+        # For now, implement a basic search based on node labels and properties
+        if node_types:
+            label_filter = " OR ".join([f"'{label}' IN labels(n)" for label in node_types])
+            cypher = f"""
+            MATCH (n) 
+            WHERE {label_filter}
+            AND toLower(n.name) CONTAINS toLower($query)
+            RETURN n, labels(n) AS labels
+            LIMIT $limit
+            """
+        else:
+            cypher = """
+            MATCH (n)
+            WHERE toLower(n.name) CONTAINS toLower($query)
+            RETURN n, labels(n) AS labels
+            LIMIT $limit
+            """
+        
+        result = await self.query(cypher, {"query": query, "limit": limit})
+        return result
+
+    async def rag_query(self, query: str, user_id: Optional[str] = None, include_reasoning: bool = True):
+        """
+        Query using graph-enhanced RAG.
+        """
+        if self.mock_mode:
+            # Return mock RAG result
+            class MockRagResult:
+                answer = f"Based on the knowledge graph, {query} is related to cardiovascular health information. This is a mock response from the knowledge graph."
+                graph_context = [
+                    {
+                        "node_type": "Condition",
+                        "content": "Hypertension is a common cardiovascular condition",
+                        "relevance": 0.8
+                    }
+                ]
+                citations = [{"source": "medical_knowledge_base", "confidence": 0.9}]
+                confidence = 0.85
+                reasoning_path = ["search_graph", "analyze_relationships", "generate_response"] if include_reasoning else []
+            
+            return MockRagResult()
+        
+        # In real Neo4j, we would implement the RAG query logic
+        # This would typically involve: search, context extraction, and response generation
+        
+        # First, search the graph for relevant nodes
+        search_result = await self.search(query, limit=5)
+        
+        # Extract context from the search results
+        graph_context = []
+        if search_result.records:
+            for record in search_result.records[:3]:  # Limit to first 3 results
+                node = record.get('n', {})
+                labels = record.get('labels', [])
+                graph_context.append({
+                    "node_type": labels[0] if labels else "Unknown",
+                    "content": str(node),
+                    "relevance": 0.8
+                })
+        
+        # Generate a response based on the context
+        answer = f"Based on the knowledge graph, {query} is related to cardiovascular health information."
+        
+        # Create a mock response object
+        class RagResult:
+            def __init__(self, answer, graph_context, citations, confidence, reasoning_path):
+                self.answer = answer
+                self.graph_context = graph_context
+                self.citations = citations
+                self.confidence = confidence
+                self.reasoning_path = reasoning_path
+        
+        return RagResult(
+            answer=answer,
+            graph_context=graph_context,
+            citations=[{"source": "medical_knowledge_base", "confidence": 0.9}],
+            confidence=0.85,
+            reasoning_path=["search_graph", "analyze_relationships", "generate_response"] if include_reasoning else []
+        )
+
+    async def list_nodes(self, label: Optional[str] = None, filters: Optional[Dict] = None, limit: int = 50):
+        """
+        List nodes with optional filters.
+        """
+        if self.mock_mode:
+            # Return mock nodes
+            return [
+                GraphNode(
+                    id="mock_node_1",
+                    labels=[label or "Condition"],
+                    properties={"name": "Hypertension", "icd10": "I10"}
+                ),
+                GraphNode(
+                    id="mock_node_2",
+                    labels=[label or "Medication"],
+                    properties={"name": "Lisinopril", "class": "ACE Inhibitor"}
+                )
+            ]
+        
+        # Build query
+        if label:
+            query = f"MATCH (n:{label}) RETURN n, labels(n) AS labels LIMIT $limit"
+        else:
+            query = "MATCH (n) RETURN n, labels(n) AS labels LIMIT $limit"
+        
+        result = await self.query(query, {"limit": limit})
+        
+        nodes = []
+        for record in result.records:
+            node_data = record.get("n", {})
+            labels = record.get("labels", [])
+            nodes.append(
+                GraphNode(
+                    id=node_data.get("id", "unknown"),
+                    labels=labels,
+                    properties=node_data
+                )
+            )
+        return nodes
+
+    async def health_check(self):
+        """
+        Check if the Neo4j connection is healthy.
+        """
+        if self.mock_mode:
+            return True
+        
+        try:
+            # Try a simple query
+            result = await self.query("RETURN 1 AS test")
+            return len(result.records) > 0
+        except Exception:
+            return False
+
+    async def get_stats(self):
+        """
+        Get graph statistics.
+        """
+        if self.mock_mode:
+            class MockStats:
+                total_nodes = len(self._mock_nodes)
+                total_relationships = len(self._mock_relationships)
+                node_labels = ["Condition", "Medication", "Symptom"]
+                relationship_types = ["TREATS", "INDICATES", "CAUSES"]
+                database_size_mb = 10.0
+                last_updated = datetime.utcnow().isoformat()
+            
+            return MockStats()
+        
+        # Query for node count
+        node_count_result = await self.query("MATCH (n) RETURN count(n) AS count")
+        total_nodes = node_count_result.records[0].get("count", 0) if node_count_result.records else 0
+        
+        # Query for relationship count
+        rel_count_result = await self.query("MATCH ()-[r]->() RETURN count(r) AS count")
+        total_relationships = rel_count_result.records[0].get("count", 0) if rel_count_result.records else 0
+        
+        # Query for node labels
+        labels_result = await self.query("CALL db.labels()")
+        node_labels = [record.get("label") for record in labels_result.records] if labels_result.records else []
+        
+        # Query for relationship types
+        rel_types_result = await self.query("CALL db.relationshipTypes()")
+        relationship_types = [record.get("relationshipType") for record in rel_types_result.records] if rel_types_result.records else []
+        
+        class Stats:
+            def __init__(self, nodes, rels, labels, rel_types):
+                self.total_nodes = nodes
+                self.total_relationships = rels
+                self.node_labels = labels
+                self.relationship_types = rel_types
+                self.database_size_mb = 0.0  # Not easily available
+                self.last_updated = datetime.utcnow().isoformat()
+        
+        return Stats(total_nodes, total_relationships, node_labels, relationship_types)

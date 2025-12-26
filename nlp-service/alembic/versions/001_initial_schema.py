@@ -125,34 +125,6 @@ def upgrade() -> None:
         mysql_charset='utf8mb4'
     )
     
-    # Create notification_failures table
-    op.create_table(
-        'notification_failures',
-        sa.Column('id', sa.Integer, autoincrement=True, primary_key=True),
-        # Notification details
-        sa.Column('notification_type', sa.String(50), nullable=False),  # 'email', 'push', 'sms'
-        sa.Column('recipient', sa.String(255), nullable=False),         # Email or phone number
-        sa.Column('subject', sa.String(500)),
-        sa.Column('content', sa.Text),
-        
-        # Failure tracking
-        sa.Column('original_attempt_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.Column('retry_count', sa.Integer, default=0),
-        sa.Column('max_retries', sa.Integer, default=5),
-        sa.Column('next_retry_at', sa.TIMESTAMP),
-        
-        # Error details
-        sa.Column('last_error', sa.Text),
-        sa.Column('status', sa.String(20), default='pending'),  # 'pending', 'retrying', 'failed', 'succeeded'
-        
-        # Metadata
-        sa.Column('user_id', sa.String(255)),
-        sa.Column('metadata_json', sa.JSON),
-        sa.Column('created_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.Column('updated_at', sa.TIMESTAMP, server_default=sa.text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')),
-        mysql_charset='utf8mb4'
-    )
-    
     # Create indexes
     op.create_index('idx_user_id', 'users', ['user_id'])
     op.create_index('idx_device_user', 'devices', ['user_id'])
@@ -165,16 +137,10 @@ def upgrade() -> None:
     op.create_index('idx_knowledge_type', 'medical_knowledge_base', ['content_type'])
     op.create_index('idx_session_user', 'chat_sessions', ['user_id'])
     op.create_index('idx_message_session', 'chat_messages', ['session_id'])
-    op.create_index('idx_status_next_retry', 'notification_failures', ['status', 'next_retry_at'])
-    op.create_index('idx_nf_user_id', 'notification_failures', ['user_id'])
-    op.create_index('idx_nf_created_at', 'notification_failures', ['created_at'])
 
 
 def downgrade() -> None:
     # Drop indexes first
-    op.drop_index('idx_nf_created_at', table_name='notification_failures')
-    op.drop_index('idx_nf_user_id', table_name='notification_failures')
-    op.drop_index('idx_status_next_retry', table_name='notification_failures')
     op.drop_index('idx_message_session', table_name='chat_messages')
     op.drop_index('idx_session_user', table_name='chat_sessions')
     op.drop_index('idx_knowledge_type', table_name='medical_knowledge_base')

@@ -491,7 +491,7 @@ def get_verification_queue():
 )
 async def upload_document(
     file: UploadFile = File(...),
-    user_id: str = Query(..., description="User ID uploading the document"),
+    user_id: str = Query(default="anonymous", description="User ID uploading the document"),
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -540,7 +540,7 @@ async def upload_document(
         file_size=len(content),
         content_type=file.content_type or "application/octet-stream",
         status="uploaded",
-        created_at=datetime.utcnow(),
+        created_at=datetime.utcnow().isoformat(),
     )
 
 
@@ -745,7 +745,7 @@ async def list_documents(
     description="Get details and processing status of a specific document.",
 )
 async def get_document(
-    document_id: str, user_id: str = Query(..., description="User ID")
+    document_id: str, user_id: str = Query(default="anonymous", description="User ID")
 ):
     """Get document details by ID."""
     # Audit view access
@@ -848,7 +848,7 @@ async def process_document(
 
 
 @router.post("/process/{document_id}")
-async def process_document_by_id(document_id: str, user_id: str = Query(...)):
+async def process_document_by_id(document_id: str, user_id: str = Query(default="anonymous")):
     """Proxy for processing a document by ID."""
     # In a real app, this would fetch the document and process it
     return {

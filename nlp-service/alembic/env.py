@@ -11,16 +11,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Import your database models
 from core.database.models import Base  # Your SQLAlchemy models
+from config import settings
 
-# Database configuration from environment variables (matching xampp_db.py)
-DB_HOST = os.getenv("MYSQL_HOST", "localhost")
-DB_PORT = os.getenv("MYSQL_PORT", "3307")
-DB_USER = os.getenv("MYSQL_USER", "root")
-DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-DB_NAME = os.getenv("MYSQL_DATABASE", "heartguard")
+# Database configuration from settings
+database_url = settings.DATABASE_URL
 
-# Construct database URL for Alembic
-database_url = f"mysql+aiomysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# If using SQLite, ensure we use the async driver for Alembic
+if database_url.startswith("sqlite:///"):
+    database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
 
 # Alembic Config object
 config = context.config

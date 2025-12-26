@@ -1003,14 +1003,14 @@ export const apiClient = {
   },
 
   ingestVitals: async (payload: any) => {
-    return apiCall<any>('/api/smartwatch/vitals', {
+    return apiCall<any>('/api/smartwatch/vitals/ingest', {
       method: 'POST',
       body: payload,
     });
   },
 
   getAggregatedVitals: async (deviceId: string, metric: string, interval: string) => {
-    return apiCall<any>(`/api/smartwatch/${deviceId}/aggregate?metric_type=${metric}&interval=${interval}`);
+    return apiCall<any>(`/api/smartwatch/vitals/${deviceId}/aggregated?metric_type=${metric}&interval=${interval}`);
   },
 
   analyzeHealth: async (data: any) => {

@@ -252,6 +252,24 @@ class VerificationQueue:
         """Get a verification item by ID."""
         return self._queue.get(item_id)
 
+    def get_pending_requests(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Retrieve pending verification requests.
+        
+        This is an alias for get_pending_items for backward compatibility.
+        """
+        items = self.get_pending_items(limit=limit)
+        return [
+            {
+                "id": item.id,
+                "user_id": item.user_id,
+                "document_id": item.document_id,
+                "document_type": item.document_type,
+                "status": item.status.value,
+            }
+            for item in items
+        ]
+
     def get_pending_items(
         self,
         reviewer_id: Optional[str] = None,

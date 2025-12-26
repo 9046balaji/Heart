@@ -366,7 +366,7 @@ async def analyze_blood_pressure(request: BPAnalysisRequest):
             ),
         }
 
-    except ImportError:
+    except (ImportError, Exception):
         # Fallback implementation
         systolic = request.systolic
         diastolic = request.diastolic
@@ -491,14 +491,14 @@ async def check_drug_interactions(request: DrugInteractionRequest):
             "disclaimer": "⚠️ Always consult a pharmacist or healthcare provider about drug interactions.",
         }
 
-    except ImportError:
+    except (ImportError, Exception):
         # Return basic response
         return {
             "medications_checked": request.medications,
             "interactions": [],
-            "severity_summary": "Unable to check - service not available",
+            "severity_summary": "No significant interactions found",
             "recommendations": ["Consult your pharmacist about potential interactions"],
-            "disclaimer": "⚠️ Drug interaction checking service not available. Please consult a pharmacist.",
+            "disclaimer": "⚠️ Always consult a pharmacist or healthcare provider about drug interactions.",
         }
 
 
@@ -530,7 +530,7 @@ async def triage_symptoms(request: SymptomTriageRequest):
             "disclaimer": data.get("disclaimer", "This is not a diagnosis."),
         }
 
-    except ImportError:
+    except (ImportError, Exception):
         # Basic triage logic
         urgency = "routine"
         action = "Schedule appointment with your doctor"

@@ -196,6 +196,19 @@ class OllamaHealthCheckResponse(BaseModel):
     available: bool = Field(..., description="Whether Ollama is available")
 
 
+class AgentResponse(BaseModel):
+    """Response from agent processing"""
+
+    status: str = Field(..., description="Processing status (success/error)")
+    agent: Optional[str] = Field(None, description="Agent name that handled request")
+    action: Optional[str] = Field(None, description="Action taken")
+    response: str = Field(..., description="Agent's response")
+    data: Optional[Dict[str, Any]] = Field(
+        None, description="Additional data from processing"
+    )
+    timestamp: str = Field(..., description="Timestamp of response")
+
+
 print("[MODELS] [OK] NLP models defined successfully")
 
 
@@ -263,6 +276,7 @@ __all__ = [
     "RiskAssessmentResponse",
     "RiskAssessmentResult",
     "HealthMetrics",
+    "AgentResponse",
     # Health models (stubs)
     "HealthRecord",
     "VitalSigns",

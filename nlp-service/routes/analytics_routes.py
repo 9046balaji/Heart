@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 import logging
 
 from core.analytics import AnalyticsManager
-from core.security import get_current_user
+from core.security import get_optional_user
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ analytics_manager = AnalyticsManager()
 
 @router.get("/summary")
 async def get_analytics_summary(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, Any]:
     """Get comprehensive analytics summary."""
     try:
@@ -34,7 +34,7 @@ async def get_analytics_summary(
 
 @router.get("/intents")
 async def get_intent_distribution(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, int]:
     """Get distribution of detected intents."""
     try:
@@ -46,7 +46,7 @@ async def get_intent_distribution(
 
 @router.get("/sentiment")
 async def get_sentiment_distribution(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, int]:
     """Get distribution of detected sentiments."""
     try:
@@ -58,7 +58,7 @@ async def get_sentiment_distribution(
 
 @router.get("/entities")
 async def get_entity_type_distribution(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, int]:
     """Get distribution of entity types."""
     try:
@@ -71,7 +71,7 @@ async def get_entity_type_distribution(
 @router.get("/top-intents")
 async def get_top_intents(
     limit: int = Query(10, ge=1, le=50),
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> List[Any]:
     """Get most common intents."""
     try:
@@ -84,7 +84,7 @@ async def get_top_intents(
 @router.get("/top-entities")
 async def get_top_entities(
     limit: int = Query(10, ge=1, le=50),
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> List[Any]:
     """Get most common entity types."""
     try:
@@ -96,7 +96,7 @@ async def get_top_entities(
 
 @router.get("/trends/performance")
 async def get_performance_trends(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> List[Dict[str, Any]]:
     """Get performance trends over time."""
     try:
@@ -108,7 +108,7 @@ async def get_performance_trends(
 
 @router.get("/anomalies")
 async def detect_anomalies(
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, Any]:
     """Detect anomalies in analytics data."""
     try:
@@ -120,7 +120,7 @@ async def detect_anomalies(
 @router.get("/{user_id}")
 async def get_user_analytics(
     user_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: Optional[dict] = Depends(get_optional_user),
 ) -> Dict[str, Any]:
     """Get analytics for a specific user."""
     try:

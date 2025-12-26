@@ -113,8 +113,27 @@ class Settings(BaseSettings):
     SENTIMENT_THRESHOLD_DISTRESSED: float = -0.7
     SENTIMENT_THRESHOLD_URGENT: float = 0.8
 
-    # LLM Configuration
+    # LLM Configuration - Primary Provider
+    LLM_PROVIDER: str = Field(default="openrouter", env="LLM_PROVIDER")
+    
+    # OpenRouter Configuration (Primary - GPT OSS)
+    OPENROUTER_API_KEY: str = Field(default="", env="OPENROUTER_API_KEY")
+    OPENROUTER_MODEL: str = Field(default="openai/gpt-oss-20b:free", env="OPENROUTER_MODEL")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1", env="OPENROUTER_BASE_URL")
+    OPENROUTER_TEMPERATURE: float = Field(default=0.7, env="OPENROUTER_TEMPERATURE")
+    OPENROUTER_MAX_TOKENS: int = Field(default=256, env="OPENROUTER_MAX_TOKENS")
+    OPENROUTER_TOP_P: float = Field(default=0.9, env="OPENROUTER_TOP_P")
+    OPENROUTER_TIMEOUT_SECONDS: int = Field(default=60, env="OPENROUTER_TIMEOUT_SECONDS")
+    
+    # OpenRouter Gemini Configuration (Alternative/Fallback)
+    OPENROUTER_GEMINI_API_KEY: str = Field(default="", env="OPENROUTER_GEMINI_API_KEY")
+    OPENROUTER_GEMINI_MODEL: str = Field(default="google/gemma-3-4b-it:free", env="OPENROUTER_GEMINI_MODEL")
+    OPENROUTER_GEMINI_TEMPERATURE: float = Field(default=0.7, env="OPENROUTER_GEMINI_TEMPERATURE")
+    OPENROUTER_GEMINI_MAX_TOKENS: int = Field(default=256, env="OPENROUTER_GEMINI_MAX_TOKENS")
+    
+    # Ollama Configuration (Fallback)
     OLLAMA_HOST: str = Field(default_factory=_get_ollama_host)
+    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
     OLLAMA_MODEL: str = "gemma3:1b"
     OLLAMA_TEMPERATURE: float = 0.7
     OLLAMA_TOP_P: float = 0.9

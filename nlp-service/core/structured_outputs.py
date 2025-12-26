@@ -523,6 +523,19 @@ class StructuredOutputParser:
                         pass
                 partial_data[field_name] = value
 
+        # For CardioHealthAnalysis, ensure required fields have defaults
+        if self.model.__name__ == "CardioHealthAnalysis":
+            if "intent" not in partial_data:
+                partial_data["intent"] = "general_health"
+            if "sentiment" not in partial_data:
+                partial_data["sentiment"] = "neutral"
+            if "urgency" not in partial_data:
+                partial_data["urgency"] = "low"
+            if "response" not in partial_data:
+                partial_data["response"] = "Thank you for sharing information about your health. Please consult a healthcare professional for personalized advice."
+            if "intent_confidence" not in partial_data:
+                partial_data["intent_confidence"] = 0.5
+
         return self.model.model_validate(partial_data)
 
     def safe_parse(

@@ -27,10 +27,26 @@ export default function SmartWatchScreen() {
     const [heartRateHistory, setHeartRateHistory] = useState<VitalData[]>([]);
 
     useEffect(() => {
-        loadVitals();
+        const init = async () => {
+            await loadVitals();
+        };
+        init();
+    }, []);
+
+    useEffect(() => {
+        // Get device ID from storage or default
+        const devicesRaw = localStorage.getItem('connected_devices');
+        let deviceId = 'mock_device_id';
+        if (devicesRaw) {
+            const devices = JSON.parse(devicesRaw);
+            const activeWatch = devices.find((d: any) => d.status === 'connected' && d.type === 'watch');
+            if (activeWatch) {
+                deviceId = activeWatch.id;
+            }
+        }
 
         // WebSocket connection
-        const wsUrl = apiClient.getWebSocketUrl('/api/smartwatch/stream/mock_device_id');
+        const wsUrl = apiClient.getWebSocketUrl(`/api/smartwatch/ws/${deviceId}`);
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {

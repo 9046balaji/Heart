@@ -99,7 +99,7 @@ class AnomalyDetector:
 
         logger.info("AnomalyDetector initialized")
 
-    def analyze(
+    async def analyze(
         self,
         device_id: str,
         hr: float,
@@ -138,7 +138,7 @@ class AnomalyDetector:
         self.vitals_store.add_reading(device_id, current_reading)
 
         # 2. Fetch full history from Redis (Stateless!)
-        history = self.vitals_store.get_history(device_id)
+        history = await self.vitals_store.get_history(device_id)
 
         # 3. Rehydrate feature extractor with full history
         self.feature_extractor.clear()  # Clear local buffer

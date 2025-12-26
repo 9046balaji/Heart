@@ -16,7 +16,8 @@
 
 
 
-
+audit_trail.log
+check_tables.py
 
 text_quality.py
 simple_test.py
@@ -62,10 +63,7 @@ MEMORI_FEATURES_AUDIT.md
 SECURITY.md
 not-sure/
 IMPLEMENTATION_AUDIT_REPORT.md
-<<<<<<< HEAD
 nlp-service/*_SETUP.md
-
-
 
 *.local
 .env

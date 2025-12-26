@@ -338,6 +338,26 @@ def get_current_user(
     return payload
 
 
+# Optional bearer scheme that doesn't auto-raise on missing auth
+optional_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_bearer_scheme),
+) -> Optional[Dict[str, Any]]:
+    """
+    Optional authentication dependency.
+    Returns user payload if valid token provided, None otherwise.
+    Useful for endpoints that work with or without authentication.
+    """
+    if credentials is None:
+        return None
+    
+    security_manager = SecurityManager()
+    payload = security_manager.verify_token(credentials.credentials)
+    return payload  # Returns None if invalid, payload if valid
+
+
 async def check_rate_limit_dependency(request: Request):
     """Rate limiting dependency - uses Redis if available."""
     client_ip = request.client.host

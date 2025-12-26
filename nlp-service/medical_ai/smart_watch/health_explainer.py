@@ -151,7 +151,7 @@ class HealthExplainer:
         start = time.time()
 
         # 1. Run ML prediction
-        prediction = self.detector.analyze(
+        prediction = await self.detector.analyze(
             device_id=device_id, hr=hr, spo2=spo2, steps=steps, ibi=ibi
         )
 

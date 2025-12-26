@@ -415,16 +415,26 @@ class PatientMemory:
                 filters["data_type"] = data_type
 
             # Execute search with timeout
-            results = await asyncio.wait_for(
-                self.memori.search_memory(
-                    query=query,
-                    user_id=self.patient_id,
-                    session_id=self.session_id,
-                    filters=filters if filters else None,
-                    limit=limit,
-                ),
-                timeout=timeout,
-            )
+            # Use the correct method name from Memori class
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.memori.search,
+                        query=query,
+                        limit=limit,
+                    ),
+                    timeout=timeout,
+                )
+            except (AttributeError, TypeError):
+                # Fallback to retrieve_context if search doesn't work
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.memori.retrieve_context,
+                        query=query,
+                        limit=limit,
+                    ),
+                    timeout=timeout,
+                )
 
             latency_ms = (time.time() - start_time) * 1000
 
