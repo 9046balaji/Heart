@@ -12,6 +12,7 @@ import { ChatHeader } from '../components/ChatHeader';
 import { useChatStore, ChatSession, chatActions } from '../store/useChatStore';
 import { useAuth } from '../hooks/useAuth';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
+import { useProvider } from '../contexts/ProviderContext';
 
 // --- Audio Helpers ---
 function base64ToUint8Array(base64: string) {
@@ -400,6 +401,93 @@ const ChatScreen: React.FC = () => {
     { icon: 'support_agent', label: 'County Assistant' },
   ];
 
+  // Provider selector component
+  const ProviderQuickSelect = () => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [currentProvider, setCurrentProvider] = useState<'ollama' | 'openrouter'>('ollama');
+    
+    // Safe provider context usage with fallback
+    try {
+      const providerContext = useProvider();
+      if (providerContext && providerContext.selectedProvider) {
+        const prevProvider = currentProvider;
+        if (prevProvider !== providerContext.selectedProvider) {
+          setCurrentProvider(providerContext.selectedProvider);
+        }
+      }
+    } catch (error) {
+      console.debug('Provider context not available, using defaults');
+    }
+
+    // Fallback providers
+    const providers = [
+      { name: 'ollama' as const, label: 'Ollama (Local)', available: true },
+      { name: 'openrouter' as const, label: 'OpenRouter (Cloud)', available: true }
+    ];
+
+    const handleProviderChange = async (providerName: 'ollama' | 'openrouter') => {
+      try {
+        setCurrentProvider(providerName);
+        // Try to update via context if available
+        try {
+          const providerContext = useProvider();
+          await providerContext.setSelectedProvider(providerName);
+        } catch (e) {
+          console.debug('Could not update provider via context');
+        }
+        setIsOpen(false);
+      } catch (error) {
+        console.error('Failed to switch provider:', error);
+      }
+    };
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded transition-colors"
+        >
+          <span className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="material-symbols-outlined text-sm flex-shrink-0">
+              {currentProvider === 'ollama' ? 'memory' : 'cloud'}
+            </span>
+            <span className="font-medium truncate">
+              {currentProvider === 'ollama' ? 'Ollama' : 'OpenRouter'}
+            </span>
+          </span>
+          <span className="material-symbols-outlined text-xs flex-shrink-0">
+            {isOpen ? 'expand_less' : 'expand_more'}
+          </span>
+        </button>
+
+        {isOpen && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[#101922] border border-slate-700 rounded-lg shadow-lg z-50">
+            {providers.map((provider) => (
+              <button
+                key={provider.name}
+                onClick={() => handleProviderChange(provider.name)}
+                disabled={!provider.available}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${
+                  currentProvider === provider.name
+                    ? 'bg-slate-700 text-white font-medium'
+                    : 'text-slate-300 hover:bg-slate-800'
+                } ${!provider.available ? 'opacity-50 cursor-not-allowed' : ''} border-b border-slate-800 last:border-0`}
+              >
+                <span className="material-symbols-outlined text-xs flex-shrink-0">
+                  {provider.name === 'ollama' ? 'memory' : 'cloud'}
+                </span>
+                <span className="truncate flex-1">{provider.label}</span>
+                {currentProvider === provider.name && (
+                  <span className="material-symbols-outlined text-xs flex-shrink-0">check_circle</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#101922] relative overflow-hidden font-sans" role="main" aria-label="Cardio AI Chat">
 
@@ -411,9 +499,10 @@ const ChatScreen: React.FC = () => {
             onClick={() => setIsMenuOpen(false)}
             aria-hidden="true"
           ></div>
-          <nav className="fixed top-0 left-0 bottom-0 w-72 bg-[#192633] z-50 shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col" role="navigation" aria-label="Main menu">
-            <div className="p-6">
+          <nav className="fixed top-0 left-0 h-screen w-80 sm:w-80 max-w-[90vw] bg-[#192633] z-50 shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col overflow-hidden" role="navigation" aria-label="Main menu">
+            <div className="flex flex-col h-full min-h-0 overflow-hidden">
               {/* New Chat Button */}
+              <div className="px-4 sm:px-6 pt-4 sm:pt-6 flex-shrink-0">
               <button
                 onClick={() => {
                   createSession();
@@ -426,38 +515,46 @@ const ChatScreen: React.FC = () => {
                   }]);
                   setIsMenuOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2 p-3 mb-4 bg-[#D32F2F] hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
+                className="w-full flex items-center justify-center gap-2 p-2 sm:p-3 mb-3 sm:mb-4 bg-[#D32F2F] hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm sm:text-base"
               >
-                <span className="material-symbols-outlined text-xl">add</span>
+                <span className="material-symbols-outlined text-lg sm:text-xl">add</span>
                 <span>New Chat</span>
               </button>
+              </div>
 
-              <div className="relative mb-4">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+              <div className="px-4 sm:px-6 flex flex-col min-h-0 flex-1 overflow-hidden">
+              <div className="relative mb-3 sm:mb-4">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base">search</span>
                 <input
                   type="text"
                   placeholder="Search"
-                  className="w-full bg-[#101922] border border-slate-700 rounded-lg py-2 pl-10 pr-4 text-slate-200 text-sm focus:outline-none focus:border-red-500"
+                  className="w-full bg-[#101922] border border-slate-700 rounded-lg py-2 pl-9 sm:pl-10 pr-4 text-slate-200 text-xs sm:text-sm focus:outline-none focus:border-red-500"
                   aria-label="Search conversations"
                 />
               </div>
 
+              {/* Provider Selector */}
+              <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-slate-700">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">AI Provider</h3>
+                <ProviderQuickSelect />
+              </div>
+
               {/* Conversation History */}
               {sessions.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">Recent Chats</h3>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                <div className="mb-3 sm:mb-4 min-h-0 max-h-40 flex flex-col">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Recent Chats</h3>
+                  <div className="space-y-1 overflow-y-auto min-h-0">
                     {sessions.slice(0, 5).map((session: ChatSession) => (
                       <div
                         key={session.id}
-                        className="group flex items-center gap-2 p-2 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors cursor-pointer"
+                        className="group flex items-center gap-2 p-2 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors cursor-pointer text-sm"
                         onClick={() => {
                           if (editingSessionId === session.id) return;
                           loadSession(session.id);
                           setIsMenuOpen(false);
                         }}
                       >
-                        <span className="material-symbols-outlined text-sm text-slate-500">chat_bubble</span>
+                        <span className="material-symbols-outlined text-xs sm:text-sm text-slate-500 flex-shrink-0">chat_bubble</span>
 
                         {editingSessionId === session.id ? (
                           <input
@@ -469,19 +566,19 @@ const ChatScreen: React.FC = () => {
                               if (e.key === 'Enter') handleRenameSession(session.id);
                             }}
                             autoFocus
-                            className="flex-1 bg-transparent border-b border-blue-500 text-sm focus:outline-none text-white"
+                            className="flex-1 bg-transparent border-b border-blue-500 text-xs sm:text-sm focus:outline-none text-white"
                             onClick={(e) => e.stopPropagation()}
                           />
                         ) : (
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm truncate">{session.title}</p>
+                            <p className="text-xs sm:text-sm truncate">{session.title}</p>
                             <p className="text-xs text-slate-500 truncate">
                               {session.lastMessage || `${session.messageCount} messages`}
                             </p>
                           </div>
                         )}
 
-                        <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -491,7 +588,7 @@ const ChatScreen: React.FC = () => {
                             className="p-1 text-slate-500 hover:text-blue-400 transition-all"
                             aria-label="Rename conversation"
                           >
-                            <span className="material-symbols-outlined text-sm">edit</span>
+                            <span className="material-symbols-outlined text-xs sm:text-sm">edit</span>
                           </button>
                           <button
                             onClick={(e) => {
@@ -501,7 +598,7 @@ const ChatScreen: React.FC = () => {
                             className="p-1 text-slate-500 hover:text-red-400 transition-all"
                             aria-label="Delete conversation"
                           >
-                            <span className="material-symbols-outlined text-sm">delete</span>
+                            <span className="material-symbols-outlined text-xs sm:text-sm">delete</span>
                           </button>
                         </div>
                       </div>
@@ -511,29 +608,32 @@ const ChatScreen: React.FC = () => {
               )}
 
               {/* Quick Actions */}
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">Quick Actions</h3>
-              <div className="space-y-1">
-                {menuItems.slice(1).map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={() => { setIsMenuOpen(false); handleSend(item.label); }}
-                    className="w-full flex items-center gap-4 p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left"
-                  >
-                    <span className="material-symbols-outlined text-xl">{item.icon}</span>
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </button>
-                ))}
+              <div className="flex-1 min-h-0 mb-3 sm:mb-4 overflow-y-auto">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 sticky top-0 bg-[#192633]">Quick Actions</h3>
+                <div className="space-y-1">
+                  {menuItems.slice(1).map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={() => { setIsMenuOpen(false); handleSend(item.label); }}
+                      className="w-full flex items-center gap-3 sm:gap-4 p-2 sm:p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left text-xs sm:text-sm"
+                    >
+                      <span className="material-symbols-outlined text-base sm:text-xl flex-shrink-0">{item.icon}</span>
+                      <span className="font-medium truncate">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+              </div>
 
-            <div className="mt-auto p-4 border-t border-slate-800">
-              <button
-                onClick={() => { setIsMenuOpen(false); navigate('/settings'); }}
-                className="w-full flex items-center gap-4 p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left"
-              >
-                <span className="material-symbols-outlined text-xl text-red-400">settings</span>
-                <span className="text-sm font-medium text-red-400">Settings</span>
-              </button>
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-800 flex-shrink-0">
+                <button
+                  onClick={() => { setIsMenuOpen(false); navigate('/settings'); }}
+                  className="w-full flex items-center gap-3 sm:gap-4 p-2 sm:p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left text-xs sm:text-sm"
+                >
+                  <span className="material-symbols-outlined text-base sm:text-xl text-red-400 flex-shrink-0">settings</span>
+                  <span className="font-medium text-red-400">Settings</span>
+                </button>
+              </div>
             </div>
           </nav>
         </>

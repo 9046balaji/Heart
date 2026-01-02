@@ -49,11 +49,15 @@ from .guardrails import SafetyGuardrail
 
 logger = logging.getLogger(__name__)
 
+# Global dictionary to store user provider selections
+_user_provider_selections: Dict[str, str] = {}
+
 
 class LLMGateway:
     """
     The Single Source of Truth for LLM interactions.
     Combines LangChain execution with LangFuse observability and Safety Guardrails.
+    Supports user-selected providers (Ollama or OpenRouter).
     """
 
     def __init__(self):
@@ -133,6 +137,35 @@ class LLMGateway:
         # Fallback to Ollama if provider is not available
         return self.ollama
 
+    def _get_user_provider(self, user_id: Optional[str] = None) -> str:
+        """
+        Get the provider for a user. Uses user selection if available,
+        otherwise falls back to environment configuration.
+        
+        Args:
+            user_id: Optional user ID to get their provider preference
+            
+        Returns:
+            Provider name: 'ollama' or 'openrouter'
+        """
+        if user_id and user_id in _user_provider_selections:
+            return _user_provider_selections[user_id]
+        # Fall back to environment default
+        return self.primary_provider
+    
+    def set_user_provider(self, user_id: str, provider: str) -> None:
+        """
+        Set the LLM provider preference for a user.
+        
+        Args:
+            user_id: User identifier
+            provider: Provider to use ('ollama' or 'openrouter')
+        """
+        if provider not in ['ollama', 'openrouter']:
+            raise ValueError(f"Invalid provider: {provider}. Must be 'ollama' or 'openrouter'")
+        _user_provider_selections[user_id] = provider
+        logger.info(f"Provider '{provider}' set for user: {user_id}")
+
     @observe(name="llm-generation")  # ✅ LangFuse Observability
     async def generate(
         self, prompt: str, content_type: str = "general", user_id: Optional[str] = None
@@ -143,26 +176,38 @@ class LLMGateway:
         Args:
             prompt: The prompt to send to the LLM
             content_type: "medical", "nutrition", or "general"
-            user_id: Optional user ID for tracing
+            user_id: Optional user ID for tracing and provider selection
 
         Returns:
             Generated response with safety processing applied
         """
+        # Get user's preferred provider (or use primary from env)
+        user_provider = self._get_user_provider(user_id)
+        
         try:
             raw_response = await self._execute_generation(
-                self.primary_provider, prompt, content_type
+                user_provider, prompt, content_type
             )
         except Exception as e:
-            logger.warning(f"Primary provider {self.primary_provider} failed: {e}")
+            logger.warning(f"User provider '{user_provider}' failed: {e}")
             # Fallback Logic Chain
-            if self.primary_provider == "openrouter":
-                logger.info("🔄 OpenRouter failed, trying OpenRouter Gemini...")
+            if user_provider == "ollama":
+                logger.info("🔄 Ollama failed, falling back to OpenRouter...")
+                try:
+                    raw_response = await self._execute_generation(
+                        "openrouter", prompt, content_type
+                    )
+                except Exception as e2:
+                    logger.warning(f"OpenRouter fallback also failed: {e2}")
+                    raise e  # Raise original error
+            elif user_provider == "openrouter":
+                logger.info("🔄 OpenRouter failed, trying fallback...")
                 try:
                     raw_response = await self._execute_generation(
                         "openrouter-gemini", prompt, content_type
                     )
                 except Exception as e2:
-                    logger.warning(f"OpenRouter Gemini also failed: {e2}")
+                    logger.warning(f"OpenRouter Gemini fallback also failed: {e2}")
                     logger.info("🔄 Falling back to Ollama...")
                     try:
                         raw_response = await self._execute_generation(
@@ -171,26 +216,8 @@ class LLMGateway:
                     except Exception as e3:
                         logger.error(f"Ollama fallback also failed: {e3}")
                         raise e
-            elif self.primary_provider == "openrouter-gemini":
-                logger.info("🔄 OpenRouter Gemini failed, falling back to Ollama...")
-                try:
-                    raw_response = await self._execute_generation(
-                        "ollama", prompt, content_type
-                    )
-                except Exception as e2:
-                    logger.error(f"Ollama fallback also failed: {e2}")
-                    raise e
-            elif self.primary_provider != "ollama":
-                logger.info("🔄 Falling back to Ollama...")
-                try:
-                    raw_response = await self._execute_generation(
-                        "ollama", prompt, content_type
-                    )
-                except Exception as e2:
-                    logger.error(f"Ollama fallback also failed: {e2}")
-                    raise e
             else:
-                raise e
+                raise e  # Raise original error
 
         # Apply Guardrails ✅
         return self.guardrails.process_output(
@@ -235,10 +262,15 @@ class LLMGateway:
         return raw_response
 
     async def generate_stream(
-        self, prompt: str, content_type: str = "general"
+        self, prompt: str, content_type: str = "general", user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
-        """Streaming generation for chat interfaces."""
-        model = self._get_model(self.primary_provider)
+        """
+        Streaming generation for chat interfaces.
+        Respects user's provider selection.
+        """
+        # Get user's preferred provider (or use primary from env)
+        user_provider = self._get_user_provider(user_id)
+        model = self._get_model(user_provider)
 
         system_prompts = {
             "medical": """You are a healthcare AI assistant.

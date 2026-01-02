@@ -39,6 +39,7 @@ import BottomNav from './components/BottomNav';
 import VoiceControl from './components/VoiceControl';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ProviderProvider } from './contexts/ProviderContext';
 import { PageSkeleton, ChatListSkeleton } from './components/Skeleton';
 import { ConfirmDialogProvider } from './components/ConfirmDialog';
 import { AuthProvider } from './hooks/useAuth';
@@ -229,11 +230,13 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <LanguageProvider>
-        <ConfirmDialogProvider>
-          <HashRouter>
-            <AppContent />
-          </HashRouter>
-        </ConfirmDialogProvider>
+        <ProviderProvider>
+          <ConfirmDialogProvider>
+            <HashRouter>
+              <AppContent />
+            </HashRouter>
+          </ConfirmDialogProvider>
+        </ProviderProvider>
       </LanguageProvider>
     </AuthProvider>
   );

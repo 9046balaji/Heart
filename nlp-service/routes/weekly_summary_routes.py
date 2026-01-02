@@ -8,8 +8,11 @@ and manual summary triggers.
 from typing import Optional, List
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+from jinja2 import Environment, FileSystemLoader
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +266,108 @@ async def unsubscribe(
         "channel": channel or "all",
         "message": "You have been unsubscribed from weekly health summaries.",
     }
+
+
+# ==================== Routes - HTML Report Generation ====================
+
+
+@router.get(
+    "/report/html",
+    response_class=HTMLResponse,
+    summary="Generate Weekly Health Report",
+    description="Generate a comprehensive HTML weekly health report.",
+)
+async def generate_html_report(
+    user_id: str = Query(..., description="User ID"),
+    user_name: str = Query("Patient", description="User's display name"),
+):
+    """
+    Generate and render a comprehensive weekly health report in HTML format.
+    
+    This report includes:
+    - Heart rate trends with chart
+    - Activity level and steps
+    - Blood pressure monitoring
+    - Medication adherence tracking
+    - Nutrition analysis and food logs
+    - Personalized dietary recommendations
+    - Clinical recommendations
+    """
+    try:
+        from services.weekly_report_generator import WeeklyReportGenerator
+        
+        # Initialize generator
+        generator = WeeklyReportGenerator()
+        
+        # Generate report data
+        report_data = generator.generate_report_data(user_id, user_name)
+        
+        # Load and render Jinja2 template
+        template_dir = os.path.join(
+            os.path.dirname(__file__), 
+            "..", 
+            "templates"
+        )
+        
+        env = Environment(loader=FileSystemLoader(template_dir))
+        template = env.get_template("weekly_report.html")
+        
+        # Render HTML
+        html_content = template.render(
+            user_name=report_data['user_name'],
+            week_range=report_data['week_range'],
+            charts=report_data['charts'],
+            insights=report_data['insights'],
+            nutrition=report_data['nutrition'],
+            food_log=report_data['food_log'],
+            diet_plan=report_data['diet_plan'],
+            scores=report_data['scores'],
+            recommendations=report_data['recommendations'],
+        )
+        
+        return html_content
+        
+    except Exception as e:
+        logger.error(f"Error generating HTML report: {e}", exc_info=True)
+        return f"<html><body><h1>Error Generating Report</h1><p>{str(e)}</p></body></html>"
+
+
+@router.get(
+    "/report/data",
+    summary="Get Report Data (JSON)",
+    description="Get the raw report data in JSON format (useful for API integration).",
+)
+async def get_report_data(
+    user_id: str = Query(..., description="User ID"),
+    user_name: str = Query("Patient", description="User's display name"),
+):
+    """
+    Get raw report data in JSON format.
+    
+    Useful for:
+    - Building custom report visualizations
+    - Integrating with other systems
+    - Archiving reports
+    """
+    try:
+        from services.weekly_report_generator import WeeklyReportGenerator
+        
+        generator = WeeklyReportGenerator()
+        report_data = generator.generate_report_data(user_id, user_name)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "user_name": report_data['user_name'],
+            "week_range": report_data['week_range'],
+            "data": report_data,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating report data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 # ==================== Routes - Consent Management ====================

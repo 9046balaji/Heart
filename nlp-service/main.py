@@ -587,6 +587,14 @@ if evaluation_router:
 app.include_router(monitoring_router, prefix="/api", tags=["Monitoring"])
 logger.info("Monitoring routes loaded successfully")
 
+# Import and include Provider Selection Routes (for Ollama/OpenRouter switching)
+try:
+    from routes.provider_routes import router as provider_router
+    app.include_router(provider_router, tags=["Provider Selection"])
+    logger.info("Provider selection routes loaded successfully")
+except ImportError as e:
+    logger.warning(f"Provider selection routes not available: {e}")
+
 # Import and include Feedback Routes
 try:
     from routes.feedback_routes import router as feedback_router
