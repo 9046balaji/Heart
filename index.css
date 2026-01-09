@@ -1,0 +1,67 @@
+/* Import charts.css styles first */
+@import './styles/charts.css';
+
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* Link to v3-style config for content paths */
+@config "./tailwind.config.js";
+
+/* Base styles for Cardio AI Assistant */
+
+/* Smooth scrolling for the whole page */
+html {
+    scroll-behavior: smooth;
+    background-color: #101922;
+}
+
+/* Base body styles (Tailwind handles most of this) */
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-color: #101922;
+    color: #e0e0e0;
+    /* Safe area insets for mobile notches and system UI */
+    padding-top: max(env(safe-area-inset-top, 0), 0px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0), 0px);
+    padding-left: max(env(safe-area-inset-left, 0), 0px);
+    padding-right: max(env(safe-area-inset-right, 0), 0px);
+}
+
+/* Ensure root takes full height */
+#root {
+    min-height: 100vh;
+    background-color: #101922;
+}
+
+/* Custom animations for transitions */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideUp {
+    animation: slideUp 0.3s ease-out;
+}
