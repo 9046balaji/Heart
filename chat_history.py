@@ -83,7 +83,8 @@ if SQLALCHEMY_AVAILABLE:
                     # Fall back to raw metadata
                     try:
                         metadata = json.loads(self.metadata_json)
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Failed to parse metadata JSON: {e}")
                         metadata = {}
 
             return {
@@ -205,7 +206,7 @@ class PersistentChatHistory:
         Initialize persistent chat history.
 
         Args:
-            database_url: SQLAlchemy database URL. Defaults to sqlite:///chat_history.db
+            database_url: SQLAlchemy database URL. Defaults to PostgreSQL from AppConfig
             timeout_policy: Session timeout configuration
             in_memory_cache_size: Size of LRU cache for recent sessions
         """
@@ -214,9 +215,28 @@ class PersistentChatHistory:
                 "SQLAlchemy not available. Install with: pip install sqlalchemy"
             )
 
-        self.database_url = database_url or os.environ.get(
-            "CHAT_HISTORY_DB_URL", "sqlite:///chat_history.db"
-        )
+        # Default to PostgreSQL from AppConfig
+        if database_url is None:
+            database_url = os.environ.get("CHAT_HISTORY_DB_URL")
+            
+            if not database_url:
+                # Build PostgreSQL URL from AppConfig
+                try:
+                    from core.config.app_config import get_app_config
+                    config = get_app_config()
+                    db = config.database
+                    database_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+                except Exception as e:
+                    logger.warning(f"Could not load AppConfig for chat history: {e}")
+                    # Fallback to environment variables
+                    host = os.environ.get("POSTGRES_HOST", "localhost")
+                    port = os.environ.get("POSTGRES_PORT", "5432")
+                    user = os.environ.get("POSTGRES_USER", "postgres")
+                    password = os.environ.get("POSTGRES_PASSWORD", "")
+                    db_name = os.environ.get("POSTGRES_DB", "heartguard")
+                    database_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+        
+        self.database_url = database_url
         self.timeout_policy = timeout_policy or SessionTimeoutPolicy()
         self.in_memory_cache_size = in_memory_cache_size
 
@@ -468,7 +488,8 @@ class PersistentChatHistory:
                             # Fall back to raw metadata
                             try:
                                 message_dict["metadata"] = json.loads(m.metadata_json)
-                            except:
+                            except Exception as e:
+                                logger.warning(f"Failed to parse metadata JSON fallback: {e}")
                                 message_dict["metadata"] = {}
                     else:
                         # No encryption or no metadata
@@ -476,7 +497,8 @@ class PersistentChatHistory:
                             message_dict["metadata"] = json.loads(
                                 m.metadata_json or "{}"
                             )
-                        except:
+                        except Exception as e:
+                            logger.warning(f"Failed to parse metadata JSON: {e}")
                             message_dict["metadata"] = {}
 
                     history.append(message_dict)

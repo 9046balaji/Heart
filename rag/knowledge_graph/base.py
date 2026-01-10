@@ -23,17 +23,35 @@ class Neo4jConfig:
     database: str = "neo4j"
     max_connection_pool_size: int = 50
     connection_timeout: int = 30
+    enabled: bool = True  # Flag to indicate if Neo4j should be used
 
     @classmethod
     def from_env(cls) -> "Neo4jConfig":
-        """Create config from environment variables."""
+        """Create config from environment variables.
+        
+        If NEO4J_PASSWORD is not set, returns a disabled config instead of raising.
+        This allows graceful fallback to PostgreSQL.
+        """
         import os
+        import logging
+        
+        # Get password from environment
+        password = os.getenv("NEO4J_PASSWORD", "")
+        
+        if not password:
+            # Log warning and return disabled config (graceful degradation)
+            logging.getLogger(__name__).warning(
+                "NEO4J_PASSWORD not set - Neo4j disabled, using PostgreSQL fallback. "
+                "To enable Neo4j, set: export NEO4J_PASSWORD=your_password"
+            )
+            return cls(enabled=False)
 
         return cls(
             uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
             user=os.getenv("NEO4J_USERNAME", "neo4j"),
-            password=os.getenv("NEO4J_PASSWORD", "password"),
+            password=password,
             database=os.getenv("NEO4J_DATABASE", "neo4j"),
+            enabled=True,
         )
 
 

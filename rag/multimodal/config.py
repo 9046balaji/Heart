@@ -96,6 +96,16 @@ class MultimodalConfig:
         """Alias for supported_extensions (RAG-Anything compatibility)."""
         return self.supported_extensions
     
+    @property
+    def context_window(self) -> int:
+        """Proxy for context_config.context_window (ingestion compatibility)."""
+        return self.context_config.context_window
+    
+    @property
+    def max_context_tokens(self) -> int:
+        """Proxy for context_config.max_context_tokens (ingestion compatibility)."""
+        return self.context_config.max_context_tokens
+    
     # Medical-specific settings
     ocr_for_scanned_docs: bool = field(default_factory=lambda: get_env_value("OCR_SCANNED_DOCS", True, bool))
     """Use OCR for scanned medical documents."""

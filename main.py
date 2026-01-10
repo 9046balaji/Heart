@@ -779,6 +779,48 @@ if MEMORI_MANAGER_AVAILABLE:
     except Exception as e:
         logger.warning(f"Failed to add CorrelationIDMiddleware: {e}")
 
+# Add Request Timeout Middleware (60s max request time)
+# This prevents runaway requests from consuming resources indefinitely
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "60"))
+
+try:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+    
+    class RequestTimeoutMiddleware(BaseHTTPMiddleware):
+        """
+        Middleware to enforce a global request timeout.
+        
+        Returns 504 Gateway Timeout if request exceeds the timeout limit.
+        Configurable via REQUEST_TIMEOUT_SECONDS environment variable.
+        """
+        
+        async def dispatch(self, request: Request, call_next):
+            try:
+                return await asyncio.wait_for(
+                    call_next(request),
+                    timeout=REQUEST_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"⏱️ Request timeout ({REQUEST_TIMEOUT_SECONDS}s): "
+                    f"{request.method} {request.url.path}"
+                )
+                return JSONResponse(
+                    status_code=504,
+                    content={
+                        "detail": "Request timeout",
+                        "timeout_seconds": REQUEST_TIMEOUT_SECONDS,
+                        "path": str(request.url.path),
+                    }
+                )
+    
+    app.add_middleware(RequestTimeoutMiddleware)
+    logger.info(f"✅ RequestTimeoutMiddleware added ({REQUEST_TIMEOUT_SECONDS}s timeout)")
+except Exception as e:
+    logger.warning(f"Failed to add RequestTimeoutMiddleware: {e}")
+
 # ============================================================================
 # INCLUDE ROUTERS SAFELY
 # ============================================================================
@@ -1014,6 +1056,124 @@ async def detailed_metrics():
             metrics["memory"] = {"error": str(e)}
     
     return metrics
+
+
+@app.get("/health/detailed", tags=["Health"])
+async def detailed_health_check():
+    """
+    Comprehensive health check with dependency status.
+    
+    Returns status for all major dependencies:
+    - PostgreSQL database
+    - Neo4j graph database
+    - Redis cache
+    - LLM Gateway
+    - Vector Store
+    - Memori system
+    """
+    from datetime import datetime
+    import time
+    
+    checks = {}
+    overall_healthy = True
+    
+    # Check PostgreSQL
+    start = time.time()
+    try:
+        from core.dependencies import DIContainer
+        container = DIContainer.get_instance()
+        if hasattr(container, '_sql_tool') and container._sql_tool:
+            checks["postgresql"] = {
+                "status": "up",
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+        else:
+            checks["postgresql"] = {"status": "not_initialized"}
+            overall_healthy = False
+    except Exception as e:
+        checks["postgresql"] = {"status": "down", "error": str(e)}
+        overall_healthy = False
+    
+    # Check Neo4j
+    start = time.time()
+    try:
+        if NLPState.neo4j_service and hasattr(NLPState.neo4j_service, 'is_connected'):
+            is_connected = NLPState.neo4j_service.is_connected()
+            checks["neo4j"] = {
+                "status": "up" if is_connected else "disconnected",
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+            if not is_connected:
+                overall_healthy = False
+        else:
+            checks["neo4j"] = {"status": "not_configured"}
+    except Exception as e:
+        checks["neo4j"] = {"status": "down", "error": str(e)}
+    
+    # Check Redis Cache
+    start = time.time()
+    try:
+        from core.services.advanced_cache import MultiTierCache
+        cache = MultiTierCache()
+        if hasattr(cache, 'is_available') and cache.is_available():
+            checks["redis"] = {
+                "status": "up",
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+        else:
+            checks["redis"] = {"status": "unavailable"}
+    except Exception as e:
+        checks["redis"] = {"status": "not_configured"}
+    
+    # Check LLM Gateway
+    start = time.time()
+    try:
+        from core.dependencies import DIContainer
+        container = DIContainer.get_instance()
+        if container.llm_gateway:
+            checks["llm_gateway"] = {
+                "status": "up",
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+        else:
+            checks["llm_gateway"] = {"status": "not_initialized"}
+            overall_healthy = False
+    except Exception as e:
+        checks["llm_gateway"] = {"status": "down", "error": str(e)}
+        overall_healthy = False
+    
+    # Check Vector Store
+    start = time.time()
+    try:
+        if NLPState.vector_store:
+            checks["vector_store"] = {
+                "status": "up",
+                "type": type(NLPState.vector_store).__name__,
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+        else:
+            checks["vector_store"] = {"status": "not_initialized"}
+    except Exception as e:
+        checks["vector_store"] = {"status": "down", "error": str(e)}
+    
+    # Check Memori
+    if MEMORI_MANAGER_AVAILABLE:
+        try:
+            health = await get_memori_health_check()
+            checks["memori"] = {"status": "up", "details": health if isinstance(health, dict) else "available"}
+        except Exception as e:
+            checks["memori"] = {"status": "degraded", "error": str(e)}
+    else:
+        checks["memori"] = {"status": "not_installed"}
+    
+    return {
+        "status": "healthy" if overall_healthy else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": SERVICE_NAME,
+        "version": SERVICE_VERSION,
+        "checks": checks,
+        "failed_routes": len(app._failed_routes) if hasattr(app, '_failed_routes') else 0,
+    }
 
 
 if __name__ == "__main__":

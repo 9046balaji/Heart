@@ -175,11 +175,28 @@ class SemanticRouterV2:
         # Question patterns
         (r"\b(what\s+are?|why|how|which)\b.*\b(symptom|cause|treatment|medication|drug|side.*effect)\b", 0.80, "Medical question pattern"),
         
+        # "What is X used for?" or "What is X for?" patterns (common medical questions)
+        (r"\bwhat\s+is\b.*\b(used\s+for|for\s+treating|prescribed\s+for|indicated\s+for)\b", 0.85, "Drug purpose question"),
+        
         # Specific conditions
         (r"\b(hypertension|high\s+blood\s+pressure|diabetes|arrhythmia|atrial\s+fibrillation|heart\s+disease|coronary|myocardial)\b", 0.85, "Medical condition"),
         
-        # Medications
+        # Extended list of common medications (cardiovascular, diabetes, common prescriptions)
         (r"\b(lisinopril|enalapril|metoprolol|atenolol|amlodipine|losartan|warfarin|aspirin|clopidogrel)\b", 0.90, "Specific drug query"),
+        (r"\b(metformin|glipizide|glyburide|sitagliptin|jardiance|januvia|ozempic|trulicity|insulin)\b", 0.90, "Diabetes medication"),
+        (r"\b(atorvastatin|simvastatin|rosuvastatin|pravastatin|lipitor|crestor|zocor)\b", 0.90, "Statin medication"),
+        (r"\b(omeprazole|pantoprazole|ranitidine|famotidine|nexium|prilosec)\b", 0.90, "GI medication"),
+        (r"\b(levothyroxine|synthroid|armour|cytomel)\b", 0.90, "Thyroid medication"),
+        (r"\b(prednisone|methylprednisolone|dexamethasone|hydrocortisone)\b", 0.90, "Steroid medication"),
+        (r"\b(gabapentin|pregabalin|lyrica|neurontin)\b", 0.90, "Nerve medication"),
+        (r"\b(sertraline|escitalopram|fluoxetine|paroxetine|citalopram|zoloft|lexapro|prozac)\b", 0.90, "Antidepressant medication"),
+        (r"\b(alprazolam|lorazepam|diazepam|clonazepam|xanax|ativan|valium|klonopin)\b", 0.90, "Anxiolytic medication"),
+        (r"\b(hydrochlorothiazide|furosemide|spironolactone|chlorthalidone|lasix)\b", 0.90, "Diuretic medication"),
+        
+        # Generic medication pattern - ends with common drug suffixes
+        (r"\b\w+(pril|sartan|olol|dipine|statin|prazole|mab|nib|zole|mycin|cillin|cycline)\b", 0.85, "Drug name suffix detected"),
+        
+        # General medication topic
         (r"\b(medication|drug|medicine|pharmaceutical|prescription)\b", 0.75, "General medication topic"),
         
         # Medical symptoms
@@ -189,6 +206,10 @@ class SemanticRouterV2:
         # Guidelines/treatment
         (r"\b(guideline|treatment|therapy|management|dosage|dose)\b", 0.75, "Treatment guidelines"),
         (r"\b(how\s+to.*treat|what.*treatment|what.*medication)\b", 0.80, "Treatment question"),
+        
+        # Health conditions (expanded)
+        (r"\b(disease|disorder|condition|syndrome|illness|ailment)\b", 0.75, "Health condition topic"),
+        (r"\b(diagnos|prognos|therap|patholog|physiolog)\w*\b", 0.80, "Medical terminology"),
     ]
     
     # ═══════════════════════════════════════════════════════════════════════════

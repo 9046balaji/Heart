@@ -173,6 +173,10 @@ class VerifiedWebSearchTool:
                 logger.info("ℹ️ TAVILY_API_KEY not set; will use crawl4ai fallback")
         else:
             logger.warning("⚠️ Tavily not installed; using crawl4ai fallback")
+        
+        # Semaphore to limit concurrent Tavily calls (prevents API throttling)
+        self._tavily_semaphore = asyncio.Semaphore(5)
+        self._tavily_timeout = 15.0  # seconds
     
     async def search(
         self,
@@ -191,6 +195,8 @@ class VerifiedWebSearchTool:
         Returns:
             WebSearchResponse with results and metadata
         """
+        # Sanitize query for API compatibility
+        query = self._sanitize_query(query)
         logger.info(f"🔍 Web search initiated: '{query[:50]}...'")
         
         # 1. Check Redis cache
@@ -275,14 +281,50 @@ class VerifiedWebSearchTool:
         if not self.tavily_client:
             return []
         
-        # Execute in thread pool (Tavily uses synchronous API)
-        response = await asyncio.to_thread(
-            self.tavily_client.search,
-            query=query,
-            search_depth="advanced",
-            include_domains=VERIFIED_MEDICAL_DOMAINS,
-            max_results=num_results
-        )
+        # Validate query - Tavily requires non-empty string
+        if not query or not isinstance(query, str):
+            logger.warning("⚠️ Tavily search skipped: empty or invalid query")
+            return []
+        
+        # Clean and validate query
+        clean_query = query.strip()
+        if len(clean_query) < 3:
+            logger.warning(f"⚠️ Tavily search skipped: query too short ({len(clean_query)} chars)")
+            return []
+        
+        # Truncate very long queries (Tavily has limits)
+        if len(clean_query) > 400:
+            clean_query = clean_query[:400]
+            logger.info(f"📝 Query truncated to 400 chars for Tavily")
+        
+        # Limit max_results to Tavily's maximum (20) - ensure num_results is int
+        try:
+            num_results_int = int(num_results) if num_results is not None else 5
+        except (ValueError, TypeError):
+            num_results_int = 5
+        safe_num_results = min(max(1, num_results_int), 20)
+        
+        # Use semaphore to limit concurrent Tavily calls
+        async with self._tavily_semaphore:
+            try:
+                # Execute in thread pool with explicit timeout
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.tavily_client.search,
+                        query=clean_query,
+                        search_depth="basic",  # Use basic to reduce 422 errors
+                        include_domains=VERIFIED_MEDICAL_DOMAINS[:10],  # Limit domains
+                        max_results=safe_num_results
+                    ),
+                    timeout=self._tavily_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"⚠️ Tavily search timed out after {self._tavily_timeout}s")
+                return []
+            except Exception as e:
+                # Log the actual error for debugging
+                logger.error(f"❌ Tavily API error: {type(e).__name__}: {e}")
+                raise
         
         results = []
         for item in response.get("results", []):
@@ -451,24 +493,19 @@ class VerifiedWebSearchTool:
         
         # Step 1: Search with DDGS and filter URLs
         try:
+            # Ensure num_results is an integer
+            try:
+                safe_num_results = int(num_results) + 5 if num_results else 10
+            except (ValueError, TypeError):
+                safe_num_results = 10
+            
             with DDGS() as ddgs:
-                try:
-                    # Try new ddgs API (query as positional argument)
-                    ddgs_gen = ddgs.text(
-                        str(query),
-                        region="wt-wt",
-                        safesearch="moderate",
-                        max_results=int(num_results + 5)  # Get extra in case some filter
-                    )
-                except TypeError:
-                    # Fallback to old API if needed
-                    logger.warning("Falling back to old ddgs API (keywords=)")
-                    ddgs_gen = ddgs.text(
-                        keywords=str(query),
-                        region="wt-wt",
-                        safesearch="moderate",
-                        max_results=int(num_results + 5)
-                    )
+                # Use ddgs API v9+ - query is a positional argument
+                # The API changed: text(query, ...) not text(keywords=query, ...)
+                ddgs_gen = ddgs.text(
+                    str(query),  # positional argument
+                    max_results=safe_num_results
+                )
                 
                 if ddgs_gen:
                     for r in ddgs_gen:
@@ -610,6 +647,46 @@ class VerifiedWebSearchTool:
             ]
         
         return results
+    
+    def _sanitize_query(self, query: str) -> str:
+        """
+        Sanitize search query for API compatibility.
+        
+        - Removes conversational prefixes (e.g., "Analyze this:")
+        - Truncates to max 400 chars (Tavily limit)
+        - Removes excessive punctuation
+        - Strips leading/trailing whitespace
+        
+        Args:
+            query: Raw query from user/agent
+            
+        Returns:
+            Sanitized query string
+        """
+        import re
+        
+        # Remove conversational prefixes
+        prefixes_to_remove = [
+            r"^analyze\s+this\s*:\s*",
+            r"^search\s+for\s*:\s*",
+            r"^find\s+information\s+(about|on)\s*:\s*",
+            r"^look\s+up\s*:\s*",
+            r"^query\s*:\s*",
+        ]
+        
+        sanitized = query.strip()
+        for prefix in prefixes_to_remove:
+            sanitized = re.sub(prefix, "", sanitized, flags=re.IGNORECASE)
+        
+        # Truncate to 400 chars (Tavily has a limit)
+        if len(sanitized) > 400:
+            sanitized = sanitized[:400]
+            logger.debug(f"Query truncated to 400 chars")
+        
+        # Remove excessive newlines and whitespace
+        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+        
+        return sanitized
     
     def _make_cache_key(self, query: str) -> str:
         """

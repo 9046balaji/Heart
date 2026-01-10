@@ -642,9 +642,19 @@ class MemoryManager:
         import os
         
         # Use MEMORI_DATABASE_URL from environment if not provided
+        # SECURITY: Database URL must be set via environment variable, not hardcoded
+        # Default database name is 'memori_db' (dedicated database for Memori)
+        default_url = (
+            f"postgresql+psycopg2://"
+            f"{os.getenv('DB_USER', 'postgres')}:"
+            f"{os.getenv('DB_PASSWORD', '')}@"
+            f"{os.getenv('DB_HOST', 'localhost')}:"
+            f"{os.getenv('DB_PORT', '5432')}/"
+            f"{os.getenv('MEMORI_DB_NAME', 'memori_db')}"
+        )
         self.database_url = database_url or os.getenv(
             "MEMORI_DATABASE_URL",
-            "postgresql+psycopg2://postgres:95889396@localhost:5432/memori_db"
+            default_url
         )
         self.pool_size = pool_size
         self.cache_size = cache_size
@@ -820,15 +830,51 @@ class MemoryManager:
                         "Memori library not installed. " "Install with: pip install memori"
                     )
 
-                # Create Memori instance with patient isolation
-                memori = Memori(
-                    database_connect=self.database_url,
-                    user_id=patient_id,
-                    session_id=session_id,
-                    conscious_ingest=True,  # Auto-inject relevant memory
-                    schema_init=True,
-                    pool_size=self.pool_size,
-                )
+                # ============================================================================
+                # [FIX] Connect Memori to Local LLM (MedGemma @ localhost:8090)
+                # ============================================================================
+                
+                # Create OpenAI-compatible client pointing to local llama-server
+                try:
+                    from openai import AsyncOpenAI
+                    
+                    local_llm_client = AsyncOpenAI(
+                        base_url="http://127.0.0.1:8090/v1",      # Local MedGemma server
+                        api_key="sk-local-key"                      # Dummy key (ignored by local server)
+                    )
+                    logger.info("✅ Memori: Using local LLM client (localhost:8090)")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to create local LLM client: {e}, falling back to default Memori config")
+                    local_llm_client = None
+                
+                # Configure local embeddings (all-MiniLM-L6-v2)
+                embedding_config = {
+                    "provider": "local",
+                    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+                    "dimension": 384,
+                }
+                
+                # Build Memori initialization kwargs
+                memori_kwargs = {
+                    "database_connect": self.database_url,
+                    "user_id": patient_id,
+                    "session_id": session_id,
+                    "conscious_ingest": True,  # Auto-inject relevant memory
+                    "schema_init": True,
+                    "pool_size": self.pool_size,
+                }
+                
+                # Add local LLM config if available - use Memori's native parameters
+                if local_llm_client:
+                    # Memori accepts these parameters directly, not as llm_config dict
+                    memori_kwargs["base_url"] = "http://127.0.0.1:8090/v1"
+                    memori_kwargs["api_key"] = "sk-local-key"
+                    memori_kwargs["model"] = "medgemma-4b-it"
+                    memori_kwargs["api_type"] = "llama_local"
+                    logger.info("✅ Memori configured with local LLM (localhost:8090)")
+                
+                # Create Memori instance with local configuration
+                memori = Memori(**memori_kwargs)
 
                 # Wrap in domain-aware PatientMemory
                 patient_memory = PatientMemory(memori, patient_id, session_id)

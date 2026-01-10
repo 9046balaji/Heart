@@ -176,15 +176,12 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return False
         
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If already in async context, create task
-                future = asyncio.ensure_future(_async_save())
-                return True  # Optimistic return, actual save is async
-            else:
-                return loop.run_until_complete(_async_save())
+            loop = asyncio.get_running_loop()
+            # If already in async context, create task
+            future = asyncio.ensure_future(_async_save())
+            return True  # Optimistic return, actual save is async
         except RuntimeError:
-            # No event loop, create new one
+            # No event loop running, use asyncio.run
             return asyncio.run(_async_save())
     
     def load_snapshot(self, user_id: str) -> Optional[dict[str, Any]]:
@@ -207,14 +204,12 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return None
         
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Cannot run sync in async context, return None
-                logger.warning("Cannot load Redis snapshot synchronously in async context")
-                return None
-            else:
-                return loop.run_until_complete(_async_load())
+            asyncio.get_running_loop()
+            # Cannot run sync in async context, return None
+            logger.warning("Cannot load Redis snapshot synchronously in async context")
+            return None
         except RuntimeError:
+            # No event loop running, use asyncio.run
             return asyncio.run(_async_load())
     
     def delete_snapshot(self, user_id: str) -> bool:
@@ -234,13 +229,11 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return False
         
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                future = asyncio.ensure_future(_async_delete())
-                return True
-            else:
-                return loop.run_until_complete(_async_delete())
+            asyncio.get_running_loop()
+            future = asyncio.ensure_future(_async_delete())
+            return True
         except RuntimeError:
+            # No event loop running, use asyncio.run
             return asyncio.run(_async_delete())
     
     def list_snapshots(self) -> list[str]:
@@ -260,12 +253,11 @@ class RedisPersistence(MemoryPersistenceBackend):
                 return []
         
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                return []
-            else:
-                return loop.run_until_complete(_async_list())
+            asyncio.get_running_loop()
+            # Cannot list synchronously in async context
+            return []
         except RuntimeError:
+            # No event loop running, use asyncio.run
             return asyncio.run(_async_list())
     
     async def close(self):
@@ -369,7 +361,7 @@ class MemoryManager:
 
     def __init__(
         self,
-        database_connect: str = "sqlite:///memori.db",
+        database_connect: str | None = None,  # PostgreSQL from AppConfig if None
         template: str = "basic",
         mem_prompt: str | None = None,
         conscious_ingest: bool = False,
@@ -916,7 +908,10 @@ class MemoryManager:
             if isinstance(self._persistence_backend, RedisPersistence):
                 import asyncio
                 try:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                     if not loop.is_running():
                         loop.run_until_complete(self._persistence_backend.close())
                 except Exception as e:
@@ -940,5 +935,6 @@ class MemoryManager:
         """Destructor - ensure cleanup."""
         try:
             self.cleanup()
-        except:
-            pass
+        except Exception as e:
+            # Use print as logger might be gone
+            print(f"Error in MemoryManager cleanup: {e}")

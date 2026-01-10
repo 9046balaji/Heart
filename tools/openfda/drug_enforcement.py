@@ -9,6 +9,7 @@ This module handles:
 """
 
 import logging
+import asyncio
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
@@ -23,8 +24,12 @@ class DrugEnforcementQuerier:
     
     def __init__(self, api_key: Optional[str] = None):
         self.client = OpenFDAClient(api_key=api_key)
+
+    async def close(self):
+        """Close the underlying client."""
+        await self.client.close()
     
-    def find_recalls_for_drug(
+    async def find_recalls_for_drug(
         self,
         drug_name: str,
         limit: int = 10,
@@ -43,7 +48,7 @@ class DrugEnforcementQuerier:
         
         # Search for drug name in product description
         search_query = f'openfda.brand_name:"{drug_name}" OR openfda.generic_name:"{drug_name}"'
-        result = self.client.search_drug_enforcement(search_query, limit=limit)
+        result = await self.client.search_drug_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No recalls found for {drug_name}")
@@ -52,7 +57,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} recall entries")
         return result.results
     
-    def find_active_recalls(
+    async def find_active_recalls(
         self,
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
@@ -69,7 +74,7 @@ class DrugEnforcementQuerier:
         
         # Search for ongoing recalls
         search_query = 'status:"Ongoing"'
-        result = self.client.search_drug_enforcement(
+        result = await self.client.search_drug_enforcement(
             search_query,
             limit=limit,
             sort="-recall_initiation_date"  # Most recent first
@@ -82,7 +87,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} active recalls")
         return result.results
     
-    def find_recalls_by_classification(
+    async def find_recalls_by_classification(
         self,
         classification: str,  # "Class I", "Class II", or "Class III"
         limit: int = 20,
@@ -105,7 +110,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Searching {classification} recalls...")
         
         search_query = f'classification:"{classification}"'
-        result = self.client.search_drug_enforcement(
+        result = await self.client.search_drug_enforcement(
             search_query,
             limit=limit,
             sort="-recall_initiation_date"
@@ -118,7 +123,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} {classification} recalls")
         return result.results
     
-    def find_recalls_by_reason(
+    async def find_recalls_by_reason(
         self,
         reason: str,
         limit: int = 10,
@@ -136,7 +141,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Searching recalls with reason: {reason}")
         
         search_query = f'recall_reason:"{reason}"'
-        result = self.client.search_drug_enforcement(search_query, limit=limit)
+        result = await self.client.search_drug_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No recalls found with reason {reason}")
@@ -145,7 +150,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} recalls with reason {reason}")
         return result.results
     
-    def find_nationwide_recalls(
+    async def find_nationwide_recalls(
         self,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
@@ -153,7 +158,7 @@ class DrugEnforcementQuerier:
         logger.info("Searching nationwide recalls...")
         
         search_query = 'distribution_pattern:"Nationwide"'
-        result = self.client.search_drug_enforcement(
+        result = await self.client.search_drug_enforcement(
             search_query,
             limit=limit,
             sort="-recall_initiation_date"
@@ -166,7 +171,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} nationwide recalls")
         return result.results
     
-    def find_recent_recalls(
+    async def find_recent_recalls(
         self,
         days: int = 30,
         limit: int = 20,
@@ -192,7 +197,7 @@ class DrugEnforcementQuerier:
         end_str = end_date.strftime("%Y%m%d")
         
         search_query = f'recall_initiation_date:[{start_str} TO {end_str}]'
-        result = self.client.search_drug_enforcement(
+        result = await self.client.search_drug_enforcement(
             search_query,
             limit=limit,
             sort="-recall_initiation_date"
@@ -205,7 +210,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} recalls in last {days} days")
         return result.results
     
-    def find_recalls_by_manufacturer(
+    async def find_recalls_by_manufacturer(
         self,
         manufacturer_name: str,
         limit: int = 10,
@@ -214,7 +219,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Searching recalls by manufacturer: {manufacturer_name}")
         
         search_query = f'openfda.manufacturer_name:"{manufacturer_name}"'
-        result = self.client.search_drug_enforcement(search_query, limit=limit)
+        result = await self.client.search_drug_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No recalls found for manufacturer {manufacturer_name}")
@@ -223,7 +228,7 @@ class DrugEnforcementQuerier:
         logger.info(f"Found {len(result.results)} recalls by {manufacturer_name}")
         return result.results
     
-    def check_drug_safety(
+    async def check_drug_safety(
         self,
         drug_name: str,
     ) -> Dict[str, Any]:
@@ -240,7 +245,7 @@ class DrugEnforcementQuerier:
         """
         logger.info(f"Performing safety check for {drug_name}...")
         
-        recalls = self.find_recalls_for_drug(drug_name, limit=50)
+        recalls = await self.find_recalls_for_drug(drug_name, limit=50)
         
         class_i_count = sum(1 for r in recalls if r.get('classification') == 'Class I')
         active_count = sum(1 for r in recalls if r.get('status') == 'Ongoing')
@@ -267,8 +272,12 @@ class FoodEnforcementQuerier:
     
     def __init__(self, api_key: Optional[str] = None):
         self.client = OpenFDAClient(api_key=api_key)
+
+    async def close(self):
+        """Close the underlying client."""
+        await self.client.close()
     
-    def find_food_recalls(
+    async def find_food_recalls(
         self,
         product_name: str,
         limit: int = 10,
@@ -277,7 +286,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Searching food recalls for: {product_name}")
         
         search_query = f'product_description:"{product_name}"'
-        result = self.client.search_food_enforcement(search_query, limit=limit)
+        result = await self.client.search_food_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No food recalls found for {product_name}")
@@ -286,7 +295,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Found {len(result.results)} food recall entries")
         return result.results
     
-    def find_active_food_recalls(
+    async def find_active_food_recalls(
         self,
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
@@ -294,7 +303,7 @@ class FoodEnforcementQuerier:
         logger.info("Searching active food recalls...")
         
         search_query = 'status:"Ongoing"'
-        result = self.client.search_food_enforcement(
+        result = await self.client.search_food_enforcement(
             search_query,
             limit=limit,
             sort="-recall_initiation_date"
@@ -307,7 +316,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Found {len(result.results)} active food recalls")
         return result.results
     
-    def find_recalls_by_reason(
+    async def find_recalls_by_reason(
         self,
         reason: str,
         limit: int = 10,
@@ -316,7 +325,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Searching food recalls with reason: {reason}")
         
         search_query = f'recall_reason:"{reason}"'
-        result = self.client.search_food_enforcement(search_query, limit=limit)
+        result = await self.client.search_food_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No food recalls found with reason {reason}")
@@ -325,7 +334,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Found {len(result.results)} food recalls with reason {reason}")
         return result.results
     
-    def find_nationwide_food_recalls(
+    async def find_nationwide_food_recalls(
         self,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
@@ -333,7 +342,7 @@ class FoodEnforcementQuerier:
         logger.info("Searching nationwide food recalls...")
         
         search_query = 'distribution_pattern:"Nationwide"'
-        result = self.client.search_food_enforcement(search_query, limit=limit)
+        result = await self.client.search_food_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning("No nationwide food recalls found")
@@ -342,7 +351,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Found {len(result.results)} nationwide food recalls")
         return result.results
     
-    def find_recalls_by_allergen(
+    async def find_recalls_by_allergen(
         self,
         allergen: str,
         limit: int = 10,
@@ -351,7 +360,7 @@ class FoodEnforcementQuerier:
         logger.info(f"Searching food recalls due to {allergen}...")
         
         search_query = f'reason_for_recall:"{allergen}"'
-        result = self.client.search_food_enforcement(search_query, limit=limit)
+        result = await self.client.search_food_enforcement(search_query, limit=limit)
         
         if not result.success:
             logger.warning(f"No food recalls found due to {allergen}")
@@ -364,34 +373,43 @@ class FoodEnforcementQuerier:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
-    # Test drug enforcement
-    print("Testing Drug Enforcement Queries")
-    print("=" * 50)
-    
-    enforcer = DrugEnforcementQuerier()
-    
-    # Test: Find recalls for a drug
-    print("\n1. Finding recalls for Metoprolol...")
-    recalls = enforcer.find_recalls_for_drug("Metoprolol", limit=5)
-    print(f"Found {len(recalls)} recalls")
-    
-    # Test: Find active recalls
-    print("\n2. Finding active recalls...")
-    active = enforcer.find_active_recalls(limit=5)
-    print(f"Found {len(active)} active recalls")
-    
-    # Test: Comprehensive safety check
-    print("\n3. Safety check for Aspirin...")
-    safety = enforcer.check_drug_safety("Aspirin")
-    print(f"Safety check results: {safety}")
-    
-    # Test food recalls
-    print("\n\nTesting Food Enforcement Queries")
-    print("=" * 50)
-    
-    food_enforcer = FoodEnforcementQuerier()
-    
-    print("\n1. Finding active food recalls...")
-    active_food = food_enforcer.find_active_food_recalls(limit=3)
-    print(f"Found {len(active_food)} active food recalls")
+    async def run_tests():
+        # Test drug enforcement
+        print("Testing Drug Enforcement Queries")
+        print("=" * 50)
+        
+        enforcer = DrugEnforcementQuerier()
+        
+        try:
+            # Test: Find recalls for a drug
+            print("\n1. Finding recalls for Metoprolol...")
+            recalls = await enforcer.find_recalls_for_drug("Metoprolol", limit=5)
+            print(f"Found {len(recalls)} recalls")
+            
+            # Test: Find active recalls
+            print("\n2. Finding active recalls...")
+            active = await enforcer.find_active_recalls(limit=5)
+            print(f"Found {len(active)} active recalls")
+            
+            # Test: Comprehensive safety check
+            print("\n3. Safety check for Aspirin...")
+            safety = await enforcer.check_drug_safety("Aspirin")
+            print(f"Safety check results: {safety}")
+        finally:
+            await enforcer.close()
+        
+        # Test food recalls
+        print("\n\nTesting Food Enforcement Queries")
+        print("=" * 50)
+        
+        food_enforcer = FoodEnforcementQuerier()
+        
+        try:
+            print("\n1. Finding active food recalls...")
+            active_food = await food_enforcer.find_active_food_recalls(limit=3)
+            print(f"Found {len(active_food)} active food recalls")
+        finally:
+            await food_enforcer.close()
+
+    asyncio.run(run_tests())
 

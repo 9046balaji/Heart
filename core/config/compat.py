@@ -42,10 +42,9 @@ class SettingsCompat:
         db = self._config.database
         if db.backend == "mysql":
             return f"mysql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
-        elif db.backend == "postgres":
-            return f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
         else:
-            return f"sqlite:///./nlp_cache.db"
+            # Default to PostgreSQL
+            return f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
     
     @property
     def DB_POOL_MIN_SIZE(self) -> int:

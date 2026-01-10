@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Header
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import timedelta, datetime
 import logging
@@ -46,9 +46,15 @@ class Token(BaseModel):
     refresh_token: Optional[str] = None
 
 class UserResponse(BaseModel):
-    id: str
+    id: str  # Accepts int, converts to str
     email: EmailStr
     name: str
+    
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_id_to_string(cls, v):
+        """Convert integer id to string for response serialization."""
+        return str(v) if v is not None else v
 
 @router.post("/register", response_model=Token)
 async def register(user: UserCreate, db: 'AuthDatabaseService' = Depends(get_auth_db)):

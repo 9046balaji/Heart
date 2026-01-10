@@ -533,6 +533,10 @@ def get_request_id() -> str:
     return request_id_context.get()
 
 
+# Alias for compatibility
+get_correlation_id = get_request_id
+
+
 def get_patient_id() -> Optional[str]:
     """Get current patient ID from context."""
     return patient_id_context.get() or None
@@ -541,3 +545,73 @@ def get_patient_id() -> Optional[str]:
 def get_session_id() -> str:
     """Get current session ID."""
     return session_id_context.get() or "default"
+
+
+def get_structured_logger(name: str = "app") -> logging.Logger:
+    """
+    Get a logger that automatically includes correlation ID in all log entries.
+    
+    Usage:
+        log = get_structured_logger("orchestrator")
+        log.info("Processing query", extra={"query": query[:50]})
+        
+        # Output: 2026-01-10 15:00:00 | orchestrator | INFO | [corr_id=abc123] Processing query | query="What is..."
+    
+    Returns:
+        Logger configured with request context
+    """
+    class CorrelationIDFilter(logging.Filter):
+        """Filter that adds correlation ID to log records."""
+        
+        def filter(self, record):
+            record.correlation_id = request_id_context.get() or "-"
+            record.patient_id = patient_id_context.get() or "-"
+            record.session_id = session_id_context.get() or "default"
+            return True
+    
+    log = logging.getLogger(name)
+    
+    # Add filter if not already added
+    filter_names = [f.name for f in log.filters if hasattr(f, 'name')]
+    if "correlation_id_filter" not in filter_names:
+        corr_filter = CorrelationIDFilter()
+        corr_filter.name = "correlation_id_filter"
+        log.addFilter(corr_filter)
+    
+    return log
+
+
+def log_with_context(
+    level: str,
+    message: str,
+    logger_name: str = "app",
+    **extra_fields
+) -> None:
+    """
+    Log a message with automatic correlation ID injection.
+    
+    Usage:
+        log_with_context("info", "Processing query", query_hash="abc123")
+        log_with_context("error", "Query failed", error=str(e))
+    
+    Args:
+        level: Log level (debug, info, warning, error, critical)
+        message: Log message
+        logger_name: Logger name
+        **extra_fields: Additional fields to include
+    """
+    log = get_structured_logger(logger_name)
+    
+    # Build context-aware message
+    context = {
+        "correlation_id": request_id_context.get() or "-",
+        "patient_id": patient_id_context.get() or "-",
+        **extra_fields
+    }
+    
+    context_str = " | ".join(f"{k}={v}" for k, v in context.items() if v != "-")
+    full_message = f"[{context_str}] {message}" if context_str else message
+    
+    log_method = getattr(log, level.lower(), log.info)
+    log_method(full_message)
+

@@ -475,7 +475,11 @@ class ONNXEmbeddingService(BaseEmbeddingService):
                 # Also update MultiTier cache in background if available
                 if self._use_multi_tier and self._multi_tier_cache:
                     try:
-                        loop = asyncio.get_event_loop()
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
                         if loop.is_running():
                             asyncio.create_task(self._set_to_cache_async(cache_key, embedding))
                         else:
@@ -664,7 +668,11 @@ class ONNXEmbeddingService(BaseEmbeddingService):
         # Also clear MultiTierCache if available
         if self._use_multi_tier and self._multi_tier_cache:
             try:
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 if loop.is_running():
                     asyncio.create_task(self._multi_tier_cache.clear())
                 else:
@@ -745,7 +753,11 @@ class ONNXEmbeddingService(BaseEmbeddingService):
         """
         import concurrent.futures
         
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         
         # Run sync embed_batch in thread pool to avoid blocking
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:

@@ -332,43 +332,60 @@ class EnhancedPIIScrubber:
         # This avoids loading a second copy of the spaCy model
         if self.use_presidio and self.nlp:
             try:
-                from presidio_analyzer.nlp_engine import SpacyNlpEngine
+                from presidio_analyzer.nlp_engine import NlpEngineProvider, NerModelConfiguration
                 
-                # Create SpacyNlpEngine with the already-loaded spaCy model
-                # This eliminates ~2s startup overhead from duplicate model loading
-                shared_nlp_engine = SpacyNlpEngine(nlp={"en": self.nlp})
+                # Configure NER model to ignore non-PII entity types
+                # This prevents warnings for unmapped entity types like PRODUCT, CARDINAL, etc.
+                ner_model_config = NerModelConfiguration(
+                    labels_to_ignore=[
+                        "PRODUCT", "PERCENT", "CARDINAL", "QUANTITY", "ORDINAL", 
+                        "LANGUAGE", "MONEY", "EVENT", "FAC", "GPE", "LAW", 
+                        "NORP", "ORG", "WORK_OF_ART"
+                    ]
+                )
                 
-                # Initialize AnalyzerEngine with configuration to suppress noisy entity warnings
-                # IMPORTANT: Suppress warnings for unmapped entity types (CARDINAL, ID_NUMBER, WORK_OF_ART, etc.)
+                # Use NlpEngineProvider with NerModelConfiguration embedded in the model config
+                # NOTE: ner_model_configuration goes INSIDE the model dict, not at the top level
+                nlp_configuration = {
+                    "nlp_engine_name": "spacy",
+                    "models": [{
+                        "lang_code": "en", 
+                        "model_name": "en_core_web_trf",
+                        "ner_model_configuration": ner_model_config
+                    }],
+                }
+                nlp_engine = NlpEngineProvider(nlp_configuration=nlp_configuration).create_engine()
+                
+                # Initialize AnalyzerEngine
                 import logging as logging_module
                 presidio_logger = logging_module.getLogger("presidio_analyzer")
                 presidio_logger.setLevel(logging_module.WARNING)  # Only show warnings+, suppress debug messages
                 
+                # NOTE: NerModelConfiguration is passed via NlpEngineProvider, not AnalyzerEngine
+                # The NLP engine already has the labels_to_ignore configured
                 self.analyzer = AnalyzerEngine(
-                    nlp_engine=shared_nlp_engine,
+                    nlp_engine=nlp_engine,
                     supported_languages=["en"],
-                    # Suppress warnings for entity types not mapped to Presidio entities
-                    # These are common in medical text but not actual PII
                     default_score_threshold=0.5
                 )
                 
                 # Configure which entity types to ignore in medical documents
-                # This reduces "not mapped to a Presidio entity" warnings
-                from presidio_analyzer.predefined_recognizers import UNMAPPED_ENTITIES
+                # These are common entity types that spaCy detects but are NOT PII
+                # Suppresses "not mapped to a Presidio entity" warnings
                 labels_to_ignore = ["PRODUCT", "PERCENT", "CARDINAL", "QUANTITY", "ORDINAL", "LANGUAGE"]
                 
                 # Suppress warnings for these entity types
                 import logging as logging_module
                 presidio_analyzer_logger = logging_module.getLogger("presidio_analyzer")
-                old_filter = presidio_analyzer_logger.addFilter(
+                presidio_analyzer_logger.addFilter(
                     lambda record: not any(label in record.getMessage() for label in labels_to_ignore)
                 )
                 
                 self.anonymizer = AnonymizerEngine()
-                logger.info(f"✅ Presidio engine initialized with SHARED spaCy model (latency optimized)")
-                logger.info(f"   Suppressing warnings for unmapped entity types in medical text")
+                logger.info(f"✅ Presidio engine initialized with NerModelConfiguration (PRODUCT/CARDINAL/QUANTITY ignored)")
+                logger.info(f"   Drug names and numbers will NOT be redacted")
             except Exception as e:
-                logger.warning(f"Failed to initialize Presidio with shared model: {e}. Trying standard init...")
+                logger.warning(f"Failed to initialize Presidio with NlpEngineProvider: {e}. Trying standard init...")
                 try:
                     # Fallback to standard initialization
                     model_name = "en_core_web_trf" 
@@ -459,7 +476,13 @@ class EnhancedPIIScrubber:
                         entities=pii_entities
                     )
                     
-                    labels_to_ignore = {"CARDINAL", "ID_NUMBER", "WORK_OF_ART", "QUANTITY", "ORDINAL", "LANGUAGE"}
+                    # Labels to ignore - these are not PII and should not be redacted
+                    # PRODUCT is often triggered on drug names which we need to preserve
+                    labels_to_ignore = {
+                        "CARDINAL", "ID_NUMBER", "WORK_OF_ART", "QUANTITY", 
+                        "ORDINAL", "LANGUAGE", "PRODUCT", "PERCENT", "MONEY",
+                        "EVENT", "FAC", "GPE", "LAW", "NORP", "ORG"
+                    }
                     filtered_results = []
                     
                     for r in results:

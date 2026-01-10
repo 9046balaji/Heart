@@ -475,7 +475,11 @@ Please provide a comprehensive and accurate answer based on the context provided
         **kwargs
     ) -> str:
         """Synchronous version of aquery"""
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         return loop.run_until_complete(self.aquery(query, mode=mode, **kwargs))
     
     def query_with_multimodal(
@@ -486,7 +490,11 @@ Please provide a comprehensive and accurate answer based on the context provided
         **kwargs
     ) -> str:
         """Synchronous version of aquery_with_multimodal"""
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         return loop.run_until_complete(
             self.aquery_with_multimodal(query, multimodal_content, mode=mode, **kwargs)
         )

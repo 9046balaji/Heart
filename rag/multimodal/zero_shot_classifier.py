@@ -149,8 +149,8 @@ Alternatives: [Cat1: 0.X, Cat2: 0.Y]
             elif line.startswith("Confidence:"):
                 try:
                     confidence = float(line.split(":", 1)[1].strip())
-                except:
-                    pass
+                except ValueError as e:
+                    logger.debug(f"Could not parse confidence value: {e}")
             elif line.startswith("Reasoning:"):
                 reasoning = line.split(":", 1)[1].strip()
             elif line.startswith("Visual Findings:"):

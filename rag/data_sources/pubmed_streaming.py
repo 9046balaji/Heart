@@ -41,6 +41,8 @@ from rag.data_sources.models import (
 logger = logging.getLogger(__name__)
 
 
+
+
 @dataclass
 class StreamingCheckpoint:
     """Tracks progress through PubMed dataset for resumable downloads"""
@@ -379,8 +381,8 @@ class PubMedStreamer(DocumentLoader):
         if pub_date:
             try:
                 publication_date = datetime.fromisoformat(pub_date)
-            except:
-                pass
+            except ValueError as e:
+                logger.debug(f"Could not parse publication date '{pub_date}': {e}")
         
         # Infer confidence based on recency
         confidence = self._calculate_confidence(publication_date)

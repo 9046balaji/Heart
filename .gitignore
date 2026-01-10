@@ -16,6 +16,9 @@ create_table.py
 
 .env
 .env.example
+run_main.py
+required.txt
+pytest.ini
 
 web_extractions
 web_extractions_demo
@@ -45,3 +48,5 @@ dump.rdb
 app_run_5.log
 core_postgresql_schema.sql
 .python-version
+
+Docker

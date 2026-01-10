@@ -13,6 +13,7 @@ Key Concepts:
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 
 from tools.openfda.api_client import OpenFDAClient
@@ -37,7 +38,7 @@ class DrugAdverseEventService:
     
     Example Usage:
         >>> service = DrugAdverseEventService()
-        >>> result = service.get_top_side_effects("Lipitor")
+        >>> result = await service.get_top_side_effects("Lipitor")
         >>> print(result["formatted"])
         📊 Top 10 Reported Side Effects for LIPITOR:
         1. Myalgia: 12,500 reports
@@ -61,12 +62,16 @@ class DrugAdverseEventService:
         """
         self.client = OpenFDAClient(api_key=api_key)
         logger.info("DrugAdverseEventService initialized")
+
+    async def close(self):
+        """Close the underlying client."""
+        await self.client.close()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # CORE METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def get_top_side_effects(
+    async def get_top_side_effects(
         self,
         drug_name: str,
         limit: int = 10,
@@ -92,7 +97,7 @@ class DrugAdverseEventService:
             - success (bool): Whether the query succeeded
             
         Example:
-            >>> result = service.get_top_side_effects("Lipitor", limit=5)
+            >>> result = await service.get_top_side_effects("Lipitor", limit=5)
             >>> print(result["formatted"])
             📊 Top 5 Reported Side Effects for LIPITOR:
             1. Myalgia: 12,500 reports
@@ -123,7 +128,7 @@ class DrugAdverseEventService:
             "limit": min(limit, 1000)  # API max is 1000
         }
         
-        result = self.client._make_request(self.ENDPOINT, params)
+        result = await self.client._make_request(self.ENDPOINT, params)
         
         # Handle no results
         if not result.success:
@@ -163,7 +168,7 @@ class DrugAdverseEventService:
             "success": True
         }
     
-    def check_specific_reaction(
+    async def check_specific_reaction(
         self,
         drug_name: str,
         reaction: str
@@ -186,7 +191,7 @@ class DrugAdverseEventService:
             - success (bool): Whether the query succeeded
             
         Example:
-            >>> result = service.check_specific_reaction("Lisinopril", "Cough")
+            >>> result = await service.check_specific_reaction("Lisinopril", "Cough")
             >>> print(result["formatted"])
             ✅ YES. There are 45,230 reports linking Lisinopril to Cough.
             
@@ -212,7 +217,7 @@ class DrugAdverseEventService:
             "limit": 1
         }
         
-        result = self.client._make_request(self.ENDPOINT, params)
+        result = await self.client._make_request(self.ENDPOINT, params)
         
         if not result.success or result.meta.get("results", {}).get("total", 0) == 0:
             logger.info(f"No link found between {drug_name} and {reaction}")
@@ -240,7 +245,7 @@ class DrugAdverseEventService:
             "success": True
         }
     
-    def check_severity(
+    async def check_severity(
         self,
         drug_name: str
     ) -> Dict[str, Any]:
@@ -263,7 +268,7 @@ class DrugAdverseEventService:
             - success (bool): Whether the query succeeded
             
         Example (dangerous drug):
-            >>> result = service.check_severity("Warfarin")
+            >>> result = await service.check_severity("Warfarin")
             >>> print(result["formatted"])
             ⚠️ **WARNING: Severe Outcomes Reported for WARFARIN**
             Deaths: 3,240 reports
@@ -272,7 +277,7 @@ class DrugAdverseEventService:
             *(Note: These are raw reports. Causation is not proven.)*
             
         Example (safer drug):
-            >>> result = service.check_severity("Vitamin D")
+            >>> result = await service.check_severity("Vitamin D")
             >>> print(result["formatted"])
             ✅ Vitamin D: No severe outcomes (Death/Hospitalization) found in FDA data.
             
@@ -287,25 +292,25 @@ class DrugAdverseEventService:
         # Check for death reports
         search_death = f'patient.drug.medicinalproduct:"{drug_name.upper()}" AND seriousnessdeath:1'
         params_death = {"search": search_death, "limit": 1}
-        result_death = self.client._make_request(self.ENDPOINT, params_death)
+        result_death = await self.client._make_request(self.ENDPOINT, params_death)
         death_count = result_death.meta.get("results", {}).get("total", 0) if result_death.success else 0
         
         # Check for hospitalization reports
         search_hosp = f'patient.drug.medicinalproduct:"{drug_name.upper()}" AND seriousnesshospitalization:1'
         params_hosp = {"search": search_hosp, "limit": 1}
-        result_hosp = self.client._make_request(self.ENDPOINT, params_hosp)
+        result_hosp = await self.client._make_request(self.ENDPOINT, params_hosp)
         hosp_count = result_hosp.meta.get("results", {}).get("total", 0) if result_hosp.success else 0
         
         # Check for life-threatening
         search_lt = f'patient.drug.medicinalproduct:"{drug_name.upper()}" AND seriousnesslifethreatening:1'
         params_lt = {"search": search_lt, "limit": 1}
-        result_lt = self.client._make_request(self.ENDPOINT, params_lt)
+        result_lt = await self.client._make_request(self.ENDPOINT, params_lt)
         lt_count = result_lt.meta.get("results", {}).get("total", 0) if result_lt.success else 0
         
         # Check for disability
         search_dis = f'patient.drug.medicinalproduct:"{drug_name.upper()}" AND seriousnessdisabling:1'
         params_dis = {"search": search_dis, "limit": 1}
-        result_dis = self.client._make_request(self.ENDPOINT, params_dis)
+        result_dis = await self.client._make_request(self.ENDPOINT, params_dis)
         dis_count = result_dis.meta.get("results", {}).get("total", 0) if result_dis.success else 0
         
         has_severe = (death_count > 0 or hosp_count > 0)
@@ -339,7 +344,7 @@ class DrugAdverseEventService:
     # ADVANCED METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def get_demographic_breakdown(
+    async def get_demographic_breakdown(
         self,
         drug_name: str
     ) -> Dict[str, Any]:
@@ -362,7 +367,7 @@ class DrugAdverseEventService:
             "limit": 10
         }
         
-        result = self.client._make_request(self.ENDPOINT, params)
+        result = await self.client._make_request(self.ENDPOINT, params)
         
         if not result.success:
             logger.warning(f"Could not get demographics for {drug_name}")
@@ -402,7 +407,7 @@ class DrugAdverseEventService:
             "success": True
         }
     
-    def get_reports_by_outcome(
+    async def get_reports_by_outcome(
         self,
         drug_name: str,
         limit: int = 5
@@ -425,7 +430,7 @@ class DrugAdverseEventService:
             "limit": min(limit, 100)
         }
         
-        result = self.client._make_request(self.ENDPOINT, params)
+        result = await self.client._make_request(self.ENDPOINT, params)
         
         if not result.success:
             logger.warning(f"Could not get reports for {drug_name}")
@@ -441,7 +446,7 @@ class DrugAdverseEventService:
             "success": True
         }
     
-    def search_by_reaction(
+    async def search_by_reaction(
         self,
         reaction: str,
         limit: int = 10
@@ -465,7 +470,7 @@ class DrugAdverseEventService:
             "limit": min(limit, 100)
         }
         
-        result = self.client._make_request(self.ENDPOINT, params)
+        result = await self.client._make_request(self.ENDPOINT, params)
         
         if not result.success:
             logger.warning(f"No drugs found for reaction: {reaction}")
@@ -499,7 +504,7 @@ class DrugAdverseEventService:
 # CONVENIENCE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_drug_side_effects(drug_name: str, limit: int = 10) -> str:
+async def get_drug_side_effects(drug_name: str, limit: int = 10) -> str:
     """
     Quick function to get formatted side effects.
     
@@ -511,11 +516,14 @@ def get_drug_side_effects(drug_name: str, limit: int = 10) -> str:
         Formatted string with top side effects
     """
     service = DrugAdverseEventService()
-    result = service.get_top_side_effects(drug_name, limit)
-    return result["formatted"]
+    try:
+        result = await service.get_top_side_effects(drug_name, limit)
+        return result["formatted"]
+    finally:
+        await service.close()
 
 
-def check_drug_reaction(drug_name: str, reaction: str) -> str:
+async def check_drug_reaction(drug_name: str, reaction: str) -> str:
     """
     Quick function to check if a drug causes a specific reaction.
     
@@ -527,11 +535,14 @@ def check_drug_reaction(drug_name: str, reaction: str) -> str:
         Formatted string with verification result
     """
     service = DrugAdverseEventService()
-    result = service.check_specific_reaction(drug_name, reaction)
-    return result["formatted"]
+    try:
+        result = await service.check_specific_reaction(drug_name, reaction)
+        return result["formatted"]
+    finally:
+        await service.close()
 
 
-def check_drug_severity(drug_name: str) -> str:
+async def check_drug_severity(drug_name: str) -> str:
     """
     Quick function to get severity statistics.
     
@@ -542,8 +553,11 @@ def check_drug_severity(drug_name: str) -> str:
         Formatted string with severity alert
     """
     service = DrugAdverseEventService()
-    result = service.check_severity(drug_name)
-    return result["formatted"]
+    try:
+        result = await service.check_severity(drug_name)
+        return result["formatted"]
+    finally:
+        await service.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -553,36 +567,43 @@ def check_drug_severity(drug_name: str) -> str:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
-    print("=" * 60)
-    print("DrugAdverseEventService - Interactive Test")
-    print("=" * 60)
-    
-    service = DrugAdverseEventService()
-    
-    # Test 1: Top side effects
-    print("\n📊 Test 1: Top Side Effects for Lipitor")
-    print("-" * 40)
-    result = service.get_top_side_effects("Lipitor", limit=5)
-    print(result["formatted"])
-    
-    # Test 2: Specific reaction check
-    print("\n🔍 Test 2: Does Lisinopril cause Cough?")
-    print("-" * 40)
-    result = service.check_specific_reaction("Lisinopril", "Cough")
-    print(result["formatted"])
-    
-    # Test 3: Severity check
-    print("\n⚠️ Test 3: Severity Check for Warfarin")
-    print("-" * 40)
-    result = service.check_severity("Warfarin")
-    print(result["formatted"])
-    
-    # Test 4: Demographics
-    print("\n👥 Test 4: Demographics for Aspirin")
-    print("-" * 40)
-    result = service.get_demographic_breakdown("Aspirin")
-    print(result["formatted"])
-    
-    print("\n" + "=" * 60)
-    print("Tests Complete!")
-    print("=" * 60)
+    async def run_tests():
+        print("=" * 60)
+        print("DrugAdverseEventService - Interactive Test")
+        print("=" * 60)
+        
+        service = DrugAdverseEventService()
+        
+        try:
+            # Test 1: Top side effects
+            print("\n📊 Test 1: Top Side Effects for Lipitor")
+            print("-" * 40)
+            result = await service.get_top_side_effects("Lipitor", limit=5)
+            print(result["formatted"])
+            
+            # Test 2: Specific reaction check
+            print("\n🔍 Test 2: Does Lisinopril cause Cough?")
+            print("-" * 40)
+            result = await service.check_specific_reaction("Lisinopril", "Cough")
+            print(result["formatted"])
+            
+            # Test 3: Severity check
+            print("\n⚠️ Test 3: Severity Check for Warfarin")
+            print("-" * 40)
+            result = await service.check_severity("Warfarin")
+            print(result["formatted"])
+            
+            # Test 4: Demographics
+            print("\n👥 Test 4: Demographics for Aspirin")
+            print("-" * 40)
+            result = await service.get_demographic_breakdown("Aspirin")
+            print(result["formatted"])
+            
+        finally:
+            await service.close()
+        
+        print("\n" + "=" * 60)
+        print("Tests Complete!")
+        print("=" * 60)
+
+    asyncio.run(run_tests())

@@ -1,24 +1,23 @@
 """
-Graph Interaction Checker with Lazy-Loading SQLite Fallback
+Graph Interaction Checker with PostgreSQL Fallback
 
-Startup: <100ms (just open connection)
+Startup: <100ms (uses existing connection pool)
 Lookup: <20ms (indexed SQL) or <1μs (LRU cache)
 Memory: 2-5MB (vs 50-100MB with full graph)
 
-Key Changes from Original:
-1. __init__: self.fallback_db = None (no hydration)
-2. _init_fallback_db(): Opens SQLite connection (fast)
-3. _create_db_from_json(): Creates indexed database
-4. _query_interaction(): @lru_cache decorated for fast lookups
+Key Changes:
+1. __init__: Uses PostgreSQL connection pool (shared with app)
+2. _init_fallback_db(): Verifies PostgreSQL table exists
+3. _populate_from_json(): Populates PostgreSQL from JSON (one-time migration)
+4. _query_interaction(): Cached for fast lookups
 5. check_interactions(): Uses lazy fallback seamlessly
 """
 
 import json
-import sqlite3
 import logging
+import threading
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
-from functools import lru_cache
 import asyncio
 
 # Import Neo4j service interface if available
@@ -28,6 +27,13 @@ try:
 except ImportError:
     NEO4J_AVAILABLE = False
 
+# Import PostgreSQL database
+try:
+    from core.database.postgres_db import PostgresDatabase
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 from rag.knowledge_graph.phonetic_matcher import PhoneticMatcher
@@ -35,25 +41,31 @@ from rag.knowledge_graph.phonetic_matcher import PhoneticMatcher
 
 class GraphInteractionChecker:
     """
-    Drug interaction checker with lazy-loaded SQLite fallback.
+    Drug interaction checker with PostgreSQL fallback.
     
     Three-tier strategy:
-    1. Try Neo4j (primary)
-    2. Fall back to SQLite (fast, persistent)
+    1. Try Neo4j (primary graph database)
+    2. Fall back to PostgreSQL (fast, persistent, shared pool)
     3. Explicit error if both unavailable
     """
     
     MIN_FALLBACK_EDGES = 100
-    DB_FILENAME = "interactions.db"
     
-    def __init__(self, use_neo4j: bool = True, interactions_file: Optional[str] = None, neo4j_service: Optional[object] = None):
+    # Class-level cache to avoid memory issues with @lru_cache on instance methods
+    # The @lru_cache decorator includes 'self' in cache key, causing memory leaks
+    _interaction_cache: Dict[Tuple[str, str], Optional[Dict]] = {}
+    _CACHE_MAX_SIZE = 100
+    
+    def __init__(self, use_neo4j: bool = True, interactions_file: Optional[str] = None, 
+                 neo4j_service: Optional[object] = None, postgres_db: Optional[object] = None):
         """
-        Initialize with lazy-loading fallback (NO HYDRATION).
+        Initialize with PostgreSQL fallback (shared connection pool).
         
         Args:
             use_neo4j: Whether to attempt Neo4j connections
-            interactions_file: Path to interactions.json
+            interactions_file: Path to interactions.json (for initial data population)
             neo4j_service: Injected Neo4j service instance
+            postgres_db: Injected PostgreSQL database instance (shared pool)
         """
         self.use_neo4j = use_neo4j and NEO4J_AVAILABLE
         self.neo4j_service = neo4j_service
@@ -62,25 +74,24 @@ class GraphInteractionChecker:
             try:
                 self.neo4j_service = Neo4jService()
             except Exception as e:
-                logger.warning(f"Failed to initialize Neo4j: {e}. Falling back to local graph.")
+                logger.warning(f"Failed to initialize Neo4j: {e}. Falling back to PostgreSQL.")
                 self.use_neo4j = False
 
         self.interactions_file = interactions_file or self._find_interactions_file()
         
-        # Lazy-load SQLite (just open connection, don't hydrate)
-        self.fallback_db: Optional[sqlite3.Connection] = None
+        # Use injected PostgreSQL or create new instance
+        self.postgres_db: Optional[PostgresDatabase] = postgres_db
+        self._postgres_available = POSTGRES_AVAILABLE
         
-        try:
-            self._init_fallback_db()  # <100ms: just opens connection
-            logger.info(
-                f"✅ GraphInteractionChecker initialized (lazy-load mode): "
-                f"Neo4j {'enabled' if self.use_neo4j else 'disabled'}"
-            )
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize fallback database: {e}")
-            # Don't raise here to allow partial functionality if DB fails, 
-            # but in strict mode we might want to raise.
-            # For now, we log error.
+        # Background initialization flag (prevents blocking startup)
+        self._init_complete = threading.Event()
+        self._init_error: Optional[str] = None
+        
+        logger.info(
+            f"✅ GraphInteractionChecker initialized: "
+            f"Neo4j {'enabled' if self.use_neo4j else 'disabled'}, "
+            f"PostgreSQL fallback {'available' if POSTGRES_AVAILABLE else 'unavailable'}"
+        )
         
         # P1.3: Warm up Neo4j connection pool (fire-and-forget)
         if self.use_neo4j and self.neo4j_service:
@@ -89,6 +100,21 @@ class GraphInteractionChecker:
             except RuntimeError:
                 # No event loop running, skip async warmup
                 logger.debug("P1.3: Skipping Neo4j warmup (no event loop)")
+    
+    async def initialize_fallback(self) -> None:
+        """
+        Initialize PostgreSQL fallback asynchronously.
+        
+        Should be called during app startup (after PostgreSQL pool is ready).
+        """
+        try:
+            await self._init_fallback_db()
+            logger.info("✅ PostgreSQL fallback initialization complete")
+        except Exception as e:
+            self._init_error = str(e)
+            logger.error(f"❌ PostgreSQL fallback init failed: {e}")
+        finally:
+            self._init_complete.set()
     
     async def _warmup_neo4j(self) -> None:
         """P1.3: Warm up Neo4j connection pool with lightweight query.
@@ -110,63 +136,57 @@ class GraphInteractionChecker:
         except Exception as e:
             logger.debug(f"P1.3: Neo4j warmup skipped: {e}")
     
-    def _init_fallback_db(self) -> None:
+    async def _init_fallback_db(self) -> None:
         """
-        Initialize or connect to SQLite fallback.
+        Initialize PostgreSQL fallback connection.
         
-        FAST: Just opens connection (no data loading)
+        Uses shared connection pool (fast, no new connections).
         
         Performance:
-        - First run: Creates DB from JSON (2-3s, one-time)
-        - Subsequent runs: Opens existing DB (<100ms)
+        - First run: Populates from JSON if table empty (2-3s, one-time)
+        - Subsequent runs: Just verifies table exists (<100ms)
         """
+        if not self._postgres_available:
+            logger.warning("PostgreSQL not available for fallback")
+            return
+            
         try:
-            # Open connection (fast)
-            self.fallback_db = sqlite3.connect(self.DB_FILENAME, timeout=5.0)
-            self.fallback_db.row_factory = sqlite3.Row
+            # Initialize PostgreSQL if not already done
+            if self.postgres_db is None:
+                self.postgres_db = PostgresDatabase()
+                await self.postgres_db.initialize()
             
-            # Enable WAL mode for concurrent access
-            self.fallback_db.execute("PRAGMA journal_mode=WAL")
+            if not self.postgres_db.initialized:
+                await self.postgres_db.initialize()
             
-            # Check if table exists
-            cursor = self.fallback_db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='interactions'"
-            )
-            
-            if cursor.fetchone() is None:
-                # First run: create database from JSON
-                logger.info("📝 Creating interactions database from JSON (one-time)...")
-                self._create_db_from_json()
-            else:
-                # Verify data
-                count = self.fallback_db.execute(
-                    "SELECT COUNT(*) FROM interactions"
-                ).fetchone()[0]
+            # Check if table exists and has data
+            async with self.postgres_db.get_connection() as conn:
+                count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM drug_interactions"
+                )
                 
-                if count < self.MIN_FALLBACK_EDGES:
-                    # If existing DB is too small, recreate it
-                    logger.warning(f"⚠️ Insufficient interactions in DB ({count}). Recreating...")
-                    self._create_db_from_json()
+                if count is None or count < self.MIN_FALLBACK_EDGES:
+                    # First run or insufficient data: populate from JSON
+                    logger.info("📝 Populating drug_interactions from JSON (one-time)...")
+                    await self._populate_from_json(conn)
                 else:
-                    logger.info(f"✅ Loaded fallback database: {count} interactions")
+                    logger.info(f"✅ PostgreSQL fallback ready: {count} interactions")
         
         except Exception as e:
-            logger.error(f"Failed to initialize fallback database: {e}")
+            logger.error(f"Failed to initialize PostgreSQL fallback: {e}")
+            self._postgres_available = False
             raise
     
-    def _create_db_from_json(self) -> None:
+    async def _populate_from_json(self, conn) -> None:
         """
-        Create SQLite database from interactions.json.
+        Populate PostgreSQL drug_interactions table from JSON file.
         
-        Runs only once on first startup.
+        Runs only once on first startup or when table is empty.
         """
         # Load JSON
         if not self.interactions_file.exists():
-             # If file doesn't exist, we can't create DB. 
-             # But we shouldn't crash if we are just trying to init.
-             # However, if we need it, we need it.
-             logger.error(f"interactions.json not found at {self.interactions_file}")
-             return
+            logger.error(f"interactions.json not found at {self.interactions_file}")
+            return
 
         with open(self.interactions_file, 'r') as f:
             data = json.load(f)
@@ -174,33 +194,21 @@ class GraphInteractionChecker:
         interactions = data.get('interactions', [])
         
         if len(interactions) < self.MIN_FALLBACK_EDGES:
-             # Just log warning, don't crash, maybe it's a test file
-             logger.warning(f"Low interaction count in JSON: {len(interactions)}")
+            logger.warning(f"Low interaction count in JSON: {len(interactions)}")
         
-        # Create table (drop if exists to be safe)
-        self.fallback_db.execute("DROP TABLE IF EXISTS interactions")
-        self.fallback_db.execute("""
-            CREATE TABLE interactions (
-                id INTEGER PRIMARY KEY,
-                drug_a TEXT NOT NULL,
-                drug_b TEXT NOT NULL,
-                severity TEXT NOT NULL,
-                category TEXT,
-                mechanism TEXT,
-                recommendation TEXT,
-                evidence_level TEXT,
-                source TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # Clear existing data
+        await conn.execute("DELETE FROM drug_interactions")
         
-        # Insert all interactions
-        for interaction in interactions:
-            self.fallback_db.execute("""
-                INSERT INTO interactions 
-                (drug_a, drug_b, severity, category, mechanism, recommendation, evidence_level, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+        # Insert all interactions using batch insert for performance
+        insert_query = """
+            INSERT INTO drug_interactions 
+            (drug_a, drug_b, severity, category, mechanism, recommendation, evidence_level, source)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (drug_a, drug_b) DO NOTHING
+        """
+        
+        records = [
+            (
                 interaction['drug_a'].lower(),
                 interaction['drug_b'].lower(),
                 interaction['severity'],
@@ -209,18 +217,12 @@ class GraphInteractionChecker:
                 interaction.get('recommendation', ''),
                 interaction.get('evidence_level', ''),
                 interaction.get('source', ''),
-            ))
+            )
+            for interaction in interactions
+        ]
         
-        # Create indexes for O(1) lookup
-        self.fallback_db.execute(
-            "CREATE INDEX idx_drugs ON interactions(drug_a, drug_b)"
-        )
-        self.fallback_db.execute(
-            "CREATE INDEX idx_severity ON interactions(severity)"
-        )
-        
-        self.fallback_db.commit()
-        logger.info(f"✅ Created database with {len(interactions)} interactions")
+        await conn.executemany(insert_query, records)
+        logger.info(f"✅ Populated PostgreSQL with {len(records)} interactions")
     
     @staticmethod
     def _find_interactions_file() -> Path:
@@ -239,40 +241,74 @@ class GraphInteractionChecker:
         # The init will fail later if needed
         return Path.cwd() / "data" / "interactions.json"
     
-    @lru_cache(maxsize=100)
-    def _query_interaction(self, drug_a: str, drug_b: str) -> Optional[Tuple]:
+    async def _query_interaction(self, drug_a: str, drug_b: str) -> Optional[Dict]:
         """
-        Query fallback database (with LRU cache).
+        Query PostgreSQL fallback database (with class-level cache).
         
         Performance:
         - Cache hit: <1μs
         - Database hit: <20ms (with index)
         
-        The @lru_cache decorator handles the caching.
+        Uses class-level cache instead of @lru_cache to avoid memory leaks.
         """
-        if self.fallback_db is None:
+        # Check class-level cache first
+        cache_key = (drug_a, drug_b)
+        reverse_key = (drug_b, drug_a)  # Bidirectional lookup
+        
+        if cache_key in self._interaction_cache:
+            return self._interaction_cache[cache_key]
+        if reverse_key in self._interaction_cache:
+            return self._interaction_cache[reverse_key]
+        
+        # Wait for initialization to complete (with timeout)
+        if not self._init_complete.wait(timeout=5.0):
+            logger.warning("PostgreSQL fallback init timeout (5s), using Neo4j only")
+            return None
+        
+        if self._init_error:
+            logger.debug(f"PostgreSQL fallback init failed: {self._init_error}")
+            return None
+        
+        if self.postgres_db is None or not self.postgres_db.initialized:
             return None
         
         try:
-            # Bidirectional query (A-B or B-A)
-            cursor = self.fallback_db.execute("""
-                SELECT severity, category, mechanism, recommendation, evidence_level, source
-                FROM interactions
-                WHERE (drug_a = ? AND drug_b = ?) OR (drug_a = ? AND drug_b = ?)
-                LIMIT 1
-            """, (drug_a, drug_b, drug_b, drug_a))
+            # Bidirectional query (A-B or B-A) using PostgreSQL
+            async with self.postgres_db.get_connection() as conn:
+                row = await conn.fetchrow("""
+                    SELECT severity, category, mechanism, recommendation, evidence_level, source
+                    FROM drug_interactions
+                    WHERE (drug_a = $1 AND drug_b = $2) OR (drug_a = $2 AND drug_b = $1)
+                    LIMIT 1
+                """, drug_a, drug_b)
             
-            return cursor.fetchone()
+            if row is None:
+                result = None
+            else:
+                result = {
+                    "severity": row["severity"],
+                    "category": row["category"],
+                    "mechanism": row["mechanism"],
+                    "recommendation": row["recommendation"],
+                    "evidence_level": row["evidence_level"],
+                    "source": row["source"],
+                }
+            
+            # Cache the result (with size limit)
+            if len(self._interaction_cache) < self._CACHE_MAX_SIZE:
+                self._interaction_cache[cache_key] = result
+            
+            return result
         
         except Exception as e:
-            logger.error(f"Database query failed: {e}")
+            logger.error(f"PostgreSQL query failed: {e}")
             return None
     
     async def check_interaction(self, drugs: List[str]) -> Dict:
         """
         Check for interactions between multiple drugs.
         
-        Uses lazy-loaded SQLite with automatic fallback.
+        Uses PostgreSQL with automatic fallback.
         """
         warnings = []
         interactions = []
@@ -334,8 +370,8 @@ class GraphInteractionChecker:
                 result['source'] = 'neo4j'
                 return result
         
-        # Lazy fallback to SQLite
-        return self._check_local(drug_a, drug_b)
+        # Fallback to PostgreSQL
+        return await self._check_local(drug_a, drug_b)
     
     def _are_lookalikes(self, drug_a: str, drug_b: str) -> bool:
         """
@@ -389,29 +425,25 @@ class GraphInteractionChecker:
             if result:
                 return result
         except Exception as e:
-            logger.warning(f"Neo4j unavailable, using fallback: {e}")
+            logger.warning(f"Neo4j unavailable, using PostgreSQL fallback: {e}")
         
         return None
     
-    def _check_local(self, drug_a: str, drug_b: str) -> Optional[Dict]:
+    async def _check_local(self, drug_a: str, drug_b: str) -> Optional[Dict]:
         """
-        Check SQLite fallback with LRU caching.
+        Check PostgreSQL fallback with caching.
         
         Performance: <1μs (cached) or <20ms (DB hit)
         """
-        row = self._query_interaction(drug_a, drug_b)
+        result = await self._query_interaction(drug_a, drug_b)
         
-        if row is None:
+        if result is None:
             return None
         
-        return {
-            "drug_a": drug_a,
-            "drug_b": drug_b,
-            "severity": row[0],
-            "category": row[1],
-            "mechanism": row[2],
-            "recommendation": row[3],
-            "evidence_level": row[4],
-            "source": row[5],
-        }
+        # Add drug names to result
+        result["drug_a"] = drug_a
+        result["drug_b"] = drug_b
+        result["source"] = result.get("source", "postgresql")
+        
+        return result
 

@@ -1132,7 +1132,11 @@ Be strategic and comprehensive in your search planning."""
         """
         try:
             # Run search planning in background if needed
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             search_plan = await loop.run_in_executor(
                 self._background_executor, self.plan_search, query
             )

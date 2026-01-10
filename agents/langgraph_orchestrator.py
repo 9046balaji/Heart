@@ -30,7 +30,7 @@ from core.config.app_config import get_app_config
 
 from tools.semantic_router_v2 import SemanticRouterV2, IntentCategory
 from tools.agentic_tools import (
-    initialize_agent_tools,
+    initialize_agent_tools_new,
     query_sql_db,
     semantic_search_knowledge_base,
     verified_web_search,
@@ -124,7 +124,13 @@ class LangGraphOrchestrator:
         self.vector_store = vector_store or container.vector_store
         self.memory_manager = memory_manager or container.memory_manager
         self.interaction_checker = interaction_checker or container.interaction_checker
-        self.memori_bridge = memori_bridge
+        # Fix: Fall back to container for memori_bridge like other services
+        self.memori_bridge = memori_bridge or getattr(container, 'memori_bridge', None)
+        
+        if self.memori_bridge:
+            logging.info("✅ LangGraphOrchestrator: MemoriRAGBridge injected successfully.")
+        else:
+            logging.warning("⚠️ LangGraphOrchestrator: 'memori_bridge' not available. Memory context will be disabled.")
         
         # Store container reference for dynamic DB fetching
         self.container = container
@@ -139,7 +145,8 @@ class LangGraphOrchestrator:
             getattr(self.container, 'db', None)
         )
         
-        initialize_agent_tools(
+        # Use initialize_agent_tools_new() instead of deprecated initialize_agent_tools()
+        initialize_agent_tools_new(
             self.db_manager, self.llm_gateway, self.vector_store, self.memory_manager, self.interaction_checker, self.memori_bridge
         )
         
@@ -578,17 +585,17 @@ class LangGraphOrchestrator:
                 "2. Use DOUBLE QUOTES for all JSON strings (not single quotes)\n"
                 "3. No text before or after the JSON object\n"
                 "4. The entire response MUST be a single valid JSON object\n"
-                "5. If you cannot provide an answer, use: {\"next\": \"FINISH\", \"final_response\": \"I cannot complete this task\"}\n\n"
+                "5. If you cannot provide an answer, use: {{\"next\": \"FINISH\", \"final_response\": \"I cannot complete this task\"}}\n\n"
                 "REQUIRED JSON STRUCTURE (copy this exactly and fill in values):\n"
-                "{\n"
+                "{{\n"
                 "  \"next\": \"FINISH\",\n"
                 "  \"reasoning\": \"brief explanation\",\n"
                 "  \"final_response\": \"your complete answer here - be specific and detailed\"\n"
-                "}\n\n"
+                "}}\n\n"
                 "EXAMPLES OF VALID RESPONSES:\n"
-                "{\"next\": \"FINISH\", \"reasoning\": \"task complete\", \"final_response\": \"The answer is X\"}\n"
-                "{\"next\": \"FINISH\", \"reasoning\": \"synthesis done\", \"final_response\": \"Based on the worker analysis, Y\"}\n\n"
-                "Remember: Start with { and end with } - nothing else in your response."
+                "{{\"next\": \"FINISH\", \"reasoning\": \"task complete\", \"final_response\": \"The answer is X\"}}\n"
+                "{{\"next\": \"FINISH\", \"reasoning\": \"synthesis done\", \"final_response\": \"Based on the worker analysis, Y\"}}\n\n"
+                "Remember: Your response must be a valid JSON object only - no other text."
             )
         else:
             # First call - route to appropriate worker
@@ -603,15 +610,15 @@ class LangGraphOrchestrator:
                 "4. The entire response MUST be a single valid JSON object\n"
                 "5. Choose the SINGLE BEST worker for this request\n\n"
                 "REQUIRED JSON STRUCTURE (copy this exactly and fill in values):\n"
-                "{\n"
+                "{{\n"
                 "  \"next\": \"worker_name\",\n"
                 "  \"reasoning\": \"brief explanation for routing choice\"\n"
-                "}\n\n"
+                "}}\n\n"
                 "EXAMPLES OF VALID RESPONSES:\n"
-                "{\"next\": \"drug_expert\", \"reasoning\": \"user asking about medication interactions\"}\n"
-                "{\"next\": \"medical_analyst\", \"reasoning\": \"request for symptom analysis\"}\n"
-                "{\"next\": \"clinical_reasoning\", \"reasoning\": \"complex diagnostic reasoning needed\"}\n\n"
-                "Remember: Start with { and end with } - nothing else in your response."
+                "{{\"next\": \"drug_expert\", \"reasoning\": \"user asking about medication interactions\"}}\n"
+                "{{\"next\": \"medical_analyst\", \"reasoning\": \"request for symptom analysis\"}}\n"
+                "{{\"next\": \"clinical_reasoning\", \"reasoning\": \"complex diagnostic reasoning needed\"}}\n\n"
+                "Remember: Your response must be a valid JSON object only - no other text."
             )
         
         # Use only human message - no system message for Gemma compatibility
@@ -985,9 +992,15 @@ class LangGraphOrchestrator:
             # If no final response set, take the last message
             last_msg = final_state["messages"][-1]
             response = last_msg.content
-            
-        # CRITICAL: Apply PII scrubbing to response before returning
-        if _pii_scrubber and response:
+        
+        # Determine if this is a utility response (calculator, etc.) that doesn't need PII scrubbing
+        # Calculator outputs are pure numbers and shouldn't be modified
+        intent = final_state.get("intent", "unknown")
+        source = final_state.get("source", "unknown")
+        skip_pii_scrub = intent in ["CALCULATOR", "UTILITY"] or source in ["calculator", "utility"]
+        
+        # CRITICAL: Apply PII scrubbing to response before returning (except for utility responses)
+        if _pii_scrubber and response and not skip_pii_scrub:
             try:
                 response = _pii_scrubber.scrub(response)
                 logger.debug("✅ PII scrubbing applied to response")

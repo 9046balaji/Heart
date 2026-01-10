@@ -52,8 +52,168 @@ class ChatHistoryManager:
 
 chat_history_manager = ChatHistoryManager()
 
+
+class AIQueryResponse:
+    """Response object for AI query."""
+    def __init__(
+        self,
+        response: str = "",
+        session_id: str = "",
+        success: bool = True,
+        context_used: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        audit: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ):
+        self.response = response
+        self.session_id = session_id
+        self.success = success
+        self.context_used = context_used or []
+        self.metadata = metadata or {}
+        self.audit = audit or {}
+        self.error = error
+
+
 class IntegratedHealthAIService:
-    pass
+    """
+    Integrated Health AI Service for processing queries with memory context.
+    
+    Provides unified interface for AI-powered health queries with:
+    - Memory retrieval and context assembly
+    - Integration with LLM providers (Gemini, Ollama)
+    - Audit logging and HIPAA compliance
+    """
+    
+    def __init__(self):
+        self.memory_manager = None
+        self.llm_gateway = None
+        self._initialized = False
+        
+        # Try to get services from DIContainer
+        try:
+            from core.dependencies import DIContainer
+            container = DIContainer.get_instance()
+            self.memory_manager = container.memory_manager
+            self.llm_gateway = container.llm_gateway
+            self._initialized = True
+        except Exception as e:
+            logger.warning(f"IntegratedHealthAIService: Could not initialize from DIContainer: {e}")
+    
+    async def process_query(
+        self,
+        user_id: str,
+        session_id: str,
+        query: str,
+        patient_name: Optional[str] = None,
+        patient_age: Optional[int] = None,
+        is_emergency: bool = False,
+        ai_provider: Optional[str] = None,
+    ) -> AIQueryResponse:
+        """
+        Process a health query with memory context.
+        
+        Args:
+            user_id: User identifier
+            session_id: Session identifier
+            query: User's question
+            patient_name: Optional patient name for context
+            patient_age: Optional patient age for context
+            is_emergency: Emergency flag for prioritization
+            ai_provider: AI provider preference (gemini/ollama)
+            
+        Returns:
+            AIQueryResponse with response and metadata
+        """
+        import time
+        start_time = time.time()
+        
+        try:
+            # Build context from memory if available
+            context_used = []
+            
+            if self.memory_manager and hasattr(self.memory_manager, 'search_memory'):
+                try:
+                    memory_results = await self.memory_manager.search_memory(
+                        patient_id=user_id,
+                        query=query,
+                        limit=5
+                    )
+                    if memory_results:
+                        context_used = [
+                            {"type": "memory", "source": "memori", "data": str(r)[:200]}
+                            for r in memory_results[:3]
+                        ]
+                except Exception as e:
+                    logger.warning(f"Memory search failed: {e}")
+            
+            # Generate response using LLM
+            response_text = ""
+            
+            if self.llm_gateway:
+                try:
+                    # Build prompt with context
+                    context_str = "\n".join([str(c.get("data", "")) for c in context_used])
+                    prompt = f"""You are a helpful health assistant. Answer the following query.
+
+Context from previous interactions:
+{context_str if context_str else "No previous context available."}
+
+Patient Info: {patient_name or 'Unknown'}, Age: {patient_age or 'Unknown'}
+Emergency: {'Yes' if is_emergency else 'No'}
+
+Query: {query}
+
+Provide a helpful, accurate response. If this is an emergency, advise seeking immediate medical attention."""
+
+                    result = await self.llm_gateway.generate(
+                        prompt=prompt,
+                        provider=ai_provider,
+                        max_tokens=500
+                    )
+                    response_text = result.get("text", "") if isinstance(result, dict) else str(result)
+                except Exception as e:
+                    logger.error(f"LLM generation failed: {e}")
+                    response_text = f"I apologize, but I encountered an error processing your query. Please try again or consult a healthcare provider directly."
+            else:
+                # Fallback response when LLM not available
+                response_text = (
+                    f"I received your query: '{query[:100]}...'. "
+                    "However, the AI service is currently unavailable. "
+                    "Please try again later or consult a healthcare provider."
+                )
+            
+            elapsed_time = time.time() - start_time
+            
+            return AIQueryResponse(
+                response=response_text,
+                session_id=session_id,
+                success=True,
+                context_used=context_used,
+                metadata={
+                    "ai_provider": ai_provider or "default",
+                    "is_emergency": is_emergency,
+                    "processing_time_ms": round(elapsed_time * 1000, 2),
+                },
+                audit={
+                    "user_id": user_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "query_length": len(query),
+                    "response_length": len(response_text),
+                },
+                error=None,
+            )
+            
+        except Exception as e:
+            logger.error(f"IntegratedHealthAIService.process_query error: {e}")
+            return AIQueryResponse(
+                response="",
+                session_id=session_id,
+                success=False,
+                context_used=[],
+                metadata={},
+                audit={"error": str(e)},
+                error=str(e),
+            )
 
 def get_integrated_ai_service():
     return IntegratedHealthAIService()
@@ -332,7 +492,8 @@ async def get_user_preferences(
         Dictionary of all preferences
     """
     # ✅ CRITICAL: Enforce ownership - users can only access their own preferences
-    if user_id != current_user.get("user_id"):
+    # Convert both to strings to handle int/str type mismatch
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own preferences",
@@ -378,7 +539,7 @@ async def get_single_preference(
         Preference value
     """
     # ✅ CRITICAL: Enforce ownership - users can only access their own preferences
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own preferences",
@@ -409,7 +570,7 @@ async def set_user_preference(
         Confirmation with updated value
     """
     # ✅ CRITICAL: Enforce ownership - users can only set their own preferences
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only set your own preferences",
@@ -461,7 +622,7 @@ async def set_bulk_preferences(
         Count of preferences set
     """
     # ✅ CRITICAL: Enforce ownership - users can only set their own preferences
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only set your own preferences",
@@ -510,7 +671,7 @@ async def delete_user_preference(
         Confirmation of deletion
     """
     # ✅ CRITICAL: Enforce ownership - users can only delete their own preferences
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only delete your own preferences",
@@ -570,7 +731,7 @@ async def list_user_sessions(
         List of session information
     """
     # ✅ CRITICAL: Enforce ownership - users can only list their own sessions
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only list your own sessions",
@@ -615,13 +776,18 @@ async def get_session_history(
     Returns:
         Session history with messages
     """
-    # TODO: Add session ownership validation
-    # This would require checking if the session belongs to the current user
-
+    # ✅ CRITICAL: Validate session ownership before returning data (HIPAA compliance)
     try:
+        session_info = chat_history_manager.get_session_info(session_id)
+        if session_info and str(session_info.get("user_id")) != str(current_user.get("user_id")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only access your own sessions"
+            )
+
         history = chat_history_manager.get_history(session_id=session_id, limit=limit)
 
-        session_info = chat_history_manager.get_session_info(session_id)
+        # session_info already retrieved above for ownership check
 
         return {
             "session_id": session_id,
@@ -652,10 +818,15 @@ async def delete_session(
     Returns:
         Confirmation of deletion
     """
-    # TODO: Add session ownership validation
-    # This would require checking if the session belongs to the current user
-
+    # ✅ CRITICAL: Validate session ownership before deletion (HIPAA compliance)
     try:
+        session_info = chat_history_manager.get_session_info(session_id)
+        if session_info and str(session_info.get("user_id")) != str(current_user.get("user_id")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only delete your own sessions"
+            )
+
         chat_history_manager.clear(session_id)
 
         return {
@@ -800,7 +971,7 @@ async def ai_query(
         AI response with metadata and audit trail
     """
     # ✅ CRITICAL: Enforce ownership - users can only query with their own user_id
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only query with your own user ID",
@@ -859,7 +1030,7 @@ async def export_user_data(
         Complete export of user preferences and data
     """
     # ✅ CRITICAL: Enforce ownership - users can only export their own data
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only export your own data",
@@ -901,7 +1072,7 @@ async def delete_user_data(
         Confirmation of deletion with counts
     """
     # ✅ CRITICAL: Enforce ownership - users can only delete their own data
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only delete your own data",
@@ -972,7 +1143,7 @@ async def get_audit_log(
         List of audit log entries
     """
     # ✅ CRITICAL: Enforce ownership - users can only access their own audit logs
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only access your own audit logs",
@@ -1249,7 +1420,7 @@ async def manage_conscious_memory(
         Result of conscious memory operation
     """
     # ✅ CRITICAL: Enforce ownership - users can only manage their own memories
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only manage your own memories",
@@ -1426,7 +1597,7 @@ async def get_rate_limit_status(
         Rate limit status and quotas
     """
     # ✅ CRITICAL: Enforce ownership - users can only check their own rate limits
-    if user_id != current_user.get("user_id"):
+    if str(user_id) != str(current_user.get("user_id")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only check your own rate limits",

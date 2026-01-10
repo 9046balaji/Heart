@@ -987,7 +987,8 @@ class SearchService:
 
             days_old = (datetime.now() - created_at).days
             return max(0, 1 - (days_old / 30))  # Full score for recent, 0 after 30 days
-        except:
+        except Exception as e:
+            logger.warning(f"Error calculating recency score: {e}")
             return 0.0
 
     def list_memories(

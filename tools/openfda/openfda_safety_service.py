@@ -18,6 +18,7 @@ Usage:
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, Optional, List
 
 from tools.openfda.drug_adverse_events import DrugAdverseEventService
@@ -84,12 +85,20 @@ class OpenFDASafetyService:
         self.client = OpenFDAClient(api_key)
         
         logger.info("OpenFDASafetyService initialized with all sub-services")
+
+    async def close(self):
+        """Close all underlying clients."""
+        await self.drug_events.close()
+        await self.drug_enforcement.close()
+        await self.food_enforcement.close()
+        await self.food_events.close()
+        await self.client.close()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # DRUG SAFETY METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def get_drug_side_effects(self, drug_name: str, limit: int = 5) -> str:
+    async def get_drug_side_effects(self, drug_name: str, limit: int = 5) -> str:
         """
         [Pharmacist Role]
         Returns the most common side effects reported for a medication.
@@ -105,7 +114,7 @@ class OpenFDASafetyService:
             Formatted string with side effects list, or info message if none found.
             
         Example:
-            >>> print(safety.get_drug_side_effects("Lipitor"))
+            >>> print(await safety.get_drug_side_effects("Lipitor"))
             📊 Top 5 Reported Side Effects for LIPITOR:
             1. Myalgia: 12,500 reports
             2. Pain In Extremity: 8,200 reports
@@ -120,10 +129,10 @@ class OpenFDASafetyService:
             - "what happens if I take"
         """
         logger.info(f"[SafetyService] Getting side effects for: {drug_name}")
-        result = self.drug_events.get_top_side_effects(drug_name, limit)
+        result = await self.drug_events.get_top_side_effects(drug_name, limit)
         return result["formatted"]
     
-    def check_drug_severity(self, drug_name: str) -> str:
+    async def check_drug_severity(self, drug_name: str) -> str:
         """
         [Safety Check Role]
         Checks how many reports involved Death or Hospitalization.
@@ -138,7 +147,7 @@ class OpenFDASafetyService:
             Formatted string with severity statistics, or all-clear message.
             
         Example (dangerous drug):
-            >>> print(safety.check_drug_severity("Warfarin"))
+            >>> print(await safety.check_drug_severity("Warfarin"))
             ⚠️ **WARNING: Severe Outcomes Reported for WARFARIN**
             Deaths: 3,240 reports
             Hospitalizations: 8,900 reports
@@ -146,7 +155,7 @@ class OpenFDASafetyService:
             *(Note: These are raw reports. Causation is not proven.)*
             
         Example (safer drug):
-            >>> print(safety.check_drug_severity("Vitamin D"))
+            >>> print(await safety.check_drug_severity("Vitamin D"))
             ✅ Vitamin D: No severe outcomes (Death/Hospitalization) found in FDA data.
             
         Router Trigger Keywords:
@@ -156,10 +165,10 @@ class OpenFDASafetyService:
             - "hospitalization"
         """
         logger.info(f"[SafetyService] Checking severity for: {drug_name}")
-        result = self.drug_events.check_severity(drug_name)
+        result = await self.drug_events.check_severity(drug_name)
         return result["formatted"]
     
-    def verify_drug_reaction(self, drug_name: str, reaction: str) -> str:
+    async def verify_drug_reaction(self, drug_name: str, reaction: str) -> str:
         """
         [Verification Role]
         Checks if a specific drug is linked to a specific symptom.
@@ -175,7 +184,7 @@ class OpenFDASafetyService:
             Formatted string confirming or denying the link
             
         Example:
-            >>> print(safety.verify_drug_reaction("Lisinopril", "Cough"))
+            >>> print(await safety.verify_drug_reaction("Lisinopril", "Cough"))
             ✅ **YES.** There are 45,230 reports linking Lisinopril to Cough.
             
             *Note: These are raw reports. Causation is not proven.*
@@ -187,10 +196,10 @@ class OpenFDASafetyService:
             - "is [symptom] a side effect"
         """
         logger.info(f"[SafetyService] Verifying: {drug_name} -> {reaction}")
-        result = self.drug_events.check_specific_reaction(drug_name, reaction)
+        result = await self.drug_events.check_specific_reaction(drug_name, reaction)
         return result["formatted"]
     
-    def check_drug_recalls(self, drug_name: str) -> str:
+    async def check_drug_recalls(self, drug_name: str) -> str:
         """
         [Recall Alert Role]
         Checks if a drug currently has active recalls.
@@ -202,14 +211,14 @@ class OpenFDASafetyService:
             Formatted string with recall information or all-clear
             
         Example (has recalls):
-            >>> print(safety.check_drug_recalls("Metformin"))
+            >>> print(await safety.check_drug_recalls("Metformin"))
             🚨 **Active Recalls for METFORMIN**:
             1. [Class II] Impurity detected
                Company: Generic Pharma Inc.
                Distribution: Nationwide
             
         Example (no recalls):
-            >>> print(safety.check_drug_recalls("Aspirin"))
+            >>> print(await safety.check_drug_recalls("Aspirin"))
             ✅ No active recalls found for Aspirin.
             
         Router Trigger Keywords:
@@ -220,7 +229,7 @@ class OpenFDASafetyService:
         """
         logger.info(f"[SafetyService] Checking recalls for: {drug_name}")
         
-        recalls = self.drug_enforcement.find_recalls_for_drug(drug_name, limit=5)
+        recalls = await self.drug_enforcement.find_recalls_for_drug(drug_name, limit=5)
         
         if not recalls:
             return f"✅ No recalls found for {drug_name}."
@@ -236,7 +245,7 @@ class OpenFDASafetyService:
         
         return output
     
-    def full_drug_safety_check(self, drug_name: str) -> str:
+    async def full_drug_safety_check(self, drug_name: str) -> str:
         """
         [Comprehensive Review Role]
         Performs a complete safety analysis for a drug.
@@ -250,7 +259,7 @@ class OpenFDASafetyService:
             Comprehensive safety report
             
         Example:
-            >>> print(safety.full_drug_safety_check("Warfarin"))
+            >>> print(await safety.full_drug_safety_check("Warfarin"))
             ═════════════════════════════════════════
             COMPLETE SAFETY REPORT: WARFARIN
             ═════════════════════════════════════════
@@ -272,15 +281,15 @@ class OpenFDASafetyService:
         output += "=" * 50 + "\n\n"
         
         # Add side effects
-        output += self.get_drug_side_effects(drug_name, limit=5)
+        output += await self.get_drug_side_effects(drug_name, limit=5)
         output += "\n" + "-" * 50 + "\n\n"
         
         # Add severity
-        output += self.check_drug_severity(drug_name)
+        output += await self.check_drug_severity(drug_name)
         output += "\n" + "-" * 50 + "\n\n"
         
         # Add recalls
-        output += self.check_drug_recalls(drug_name)
+        output += await self.check_drug_recalls(drug_name)
         output += "\n" + "=" * 50 + "\n"
         
         return output
@@ -289,7 +298,7 @@ class OpenFDASafetyService:
     # FOOD SAFETY METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def check_food_recalls(self, food_item: str) -> str:
+    async def check_food_recalls(self, food_item: str) -> str:
         """
         [Food Safety Role]
         Checks for recalls on a specific food product.
@@ -303,7 +312,7 @@ class OpenFDASafetyService:
             Formatted string with recall information
             
         Example:
-            >>> print(safety.check_food_recalls("Spinach"))
+            >>> print(await safety.check_food_recalls("Spinach"))
             🥬 **Spinach Recalls** (3 found):
             
             1. 🔴 [Class I] E. coli contamination
@@ -319,10 +328,10 @@ class OpenFDASafetyService:
             - "safe to eat"
         """
         logger.info(f"[SafetyService] Checking food recalls for: {food_item}")
-        result = self.food_enforcement.check_food_recalls(food_item)
+        result = await self.food_enforcement.check_food_recalls(food_item)
         return result["formatted"]
     
-    def check_food_adverse_events(self, product_name: str) -> str:
+    async def check_food_adverse_events(self, product_name: str) -> str:
         """
         [CAERS Database Role]
         Check for reported adverse events from a food/supplement product.
@@ -336,7 +345,7 @@ class OpenFDASafetyService:
             Formatted string with adverse event information
             
         Example:
-            >>> print(safety.check_food_adverse_events("5-Hour Energy"))
+            >>> print(await safety.check_food_adverse_events("5-Hour Energy"))
             ⚠️ **5-Hour Energy Adverse Events** (234 reported):
             
             Top Reported Reactions:
@@ -353,10 +362,10 @@ class OpenFDASafetyService:
             - "bad reactions"
         """
         logger.info(f"[SafetyService] Checking adverse events for: {product_name}")
-        result = self.food_events.check_supplement_adverse_events(product_name)
+        result = await self.food_events.check_supplement_adverse_events(product_name)
         return result["formatted"]
     
-    def check_allergen_recalls(self, allergen: str) -> str:
+    async def check_allergen_recalls(self, allergen: str) -> str:
         """
         [Allergen Alert Role]
         Finds all recalls related to undeclared allergen contamination.
@@ -370,7 +379,7 @@ class OpenFDASafetyService:
             Formatted string with allergen recall alerts
             
         Example:
-            >>> print(safety.check_allergen_recalls("Peanut"))
+            >>> print(await safety.check_allergen_recalls("Peanut"))
             🥜 **Peanut Allergen Recalls** (5 found):
             
             1. 🔴 [Class I] Undeclared Peanuts
@@ -386,14 +395,14 @@ class OpenFDASafetyService:
             - "contains peanuts"
         """
         logger.info(f"[SafetyService] Checking allergen recalls for: {allergen}")
-        result = self.food_enforcement.check_allergen_recalls(allergen)
+        result = await self.food_enforcement.check_allergen_recalls(allergen)
         return result["formatted"]
     
     # ═══════════════════════════════════════════════════════════════════════════
     # HELPER METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def detect_intent_and_query(self, query: str) -> str:
+    async def detect_intent_and_query(self, query: str) -> str:
         """
         Experimental: Automatically detect user intent and route to appropriate query.
         
@@ -413,26 +422,26 @@ class OpenFDASafetyService:
         if any(keyword in query_lower for keyword in ["side effect", "adverse", "reaction"]):
             # Extract drug name (very basic extraction - would need NLP in production)
             drug_name = query.split()[-1]  # Get last word as drug name
-            return self.get_drug_side_effects(drug_name)
+            return await self.get_drug_side_effects(drug_name)
         
         # Safety queries
         if any(keyword in query_lower for keyword in ["safe", "dangerous", "risky"]):
             drug_name = query.split()[-1]
-            return self.check_drug_severity(drug_name)
+            return await self.check_drug_severity(drug_name)
         
         # Recall queries
         if any(keyword in query_lower for keyword in ["recall", "recalled"]):
             if "food" in query_lower or "eat" in query_lower:
                 product_name = query.split()[-1]
-                return self.check_food_recalls(product_name)
+                return await self.check_food_recalls(product_name)
             else:
                 drug_name = query.split()[-1]
-                return self.check_drug_recalls(drug_name)
+                return await self.check_drug_recalls(drug_name)
         
         # Allergen queries
         if any(keyword in query_lower for keyword in ["allerg", "peanut", "milk", "egg"]):
             allergen_name = query.split()[-1]
-            return self.check_allergen_recalls(allergen_name)
+            return await self.check_allergen_recalls(allergen_name)
         
         # Default response
         return "Please ask about drug side effects, safety, recalls, or food allergens."
@@ -483,53 +492,59 @@ def reset_safety_service():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
-    print("=" * 60)
-    print("OpenFDASafetyService - Interactive Test")
-    print("=" * 60)
-    
-    safety = OpenFDASafetyService()
-    
-    # Drug Tests
-    print("\n" + "=" * 60)
-    print("DRUG SAFETY TESTS")
-    print("=" * 60)
-    
-    print("\n📊 Test 1: Side Effects")
-    print("-" * 40)
-    print(safety.get_drug_side_effects("Lipitor", limit=3))
-    
-    print("\n⚠️ Test 2: Severity Check")
-    print("-" * 40)
-    print(safety.check_drug_severity("Warfarin"))
-    
-    print("\n🔍 Test 3: Verify Reaction")
-    print("-" * 40)
-    print(safety.verify_drug_reaction("Lisinopril", "Cough"))
-    
-    print("\n📋 Test 4: Drug Recalls")
-    print("-" * 40)
-    print(safety.check_drug_recalls("Metformin"))
-    
-    # Food Tests
-    print("\n" + "=" * 60)
-    print("FOOD SAFETY TESTS")
-    print("=" * 60)
-    
-    print("\n🥗 Test 5: Food Recalls")
-    print("-" * 40)
-    print(safety.check_food_recalls("Spinach"))
-    
-    print("\n🥜 Test 6: Allergen Recalls")
-    print("-" * 40)
-    print(safety.check_allergen_recalls("Peanut"))
-    
-    print("\n⚠️ Test 7: Food Adverse Events")
-    print("-" * 40)
-    print(safety.check_food_adverse_events("5-Hour Energy"))
-    
-    print("\n" + "=" * 60)
-    print("Tests Complete!")
-    print("=" * 60)
+    async def run_tests():
+        print("=" * 60)
+        print("OpenFDASafetyService - Interactive Test")
+        print("=" * 60)
+        
+        safety = OpenFDASafetyService()
+        
+        try:
+            # Drug Tests
+            print("\n" + "=" * 60)
+            print("DRUG SAFETY TESTS")
+            print("=" * 60)
+            
+            print("\n📊 Test 1: Side Effects")
+            print("-" * 40)
+            print(await safety.get_drug_side_effects("Lipitor", limit=3))
+            
+            print("\n⚠️ Test 2: Severity Check")
+            print("-" * 40)
+            print(await safety.check_drug_severity("Warfarin"))
+            
+            print("\n🔍 Test 3: Verify Reaction")
+            print("-" * 40)
+            print(await safety.verify_drug_reaction("Lisinopril", "Cough"))
+            
+            print("\n📋 Test 4: Drug Recalls")
+            print("-" * 40)
+            print(await safety.check_drug_recalls("Metformin"))
+            
+            # Food Tests
+            print("\n" + "=" * 60)
+            print("FOOD SAFETY TESTS")
+            print("=" * 60)
+            
+            print("\n🥗 Test 5: Food Recalls")
+            print("-" * 40)
+            print(await safety.check_food_recalls("Spinach"))
+            
+            print("\n🥜 Test 6: Allergen Recalls")
+            print("-" * 40)
+            print(await safety.check_allergen_recalls("Peanut"))
+            
+            print("\n⚠️ Test 7: Food Adverse Events")
+            print("-" * 40)
+            print(await safety.check_food_adverse_events("5-Hour Energy"))
+        finally:
+            await safety.close()
+        
+        print("\n" + "=" * 60)
+        print("Tests Complete!")
+        print("=" * 60)
+
+    asyncio.run(run_tests())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -150,8 +150,8 @@ class TransactionManager:
             # Close connection
             try:
                 conn.close()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Error closing transaction connection: {e}")
 
     def execute_atomic_operations(
         self,

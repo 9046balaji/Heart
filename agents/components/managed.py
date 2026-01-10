@@ -238,7 +238,11 @@ Respond with ONLY the agent name, nothing else.
                 )
             elif hasattr(agent, 'run'):
                 # Sync agent - run in executor
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 result = await asyncio.wait_for(
                     loop.run_in_executor(None, lambda: agent.run(task, **kwargs)),
                     timeout=timeout
@@ -249,9 +253,18 @@ Respond with ONLY the agent name, nothing else.
                     timeout=timeout
                 )
             elif callable(agent):
+                if asyncio.iscoroutinefunction(agent):
+                    coro = agent(task, **kwargs)
+                else:
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    coro = loop.run_in_executor(None, lambda: agent(task, **kwargs))
+                
                 result = await asyncio.wait_for(
-                    agent(task, **kwargs) if asyncio.iscoroutinefunction(agent)
-                    else asyncio.get_event_loop().run_in_executor(None, lambda: agent(task, **kwargs)),
+                    coro,
                     timeout=timeout
                 )
             else:

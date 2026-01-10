@@ -12,6 +12,7 @@ API Documentation: https://open.fda.gov/apis/food/enforcement/
 """
 
 import logging
+import asyncio
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 
@@ -33,12 +34,16 @@ class FoodEnforcementQuerier:
         """
         self.client = OpenFDAClient(api_key=api_key)
         logger.info("FoodEnforcementQuerier initialized")
+
+    async def close(self):
+        """Close the underlying client."""
+        await self.client.close()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # CORE METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def check_food_recalls(
+    async def check_food_recalls(
         self,
         food_item: str,
         limit: int = 10
@@ -59,7 +64,7 @@ class FoodEnforcementQuerier:
             
         Example:
             >>> querier = FoodEnforcementQuerier()
-            >>> result = querier.check_food_recalls("Spinach")
+            >>> result = await querier.check_food_recalls("Spinach")
             >>> print(result["formatted"])
             🥬 **Spinach Recalls**:
             1. [Class I] E. coli contamination - Status: Ongoing
@@ -78,7 +83,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"  # Most recent first
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info(f"No recalls found for {food_item}")
@@ -133,7 +138,7 @@ class FoodEnforcementQuerier:
             "success": True
         }
     
-    def check_allergen_recalls(
+    async def check_allergen_recalls(
         self,
         allergen: str,
         limit: int = 20
@@ -157,7 +162,7 @@ class FoodEnforcementQuerier:
             - success (bool): Whether the query succeeded
             
         Example:
-            >>> result = querier.check_allergen_recalls("Peanut")
+            >>> result = await querier.check_allergen_recalls("Peanut")
             >>> print(result["formatted"])
             🥜 **Peanut Allergen Recalls** (5 found):
             1. [Class I] Undeclared Peanuts
@@ -179,7 +184,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info(f"No allergen recalls found for {allergen}")
@@ -246,7 +251,7 @@ class FoodEnforcementQuerier:
             "success": True
         }
     
-    def get_active_recalls(
+    async def get_active_recalls(
         self,
         limit: int = 50
     ) -> Dict[str, Any]:
@@ -268,7 +273,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info("No active food recalls found")
@@ -310,7 +315,7 @@ class FoodEnforcementQuerier:
             "success": True
         }
     
-    def get_class_i_recalls(
+    async def get_class_i_recalls(
         self,
         limit: int = 50
     ) -> Dict[str, Any]:
@@ -334,7 +339,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info("No Class I food recalls found")
@@ -375,7 +380,7 @@ class FoodEnforcementQuerier:
             "success": True
         }
     
-    def get_recalls_by_company(
+    async def get_recalls_by_company(
         self,
         company_name: str,
         limit: int = 10
@@ -399,7 +404,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info(f"No recalls found for company: {company_name}")
@@ -439,7 +444,7 @@ class FoodEnforcementQuerier:
             "success": True
         }
     
-    def get_recalls_by_reason(
+    async def get_recalls_by_reason(
         self,
         reason: str,
         limit: int = 20
@@ -463,7 +468,7 @@ class FoodEnforcementQuerier:
             "sort": "-recall_initiation_date"
         }
         
-        result = self.client._make_request("/food/enforcement.json", params)
+        result = await self.client._make_request("/food/enforcement.json", params)
         
         if not result.success or not result.results:
             logger.info(f"No recalls found with reason: {reason}")
@@ -511,18 +516,24 @@ class FoodEnforcementQuerier:
 # CONVENIENCE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def check_food_recalls(food_item: str) -> str:
+async def check_food_recalls(food_item: str) -> str:
     """Quick function to check food recalls."""
     querier = FoodEnforcementQuerier()
-    result = querier.check_food_recalls(food_item)
-    return result["formatted"]
+    try:
+        result = await querier.check_food_recalls(food_item)
+        return result["formatted"]
+    finally:
+        await querier.close()
 
 
-def check_allergen_recalls(allergen: str) -> str:
+async def check_allergen_recalls(allergen: str) -> str:
     """Quick function to check allergen recalls."""
     querier = FoodEnforcementQuerier()
-    result = querier.check_allergen_recalls(allergen)
-    return result["formatted"]
+    try:
+        result = await querier.check_allergen_recalls(allergen)
+        return result["formatted"]
+    finally:
+        await querier.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -532,36 +543,42 @@ def check_allergen_recalls(allergen: str) -> str:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
-    print("=" * 60)
-    print("FoodEnforcementQuerier - Interactive Test")
-    print("=" * 60)
-    
-    querier = FoodEnforcementQuerier()
-    
-    # Test 1: Food recalls
-    print("\n🥬 Test 1: Spinach Recalls")
-    print("-" * 40)
-    result = querier.check_food_recalls("Spinach", limit=5)
-    print(result["formatted"])
-    
-    # Test 2: Allergen recalls
-    print("\n🥜 Test 2: Peanut Allergen Recalls")
-    print("-" * 40)
-    result = querier.check_allergen_recalls("Peanut", limit=5)
-    print(result["formatted"])
-    
-    # Test 3: Active recalls
-    print("\n🚨 Test 3: Currently Active Recalls")
-    print("-" * 40)
-    result = querier.get_active_recalls(limit=5)
-    print(result["formatted"])
-    
-    # Test 4: Class I recalls
-    print("\n🔴 Test 4: Class I (Most Serious) Recalls")
-    print("-" * 40)
-    result = querier.get_class_i_recalls(limit=5)
-    print(result["formatted"])
-    
-    print("\n" + "=" * 60)
-    print("Tests Complete!")
-    print("=" * 60)
+    async def run_tests():
+        print("=" * 60)
+        print("FoodEnforcementQuerier - Interactive Test")
+        print("=" * 60)
+        
+        querier = FoodEnforcementQuerier()
+        
+        try:
+            # Test 1: Food recalls
+            print("\n🥬 Test 1: Spinach Recalls")
+            print("-" * 40)
+            result = await querier.check_food_recalls("Spinach", limit=5)
+            print(result["formatted"])
+            
+            # Test 2: Allergen recalls
+            print("\n🥜 Test 2: Peanut Allergen Recalls")
+            print("-" * 40)
+            result = await querier.check_allergen_recalls("Peanut", limit=5)
+            print(result["formatted"])
+            
+            # Test 3: Active recalls
+            print("\n🚨 Test 3: Currently Active Recalls")
+            print("-" * 40)
+            result = await querier.get_active_recalls(limit=5)
+            print(result["formatted"])
+            
+            # Test 4: Class I recalls
+            print("\n🔴 Test 4: Class I (Most Serious) Recalls")
+            print("-" * 40)
+            result = await querier.get_class_i_recalls(limit=5)
+            print(result["formatted"])
+        finally:
+            await querier.close()
+        
+        print("\n" + "=" * 60)
+        print("Tests Complete!")
+        print("=" * 60)
+
+    asyncio.run(run_tests())

@@ -410,7 +410,7 @@ class AsyncUtils:
     @staticmethod
     async def run_in_executor(func: Callable[..., T], *args, **kwargs) -> T:
         """Run synchronous function in executor"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, functools.partial(func, **kwargs), *args
         )

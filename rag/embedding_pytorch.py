@@ -219,7 +219,11 @@ class PyTorchEmbeddingService(BaseEmbeddingService):
             self._cache_misses += 1
 
         # Run blocking operation in thread pool
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         embedding = await loop.run_in_executor(
             self._executor,
             self._encode_sync,
@@ -266,7 +270,11 @@ class PyTorchEmbeddingService(BaseEmbeddingService):
             return [[0.0] * self.dimension] * len(texts)
 
         # Run blocking operation in thread pool
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         embeddings = await loop.run_in_executor(
             self._executor,
             self._encode_batch_sync,

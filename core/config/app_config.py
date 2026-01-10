@@ -33,7 +33,7 @@ import os
 import logging
 import threading
 from typing import Optional, Literal
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
 from dotenv import load_dotenv
 
@@ -85,8 +85,7 @@ class LLMConfig(BaseModel):
         description="Request timeout in seconds"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class RAGConfig(BaseModel):
@@ -205,8 +204,7 @@ class RAGConfig(BaseModel):
         description="Paths configuration for RAG storage"
     )
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class DatabaseConfig(BaseModel):
@@ -222,8 +220,7 @@ class DatabaseConfig(BaseModel):
     password: str = Field(default="", description="DB password")
     database: str = Field(default="health_data", description="Database name")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class APIConfig(BaseModel):
@@ -234,8 +231,7 @@ class APIConfig(BaseModel):
     reload: bool = Field(default=True, description="Hot reload in development")
     workers: int = Field(default=4, ge=1, le=16, description="Number of workers")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class SpaCyConfig(BaseModel):
@@ -248,8 +244,7 @@ class SpaCyConfig(BaseModel):
     load_from_disk: bool = Field(default=True, description="Load model from disk")
     use_gpu: bool = Field(default=False, description="Use GPU if available")
     
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class AppConfig(BaseModel):
@@ -272,11 +267,10 @@ class AppConfig(BaseModel):
     api: APIConfig = Field(default_factory=APIConfig)
     spacy: SpaCyConfig = Field(default_factory=SpaCyConfig)
     
-    class Config:
-        extra = "forbid"
-        env_prefix = "APP_"
+    model_config = ConfigDict(extra="forbid")
     
-    @validator("env", pre=True)
+    @field_validator("env", mode="before")
+    @classmethod
     def validate_env(cls, v):
         if isinstance(v, str):
             return Environment(v)

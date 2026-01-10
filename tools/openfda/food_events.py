@@ -13,6 +13,7 @@ API Documentation: https://open.fda.gov/apis/food/event/
 """
 
 import logging
+import asyncio
 from typing import List, Dict, Optional, Any
 
 from tools.openfda.api_client import OpenFDAClient
@@ -33,12 +34,16 @@ class FoodEventService:
         """
         self.client = OpenFDAClient(api_key=api_key)
         logger.info("FoodEventService initialized")
+
+    async def close(self):
+        """Close the underlying client."""
+        await self.client.close()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # CORE METHODS
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def check_supplement_adverse_events(
+    async def check_supplement_adverse_events(
         self,
         supplement_name: str,
         limit: int = 10
@@ -61,7 +66,7 @@ class FoodEventService:
             
         Example:
             >>> service = FoodEventService()
-            >>> result = service.check_supplement_adverse_events("5-Hour Energy")
+            >>> result = await service.check_supplement_adverse_events("5-Hour Energy")
             >>> print(result["formatted"])
             ⚠️ **5-Hour Energy Adverse Events** (234 reported):
             Top reactions:
@@ -79,7 +84,7 @@ class FoodEventService:
             "limit": 1,  # Just get total count first
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or result.meta.get("results", {}).get("total", 0) == 0:
             logger.info(f"No adverse events found for supplement: {supplement_name}")
@@ -100,7 +105,7 @@ class FoodEventService:
             "count": "reactions",
             "limit": min(limit, 100)
         }
-        result_reactions = self.client._make_request("/food/event.json", params_reactions)
+        result_reactions = await self.client._make_request("/food/event.json", params_reactions)
         
         reactions = []
         if result_reactions.success:
@@ -118,7 +123,7 @@ class FoodEventService:
             f'outcomes:("Hospitalization" OR "Death" OR "Life Threatening" OR "Disability")'
         )
         params_serious = {"search": search_serious, "limit": 1}
-        result_serious = self.client._make_request("/food/event.json", params_serious)
+        result_serious = await self.client._make_request("/food/event.json", params_serious)
         serious_count = result_serious.meta.get("results", {}).get("total", 0) if result_serious.success else 0
         
         # Format output
@@ -146,7 +151,7 @@ class FoodEventService:
             "success": True
         }
     
-    def check_food_adverse_events(
+    async def check_food_adverse_events(
         self,
         food_product: str,
         limit: int = 10
@@ -170,7 +175,7 @@ class FoodEventService:
             "limit": 1,
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or result.meta.get("results", {}).get("total", 0) == 0:
             logger.info(f"No adverse events found for food product: {food_product}")
@@ -190,7 +195,7 @@ class FoodEventService:
             "count": "reactions",
             "limit": min(limit, 100)
         }
-        result_reactions = self.client._make_request("/food/event.json", params_reactions)
+        result_reactions = await self.client._make_request("/food/event.json", params_reactions)
         
         reactions = []
         if result_reactions.success:
@@ -208,7 +213,7 @@ class FoodEventService:
             f'outcomes:("Hospitalization" OR "Death" OR "Life Threatening" OR "Disability")'
         )
         params_serious = {"search": search_serious, "limit": 1}
-        result_serious = self.client._make_request("/food/event.json", params_serious)
+        result_serious = await self.client._make_request("/food/event.json", params_serious)
         serious_count = result_serious.meta.get("results", {}).get("total", 0) if result_serious.success else 0
         
         # Format output
@@ -234,7 +239,7 @@ class FoodEventService:
             "success": True
         }
     
-    def get_serious_adverse_events(
+    async def get_serious_adverse_events(
         self,
         outcome_type: str = "Hospitalization",
         limit: int = 20
@@ -257,7 +262,7 @@ class FoodEventService:
             "limit": 1,
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or result.meta.get("results", {}).get("total", 0) == 0:
             logger.info(f"No {outcome_type} events found")
@@ -276,7 +281,7 @@ class FoodEventService:
             "count": "products.name_brand.exact",
             "limit": min(limit, 100)
         }
-        result_products = self.client._make_request("/food/event.json", params_products)
+        result_products = await self.client._make_request("/food/event.json", params_products)
         
         products = []
         if result_products.success:
@@ -311,7 +316,7 @@ class FoodEventService:
             "success": True
         }
     
-    def get_supplements_by_adverse_events(
+    async def get_supplements_by_adverse_events(
         self,
         limit: int = 20
     ) -> Dict[str, Any]:
@@ -333,7 +338,7 @@ class FoodEventService:
             "limit": min(limit, 100)
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or not result.results:
             logger.info("No dietary supplements found")
@@ -363,7 +368,7 @@ class FoodEventService:
             "success": True
         }
     
-    def search_adverse_events_by_reaction(
+    async def search_adverse_events_by_reaction(
         self,
         reaction: str,
         product_type: Optional[str] = None,
@@ -392,7 +397,7 @@ class FoodEventService:
             "limit": min(limit, 100)
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or not result.results:
             logger.info(f"No products found causing {reaction}")
@@ -423,7 +428,7 @@ class FoodEventService:
             "success": True
         }
     
-    def get_food_adverse_events_by_demographic(
+    async def get_food_adverse_events_by_demographic(
         self,
         age_group: Optional[str] = None,
         limit: int = 20
@@ -450,7 +455,7 @@ class FoodEventService:
             "limit": min(limit, 100)
         }
         
-        result = self.client._make_request("/food/event.json", params)
+        result = await self.client._make_request("/food/event.json", params)
         
         if not result.success or not result.results:
             logger.info("No demographic-specific adverse events found")
@@ -489,18 +494,24 @@ class FoodEventService:
 # CONVENIENCE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def check_supplement_events(supplement_name: str) -> str:
+async def check_supplement_events(supplement_name: str) -> str:
     """Quick function to check supplement adverse events."""
     service = FoodEventService()
-    result = service.check_supplement_adverse_events(supplement_name)
-    return result["formatted"]
+    try:
+        result = await service.check_supplement_adverse_events(supplement_name)
+        return result["formatted"]
+    finally:
+        await service.close()
 
 
-def check_food_events(food_product: str) -> str:
+async def check_food_events(food_product: str) -> str:
     """Quick function to check food adverse events."""
     service = FoodEventService()
-    result = service.check_food_adverse_events(food_product)
-    return result["formatted"]
+    try:
+        result = await service.check_food_adverse_events(food_product)
+        return result["formatted"]
+    finally:
+        await service.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -510,36 +521,42 @@ def check_food_events(food_product: str) -> str:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
-    print("=" * 60)
-    print("FoodEventService - Interactive Test")
-    print("=" * 60)
-    
-    service = FoodEventService()
-    
-    # Test 1: Supplement adverse events
-    print("\n⚠️ Test 1: 5-Hour Energy Adverse Events")
-    print("-" * 40)
-    result = service.check_supplement_adverse_events("5-Hour Energy", limit=5)
-    print(result["formatted"])
-    
-    # Test 2: Food adverse events
-    print("\n🍽️ Test 2: Food Adverse Events")
-    print("-" * 40)
-    result = service.check_food_adverse_events("Peanut Butter", limit=5)
-    print(result["formatted"])
-    
-    # Test 3: Serious outcomes
-    print("\n🏥 Test 3: Hospitalization Events")
-    print("-" * 40)
-    result = service.get_serious_adverse_events("Hospitalization", limit=5)
-    print(result["formatted"])
-    
-    # Test 4: Top supplements by events
-    print("\n📊 Test 4: Top Supplements by Adverse Events")
-    print("-" * 40)
-    result = service.get_supplements_by_adverse_events(limit=10)
-    print(result["formatted"])
-    
-    print("\n" + "=" * 60)
-    print("Tests Complete!")
-    print("=" * 60)
+    async def run_tests():
+        print("=" * 60)
+        print("FoodEventService - Interactive Test")
+        print("=" * 60)
+        
+        service = FoodEventService()
+        
+        try:
+            # Test 1: Supplement adverse events
+            print("\n⚠️ Test 1: 5-Hour Energy Adverse Events")
+            print("-" * 40)
+            result = await service.check_supplement_adverse_events("5-Hour Energy", limit=5)
+            print(result["formatted"])
+            
+            # Test 2: Food adverse events
+            print("\n🍽️ Test 2: Food Adverse Events")
+            print("-" * 40)
+            result = await service.check_food_adverse_events("Peanut Butter", limit=5)
+            print(result["formatted"])
+            
+            # Test 3: Serious outcomes
+            print("\n🏥 Test 3: Hospitalization Events")
+            print("-" * 40)
+            result = await service.get_serious_adverse_events("Hospitalization", limit=5)
+            print(result["formatted"])
+            
+            # Test 4: Top supplements by events
+            print("\n📊 Test 4: Top Supplements by Adverse Events")
+            print("-" * 40)
+            result = await service.get_supplements_by_adverse_events(limit=10)
+            print(result["formatted"])
+        finally:
+            await service.close()
+        
+        print("\n" + "=" * 60)
+        print("Tests Complete!")
+        print("=" * 60)
+
+    asyncio.run(run_tests())

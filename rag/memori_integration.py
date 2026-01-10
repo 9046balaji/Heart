@@ -92,7 +92,7 @@ class MemoriRAGBridge:
         from memori import Memori
         from rag import VectorStore
 
-        memori = Memori(database_connect="sqlite:///memories.db")
+        memori = Memori()  # Uses PostgreSQL from AppConfig
         vector_store = VectorStore()
 
         bridge = MemoriRAGBridge(memori, vector_store)

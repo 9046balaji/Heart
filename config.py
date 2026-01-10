@@ -64,8 +64,8 @@ class Settings(BaseSettings):
     SERVICE_PORT: int = Field(default=5001, alias="NLP_SERVICE_PORT")
     SERVICE_HOST: str = Field(default="127.0.0.1", alias="NLP_SERVICE_HOST")
 
-    # Database Configuration
-    DATABASE_URL: str = "sqlite:///./nlp_cache.db"
+    # Database Configuration (PostgreSQL)
+    DATABASE_URL: str = ""  # Built from POSTGRES_* env vars if empty
 
     # Security Configuration
     SECRET_KEY: str = Field(default="default-secret-key", env="SECRET_KEY")
@@ -210,7 +210,7 @@ class Settings(BaseSettings):
 
     # Memory Manager Settings
     MEMORI_ENABLED: bool = True
-    MEMORI_DATABASE_URL: str = "sqlite:///./memori.db"
+    MEMORI_DATABASE_URL: str = ""  # PostgreSQL - built from DATABASE_URL if empty
     MEMORI_CACHE_SIZE: int = 100  # Max patient instances in LRU cache
     MEMORI_POOL_SIZE: int = 10  # Database connection pool size
     MEMORI_REQUEST_TIMEOUT: int = 30  # Timeout for memory operations (seconds)

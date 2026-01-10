@@ -172,20 +172,53 @@ class MedicalSelfRAG:
     # P0.2: Cache for retrieval need decisions
     _RETRIEVAL_CACHE: Dict[int, bool] = {}
     
-    # P0.2: Patterns that don't need medical retrieval (greetings, etc.)
+    # P0.2++: Extended patterns that don't need medical retrieval
+    # Covers greetings, acknowledgments, bot questions, and common conversational phrases
     _NO_RETRIEVAL_PATTERNS = [
-        r"^(hi|hello|hey|thanks|thank you|ok|okay|bye|goodbye)",
+        # Greetings and farewells
+        r"^(hi|hello|hey|thanks|thank you|ok|okay|bye|goodbye|yes|no|sure|great|perfect|alright)",
+        # Bot identity questions
         r"^what('s| is) your name",
         r"^how are you",
         r"^who (are|made) you",
+        # Help requests (generic)
+        r"^(please|can you) (help|assist)",
+        # Understanding confirmations
+        r"^(i understand|got it|makes sense|i see|understood)",
+        # Meta questions about capabilities
+        r"^(what can you do|what are you|tell me about yourself)",
+        # Simple affirmations/negations
+        r"^(yeah|yep|nope|nah|yup|uh huh)",
     ]
     
-    # P0.2: Keywords that definitely need retrieval
+    # P0.2++: Extended medical keywords that definitely need retrieval
+    # Includes common symptoms, conditions, medications, and medical terms
     _MEDICAL_KEYWORDS = [
-        "symptom", "medication", "drug", "treatment", "diagnosis",
-        "heart", "blood", "pressure", "pain", "disease", "condition",
-        "side effect", "interaction", "dose", "mg", "risk", "chest",
-        "shortness", "breath", "dizzy", "headache", "nausea", "fever"
+        # Symptoms
+        "symptom", "pain", "ache", "fever", "nausea", "dizzy", "dizziness",
+        "headache", "fatigue", "tired", "weak", "weakness", "swelling",
+        "bleeding", "bruise", "rash", "itch", "cough", "sneeze", "vomit",
+        "diarrhea", "constipation", "cramp", "numbness", "tingling",
+        # Body parts/systems
+        "heart", "blood", "pressure", "chest", "lung", "breath", "breathing",
+        "liver", "kidney", "brain", "stomach", "bone", "joint", "muscle",
+        "skin", "eye", "ear", "throat", "nose",
+        # Medications and treatments
+        "medication", "medicine", "drug", "pill", "tablet", "dose", "dosage",
+        "treatment", "therapy", "surgery", "procedure", "injection", "vaccine",
+        "mg", "ml", "prescription", "over-the-counter", "otc",
+        # Common drug names
+        "aspirin", "ibuprofen", "acetaminophen", "tylenol", "advil", "motrin",
+        "metoprolol", "lisinopril", "warfarin", "statin", "metformin",
+        "omeprazole", "amlodipine", "prednisone", "antibiotic",
+        # Conditions
+        "disease", "condition", "disorder", "syndrome", "infection",
+        "diabetes", "hypertension", "cholesterol", "arrhythmia", "asthma",
+        "arthritis", "cancer", "anemia", "allergy", "anxiety", "depression",
+        # Medical actions
+        "diagnosis", "diagnose", "test", "scan", "mri", "xray", "x-ray",
+        "side effect", "interaction", "risk", "contraindication",
+        "emergency", "urgent", "911",
     ]
     
     def __init__(
@@ -618,8 +651,9 @@ class MedicalSelfRAG:
         
         context_text = "\n\n".join([doc.get('content', '') for doc in relevant_docs[:3]])
         
-        # Check if we should skip grading based on P0.3 optimization
-        should_skip_grading = len(response) < 200 or len(relevant_docs) >= 3 if 'response' in locals() else False
+        
+        # NOTE: P0.3 skip_grading logic moved after response generation (line 645)
+        # Previous premature check removed as 'response' was not yet defined
         
         confidence_map = {
             SupportLevel.FULLY_SUPPORTED: 0.95,

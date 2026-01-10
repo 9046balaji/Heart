@@ -186,7 +186,9 @@ def process_safety_query(query: str, safety_service) -> str:
     return None
 
 
-def main():
+import asyncio
+
+async def main_async():
     print("\n" + "="*60)
     print("   ❤️  HeartGuard AI - Clinical Assistant")
     print("   (Powered by ChromaDB + Gemma-2b + RTX 4050 + OpenFDA)")
@@ -219,7 +221,9 @@ def main():
 
     # 2. Conversation Loop
     while True:
-        query = input("👨‍⚕️ Doctor/User: ")
+        # Use asyncio.to_thread for input to avoid blocking the event loop entirely
+        # (though for a CLI it matters less, it's good practice)
+        query = await asyncio.to_thread(input, "👨‍⚕️ Doctor/User: ")
         
         if query.lower() in ['exit', 'quit', 'q']:
             print("\n👋 Goodbye! Stay healthy.\n")
@@ -237,14 +241,16 @@ def main():
                 logger.info("🛡️  Processing safety query...")
                 print("   🛡️  Checking OpenFDA database...", end="\r")
                 try:
-                    safety_result = process_safety_query(query, safety_service)
+                    # Run safety query in thread pool to avoid blocking
+                    safety_result = await asyncio.to_thread(process_safety_query, query, safety_service)
                 except Exception as e:
                     logger.warning(f"Could not process safety query: {e}")
                     safety_result = None
             
             # A. Retrieval (The Brain)
             print("   🧠 Retrieving medical guidelines...", end="\r")
-            retrieval_result = rag_engine.retrieve_context(query, top_k=3)
+            # Run retrieval in thread pool if it's CPU bound or sync I/O
+            retrieval_result = await asyncio.to_thread(rag_engine.retrieve_context, query, top_k=3)
             context_text = retrieval_result.get("context", "")
             sources = retrieval_result.get("sources", [])
             
@@ -256,7 +262,8 @@ def main():
             answer = ""
             if context_text:
                 print("   🤔 Thinking...", end="\r")
-                answer = llm_engine.generate_response(query, context_text)
+                # Await the async generation
+                answer = await llm_engine.generate_response(query, context_text)
             
             elapsed = time.time() - start_time
             
@@ -282,6 +289,9 @@ def main():
             logger.error(f"❌ Error during processing: {e}")
             print(f"Error: {e}\n")
             continue
+
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()

@@ -629,8 +629,8 @@ class QueryOptimizer:
                     ).days
                     recency_bonus = max(0.5 - (days_old * 0.05), 0)
                     score_value += recency_bonus
-                except:
-                    pass
+                except ValueError as e:
+                    logger.debug(f"Error parsing timestamp for recency bonus: {e}")
 
             return score_value
 

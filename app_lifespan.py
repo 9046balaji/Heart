@@ -96,7 +96,39 @@ async def startup_event():
     logger.info("🚀 Starting up application services...")
     
     try:
-        # 0. Initialize PostgreSQL database connection (MUST be first!)
+        # 0a. Run Alembic migrations (ensure database schema is up to date)
+        logger.info("📦 Checking database migrations...")
+        import subprocess
+        import os
+        
+        # Get the project root directory
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        
+        try:
+            result = subprocess.run(
+                ["alembic", "upgrade", "head"],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                timeout=60  # 60 second timeout
+            )
+            if result.returncode == 0:
+                logger.info("✅ Database migrations applied successfully")
+                if result.stdout:
+                    logger.debug(f"Migration output: {result.stdout}")
+            else:
+                logger.warning(f"⚠️ Migration returned non-zero: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            logger.warning("⚠️ Migration timed out - continuing without migration")
+        except FileNotFoundError:
+            logger.warning("⚠️ Alembic not found in PATH - skipping migrations")
+        except Exception as e:
+            logger.warning(f"⚠️ Migration check failed: {e} - continuing")
+    except Exception as e:
+        logger.error(f"❌ Migration initialization error: {e}")
+    
+    try:
+        # 0b. Initialize PostgreSQL database connection (MUST be first!)
         logger.info("📦 Initializing PostgreSQL database connection...")
         from core.database.postgres_db import PostgresDatabase
         from core.dependencies import DIContainer
@@ -156,6 +188,29 @@ async def startup_event():
         llm_gateway = container.llm_gateway
         memory_manager = container.memory_manager
         interaction_checker = container.interaction_checker
+        
+        # Initialize interaction checker's PostgreSQL fallback
+        await container.initialize_interaction_checker()
+        
+        # Update Neo4j schema with default values for missing properties
+        # This is idempotent and can run on every startup
+        try:
+            neo4j_service = container.neo4j_service
+            if neo4j_service and hasattr(neo4j_service, 'enabled') and neo4j_service.enabled:
+                logger.info("📦 Updating Neo4j schema with default property values...")
+                await neo4j_service.run_query("""
+                    MATCH ()-[r:INTERACTS_WITH]->()
+                    WHERE r.mechanism IS NULL
+                    SET r.mechanism = 'Not specified'
+                """)
+                await neo4j_service.run_query("""
+                    MATCH ()-[r:INTERACTS_WITH]->()
+                    WHERE r.management IS NULL
+                    SET r.management = 'Consult healthcare provider'
+                """)
+                logger.info("✅ Neo4j schema updated with default property values")
+        except Exception as e:
+            logger.warning(f"⚠️ Neo4j schema update skipped: {e}")
         
         # Get MemoriRAGBridge from DIContainer (properly initialized)
         memori_bridge = container.memori_bridge

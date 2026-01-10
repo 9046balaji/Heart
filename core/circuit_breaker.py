@@ -296,3 +296,89 @@ class DistributedCircuitBreaker:
 class CircuitBreakerOpen(Exception):
     """Raised when circuit breaker is open."""
     pass
+
+
+# ============================================================================
+# CONVENIENCE FUNCTIONS AND DECORATORS
+# ============================================================================
+
+# Pre-configured circuit breakers for common services
+_SERVICE_BREAKERS: Dict[str, DistributedCircuitBreaker] = {}
+
+def get_service_breaker(
+    service_name: str,
+    failure_threshold: int = 5,
+    recovery_timeout_seconds: int = 60,
+    fallback_func: Optional[Callable] = None,
+) -> DistributedCircuitBreaker:
+    """
+    Get or create a circuit breaker for a service.
+    
+    Usage:
+        breaker = get_service_breaker("neo4j")
+        result = await breaker.call(neo4j_query, args)
+    
+    Pre-configured services:
+        - "neo4j": 5 failures, 60s recovery
+        - "llm": 3 failures, 30s recovery
+        - "tavily": 5 failures, 120s recovery
+        - "redis": 3 failures, 30s recovery
+    """
+    if service_name in _SERVICE_BREAKERS:
+        return _SERVICE_BREAKERS[service_name]
+    
+    # Default configurations for known services
+    SERVICE_CONFIGS = {
+        "neo4j": {"failure_threshold": 5, "recovery_timeout_seconds": 60},
+        "llm": {"failure_threshold": 3, "recovery_timeout_seconds": 30},
+        "tavily": {"failure_threshold": 5, "recovery_timeout_seconds": 120},
+        "redis": {"failure_threshold": 3, "recovery_timeout_seconds": 30},
+        "postgres": {"failure_threshold": 5, "recovery_timeout_seconds": 60},
+    }
+    
+    config = SERVICE_CONFIGS.get(service_name, {
+        "failure_threshold": failure_threshold,
+        "recovery_timeout_seconds": recovery_timeout_seconds,
+    })
+    
+    breaker = DistributedCircuitBreaker(
+        name=service_name,
+        failure_threshold=config["failure_threshold"],
+        recovery_timeout_seconds=config["recovery_timeout_seconds"],
+        fallback_func=fallback_func,
+    )
+    
+    _SERVICE_BREAKERS[service_name] = breaker
+    return breaker
+
+
+def circuit_breaker(
+    service_name: str,
+    fallback_result: Any = None,
+):
+    """
+    Decorator to apply circuit breaker to async functions.
+    
+    Usage:
+        @circuit_breaker("neo4j", fallback_result=[])
+        async def query_neo4j(query: str):
+            return await neo4j_client.run(query)
+    
+    Args:
+        service_name: Name of the service (used for metrics/logging)
+        fallback_result: Value to return when circuit is open
+    """
+    def decorator(func: Callable):
+        async def wrapper(*args, **kwargs):
+            breaker = get_service_breaker(
+                service_name,
+                fallback_func=lambda *a, **kw: fallback_result
+            )
+            return await breaker.call(func, *args, **kwargs)
+        
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        return wrapper
+    
+    return decorator
+

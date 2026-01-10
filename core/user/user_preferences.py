@@ -166,16 +166,29 @@ class UserPreferencesManager:
         Initialize preferences manager.
 
         Args:
-            database_url: SQLAlchemy database URL. Defaults to SQLite.
+            database_url: SQLAlchemy database URL. Defaults to PostgreSQL from AppConfig.
             enable_audit_log: Whether to log preference changes
         """
-        # Default to SQLite if no URL provided
+        # Default to PostgreSQL from AppConfig
         if database_url is None:
-            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            default_db = os.path.join(BASE_DIR, "user_preferences.db")
-            database_url = os.environ.get(
-                "USER_PREFERENCES_DB_URL", f"sqlite:///{default_db}"
-            )
+            database_url = os.environ.get("USER_PREFERENCES_DB_URL")
+            
+            if not database_url:
+                # Build PostgreSQL URL from AppConfig
+                try:
+                    from core.config.app_config import get_app_config
+                    config = get_app_config()
+                    db = config.database
+                    database_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+                except Exception as e:
+                    logger.warning(f"Could not load AppConfig, using env fallback: {e}")
+                    # Fallback to environment variables
+                    host = os.environ.get("POSTGRES_HOST", "localhost")
+                    port = os.environ.get("POSTGRES_PORT", "5432")
+                    user = os.environ.get("POSTGRES_USER", "postgres")
+                    password = os.environ.get("POSTGRES_PASSWORD", "")
+                    db_name = os.environ.get("POSTGRES_DB", "heartguard")
+                    database_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
 
         self.engine = create_engine(database_url, pool_pre_ping=True, echo=False)
 
@@ -185,7 +198,7 @@ class UserPreferencesManager:
         self.SessionLocal = sessionmaker(bind=self.engine)
         self.enable_audit = enable_audit_log
 
-        logger.info(f"UserPreferencesManager initialized with {database_url}")
+        logger.info(f"UserPreferencesManager initialized with PostgreSQL")
 
     @contextmanager
     def _get_session(self) -> Generator[Session, None, None]:

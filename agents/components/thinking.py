@@ -10,13 +10,18 @@ Based on Test-Time Compute paper and DeepSeek-R1 patterns.
 """
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import re
 import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    """Get current UTC time (replacement for deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc)
 
 
 class ReasoningType(Enum):
@@ -42,7 +47,7 @@ class ThinkingBlock:
     content: str
     reasoning_type: ReasoningType = ReasoningType.ANALYSIS
     key_insights: List[str] = field(default_factory=list)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         return {

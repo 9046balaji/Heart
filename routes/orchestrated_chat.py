@@ -43,7 +43,6 @@ def get_orchestrator() -> "LangGraphOrchestrator":
                 detail="Chat service is currently unavailable. Please try again later."
             )
     return _orchestrator
-    return _orchestrator
 
 # --- Data Models ---
 
@@ -114,7 +113,10 @@ async def orchestrated_chat(
             metadata={
                 "processing_time": result.get("processing_time"),
                 "steps": result.get("steps", []),
-                "confidence": result.get("confidence", 0.0)
+                "confidence": result.get("confidence", 0.0),
+                "source": result.get("metadata", {}).get("source", "unknown"),  # Track response source (rag, web, llm, etc.)
+                "intent": result.get("intent", "unknown"),
+                "pii_scrubbed": result.get("pii_scrubbed", False)
             },
             session_id=request.session_id or str(uuid.uuid4()),
             success=is_success
@@ -134,7 +136,7 @@ async def deep_research(
     Trigger a deep research task (Async).
     """
     # Validate User
-    if request.user_id != current_user.get("user_id"):
+    if str(request.user_id) != str(current_user.get("user_id")):
         raise HTTPException(status_code=403, detail="Access denied")
 
     orchestrator = get_orchestrator()

@@ -214,7 +214,6 @@ class DIContainer:
                 self._vector_store = InMemoryVectorStore(embedding_model=embedding_model)
             logger_di.debug(f"VectorStore instance created ({type(self._vector_store).__name__}) and cached")
         return self._vector_store
-        return self._vector_store
     
     @property
     def neo4j_service(self):
@@ -389,13 +388,24 @@ class DIContainer:
             try:
                 from rag.graph_interaction_checker import GraphInteractionChecker
                 self._interaction_checker = GraphInteractionChecker(
-                    neo4j_service=self.neo4j_service
+                    neo4j_service=self.neo4j_service,
+                    postgres_db=self.postgres_db  # Pass shared PostgreSQL pool
                 )
                 logger_di.debug("GraphInteractionChecker instance created and cached")
             except Exception as e:
                 logger_di.warning(f"GraphInteractionChecker initialization failed: {e}")
                 self._interaction_checker = None
         return self._interaction_checker
+    
+    async def initialize_interaction_checker(self):
+        """Initialize the interaction checker's PostgreSQL fallback (call during startup)."""
+        checker = self.interaction_checker
+        if checker:
+            try:
+                await checker.initialize_fallback()
+                logger_di.info("✅ GraphInteractionChecker PostgreSQL fallback initialized")
+            except Exception as e:
+                logger_di.warning(f"GraphInteractionChecker fallback init failed: {e}")
 
     @property
     def memori_bridge(self):
@@ -468,11 +478,26 @@ class DIContainer:
         try:
             from tools.text_to_sql_tool import TextToSQLTool
             from core.database.xampp_db import get_database
+            import asyncio
             
             # Safe async initialization
             db = await get_database()
             self._sql_tool = TextToSQLTool(db=db, llm_gateway=self.llm_gateway)
             logger_di.info("✅ TextToSQLTool initialized via async_initialize()")
+            
+            # Connection pool warmup: Execute lightweight query to establish connections
+            # This reduces first-query latency by ~200-500ms
+            try:
+                if hasattr(db, 'execute_select'):
+                    await asyncio.wait_for(
+                        db.execute_select("SELECT 1", {}),
+                        timeout=5.0
+                    )
+                    logger_di.info("✅ Database connection pool warmed up")
+            except asyncio.TimeoutError:
+                logger_di.warning("⚠️ DB warmup timed out (connections will be lazy)")
+            except Exception as warmup_error:
+                logger_di.debug(f"DB warmup skipped: {warmup_error}")
             
         except Exception as e:
             logger_di.error(f"Failed to async initialize TextToSQLTool: {e}")

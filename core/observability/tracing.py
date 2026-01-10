@@ -190,11 +190,39 @@ class AgentTracer:
         """Initialize external tracing backend."""
         if self.backend == "langfuse":
             try:
+                import os
                 from langfuse import Langfuse
-                self._client = Langfuse()
-                logger.info("Langfuse tracing enabled")
+                
+                # Check if Langfuse is explicitly enabled
+                langfuse_enabled = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
+                
+                if not langfuse_enabled:
+                    logger.info("⚠️ Langfuse disabled (LANGFUSE_ENABLED not set to 'true')")
+                    self.backend = "local"
+                    return
+                
+                # Get credentials from environment
+                public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+                secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+                host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+                
+                if not public_key or not secret_key:
+                    logger.warning("❌ Langfuse credentials missing (LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY not set)")
+                    self.backend = "local"
+                    return
+                
+                # Initialize with credentials
+                self._client = Langfuse(
+                    public_key=public_key,
+                    secret_key=secret_key,
+                    host=host
+                )
+                logger.info(f"✅ Langfuse tracing enabled (host: {host})")
             except ImportError:
                 logger.warning("Langfuse not installed, falling back to local tracing")
+                self.backend = "local"
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize Langfuse: {e}")
                 self.backend = "local"
         elif self.backend == "opentelemetry":
             try:

@@ -10,9 +10,8 @@ Usage:
     from memori import Memori
     from memori.integrations.openai_integration import set_active_memori_context
 
-    # Initialize Memori and enable it
+    # Initialize Memori and enable it (uses PostgreSQL from AppConfig)
     openai_memory = Memori(
-        database_connect="sqlite:///openai_memory.db",
         user_id="user123",
         assistant_id="assistant1",
         session_id="session1",

@@ -41,7 +41,7 @@ class Memori:
 
     def __init__(
         self,
-        database_connect: str = "sqlite:///memori.db",
+        database_connect: str | None = None,  # PostgreSQL from AppConfig if None
         template: str = "basic",
         mem_prompt: str | None = None,
         conscious_ingest: bool = False,
@@ -112,7 +112,9 @@ class Memori:
             database_prefix: Optional prefix for database name (for multi-tenant setups)
             database_suffix: Optional suffix for database name (e.g., 'dev', 'prod', 'test')
         """
-        # Set core configuration
+        # Set core configuration - default to PostgreSQL from AppConfig
+        if database_connect is None:
+            database_connect = self._get_default_database_url()
         self.database_connect = database_connect
         self.template = template
         self.mem_prompt = mem_prompt
@@ -401,7 +403,7 @@ class Memori:
                     "Detected MongoDB connection string - attempting MongoDB manager"
                 )
                 try:
-                    from ..database.mongodb_manager import MongoDBDatabaseManager
+                    from ..database.mongodb_manager import MongoDBDatabaseManager  # type: ignore[import-not-found]
 
                     # Test MongoDB connection before proceeding
                     manager = MongoDBDatabaseManager(
@@ -440,19 +442,24 @@ class Memori:
             return self._create_fallback_sqlite_manager(template, schema_init)
 
     def _create_fallback_sqlite_manager(self, template: str, schema_init: bool):
-        """Create fallback SQLite manager when other options fail"""
-        fallback_connect = "sqlite:///memori_fallback.db"
-        logger.warning(f"Using fallback SQLite database: {fallback_connect}")
-        return SQLAlchemyDatabaseManager(
-            fallback_connect,
-            template,
-            schema_init,
-            pool_size=self.pool_size,
-            max_overflow=self.max_overflow,
-            pool_timeout=self.pool_timeout,
-            pool_recycle=self.pool_recycle,
-            pool_pre_ping=self.pool_pre_ping,
-        )
+        """Create fallback PostgreSQL manager when other options fail"""
+        # Try to use PostgreSQL fallback first
+        try:
+            fallback_connect = self._get_default_database_url()
+            logger.warning(f"Using fallback PostgreSQL database: {fallback_connect}")
+            return SQLAlchemyDatabaseManager(
+                fallback_connect,
+                template,
+                schema_init,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+                pool_pre_ping=self.pool_pre_ping,
+            )
+        except Exception as e:
+            logger.error(f"PostgreSQL fallback failed: {e}")
+            raise DatabaseError(f"Could not connect to PostgreSQL: {e}")
 
     def _is_mongodb_connection(self, database_connect: str) -> bool:
         """Detect if connection string is for MongoDB"""
@@ -461,6 +468,34 @@ class Memori:
             "mongodb+srv://",
         ]
         return any(database_connect.startswith(prefix) for prefix in mongodb_prefixes)
+
+    @staticmethod
+    def _get_default_database_url() -> str:
+        """Build PostgreSQL connection URL from AppConfig or environment variables."""
+        import os
+        
+        # First check environment variable
+        env_url = os.environ.get("MEMORI_DATABASE_URL")
+        if env_url:
+            return env_url
+        
+        # Try to build from AppConfig
+        try:
+            from core.config.app_config import get_app_config
+            config = get_app_config()
+            db = config.database
+            # Use memori_db database specifically for Memori data
+            db_name = os.environ.get("MEMORI_DB_NAME", "memori_db")
+            return f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db_name}"
+        except Exception as e:
+            logger.warning(f"Could not load AppConfig for Memori, using env fallback: {e}")
+            # Fallback to environment variables
+            host = os.environ.get("POSTGRES_HOST", "localhost")
+            port = os.environ.get("POSTGRES_PORT", "5432")
+            user = os.environ.get("POSTGRES_USER", "postgres")
+            password = os.environ.get("POSTGRES_PASSWORD", "")
+            db_name = os.environ.get("MEMORI_DB_NAME", "memori_db")
+            return f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
 
     def _setup_database(self):
         """Setup database tables based on template"""
@@ -730,34 +765,27 @@ class Memori:
                     f"conscious_{memory_id}_{int(datetime.now().timestamp())}"
                 )
 
-                # Insert directly into short-term memory with conscious_context category
-                connection.execute(
-                    text(
-                        """INSERT INTO short_term_memory (
-                        memory_id, processed_data, importance_score, category_primary,
-                        retention_type, user_id, assistant_id, session_id, created_at, expires_at,
-                        searchable_content, summary, is_permanent_context
-                    ) VALUES (:memory_id, :processed_data, :importance_score, :category_primary,
-                        :retention_type, :user_id, :assistant_id, :session_id, :created_at, :expires_at,
-                        :searchable_content, :summary, :is_permanent_context)"""
-                    ),
-                    {
-                        "memory_id": short_term_id,
-                        "processed_data": processed_data,
-                        "importance_score": importance_score,
-                        "category_primary": "conscious_context",
-                        "retention_type": "permanent",
-                        "user_id": self.user_id or "default",
-                        "assistant_id": self.assistant_id,
-                        "session_id": self.session_id or "default",
-                        "created_at": datetime.now().isoformat(),
-                        "expires_at": None,
-                        "searchable_content": searchable_content,
-                        "summary": summary,
-                        "is_permanent_context": True,
-                    },
+                # ✅ [FIX] Use ORM to add memory instead of raw SQL
+                # Create ShortTermMemory object
+                short_term_memory = ShortTermMemory(
+                    memory_id=short_term_id,
+                    processed_data=processed_data,
+                    importance_score=importance_score,
+                    category_primary="conscious_context",
+                    retention_type="permanent",
+                    user_id=self.user_id or "default",
+                    assistant_id=self.assistant_id,
+                    session_id=self.session_id or "default",
+                    created_at=datetime.now(),
+                    expires_at=None,
+                    searchable_content=searchable_content,
+                    summary=summary,
+                    is_permanent_context=True,
                 )
-                connection.commit()
+                
+                # Add and commit using ORM
+                session.add(short_term_memory)
+                session.commit()
 
             logger.debug(
                 f"Conscious-ingest: Copied memory {memory_id} to short-term as {short_term_id}"
@@ -2006,8 +2034,8 @@ class Memori:
                     # Reset event loop policy to prevent conflicts
                     try:
                         asyncio.set_event_loop(None)
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Error resetting event loop: {e}")
 
             # Run in background thread to avoid blocking
             thread = threading.Thread(target=run_memory_processing, daemon=True)
@@ -2612,6 +2640,10 @@ class Memori:
     def _stop_background_analysis(self):
         """Stop the background analysis task"""
         try:
+            # Guard against uninitialized attribute (can happen if __init__ failed early)
+            if not hasattr(self, '_background_task'):
+                logger.debug("_background_task not initialized, skipping stop")
+                return
             if self._background_task and not self._background_task.done():
                 self._background_task.cancel()
                 logger.info("Background analysis task stopped")
@@ -2707,8 +2739,9 @@ class Memori:
         """Destructor to ensure cleanup"""
         try:
             self.cleanup()
-        except:
-            pass  # Ignore errors during destruction
+        except Exception as e:
+            # Use print as logger might be gone
+            print(f"Error in Memori destructor: {e}")
 
     async def _background_analysis_loop(self):
         """Background analysis loop for memory processing"""

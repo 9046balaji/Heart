@@ -417,7 +417,7 @@ class FactExtractor:
         context: Optional[Dict[str, Any]] = None,
     ) -> List[ExtractedFact]:
         """Async wrapper for fact extraction."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
             self.extract,

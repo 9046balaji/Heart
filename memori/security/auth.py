@@ -26,6 +26,8 @@ Usage:
 
 from abc import ABC, abstractmethod
 from typing import Any
+import asyncio
+import httpx
 
 from loguru import logger
 
@@ -51,7 +53,7 @@ class AuthProvider(ABC):
     """
 
     @abstractmethod
-    def validate_user(self, user_id: str, auth_token: str) -> bool:
+    async def validate_user(self, user_id: str, auth_token: str) -> bool:
         """
         Validate that the auth_token belongs to the specified user_id.
 
@@ -70,7 +72,7 @@ class AuthProvider(ABC):
         pass
 
     @abstractmethod
-    def validate_assistant_access(
+    async def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         """
@@ -87,7 +89,7 @@ class AuthProvider(ABC):
         pass
 
     @abstractmethod
-    def validate_session_access(
+    async def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         """
@@ -103,7 +105,7 @@ class AuthProvider(ABC):
         """
         pass
 
-    def extract_user_id(self, auth_token: str) -> str | None:
+    async def extract_user_id(self, auth_token: str) -> str | None:
         """
         Extract user_id from auth token (optional, for convenience).
 
@@ -114,6 +116,10 @@ class AuthProvider(ABC):
             User ID if extractable, None otherwise
         """
         return None
+
+    async def close(self):
+        """Close any open resources (e.g., HTTP clients)."""
+        pass
 
 
 class NoAuthProvider(AuthProvider):
@@ -131,15 +137,15 @@ class NoAuthProvider(AuthProvider):
             "Use a proper AuthProvider in production!"
         )
 
-    def validate_user(self, user_id: str, auth_token: str) -> bool:
+    async def validate_user(self, user_id: str, auth_token: str) -> bool:
         return True
 
-    def validate_assistant_access(
+    async def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         return True
 
-    def validate_session_access(
+    async def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         return True
@@ -198,7 +204,7 @@ class JWTAuthProvider(AuthProvider):
             logger.error(f"Token decoding error: {e}")
             raise AuthenticationError(f"Authentication error: {e}")
 
-    def validate_user(self, user_id: str, auth_token: str) -> bool:
+    async def validate_user(self, user_id: str, auth_token: str) -> bool:
         """Validate JWT token matches user_id"""
         try:
             payload = self._decode_token(auth_token)
@@ -214,7 +220,7 @@ class JWTAuthProvider(AuthProvider):
         except AuthenticationError:
             return False
 
-    def validate_assistant_access(
+    async def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to assistant"""
@@ -222,7 +228,7 @@ class JWTAuthProvider(AuthProvider):
             payload = self._decode_token(auth_token)
 
             # First validate user
-            if not self.validate_user(user_id, auth_token):
+            if not await self.validate_user(user_id, auth_token):
                 return False
 
             # Check assistant permissions
@@ -242,13 +248,13 @@ class JWTAuthProvider(AuthProvider):
         except AuthenticationError:
             return False
 
-    def validate_session_access(
+    async def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to session"""
         try:
             # First validate user
-            if not self.validate_user(user_id, auth_token):
+            if not await self.validate_user(user_id, auth_token):
                 return False
 
             # For sessions, we trust that if user is valid, they own their sessions
@@ -257,7 +263,7 @@ class JWTAuthProvider(AuthProvider):
         except AuthenticationError:
             return False
 
-    def extract_user_id(self, auth_token: str) -> str | None:
+    async def extract_user_id(self, auth_token: str) -> str | None:
         """Extract user_id from JWT"""
         try:
             payload = self._decode_token(auth_token)
@@ -302,7 +308,7 @@ class APIKeyAuthProvider(AuthProvider):
             logger.error(f"API key validation error: {e}")
             return None
 
-    def validate_user(self, user_id: str, auth_token: str) -> bool:
+    async def validate_user(self, user_id: str, auth_token: str) -> bool:
         """Validate API key matches user_id"""
         user_info = self._get_user_info(auth_token)
         if not user_info:
@@ -310,7 +316,7 @@ class APIKeyAuthProvider(AuthProvider):
 
         return user_info.get("user_id") == user_id
 
-    def validate_assistant_access(
+    async def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to assistant"""
@@ -324,7 +330,7 @@ class APIKeyAuthProvider(AuthProvider):
 
         return assistant_id in allowed_assistants
 
-    def validate_session_access(
+    async def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to session"""
@@ -334,7 +340,7 @@ class APIKeyAuthProvider(AuthProvider):
 
         return user_info.get("user_id") == user_id
 
-    def extract_user_id(self, auth_token: str) -> str | None:
+    async def extract_user_id(self, auth_token: str) -> str | None:
         """Extract user_id from API key"""
         user_info = self._get_user_info(auth_token)
         return user_info.get("user_id") if user_info else None
@@ -411,12 +417,7 @@ class OAuth2AuthProvider(AuthProvider):
         self._token_cache: dict[str, dict[str, Any]] = {}
         
         # Import required libraries
-        try:
-            import requests
-            self._requests = requests
-        except ImportError:
-            self._requests = None
-            logger.warning("requests library not available for OAuth2 introspection")
+        self.client = httpx.AsyncClient(timeout=10.0)
         
         try:
             from jose import jwt as jose_jwt
@@ -432,21 +433,19 @@ class OAuth2AuthProvider(AuthProvider):
                     "Install with: pip install python-jose[cryptography]"
                 )
         
-        # Auto-discover endpoints from issuer
-        if self.issuer and not (self.jwks_uri and self.userinfo_uri):
-            self._discover_endpoints()
-        
+        # Endpoints will be discovered lazily or explicitly
         logger.info(f"OAuth2AuthProvider initialized (issuer={self.issuer})")
+
+    async def close(self):
+        """Close the HTTP client."""
+        await self.client.aclose()
     
-    def _discover_endpoints(self) -> None:
+    async def _discover_endpoints(self) -> None:
         """Discover OAuth2/OIDC endpoints from issuer."""
-        if not self._requests:
-            return
-        
         try:
             # Try OIDC discovery
             discovery_url = f"{self.issuer.rstrip('/')}/.well-known/openid-configuration"
-            response = self._requests.get(discovery_url, timeout=10)
+            response = await self.client.get(discovery_url)
             
             if response.status_code == 200:
                 config = response.json()
@@ -459,7 +458,7 @@ class OAuth2AuthProvider(AuthProvider):
         except Exception as e:
             logger.warning(f"OAuth2 endpoint discovery failed: {e}")
     
-    def _get_jwks(self) -> dict[str, Any] | None:
+    async def _get_jwks(self) -> dict[str, Any] | None:
         """Get JWKS (JSON Web Key Set) with caching."""
         import time
         
@@ -467,11 +466,16 @@ class OAuth2AuthProvider(AuthProvider):
         if self._jwks_cache and (time.time() - self._jwks_cache_time) < self._jwks_cache_ttl:
             return self._jwks_cache
         
-        if not self.jwks_uri or not self._requests:
-            return None
+        if not self.jwks_uri:
+            # Try to discover endpoints if not set
+            if self.issuer:
+                await self._discover_endpoints()
+            
+            if not self.jwks_uri:
+                return None
         
         try:
-            response = self._requests.get(self.jwks_uri, timeout=10)
+            response = await self.client.get(self.jwks_uri)
             if response.status_code == 200:
                 self._jwks_cache = response.json()
                 self._jwks_cache_time = time.time()
@@ -481,7 +485,7 @@ class OAuth2AuthProvider(AuthProvider):
         
         return None
     
-    def _validate_jwt_token(self, auth_token: str) -> dict[str, Any] | None:
+    async def _validate_jwt_token(self, auth_token: str) -> dict[str, Any] | None:
         """Validate JWT access token using JWKS."""
         if not self._jwt or not self._jwk:
             return None
@@ -492,7 +496,7 @@ class OAuth2AuthProvider(AuthProvider):
                 auth_token = auth_token[7:]
             
             # Get JWKS
-            jwks = self._get_jwks()
+            jwks = await self._get_jwks()
             if not jwks:
                 logger.warning("No JWKS available for JWT validation")
                 return None
@@ -533,10 +537,15 @@ class OAuth2AuthProvider(AuthProvider):
             logger.warning(f"JWT validation failed: {e}")
             return None
     
-    def _introspect_token(self, auth_token: str) -> dict[str, Any] | None:
+    async def _introspect_token(self, auth_token: str) -> dict[str, Any] | None:
         """Introspect token with authorization server (RFC 7662)."""
-        if not self.introspection_uri or not self._requests:
-            return None
+        if not self.introspection_uri:
+            # Try to discover endpoints if not set
+            if self.issuer:
+                await self._discover_endpoints()
+                
+            if not self.introspection_uri:
+                return None
         
         # Remove Bearer prefix
         if auth_token.startswith("Bearer "):
@@ -550,11 +559,11 @@ class OAuth2AuthProvider(AuthProvider):
                 return cached
         
         try:
-            response = self._requests.post(
+            auth = (self.client_id, self.client_secret) if self.client_id else None
+            response = await self.client.post(
                 self.introspection_uri,
                 data={'token': auth_token},
-                auth=(self.client_id, self.client_secret) if self.client_id else None,
-                timeout=10
+                auth=auth
             )
             
             if response.status_code == 200:
@@ -570,20 +579,20 @@ class OAuth2AuthProvider(AuthProvider):
         
         return None
     
-    def _get_token_claims(self, auth_token: str) -> dict[str, Any] | None:
+    async def _get_token_claims(self, auth_token: str) -> dict[str, Any] | None:
         """Get token claims via JWT validation or introspection."""
         # Try JWT validation first if enabled
         if self.use_jwt_validation:
-            claims = self._validate_jwt_token(auth_token)
+            claims = await self._validate_jwt_token(auth_token)
             if claims:
                 return claims
         
         # Fall back to introspection
-        return self._introspect_token(auth_token)
+        return await self._introspect_token(auth_token)
     
-    def validate_user(self, user_id: str, auth_token: str) -> bool:
+    async def validate_user(self, user_id: str, auth_token: str) -> bool:
         """Validate OAuth2 token matches user_id."""
-        claims = self._get_token_claims(auth_token)
+        claims = await self._get_token_claims(auth_token)
         if not claims:
             return False
         
@@ -601,14 +610,14 @@ class OAuth2AuthProvider(AuthProvider):
         
         return True
     
-    def validate_assistant_access(
+    async def validate_assistant_access(
         self, user_id: str, assistant_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to assistant."""
-        if not self.validate_user(user_id, auth_token):
+        if not await self.validate_user(user_id, auth_token):
             return False
         
-        claims = self._get_token_claims(auth_token)
+        claims = await self._get_token_claims(auth_token)
         if not claims:
             return False
         
@@ -619,15 +628,15 @@ class OAuth2AuthProvider(AuthProvider):
         
         return assistant_id in allowed_assistants
     
-    def validate_session_access(
+    async def validate_session_access(
         self, user_id: str, session_id: str, auth_token: str
     ) -> bool:
         """Validate user has access to session."""
-        return self.validate_user(user_id, auth_token)
+        return await self.validate_user(user_id, auth_token)
     
-    def extract_user_id(self, auth_token: str) -> str | None:
+    async def extract_user_id(self, auth_token: str) -> str | None:
         """Extract user_id from OAuth2 token."""
-        claims = self._get_token_claims(auth_token)
+        claims = await self._get_token_claims(auth_token)
         if not claims:
             return None
         

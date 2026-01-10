@@ -8,7 +8,7 @@ This module now includes path management through PathConfig, providing
 centralized access to all filesystem paths used by the RAG system.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -92,11 +92,7 @@ class RAGConfig(BaseModel):
         description="Maximum context length for token budgeting"
     )
     
-    class Config:
-        # Allow extra fields for flexibility but warn about them
-        extra = "forbid"
-        # Note: allow_mutation was removed in Pydantic V2
-        # Use ConfigDict with frozen=False (default) to allow mutation
+    model_config = ConfigDict(extra="forbid")
     
     @property
     def paths(self) -> "PathConfig":

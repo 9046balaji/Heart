@@ -38,17 +38,29 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # LangFuse imports (optional - for observability)
-try:
-    from langfuse.decorators import observe
-    LANGFUSE_AVAILABLE = True
-except ImportError:
+# Only import langfuse if explicitly enabled to avoid auth warnings
+import os
+_langfuse_enabled = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
+
+if _langfuse_enabled:
+    try:
+        from langfuse import observe
+        LANGFUSE_AVAILABLE = True
+        logging.getLogger(__name__).info("Langfuse observability enabled")
+    except ImportError:
+        LANGFUSE_AVAILABLE = False
+        def observe(*args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
+        logging.getLogger(__name__).warning("langfuse not installed. Observability features disabled.")
+else:
     LANGFUSE_AVAILABLE = False
-    # Create a no-op decorator for when langfuse is not installed
+    # Create a no-op decorator when langfuse is disabled
     def observe(*args, **kwargs):
         def decorator(func):
             return func
         return decorator
-    logging.getLogger(__name__).warning("langfuse not installed. Observability features disabled.")
 
 # Import guardrails for safety processing
 from .guardrails import SafetyGuardrail

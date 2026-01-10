@@ -169,11 +169,18 @@ class Neo4jService(AbstractNeo4jService):
 
         Raises:
             TypeError: If unsupported mock_mode parameter is passed
+            ValueError: If Neo4j is disabled due to missing credentials
 
         Note:
             For testing purposes, use MockNeo4jService from tests.mocks instead.
         """
-        self.config = config or Neo4jConfig()
+        # Use from_env() if no config provided - this ensures password is read from env
+        self.config = config or Neo4jConfig.from_env()
+        
+        # Check if Neo4j is disabled (no credentials)
+        if not self.config.enabled:
+            raise ValueError("Neo4j disabled - NEO4J_PASSWORD not configured")
+        
         self._driver = None
 
     async def connect(self):
@@ -616,10 +623,10 @@ class Neo4jService(AbstractNeo4jService):
           AND toLower(m2.name) = toLower($drug_b)
         RETURN m1.name as drug1,
                m2.name as drug2,
-               r.severity as severity,
-               r.description as description,
-               r.mechanism as mechanism,
-               r.management as management
+               coalesce(r.severity, 'unknown') as severity,
+               coalesce(r.description, '') as description,
+               coalesce(r.mechanism, 'Not specified') as mechanism,
+               coalesce(r.management, 'Consult healthcare provider') as management
         LIMIT 1
         """
         
