@@ -24,6 +24,9 @@ import logging
 import re
 from typing import Optional, AsyncGenerator, Dict, Any
 
+# Import PromptRegistry for centralized prompt management
+from core.prompts.registry import get_prompt
+
 # Import LangChain components
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
@@ -325,17 +328,11 @@ class LLMGateway:
     ) -> str:
         model = self._get_model(provider)
 
-        # Apply appropriate system prompt based on content type
+        # Apply appropriate system prompt based on content type using PromptRegistry
         system_prompts = {
-            "medical": """You are a healthcare AI assistant.
-            Provide accurate, empathetic, and safety-conscious responses.
-            Always recommend professional medical consultation for serious concerns.
-            Never diagnose conditions - only provide information.""",
-            "nutrition": """You are a nutrition expert specializing in heart-healthy diets.
-            Provide evidence-based nutritional advice.
-            Focus on cardiovascular health benefits.""",
-            "general": """You are a helpful AI assistant.
-            Be friendly, informative, and supportive.""",
+            "medical": get_prompt("llm_gateway", "medical"),
+            "nutrition": get_prompt("llm_gateway", "nutrition"),
+            "general": get_prompt("llm_gateway", "general"),
         }
 
         # Create Chain with LangChain
@@ -435,16 +432,8 @@ class LLMGateway:
         user_provider = self._get_user_provider(user_id)
         model = self._get_model(user_provider)
         
-        # System prompt
-        system_prompts = {
-            "medical": """You are a medical imaging expert. 
-            Analyze the provided image and text with high clinical accuracy.
-            Identify findings, potential diagnoses, and severity.
-            If the image is unclear or not medical, state this clearly.""",
-            "general": "You are a helpful AI assistant capable of analyzing images."
-        }
-        
-        system_msg = SystemMessage(content=system_prompts.get(content_type, system_prompts["general"]))
+        # System prompt from PromptRegistry
+        system_msg = SystemMessage(content=get_prompt("llm_gateway", "multimodal_medical"))
         
         # Prepare content
         # Check if image_data is a URL or base64

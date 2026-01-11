@@ -15,6 +15,9 @@ from typing import TYPE_CHECKING, Any, Optional, List, Dict
 import openai
 from loguru import logger
 
+# Import PromptRegistry for centralized prompts
+from core.prompts.registry import get_prompt
+
 # Optional embedding libraries
 try:
     from sentence_transformers import SentenceTransformer
@@ -289,39 +292,13 @@ class MemorySearchEngine:
     """
     Pydantic-based search engine for intelligent memory retrieval.
     Uses OpenAI Structured Outputs to understand queries and plan searches.
+    Prompts are now centrally managed via PromptRegistry.
     """
 
-    SYSTEM_PROMPT = """You are a Memory Search Agent responsible for understanding user queries and planning effective memory retrieval strategies.
-
-Your primary functions:
-1. **Analyze Query Intent**: Understand what the user is actually looking for
-2. **Extract Search Parameters**: Identify key entities, topics, and concepts
-3. **Plan Search Strategy**: Recommend the best approach to find relevant memories
-4. **Filter Recommendations**: Suggest appropriate filters for category, importance, etc.
-
-**MEMORY CATEGORIES AVAILABLE:**
-- **fact**: Factual information, definitions, technical details, specific data points
-- **preference**: User preferences, likes/dislikes, settings, personal choices, opinions
-- **skill**: Skills, abilities, competencies, learning progress, expertise levels
-- **context**: Project context, work environment, current situations, background info
-- **rule**: Rules, policies, procedures, guidelines, constraints
-
-**SEARCH STRATEGIES:**
-- **keyword_search**: Direct keyword/phrase matching in content
-- **entity_search**: Search by specific entities (people, technologies, topics)
-- **category_filter**: Filter by memory categories
-- **importance_filter**: Filter by importance levels
-- **temporal_filter**: Search within specific time ranges
-- **semantic_search**: Conceptual/meaning-based search
-
-**QUERY INTERPRETATION GUIDELINES:**
-- "What did I learn about X?" → Focus on facts and skills related to X
-- "My preferences for Y" → Focus on preference category
-- "Rules about Z" → Focus on rule category
-- "Recent work on A" → Temporal filter + context/skill categories
-- "Important information about B" → Importance filter + keyword search
-
-Be strategic and comprehensive in your search planning."""
+    @property
+    def SYSTEM_PROMPT(self) -> str:
+        """Get system prompt from PromptRegistry for memory search agent."""
+        return get_prompt("memori", "search_agent")
 
     def __init__(
         self,

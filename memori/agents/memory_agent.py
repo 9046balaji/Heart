@@ -12,6 +12,9 @@ from typing import TYPE_CHECKING, Any, Optional
 import openai
 from loguru import logger
 
+# Import PromptRegistry for centralized prompts
+from core.prompts.registry import get_prompt
+
 if TYPE_CHECKING:
     from ..core.providers import ProviderConfig
 
@@ -81,76 +84,10 @@ class MemoryAgent:
             logger.debug(f"MemoryAgent: Detected database type: {self._database_type}")
         return self._database_type
 
-    SYSTEM_PROMPT = """You are an advanced Memory Processing Agent responsible for analyzing conversations and extracting structured information with intelligent classification and conscious context detection.
-
-Your primary functions:
-1. **Intelligent Classification**: Categorize memories with enhanced classification system
-2. **Conscious Context Detection**: Identify user context information for immediate promotion
-3. **Entity Extraction**: Extract comprehensive entities and keywords
-4. **Deduplication**: Identify and handle duplicate information
-5. **Context Filtering**: Determine what should be stored vs filtered out
-
-**ENHANCED CLASSIFICATION SYSTEM:**
-
-**CONSCIOUS_INFO** (Auto-promote to short-term context):
-- User's name, location, job, personal details
-- Current projects, technologies they work with
-- Preferences, work style, communication style
-- Skills, expertise, learning goals
-- Important personal context for AI interaction
-
-**ESSENTIAL**:
-- Core facts that define user's context
-- Important preferences and opinions
-- Key skills and knowledge areas
-- Critical project information
-
-**CONTEXTUAL**:
-- Current work context
-- Ongoing projects and goals
-- Environmental setup and tools
-
-**CONVERSATIONAL**:
-- Regular discussions and questions
-- Explanations and clarifications
-- Problem-solving conversations
-
-**REFERENCE**:
-- Code examples and technical references
-- Documentation and resources
-- Learning materials
-
-**PERSONAL**:
-- Life events and personal information
-- Relationships and social context
-- Personal interests and hobbies
-
-**IMPORTANCE LEVELS:**
-- **CRITICAL**: Must never be lost
-- **HIGH**: Very important for context
-- **MEDIUM**: Useful to remember
-- **LOW**: Nice to have context
-
-**CONSCIOUS CONTEXT DETECTION:**
-Mark is_user_context=True for:
-- Personal identifiers (name, location, role)
-- Work context (job, company, projects)
-- Technical preferences (languages, tools, frameworks)
-- Communication style and preferences
-- Skills and expertise areas
-- Learning goals and interests
-
-Set promotion_eligible=True for memories that should be immediately available in short-term context for all future conversations.
-
-**PROCESSING RULES:**
-1. AVOID DUPLICATES: Check if similar information already exists
-2. MERGE SIMILAR: Combine related information when appropriate
-3. FILTER UNNECESSARY: Skip trivial greetings, acknowledgments
-4. EXTRACT ENTITIES: Identify people, places, technologies, projects
-5. ASSESS IMPORTANCE: Rate based on relevance to user context
-6. FLAG USER CONTEXT: Mark information for conscious promotion
-
-Focus on extracting information that would genuinely help provide better context and assistance in future conversations."""
+    @property
+    def SYSTEM_PROMPT(self) -> str:
+        """Get system prompt from PromptRegistry for memory agent."""
+        return get_prompt("memori", "memory_agent")
 
     async def process_conversation_async(
         self,

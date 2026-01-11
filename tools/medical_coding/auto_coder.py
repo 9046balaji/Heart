@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
+from core.prompts.registry import get_prompt
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,7 +200,10 @@ class MedicalAutoCoder:
         
         systems_str = ", ".join(s.name for s in systems)
         
-        prompt = f"""You are a medical coding specialist. Map the following clinical text to standardized medical codes.
+        # Get base prompt from centralized registry
+        base_prompt = get_prompt("tools", "medical_coding_specialist")
+        
+        prompt = f"""{base_prompt}
 
 TEXT: {text}
 

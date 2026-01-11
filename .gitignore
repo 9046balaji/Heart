@@ -14,12 +14,16 @@ init_db.py
 init_postgres_db.py
 create_table.py
 
+
+
+
+
 .env
 .env.example
 run_main.py
 required.txt
 pytest.ini
-
+colab
 web_extractions
 web_extractions_demo
 research_outputs

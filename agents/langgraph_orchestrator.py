@@ -27,6 +27,7 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 
 from core.config.app_config import get_app_config
+from core.prompts.registry import get_prompt
 
 from tools.semantic_router_v2 import SemanticRouterV2, IntentCategory
 from tools.agentic_tools import (
@@ -548,6 +549,7 @@ class LangGraphOrchestrator:
         """
         Supervisor Node (LLM).
         Decides which worker to call next or if the task is finished.
+        Uses prompts from PromptRegistry for centralized management.
         
         **ROBUSTNESS**: Uses JsonOutputParser with Markdown stripping to handle
         various LLM output formats (markdown code blocks, intro text, etc).
@@ -575,49 +577,21 @@ class LangGraphOrchestrator:
         # Build conversation summary for supervisor context
         worker_count = len([m for m in messages if getattr(m, 'type', '') == 'tool'])
         
-        # Determine prompt based on context
+        # Determine prompt based on context using PromptRegistry
         if worker_count > 0:
             # Worker has responded - ask for synthesis
+            synthesis_prompt = get_prompt("orchestrator", "supervisor_synthesis")
             full_prompt = (
                 f"A worker has provided information for this request: {last_user_message[:200]}\n\n"
-                "CRITICAL INSTRUCTIONS FOR JSON RESPONSE:\n"
-                "1. You MUST respond with ONLY valid JSON (no markdown, no code blocks, no intro/outro text)\n"
-                "2. Use DOUBLE QUOTES for all JSON strings (not single quotes)\n"
-                "3. No text before or after the JSON object\n"
-                "4. The entire response MUST be a single valid JSON object\n"
-                "5. If you cannot provide an answer, use: {{\"next\": \"FINISH\", \"final_response\": \"I cannot complete this task\"}}\n\n"
-                "REQUIRED JSON STRUCTURE (copy this exactly and fill in values):\n"
-                "{{\n"
-                "  \"next\": \"FINISH\",\n"
-                "  \"reasoning\": \"brief explanation\",\n"
-                "  \"final_response\": \"your complete answer here - be specific and detailed\"\n"
-                "}}\n\n"
-                "EXAMPLES OF VALID RESPONSES:\n"
-                "{{\"next\": \"FINISH\", \"reasoning\": \"task complete\", \"final_response\": \"The answer is X\"}}\n"
-                "{{\"next\": \"FINISH\", \"reasoning\": \"synthesis done\", \"final_response\": \"Based on the worker analysis, Y\"}}\n\n"
+                f"{synthesis_prompt}\n\n"
                 "Remember: Your response must be a valid JSON object only - no other text."
             )
         else:
             # First call - route to appropriate worker
+            routing_prompt = get_prompt("orchestrator", "supervisor_routing")
             full_prompt = (
-                "Route this medical request to ONE worker.\n"
-                "Available workers: medical_analyst, researcher, data_analyst, drug_expert, clinical_reasoning, thinking_agent.\n\n"
                 f"User Request: {last_user_message[:300]}\n\n"
-                "CRITICAL INSTRUCTIONS FOR JSON RESPONSE:\n"
-                "1. You MUST respond with ONLY valid JSON (no markdown, no code blocks, no intro/outro text)\n"
-                "2. Use DOUBLE QUOTES for all JSON strings (not single quotes)\n"
-                "3. No text before or after the JSON object\n"
-                "4. The entire response MUST be a single valid JSON object\n"
-                "5. Choose the SINGLE BEST worker for this request\n\n"
-                "REQUIRED JSON STRUCTURE (copy this exactly and fill in values):\n"
-                "{{\n"
-                "  \"next\": \"worker_name\",\n"
-                "  \"reasoning\": \"brief explanation for routing choice\"\n"
-                "}}\n\n"
-                "EXAMPLES OF VALID RESPONSES:\n"
-                "{{\"next\": \"drug_expert\", \"reasoning\": \"user asking about medication interactions\"}}\n"
-                "{{\"next\": \"medical_analyst\", \"reasoning\": \"request for symptom analysis\"}}\n"
-                "{{\"next\": \"clinical_reasoning\", \"reasoning\": \"complex diagnostic reasoning needed\"}}\n\n"
+                f"{routing_prompt}\n\n"
                 "Remember: Your response must be a valid JSON object only - no other text."
             )
         

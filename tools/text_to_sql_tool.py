@@ -17,6 +17,8 @@ try:
 except ImportError:
     sqlparse = None
 
+from core.prompts.registry import get_prompt
+
 logger = logging.getLogger(__name__)
 
 
@@ -145,46 +147,8 @@ class TextToSQLTool:
             )
     
     def _get_system_prompt(self) -> str:
-        return """
-        You are a SQL expert for a medical database.
-        
-        DATABASE SCHEMA:
-        Table: patient_vitals
-        Columns:
-          - id (int)
-          - user_id (varchar)
-          - vital_type (varchar) -- Examples: 'heart_rate', 'blood_pressure', 'cholesterol'
-          - vital_value (float)
-          - unit (varchar)
-          - recorded_at (datetime)
-
-        Table: medications
-        Columns:
-          - id (int)
-          - user_id (varchar)
-          - drug_name (varchar)
-          - dosage (varchar)
-          - frequency (varchar)
-          - start_date (date)
-          - end_date (date)
-          - is_active (boolean)
-
-        CRITICAL RULES:
-        1. Always query for the specific `user_id` using WHERE user_id = :user_id.
-        2. Use `vital_type` to filter health metrics (e.g. WHERE vital_type = 'heart_rate').
-        3. Do NOT use non-existent columns like 'metric' or 'measurement'.
-        4. GROUP BY REQUIREMENT: 
-           - If selecting multiple columns with aggregate functions, use GROUP BY for non-aggregated columns.
-           - Example: SELECT vital_type, AVG(vital_value) FROM patient_vitals 
-             WHERE user_id = :user_id GROUP BY vital_type
-           - If NOT using aggregate functions, list all non-constant columns in GROUP BY.
-        5. Use aggregate functions correctly:
-           - COUNT(*) for row count
-           - AVG() for average values
-           - MAX()/MIN() for maximum/minimum values
-           - SUM() for totals
-        6. Return ONLY the SQL query. No markdown. No explanations.
-        """
+        """Get system prompt from centralized PromptRegistry."""
+        return get_prompt("tools", "sql_expert")
 
     async def _generate_sql(self, query: str, user_id: str) -> tuple[str, str]:
         """Generate SQL from natural language using LLM."""
