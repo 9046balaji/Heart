@@ -850,6 +850,26 @@ safe_include_router(app, "routes.documents", "router", prefix="/documents", tags
 # NLP Debug Routes (Phase 3: Visualization & Troubleshooting)
 safe_include_router(app, "routes.nlp_debug", "router", prefix="/nlp", tags=["NLP Debug"])
 
+# ============================================================================
+# SCALABILITY ROUTES (Async Job Pattern)
+# ============================================================================
+
+# Job Management API - status queries, cancellation, retry, dead letter queue
+safe_include_router(app, "routes.job_management", "router", prefix="/api/v2", tags=["Job Management"])
+
+# SSE Routes - Server-Sent Events for real-time updates (HTTP fallback)
+safe_include_router(app, "routes.sse_routes", "router", prefix="/sse", tags=["Server-Sent Events"])
+
+# WebSocket Routes - Real-time updates via WebSocket
+# Note: WebSocket routes are typically registered directly, not via include_router
+try:
+    from routes.websocket_routes import router as websocket_router
+    app.include_router(websocket_router)
+    logger.info("✅ WebSocket routes loaded")
+except Exception as e:
+    logger.warning(f"⚠️  WebSocket routes failed to load: {e}")
+    app._failed_routes.append({"route": "routes.websocket_routes", "error": str(e)})
+
 # Log summary of route loading
 logger.info(f"✅ All routers loaded (with graceful fallbacks for any failures)")
 if app._failed_routes:

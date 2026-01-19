@@ -16,6 +16,11 @@ It replaces global state initialization patterns with proper ASGI lifespan manag
 - Running: Request handling with all services available
 - Shutdown: Clean up resources, close connections
 
+**Scalability Services (New):**
+- ARQ Redis Pool: Job queue for async processing
+- WebSocket Manager: Real-time result delivery with heartbeat
+- Job Store: Redis-based job metadata tracking
+
 **Usage in main.py:**
 ```python
 from contextlib import asynccontextmanager
@@ -34,6 +39,7 @@ app = FastAPI(lifespan=lifespan)
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -49,6 +55,11 @@ _orchestrator: Optional[Any] = None
 _feedback_store: Optional[Any] = None
 _embedding_search_engine: Optional[Any] = None
 _auth_db_service: Optional[Any] = None
+
+# Scalability Services (New)
+_arq_pool: Optional[Any] = None
+_websocket_manager: Optional[Any] = None
+_job_store: Optional[Any] = None
 
 
 def get_orchestrator() -> Optional[Any]:
@@ -77,6 +88,27 @@ def get_auth_db_service() -> Optional[Any]:
     if _auth_db_service is None:
         logger.error("❌ Auth DB service not initialized! User authentication will fail.")
     return _auth_db_service
+
+
+def get_arq_pool() -> Optional[Any]:
+    """Get ARQ Redis pool for job enqueueing (initialized during startup)."""
+    if _arq_pool is None:
+        logger.error("❌ ARQ pool not initialized! Async job processing unavailable.")
+    return _arq_pool
+
+
+def get_websocket_manager() -> Optional[Any]:
+    """Get WebSocket connection manager (initialized during startup)."""
+    if _websocket_manager is None:
+        logger.warning("⚠️ WebSocket manager not initialized - real-time updates unavailable")
+    return _websocket_manager
+
+
+def get_job_store() -> Optional[Any]:
+    """Get job store for job metadata (initialized during startup)."""
+    if _job_store is None:
+        logger.warning("⚠️ Job store not initialized - job tracking unavailable")
+    return _job_store
 
 
 # ============================================================================
@@ -281,6 +313,117 @@ async def startup_event():
     except Exception as e:
         logger.error(f"⚠️  Embedding engine initialization error: {e}")
     
+    # ========================================================================
+    # Scalability Services Initialization (ARQ, WebSocket, Job Store)
+    # ========================================================================
+    
+    try:
+        # 5. Initialize ARQ Redis pool for async job processing
+        logger.info("📦 Initializing ARQ Redis pool for async job queue...")
+        
+        from arq import create_pool
+        from arq.connections import RedisSettings
+        
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        
+        # Parse Redis URL to extract components
+        # Format: redis://[:password@]host[:port][/db]
+        if redis_url.startswith("redis://"):
+            redis_url_parsed = redis_url.replace("redis://", "")
+        else:
+            redis_url_parsed = redis_url
+        
+        # Simple parsing - handle common formats
+        redis_host = "localhost"
+        redis_port = 6379
+        redis_password = None
+        redis_db = 0
+        
+        if "@" in redis_url_parsed:
+            auth_part, host_part = redis_url_parsed.rsplit("@", 1)
+            redis_password = auth_part.lstrip(":")
+        else:
+            host_part = redis_url_parsed
+        
+        if "/" in host_part:
+            host_port, db_part = host_part.split("/", 1)
+            redis_db = int(db_part) if db_part else 0
+        else:
+            host_port = host_part
+        
+        if ":" in host_port:
+            redis_host, port_str = host_port.split(":", 1)
+            redis_port = int(port_str) if port_str else 6379
+        else:
+            redis_host = host_port if host_port else "localhost"
+        
+        arq_settings = RedisSettings(
+            host=redis_host,
+            port=redis_port,
+            password=redis_password,
+            database=redis_db
+        )
+        
+        _arq_pool = await create_pool(arq_settings)
+        logger.info(f"✅ ARQ Redis pool initialized ({redis_host}:{redis_port})")
+        
+        # Wire up ARQ pool to orchestrated chat routes
+        try:
+            from routes.orchestrated_chat import set_arq_pool
+            set_arq_pool(_arq_pool)
+            logger.info("✅ ARQ pool wired to orchestrated chat routes")
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not wire ARQ to routes: {e}")
+        
+    except ImportError:
+        logger.warning("⚠️  ARQ not installed - async job processing unavailable")
+        logger.warning("   Install with: pip install arq")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize ARQ pool: {e}")
+        logger.warning("   Async job processing unavailable - falling back to sync mode")
+    
+    try:
+        # 6. Initialize WebSocket connection manager
+        logger.info("📦 Initializing WebSocket connection manager...")
+        
+        from core.services.websocket_manager import WebSocketManager
+        
+        _websocket_manager = WebSocketManager()
+        
+        # Register in DIContainer for route access
+        from core.dependencies import DIContainer
+        container = DIContainer.get_instance()
+        container.register_service('websocket_manager', _websocket_manager)
+        
+        logger.info("✅ WebSocket manager initialized")
+        
+    except ImportError as e:
+        logger.warning(f"⚠️  WebSocket manager import failed: {e}")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize WebSocket manager: {e}")
+    
+    try:
+        # 7. Initialize Job Store for job metadata tracking
+        logger.info("📦 Initializing Job Store...")
+        
+        if _arq_pool:
+            from core.services.job_store import JobStore
+            
+            # Get the underlying Redis connection from ARQ pool
+            _job_store = JobStore(_arq_pool._pool)
+            
+            # Register in DIContainer
+            from core.dependencies import DIContainer
+            container = DIContainer.get_instance()
+            container.register_service('job_store', _job_store)
+            
+            logger.info("✅ Job Store initialized")
+        else:
+            logger.warning("⚠️  Job Store not initialized (ARQ pool unavailable)")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize Job Store: {e}")
+    
     logger.info("🎉 Application startup complete")
 
 
@@ -291,8 +434,28 @@ async def shutdown_event():
     Runs ONCE per worker during graceful shutdown.
     """
     global _orchestrator, _feedback_store, _embedding_search_engine, _auth_db_service
+    global _arq_pool, _websocket_manager, _job_store
     
     logger.info("🛑 Shutting down application services...")
+    
+    try:
+        # Clean up WebSocket manager (close all connections gracefully)
+        if _websocket_manager:
+            try:
+                await _websocket_manager.close_all()
+                logger.info("✅ WebSocket manager cleaned up")
+            except Exception as e:
+                logger.error(f"Error closing WebSocket connections: {e}")
+    except Exception as e:
+        logger.error(f"Error cleaning up WebSocket manager: {e}")
+    
+    try:
+        # Clean up ARQ pool
+        if _arq_pool:
+            await _arq_pool.close()
+            logger.info("✅ ARQ pool closed")
+    except Exception as e:
+        logger.error(f"Error closing ARQ pool: {e}")
     
     try:
         # Clean up orchestrator

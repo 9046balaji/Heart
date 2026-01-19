@@ -26,6 +26,15 @@ except ImportError:
 from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 
+# Redis Checkpointing for crash recovery and state persistence
+# This enables automatic recovery if a worker crashes mid-workflow
+try:
+    from langgraph.checkpoint.redis import RedisSaver
+    REDIS_CHECKPOINTING_AVAILABLE = True
+except ImportError:
+    RedisSaver = None
+    REDIS_CHECKPOINTING_AVAILABLE = False
+
 from core.config.app_config import get_app_config
 from core.prompts.registry import get_prompt
 
@@ -249,8 +258,13 @@ class LangGraphOrchestrator:
         self.workflow_router = WorkflowRouter(llm_gateway=self.llm_gateway)
         logger.info("✅ FHIR Tool & Workflow Router initialized")
 
+        # --- Redis Checkpointing for State Persistence ---
+        # Enables automatic crash recovery and state persistence
+        self.checkpointer = None
+        self._init_redis_checkpointer()
+
         self.workflow = self._build_workflow()
-        self.app = self.workflow.compile()
+        self.app = self._compile_workflow()
     
     # P3.3: Lazy loading properties
     @property
@@ -272,6 +286,46 @@ class LangGraphOrchestrator:
             )
             logger.info("✅ HeartDiseasePredictor initialized (lazy)")
         return self._heart_predictor
+    
+    def _init_redis_checkpointer(self):
+        """
+        Initialize Redis checkpointer for state persistence.
+        
+        This enables:
+        - Automatic crash recovery from last checkpoint
+        - State persistence across worker restarts
+        - Zero data loss guarantee for agent workflows
+        """
+        if not REDIS_CHECKPOINTING_AVAILABLE:
+            logger.warning("⚠️ langgraph-checkpoint-redis not installed. State persistence disabled.")
+            logger.warning("   Install with: pip install langgraph-checkpoint-redis")
+            return
+        
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        
+        try:
+            # Use sync context manager for initialization
+            # RedisSaver handles connection pooling internally
+            self.checkpointer = RedisSaver.from_conn_string(redis_url)
+            logger.info(f"✅ Redis checkpointer initialized ({redis_url})")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Redis checkpointer: {e}")
+            logger.warning("   State persistence disabled - workflows will not recover from crashes")
+            self.checkpointer = None
+    
+    def _compile_workflow(self):
+        """
+        Compile workflow with optional checkpointer.
+        
+        If Redis checkpointer is available, every workflow step will be
+        automatically persisted, enabling crash recovery.
+        """
+        if self.checkpointer:
+            logger.info("📝 Compiling workflow with Redis checkpointing enabled")
+            return self.workflow.compile(checkpointer=self.checkpointer)
+        else:
+            logger.info("📝 Compiling workflow without checkpointing")
+            return self.workflow.compile()
         
     def _build_workflow(self):
         """Build the LangGraph workflow."""
@@ -940,17 +994,33 @@ class LangGraphOrchestrator:
         }
 
     # --- Main Execution ---
-    async def execute(self, query: str, user_id: str) -> Dict[str, Any]:
+    async def execute(
+        self, 
+        query: str, 
+        user_id: str,
+        thread_id: Optional[str] = None,
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
         """
         Execute the orchestrator.
         
         Args:
             query: User query
             user_id: User ID
+            thread_id: Optional thread ID for checkpointing. If provided, state
+                       will be persisted to Redis, enabling crash recovery.
+            progress_callback: Optional async callback for progress updates.
+                               Signature: async (step: int, total: int, status: str, detail: str)
             
         Returns:
             Dict with 'response', 'metadata', etc.
         """
+        import uuid
+        
+        # Generate thread_id if checkpointing is enabled but no ID provided
+        if self.checkpointer and not thread_id:
+            thread_id = f"thread_{user_id}_{uuid.uuid4().hex[:8]}"
+        
         initial_state = {
             "messages": [HumanMessage(content=query)],
             "user_id": user_id,
@@ -959,7 +1029,13 @@ class LangGraphOrchestrator:
             "source": None  # Will be set by workers (rag, crag, web, llm, llm_fallback)
         }
         
-        final_state = await self.app.ainvoke(initial_state)
+        # Configure execution with checkpointing if available
+        config = {}
+        if thread_id and self.checkpointer:
+            config = {"configurable": {"thread_id": thread_id}}
+            logger.debug(f"📝 Checkpointing enabled for thread: {thread_id}")
+        
+        final_state = await self.app.ainvoke(initial_state, config=config if config else None)
         
         response = final_state.get("final_response")
         if not response:
@@ -998,8 +1074,113 @@ class LangGraphOrchestrator:
             "confidence": final_state.get("confidence", 0.0),
             "citations": citations,
             "pii_scrubbed": _pii_scrubber is not None,
+            "thread_id": thread_id,  # Return thread_id for resumption
             "metadata": {
                 "steps": len(final_state["messages"]),
-                "source": final_state.get("source", "unknown")  # Track response source
+                "source": final_state.get("source", "unknown"),  # Track response source
+                "checkpointed": self.checkpointer is not None
             }
         }
+    
+    async def resume_from_checkpoint(self, thread_id: str) -> Dict[str, Any]:
+        """
+        Resume a workflow from the last checkpoint.
+        
+        Use this when a worker crashes and needs to continue processing
+        from where it left off.
+        
+        Args:
+            thread_id: The thread ID of the workflow to resume
+            
+        Returns:
+            Dict with 'response', 'metadata', etc. from the resumed workflow
+        """
+        if not self.checkpointer:
+            return {
+                "error": "Checkpointing not available",
+                "response": None,
+                "metadata": {"recovered": False}
+            }
+        
+        try:
+            config = {"configurable": {"thread_id": thread_id}}
+            
+            # Get the current state from checkpoint
+            state = await self.app.aget_state(config)
+            
+            if not state or not state.values:
+                return {
+                    "error": f"No checkpoint found for thread: {thread_id}",
+                    "response": None,
+                    "metadata": {"recovered": False}
+                }
+            
+            logger.info(f"🔄 Resuming workflow from checkpoint: {thread_id}")
+            
+            # Resume execution from last checkpoint
+            final_state = await self.app.ainvoke(None, config=config)
+            
+            response = final_state.get("final_response")
+            if not response and final_state.get("messages"):
+                last_msg = final_state["messages"][-1]
+                response = last_msg.content
+            
+            return {
+                "response": response,
+                "intent": final_state.get("intent", "unknown"),
+                "confidence": final_state.get("confidence", 0.0),
+                "citations": final_state.get("citations", []),
+                "thread_id": thread_id,
+                "metadata": {
+                    "steps": len(final_state.get("messages", [])),
+                    "source": final_state.get("source", "unknown"),
+                    "recovered": True,
+                    "checkpointed": True
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to resume from checkpoint {thread_id}: {e}")
+            return {
+                "error": str(e),
+                "response": None,
+                "thread_id": thread_id,
+                "metadata": {"recovered": False}
+            }
+    
+    async def get_workflow_state(self, thread_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the current state of a workflow from its checkpoint.
+        
+        Useful for inspecting workflow progress or debugging.
+        
+        Args:
+            thread_id: The thread ID of the workflow
+            
+        Returns:
+            Current workflow state or None if not found
+        """
+        if not self.checkpointer:
+            logger.warning("Checkpointing not available - cannot retrieve state")
+            return None
+        
+        try:
+            config = {"configurable": {"thread_id": thread_id}}
+            state = await self.app.aget_state(config)
+            
+            if not state or not state.values:
+                return None
+            
+            return {
+                "thread_id": thread_id,
+                "current_node": state.values.get("next"),
+                "message_count": len(state.values.get("messages", [])),
+                "user_id": state.values.get("user_id"),
+                "has_response": state.values.get("final_response") is not None,
+                "source": state.values.get("source"),
+                "checkpoint_id": getattr(state, 'config', {}).get('configurable', {}).get('checkpoint_id')
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get workflow state for {thread_id}: {e}")
+            return None

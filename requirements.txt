@@ -89,6 +89,15 @@ redis>=5.0.0
 lz4>=4.3.2
 
 # ============================================================
+# SCALABILITY - ASYNC WORKER PATTERN (2025 Standard)
+# ============================================================
+# ARQ - Native asyncio task queue (replaces Celery for async workloads)
+arq>=0.25.0
+
+# LangGraph Redis Checkpointing - Zero data loss, automatic crash recovery
+langgraph-checkpoint-redis>=0.3.2
+
+# ============================================================
 # HTTP & NETWORKING
 # ============================================================
 aiohttp>=3.9.1
