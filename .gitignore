@@ -15,8 +15,10 @@ init_postgres_db.py
 create_table.py
 
 
-
-
+.agent
+k8s
+frontend
+helm
 
 .env
 .env.example
@@ -49,7 +51,7 @@ __pycache__
 .vscode
 .ipynb_checkpoints
 dump.rdb
-app_run_5.log
+#app_run_5.log
 core_postgresql_schema.sql
 .python-version
 

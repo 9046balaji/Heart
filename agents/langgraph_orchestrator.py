@@ -105,6 +105,10 @@ class AgentState(TypedDict):
     confidence: Optional[float]
     citations: Optional[List[str]]
     source: Optional[str]  # Track response source: 'rag', 'crag', 'web', 'llm', 'llm_fallback'
+    thinking: Optional[bool]
+    web_search: Optional[bool]
+    deep_search: Optional[bool]
+    file_ids: Optional[List[str]]
 
 # --- Orchestrator Class ---
 class LangGraphOrchestrator:
@@ -478,6 +482,40 @@ class LangGraphOrchestrator:
         messages = state["messages"]
         last_message = messages[-1]
         query = last_message.content
+        
+        # Check for explicit user overrides
+        if state.get("thinking"):
+            logger.info("User requested Thinking Agent")
+            return {
+                "next": "thinking_agent",
+                "intent": "complex_reasoning",
+                "confidence": 1.0
+            }
+        
+        if state.get("deep_search"):
+            logger.info("User requested Deep Search")
+            return {
+                "next": "researcher",
+                "intent": "research",
+                "confidence": 1.0
+            }
+            
+        if state.get("web_search"):
+            logger.info("User requested Web Search")
+            return {
+                "next": "researcher",
+                "intent": "research",
+                "confidence": 1.0
+            }
+            
+        # Check for files (Multimodal)
+        if state.get("file_ids"):
+            logger.info("User attached files - routing to Thinking Agent for multimodal analysis")
+            return {
+                "next": "thinking_agent",
+                "intent": "multimodal_analysis",
+                "confidence": 1.0
+            }
         
         # Use Semantic Router
         route_decision = self.router_v2.route(query)
@@ -916,7 +954,8 @@ class LangGraphOrchestrator:
             enhanced_context = context
         
         # Run thinking agent
-        result = await self.thinking_agent.run(query, enhanced_context)
+        file_ids = state.get("file_ids")
+        result = await self.thinking_agent.run(query, enhanced_context, file_ids=file_ids)
         
         # Format response with reasoning trace (collapsible in UI)
         response = f"{result.answer}\n\n<details><summary>Reasoning Trace</summary>\n\n{result.get_reasoning_trace()}\n</details>"
@@ -999,7 +1038,11 @@ class LangGraphOrchestrator:
         query: str, 
         user_id: str,
         thread_id: Optional[str] = None,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        thinking: bool = False,
+        web_search: bool = False,
+        deep_search: bool = False,
+        file_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Execute the orchestrator.
@@ -1026,7 +1069,11 @@ class LangGraphOrchestrator:
             "user_id": user_id,
             "next": "router",
             "final_response": None,
-            "source": None  # Will be set by workers (rag, crag, web, llm, llm_fallback)
+            "source": None,  # Will be set by workers (rag, crag, web, llm, llm_fallback)
+            "thinking": thinking,
+            "web_search": web_search,
+            "deep_search": deep_search,
+            "file_ids": file_ids
         }
         
         # Configure execution with checkpointing if available

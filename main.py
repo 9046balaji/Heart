@@ -879,12 +879,45 @@ if app._failed_routes:
 
 
 # ============================================================================
+# STATIC FILES - Serve Frontend
+# ============================================================================
+# Mount the frontend folder to serve the testing UI
+try:
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    
+    # Serve frontend at /frontend (for static assets)
+    frontend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
+    if os.path.exists(frontend_path):
+        app.mount("/static", StaticFiles(directory=frontend_path), name="frontend-static")
+        
+        # Serve index.html at root for convenience
+        @app.get("/", tags=["Frontend"], include_in_schema=False)
+        async def serve_frontend():
+            """Serve the frontend testing interface."""
+            index_path = os.path.join(frontend_path, "index.html")
+            if os.path.exists(index_path):
+                return FileResponse(index_path)
+            return {"message": "Welcome to HeartGuard AI API", "docs": "/docs"}
+        
+        logger.info(f"✅ Frontend served at / and /static from {frontend_path}")
+    else:
+        logger.info("ℹ️  Frontend folder not found, skipping static file serving")
+except Exception as e:
+    logger.warning(f"⚠️  Could not set up static file serving: {e}")
+
+
+# ============================================================================
 # Health and Metrics Endpoints
 # ============================================================================
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+async def health_check(request: Request):
     """Basic health check endpoint."""
+    # Don't log health checks to avoid log spam from monitoring tools/browsers
+    # Use DEBUG level if needed for troubleshooting
+    # logger.debug(f"Health check from {request.client.host}")
+
     health_data = {
         "status": "healthy",
         "service": SERVICE_NAME,

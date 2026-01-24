@@ -466,3 +466,7 @@ async def shutdown_ws_manager() -> None:
     if _ws_manager:
         await _ws_manager.shutdown()
         _ws_manager = None
+
+
+# Alias for backward compatibility
+WebSocketManager = WebSocketConnectionManager

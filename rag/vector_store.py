@@ -4,6 +4,11 @@ Vector Store - ChromaDB-based Storage for RAG
 This module provides persistent vector storage using ChromaDB,
 enabling semantic search over medical knowledge and user memories.
 
+Performance Optimizations:
+- L1: In-memory LRU cache (100 entries)
+- L2: Redis cache with 300s TTL (shared across workers)
+- Parallel retrieval support
+
 Addresses GAPs from documents:
 - ❌ No vector storage -> ✅ ChromaDB persistent storage
 - ❌ No semantic search -> ✅ Similarity search on embeddings
@@ -29,6 +34,42 @@ import threading
 import asyncio
 
 logger = logging.getLogger(__name__)
+
+# Redis cache configuration for vector search
+VECTOR_CACHE_TTL = int(os.getenv("VECTOR_CACHE_TTL", "300"))  # 5 minutes default
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Lazy Redis client
+_vector_redis_client = None
+_vector_redis_available = None
+
+def _get_sync_redis_client():
+    """Get synchronous Redis client for vector store caching."""
+    global _vector_redis_client, _vector_redis_available
+    
+    if _vector_redis_available is False:
+        return None
+    
+    if _vector_redis_client is not None:
+        return _vector_redis_client
+    
+    try:
+        import redis
+        _vector_redis_client = redis.from_url(
+            REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=2.0,
+        )
+        # Test connection
+        _vector_redis_client.ping()
+        _vector_redis_available = True
+        logger.info(f"✅ Vector cache Redis connected (TTL={VECTOR_CACHE_TTL}s)")
+        return _vector_redis_client
+    except Exception as e:
+        logger.warning(f"⚠️ Redis unavailable for vector caching: {e}")
+        _vector_redis_available = False
+        return None
 
 # Optional ChromaDB import - with Python 3.14 compatibility check
 CHROMADB_AVAILABLE = False
@@ -603,13 +644,36 @@ class VectorStore:
                 logger.info(f"✅ Found {fallback_collection.count()} documents in fallback collection 'medical_docs'")
                 collection = fallback_collection
 
-        # LATENCY OPTIMIZATION: Check query cache first (only if query string provided)
+        # LATENCY OPTIMIZATION: Multi-tier cache check
+        # L1: In-memory cache (fast, per-worker)
+        # L2: Redis cache (shared across workers, 300s TTL)
         cache_key = None
+        redis_cache_key = None
         if query:
             cache_key = hashlib.md5(f"{query}:{top_k}:{filter_metadata}:{collection_name}".encode()).hexdigest()
+            redis_cache_key = f"vec:search:{cache_key}"
+            
+            # L1: Check in-memory cache
             if cache_key in self._query_cache:
-                logger.debug(f"Query cache HIT: {cache_key[:8]}")
+                logger.debug(f"⚡ L1 cache HIT: {cache_key[:8]}")
                 return self._query_cache[cache_key]
+            
+            # L2: Check Redis cache
+            redis_client = _get_sync_redis_client()
+            if redis_client:
+                try:
+                    cached = redis_client.get(redis_cache_key)
+                    if cached:
+                        results = json.loads(cached)
+                        logger.debug(f"⚡ L2 Redis cache HIT: {cache_key[:8]}")
+                        # Promote to L1 cache
+                        with self._query_cache_lock:
+                            if len(self._query_cache) >= self._query_cache_max_size:
+                                self._query_cache.popitem(last=False)
+                            self._query_cache[cache_key] = results
+                        return results
+                except Exception as e:
+                    logger.debug(f"Redis cache get failed: {e}")
 
         # Generate query embedding if not provided
         if query_embedding is None:
@@ -648,13 +712,22 @@ class VectorStore:
                     }
                 )
 
-        # LATENCY OPTIMIZATION: Cache results for repeated queries
-        # LATENCY OPTIMIZATION: Cache results for repeated queries
-        with self._query_cache_lock:
-            if len(self._query_cache) >= self._query_cache_max_size:
-                # Remove oldest entry (FIFO)
-                self._query_cache.popitem(last=False)
-            self._query_cache[cache_key] = formatted
+        # LATENCY OPTIMIZATION: Store in both cache tiers
+        if cache_key:
+            # L1: In-memory cache
+            with self._query_cache_lock:
+                if len(self._query_cache) >= self._query_cache_max_size:
+                    self._query_cache.popitem(last=False)
+                self._query_cache[cache_key] = formatted
+            
+            # L2: Redis cache (with TTL)
+            redis_client = _get_sync_redis_client()
+            if redis_client and redis_cache_key:
+                try:
+                    redis_client.setex(redis_cache_key, VECTOR_CACHE_TTL, json.dumps(formatted))
+                    logger.debug(f"✅ Cached in Redis: {cache_key[:8]} (TTL={VECTOR_CACHE_TTL}s)")
+                except Exception as e:
+                    logger.debug(f"Redis cache set failed: {e}")
 
         return formatted
 

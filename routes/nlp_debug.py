@@ -4,14 +4,16 @@ NLP Debug Routes
 Endpoints for visualizing and debugging the NLP pipeline.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from typing import Dict, Any
 import spacy
 from spacy import displacy
 import logging
 
 from core.services.spacy_service import get_spacy_service
+from core.security import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -22,7 +24,10 @@ class VisualizeRequest(BaseModel):
     minify: bool = True
 
 @router.post("/visualize", response_class=HTMLResponse)
-async def visualize_text(request: VisualizeRequest):
+async def visualize_text(
+    request: VisualizeRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Render spaCy visualization for text.
     
@@ -62,7 +67,9 @@ async def visualize_text(request: VisualizeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/pipeline/info")
-async def get_pipeline_info():
+async def get_pipeline_info(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """Get information about the active NLP pipeline."""
     service = get_spacy_service()
     nlp = service.nlp
@@ -75,7 +82,10 @@ async def get_pipeline_info():
     }
 
 @router.post("/tokenize")
-async def inspect_tokens(request: VisualizeRequest):
+async def inspect_tokens(
+    request: VisualizeRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """Inspect how text is tokenized."""
     service = get_spacy_service()
     doc = service.process(request.text)

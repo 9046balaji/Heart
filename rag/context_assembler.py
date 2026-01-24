@@ -3,15 +3,59 @@ Context Assembler for RAG System
 
 Handles parallel retrieval from multiple sources (vector, graph, memory)
 and combines results into unified context.
+
+Performance Optimizations:
+- Redis caching with 300s TTL for assembled context
+- Parallel retrieval from all sources
+- Document compression for token efficiency
 """
 
 import logging
 import asyncio
+import hashlib
+import json
+import os
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Redis cache configuration
+CONTEXT_CACHE_TTL = int(os.getenv("CONTEXT_CACHE_TTL", "300"))  # 5 minutes default
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Lazy Redis import
+_redis_client = None
+_redis_available = None
+
+async def _get_redis_client():
+    """Get async Redis client, lazily initialized."""
+    global _redis_client, _redis_available
+    
+    if _redis_available is False:
+        return None
+    
+    if _redis_client is not None:
+        return _redis_client
+    
+    try:
+        from redis import asyncio as aioredis
+        _redis_client = await aioredis.from_url(
+            REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True,
+            socket_connect_timeout=2.0,
+        )
+        # Test connection
+        await _redis_client.ping()
+        _redis_available = True
+        logger.info(f"✅ Context cache Redis connected (TTL={CONTEXT_CACHE_TTL}s)")
+        return _redis_client
+    except Exception as e:
+        logger.warning(f"⚠️ Redis unavailable for context caching: {e}")
+        _redis_available = False
+        return None
 
 
 class CompressionStrategy(Enum):
@@ -134,28 +178,115 @@ class ContextAssembler:
                 logger.warning("UnifiedDocumentCompressor not available, compression disabled")
                 self.enable_compression = False
         
+        # Cache settings
+        self.cache_ttl = CONTEXT_CACHE_TTL
+        self._cache_enabled = True  # Can be disabled via env var
+        
         logger.info(
             f"ContextAssembler initialized: "
             f"vector={bool(vector_store)}, "
             f"neo4j={bool(neo4j_service)}, "
             f"memory={bool(memory_bridge)}, "
-            f"weights=(vector={self.vector_weight:.2f}, graph={self.graph_weight:.2f}, memory={self.memory_weight:.2f})"
+            f"weights=(vector={self.vector_weight:.2f}, graph={self.graph_weight:.2f}, memory={self.memory_weight:.2f}), "
+            f"cache_ttl={self.cache_ttl}s"
         )
+    
+    def _generate_cache_key(self, query: str, user_id: Optional[str], top_k: int) -> str:
+        """
+        Generate deterministic cache key from query parameters.
+        
+        Uses SHA256 hash for consistent key length and collision resistance.
+        """
+        key_data = f"{query}:{user_id or 'anon'}:{top_k}:{self.vector_weight}:{self.graph_weight}"
+        key_hash = hashlib.sha256(key_data.encode()).hexdigest()[:16]
+        return f"ctx:asm:{key_hash}"
+    
+    async def _get_cached_context(self, cache_key: str) -> Optional[AssembledContext]:
+        """Retrieve cached context from Redis."""
+        if not self._cache_enabled:
+            return None
+        
+        try:
+            redis = await _get_redis_client()
+            if redis is None:
+                return None
+            
+            cached = await redis.get(cache_key)
+            if cached:
+                data = json.loads(cached)
+                logger.debug(f"✅ Cache hit for context: {cache_key}")
+                return AssembledContext(
+                    vector_results=data.get("vector_results", []),
+                    graph_results=data.get("graph_results", []),
+                    memory_results=data.get("memory_results", []),
+                    combined_ranked=data.get("combined_ranked", []),
+                    total_documents=data.get("total_documents", 0),
+                    retrieval_time_ms=data.get("retrieval_time_ms", 0.0),
+                )
+        except Exception as e:
+            logger.debug(f"Cache get failed: {e}")
+        
+        return None
+    
+    async def _set_cached_context(self, cache_key: str, context: AssembledContext):
+        """Store context in Redis cache."""
+        if not self._cache_enabled:
+            return
+        
+        try:
+            redis = await _get_redis_client()
+            if redis is None:
+                return
+            
+            data = {
+                "vector_results": context.vector_results,
+                "graph_results": context.graph_results,
+                "memory_results": context.memory_results,
+                "combined_ranked": context.combined_ranked,
+                "total_documents": context.total_documents,
+                "retrieval_time_ms": context.retrieval_time_ms,
+            }
+            await redis.setex(cache_key, self.cache_ttl, json.dumps(data))
+            logger.debug(f"✅ Cached context: {cache_key} (TTL={self.cache_ttl}s)")
+        except Exception as e:
+            logger.debug(f"Cache set failed: {e}")
     
     async def assemble(
         self,
         query: str,
         user_id: Optional[str] = None,
         top_k: int = 5,
+        skip_cache: bool = False,
     ) -> AssembledContext:
         """
         Assemble context from all sources.
         
         Performs parallel retrieval from vector store, knowledge graph,
         and user memory (if available).
+        
+        Performance: Uses Redis cache with 300s TTL for repeated queries.
+        
+        Args:
+            query: The search query
+            user_id: Optional user ID for memory context
+            top_k: Number of results per source
+            skip_cache: Force fresh retrieval (bypass cache)
         """
         import time
         start_time = time.time()
+        
+        # Generate cache key
+        cache_key = self._generate_cache_key(query, user_id, top_k)
+        
+        # Check cache first (unless skip_cache is True)
+        if not skip_cache:
+            cached = await self._get_cached_context(cache_key)
+            if cached:
+                # Update retrieval time to reflect cache hit
+                elapsed = (time.time() - start_time) * 1000
+                cached.retrieval_time_ms = elapsed
+                logger.info(f"⚡ Context cache hit ({elapsed:.1f}ms vs original {cached.retrieval_time_ms:.1f}ms)")
+                return cached
         
         try:
             # Create parallel retrieval tasks
@@ -242,7 +373,7 @@ class ContextAssembler:
             
             elapsed = (time.time() - start_time) * 1000
             
-            return AssembledContext(
+            context = AssembledContext(
                 vector_results=vector_results,
                 graph_results=graph_results,
                 memory_results=memory_results,
@@ -250,6 +381,16 @@ class ContextAssembler:
                 total_documents=len(vector_results) + len(graph_results) + len(memory_results),
                 retrieval_time_ms=elapsed,
             )
+            
+            # Cache the result for future requests
+            await self._set_cached_context(cache_key, context)
+            
+            logger.info(
+                f"Context assembled in {elapsed:.1f}ms: "
+                f"{len(vector_results)} vector + {len(graph_results)} graph + {len(memory_results)} memory"
+            )
+            
+            return context
         
         except Exception as e:
             logger.error(f"Error assembling context: {e}", exc_info=True)

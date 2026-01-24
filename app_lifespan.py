@@ -386,9 +386,9 @@ async def startup_event():
         # 6. Initialize WebSocket connection manager
         logger.info("📦 Initializing WebSocket connection manager...")
         
-        from core.services.websocket_manager import WebSocketManager
+        from core.services.websocket_manager import WebSocketConnectionManager
         
-        _websocket_manager = WebSocketManager()
+        _websocket_manager = WebSocketConnectionManager()
         
         # Register in DIContainer for route access
         from core.dependencies import DIContainer

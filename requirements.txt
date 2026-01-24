@@ -54,6 +54,8 @@ torch>=2.1.1
 tiktoken>=0.5.0
 tokenizers>=0.15.0
 spacy[transformers]>=3.0.0
+# Multilingual support
+langdetect>=0.1.1
 # ============================================================
 # VECTOR STORE & RAG
 # ============================================================

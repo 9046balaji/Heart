@@ -93,6 +93,12 @@ class ChatRequest(BaseModel):
     webhook_url: Optional[str] = Field(None, description="URL for result delivery via webhook")
     priority: int = Field(0, ge=-10, le=10, description="Job priority (-10 to 10, higher = more urgent)")
     
+    # Feature flags
+    thinking: bool = Field(False, description="Enable thinking agent")
+    web_search: bool = Field(False, description="Enable web search")
+    deep_search: bool = Field(False, description="Enable deep search")
+    file_ids: Optional[List[str]] = Field(None, description="List of file IDs to process")
+    
     @validator('message')
     def sanitize_message(cls, v):
         """Remove potentially dangerous control characters."""
@@ -209,7 +215,11 @@ async def _process_sync_chat(request: ChatRequest, session_id: str) -> ChatRespo
         
         result = await orchestrator.execute(
             query=request.message,
-            user_id=request.user_id
+            user_id=request.user_id,
+            thinking=request.thinking,
+            web_search=request.web_search,
+            deep_search=request.deep_search,
+            file_ids=request.file_ids
         )
         
         is_success = bool(result.get("response")) and result.get("confidence", 0) > 0.3
@@ -265,6 +275,10 @@ async def _enqueue_chat_job(
             input_data={
                 "message": request.message,
                 "session_id": session_id,
+                "thinking": request.thinking,
+                "web_search": request.web_search,
+                "deep_search": request.deep_search,
+                "file_ids": request.file_ids,
             },
             webhook_url=request.webhook_url,
             priority=request.priority
@@ -277,6 +291,10 @@ async def _enqueue_chat_job(
             user_id=request.user_id,
             message=request.message,
             session_id=session_id,
+            thinking=request.thinking,
+            web_search=request.web_search,
+            deep_search=request.deep_search,
+            file_ids=request.file_ids,
             webhook_url=request.webhook_url,
             _job_id=job_id  # Use our job_id as ARQ's job ID for tracking
         )

@@ -9,10 +9,12 @@ Endpoints:
     GET /feedback/stats - Get feedback statistics
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
+
+from core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +67,10 @@ def get_feedback_store():
 
 
 @router.post("/", response_model=FeedbackResponse)
-async def submit_feedback(request: FeedbackRequest) -> FeedbackResponse:
+async def submit_feedback(
+    request: FeedbackRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> FeedbackResponse:
     """
     Submit user feedback for a RAG response.
     
@@ -118,7 +123,9 @@ async def submit_feedback(request: FeedbackRequest) -> FeedbackResponse:
 
 
 @router.get("/stats", response_model=FeedbackStats)
-async def get_feedback_stats() -> FeedbackStats:
+async def get_feedback_stats(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> FeedbackStats:
     """
     Get feedback statistics for monitoring.
     

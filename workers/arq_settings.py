@@ -75,10 +75,14 @@ async def process_chat_message(
     ctx: Dict[str, Any],
     job_id: str,
     user_id: str,
-    query: str,
+    message: str,
     session_id: Optional[str] = None,
     priority: str = "normal",
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    thinking: bool = False,
+    web_search: bool = False,
+    deep_search: bool = False,
+    file_ids: Optional[list] = None
 ) -> Dict[str, Any]:
     """
     Process a chat message through LangGraph orchestrator.
@@ -130,10 +134,14 @@ async def process_chat_message(
         # Execute LangGraph orchestrator (fully async)
         # thread_id = job_id for checkpointing - enables crash recovery
         result = await orchestrator.execute(
-            query=query,
+            query=message,
             user_id=user_id,
             thread_id=job_id,  # Use job_id as thread_id for checkpointing
-            progress_callback=on_progress
+            progress_callback=on_progress,
+            thinking=thinking,
+            web_search=web_search,
+            deep_search=deep_search,
+            file_ids=file_ids
         )
         
         processing_time_ms = int((time.time() - start_time) * 1000)

@@ -19,7 +19,7 @@ from typing import Optional, Set, Dict, Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, status
 from starlette.websockets import WebSocketState
 
-from core.services.websocket_manager import get_ws_manager, WebSocketConnectionManager
+from core.services.websocket_manager import get_ws_manager, WebSocketConnectionManager, WebSocketManager
 from core.services.job_store import get_job_store, JobStatus
 
 logger = logging.getLogger(__name__)

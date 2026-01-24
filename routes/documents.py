@@ -22,8 +22,10 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from typing import Dict, Any
 
 from routes.file_security import validate_upload
+from core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +163,7 @@ async def upload_document(
     description: Optional[str] = Form(None),
     category: Optional[str] = Form("medical"),
     user_id: Optional[str] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Upload and process a single document.
@@ -317,6 +320,7 @@ async def upload_documents_batch(
     category: Optional[str] = Form("medical"),
     user_id: Optional[str] = Form(None),
     background_tasks: BackgroundTasks = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Upload multiple documents in batch.
@@ -402,7 +406,10 @@ async def upload_documents_batch(
 
 
 @router.post("/query", response_model=DocumentQueryResponse)
-async def query_documents(request: DocumentQueryRequest):
+async def query_documents(
+    request: DocumentQueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Query documents with multimodal context.
     
@@ -512,7 +519,10 @@ async def get_document_service_status():
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: str):
+async def delete_document(
+    doc_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Delete a document and all its chunks.
     

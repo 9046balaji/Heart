@@ -79,24 +79,82 @@ class SemanticRouterV2:
     # ═══════════════════════════════════════════════════════════════════════════
     
     EMERGENCY_PATTERNS = [
-        # Cardiac emergencies
+        # Cardiac emergencies (English)
         (r"\b(chest\s+pain|chest\s+tightness|chest\s+pressure)\b", 0.95, "Chest pain detected"),
         (r"\b(can't\s+breathe|cannot\s+breathe|difficulty\s+breathing|shortness\s+of\s+breath|dyspnea)\b", 0.95, "Breathing difficulty detected"),
         (r"\b(heart\s+attack|myocardial\s+infarction|mi|cardiac\s+arrest)\b", 0.95, "Heart attack detected"),
         (r"\b(severe\s+chest|critical\s+heart)\b", 0.95, "Severe cardiac symptom detected"),
         
-        # Stroke/Neurological
+        # Stroke/Neurological (English)
         (r"\b(stroke|tia|transient\s+ischemic\s+attack|paralysis|weakness|slurred\s+speech)\b", 0.95, "Stroke symptoms detected"),
         (r"\b(loss\s+of\s+(consciousness|vision)|fainting|syncope)\b", 0.90, "Loss of consciousness detected"),
         
-        # Emergency keywords
+        # Emergency keywords (English)
         (r"\b(911|call\s+911|emergency|urgent\s+help|crisis|immediate\s+help)\b", 0.90, "Emergency keyword detected"),
         
-        # Severe bleeding
+        # Severe bleeding (English)
         (r"\b(severe\s+bleeding|hemorrhage|uncontrolled\s+bleeding)\b", 0.90, "Severe bleeding detected"),
         
-        # Severe pain
+        # Severe pain (English)
         (r"\b(severe\s+pain|unbearable\s+pain|excruciating)\b", 0.85, "Severe pain reported"),
+        
+        # ─── SPANISH (ES) EMERGENCIES ───
+        (r"\b(dolor\s+(de\s+)?pecho|opresión\s+(en\s+el\s+)?pecho|presión\s+(en\s+el\s+)?pecho)\b", 0.95, "ES: Dolor de pecho detectado"),
+        (r"\b(no\s+puedo\s+respirar|dificultad\s+(para\s+)?respirar|falta\s+de\s+aire|ahogamiento)\b", 0.95, "ES: Dificultad respiratoria detectada"),
+        (r"\b(ataque\s+(al\s+)?corazón|infarto|paro\s+cardíaco|infarto\s+de\s+miocardio)\b", 0.95, "ES: Ataque al corazón detectado"),
+        (r"\b(derrame\s+cerebral|accidente\s+cerebrovascular|ictus|parálisis|debilidad)\b", 0.95, "ES: Síntomas de derrame detectados"),
+        (r"\b(pérdida\s+de\s+(conocimiento|visión)|desmayo|síncope)\b", 0.90, "ES: Pérdida de conocimiento detectada"),
+        (r"\b(emergencia|urgencia|ayuda\s+urgente|llamar\s+(al\s+)?911)\b", 0.90, "ES: Palabra de emergencia detectada"),
+        (r"\b(hemorragia|sangrado\s+(severo|grave))\b", 0.90, "ES: Sangrado severo detectado"),
+        (r"\b(dolor\s+(severo|insoportable)|agonía)\b", 0.85, "ES: Dolor severo reportado"),
+        
+        # ─── FRENCH (FR) EMERGENCIES ───
+        (r"\b(douleur\s+(à\s+la\s+)?poitrine|oppression\s+(thoracique|poitrine))\b", 0.95, "FR: Douleur thoracique détectée"),
+        (r"\b(je\s+ne\s+peux\s+pas\s+respirer|difficulté\s+à\s+respirer|essoufflement|dyspnée)\b", 0.95, "FR: Difficulté respiratoire détectée"),
+        (r"\b(crise\s+cardiaque|infarctus|arrêt\s+cardiaque)\b", 0.95, "FR: Crise cardiaque détectée"),
+        (r"\b(avc|accident\s+vasculaire\s+cérébral|attaque\s+cérébrale|paralysie|faiblesse)\b", 0.95, "FR: Symptômes d'AVC détectés"),
+        (r"\b(perte\s+de\s+(connaissance|vision)|évanouissement|syncope)\b", 0.90, "FR: Perte de connaissance détectée"),
+        (r"\b(urgence|aide\s+urgente|appeler\s+(le\s+)?15|samu)\b", 0.90, "FR: Mot d'urgence détecté"),
+        (r"\b(hémorragie|saignement\s+(sévère|grave))\b", 0.90, "FR: Saignement sévère détecté"),
+        (r"\b(douleur\s+(sévère|insupportable)|atroce)\b", 0.85, "FR: Douleur sévère signalée"),
+        
+        # ─── GERMAN (DE) EMERGENCIES ───
+        (r"\b(brustschmerzen|brustenge|druck\s+(auf\s+der\s+)?brust)\b", 0.95, "DE: Brustschmerzen erkannt"),
+        (r"\b(kann\s+nicht\s+atmen|atemnot|kurzatmigkeit|dyspnoe)\b", 0.95, "DE: Atemnot erkannt"),
+        (r"\b(herzinfarkt|herzanfall|herzstillstand|myokardinfarkt)\b", 0.95, "DE: Herzinfarkt erkannt"),
+        (r"\b(schlaganfall|hirnschlag|lähmung|schwäche|sprachstörung)\b", 0.95, "DE: Schlaganfall-Symptome erkannt"),
+        (r"\b(bewusstlosigkeit|ohnmacht|synkope|sehverlust)\b", 0.90, "DE: Bewusstlosigkeit erkannt"),
+        (r"\b(notfall|notruf|hilfe|112\s+anrufen|rettungsdienst)\b", 0.90, "DE: Notfall-Schlüsselwort erkannt"),
+        (r"\b(starke\s+blutung|hämorrhagie|blutung)\b", 0.90, "DE: Schwere Blutung erkannt"),
+        (r"\b(starke\s+schmerzen|unerträgliche\s+schmerzen)\b", 0.85, "DE: Starke Schmerzen gemeldet"),
+        
+        # ─── PORTUGUESE (PT) EMERGENCIES ───
+        (r"\b(dor\s+no\s+peito|aperto\s+no\s+peito|pressão\s+no\s+peito)\b", 0.95, "PT: Dor no peito detectada"),
+        (r"\b(não\s+consigo\s+respirar|falta\s+de\s+ar|dificuldade\s+(para\s+)?respirar)\b", 0.95, "PT: Dificuldade respiratória detectada"),
+        (r"\b(ataque\s+cardíaco|infarto|parada\s+cardíaca)\b", 0.95, "PT: Ataque cardíaco detectado"),
+        (r"\b(avc|derrame|paralisia|fraqueza)\b", 0.95, "PT: Sintomas de AVC detectados"),
+        (r"\b(emergência|urgência|chamar\s+(o\s+)?192|samu)\b", 0.90, "PT: Palavra de emergência detectada"),
+        
+        # ─── ITALIAN (IT) EMERGENCIES ───
+        (r"\b(dolore\s+al\s+petto|oppressione\s+toracica|pressione\s+al\s+petto)\b", 0.95, "IT: Dolore toracico rilevato"),
+        (r"\b(non\s+riesco\s+a\s+respirare|difficoltà\s+a\s+respirare|mancanza\s+di\s+respiro)\b", 0.95, "IT: Difficoltà respiratoria rilevata"),
+        (r"\b(infarto|attacco\s+di\s+cuore|arresto\s+cardiaco)\b", 0.95, "IT: Infarto rilevato"),
+        (r"\b(ictus|paralisi|debolezza|parla\s+male)\b", 0.95, "IT: Sintomi ictus rilevati"),
+        (r"\b(emergenza|urgenza|chiamare\s+(il\s+)?118)\b", 0.90, "IT: Parola di emergenza rilevata"),
+        
+        # ─── CHINESE (ZH) EMERGENCIES ───
+        (r"(胸痛|胸闷|胸部压迫感|心绞痛)", 0.95, "ZH: 胸痛检测"),
+        (r"(无法呼吸|呼吸困难|喘不上气|气短)", 0.95, "ZH: 呼吸困难检测"),
+        (r"(心脏病发作|心肌梗死|心脏骤停|心梗)", 0.95, "ZH: 心脏病发作检测"),
+        (r"(中风|脑卒中|瘫痪|麻木|言语不清)", 0.95, "ZH: 中风症状检测"),
+        (r"(紧急情况|急救|拨打120|救命)", 0.90, "ZH: 紧急关键词检测"),
+        
+        # ─── JAPANESE (JA) EMERGENCIES ───
+        (r"(胸の痛み|胸が苦しい|胸が締め付けられる)", 0.95, "JA: 胸痛検出"),
+        (r"(息ができない|呼吸困難|息切れ)", 0.95, "JA: 呼吸困難検出"),
+        (r"(心臓発作|心筋梗塞|心停止)", 0.95, "JA: 心臓発作検出"),
+        (r"(脳卒中|麻痺|しびれ|ろれつが回らない)", 0.95, "JA: 脳卒中症状検出"),
+        (r"(緊急|救急|119番|助けて)", 0.90, "JA: 緊急キーワード検出"),
     ]
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -153,18 +211,58 @@ class SemanticRouterV2:
     # ═══════════════════════════════════════════════════════════════════════════
 
     TRIAGE_PATTERNS = [
+        # English triage patterns
         (r"\b(should\s+i\s+go\s+to\s+the\s+(er|emergency|hospital))\b", 0.90, "ER Triage query"),
         (r"\b(do\s+i\s+need\s+to\s+see\s+a\s+doctor)\b", 0.85, "Doctor visit query"),
         (r"\b(is\s+this\s+(serious|urgent|emergency))\b", 0.85, "Urgency assessment"),
         (r"\b(triage|assess\s+my\s+symptoms)\b", 0.85, "Explicit triage request"),
+        
+        # ─── SPANISH (ES) TRIAGE ───
+        (r"\b(debo\s+ir\s+al\s+(hospital|urgencias|emergencias))\b", 0.90, "ES: Consulta de triaje"),
+        (r"\b(necesito\s+ver\s+a\s+un\s+(médico|doctor))\b", 0.85, "ES: Consulta médica"),
+        (r"\b(es\s+(grave|urgente|serio))\b", 0.85, "ES: Evaluación de urgencia"),
+        
+        # ─── FRENCH (FR) TRIAGE ───
+        (r"\b(dois-je\s+aller\s+aux\s+(urgences|hôpital))\b", 0.90, "FR: Question de triage"),
+        (r"\b(dois-je\s+voir\s+un\s+(médecin|docteur))\b", 0.85, "FR: Consultation médicale"),
+        (r"\b(est-ce\s+(grave|urgent|sérieux))\b", 0.85, "FR: Évaluation d'urgence"),
+        
+        # ─── GERMAN (DE) TRIAGE ───
+        (r"\b(soll\s+ich\s+(ins\s+krankenhaus|in\s+die\s+notaufnahme))\b", 0.90, "DE: Triage-Anfrage"),
+        (r"\b(muss\s+ich\s+zum\s+arzt)\b", 0.85, "DE: Arztbesuch-Anfrage"),
+        (r"\b(ist\s+(es|das)\s+(ernst|dringend|gefährlich))\b", 0.85, "DE: Dringlichkeitsbewertung"),
+        
+        # ─── PORTUGUESE (PT) TRIAGE ───
+        (r"\b(devo\s+ir\s+ao\s+(hospital|pronto-socorro))\b", 0.90, "PT: Consulta de triagem"),
+        (r"\b(preciso\s+ver\s+um\s+(médico|doutor))\b", 0.85, "PT: Consulta médica"),
+        
+        # ─── ITALIAN (IT) TRIAGE ───
+        (r"\b(devo\s+andare\s+al\s+(pronto\s+soccorso|ospedale))\b", 0.90, "IT: Domanda di triage"),
+        (r"\b(devo\s+vedere\s+un\s+(medico|dottore))\b", 0.85, "IT: Visita medica"),
     ]
 
     DIFFERENTIAL_DIAGNOSIS_PATTERNS = [
+        # English
         (r"\b(what\s+(could\s+be|is)\s+causing\s+my\s+symptoms)\b", 0.85, "Causality query"),
         (r"\b(what\s+do\s+i\s+have)\b", 0.80, "Diagnosis query"),
         (r"\b(diagnose\s+me|differential\s+diagnosis)\b", 0.85, "Explicit diagnosis request"),
         (r"\b(possible\s+causes\s+for)\b", 0.80, "Causes query"),
         (r"\b(could\s+it\s+be)\b", 0.75, "Hypothesis testing"),
+        
+        # ─── SPANISH (ES) DIAGNOSIS ───
+        (r"\b(qué\s+(puede\s+ser|está\s+causando)\s+mis\s+síntomas)\b", 0.85, "ES: Consulta de causalidad"),
+        (r"\b(qué\s+tengo|cuál\s+es\s+mi\s+diagnóstico)\b", 0.80, "ES: Consulta de diagnóstico"),
+        (r"\b(causas\s+posibles)\b", 0.80, "ES: Consulta de causas"),
+        
+        # ─── FRENCH (FR) DIAGNOSIS ───
+        (r"\b(qu'est-ce\s+qui\s+(cause|provoque)\s+mes\s+symptômes)\b", 0.85, "FR: Question de causalité"),
+        (r"\b(qu'est-ce\s+que\s+j'ai)\b", 0.80, "FR: Question de diagnostic"),
+        (r"\b(causes\s+possibles)\b", 0.80, "FR: Question de causes"),
+        
+        # ─── GERMAN (DE) DIAGNOSIS ───
+        (r"\b(was\s+verursacht\s+meine\s+symptome)\b", 0.85, "DE: Kausalitätsanfrage"),
+        (r"\b(was\s+habe\s+ich)\b", 0.80, "DE: Diagnoseanfrage"),
+        (r"\b(mögliche\s+ursachen)\b", 0.80, "DE: Ursachenanfrage"),
     ]
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -172,7 +270,7 @@ class SemanticRouterV2:
     # ═══════════════════════════════════════════════════════════════════════════
     
     MEDICAL_QA_PATTERNS = [
-        # Question patterns
+        # English Question patterns
         (r"\b(what\s+are?|why|how|which)\b.*\b(symptom|cause|treatment|medication|drug|side.*effect)\b", 0.80, "Medical question pattern"),
         
         # "What is X used for?" or "What is X for?" patterns (common medical questions)
@@ -210,6 +308,60 @@ class SemanticRouterV2:
         # Health conditions (expanded)
         (r"\b(disease|disorder|condition|syndrome|illness|ailment)\b", 0.75, "Health condition topic"),
         (r"\b(diagnos|prognos|therap|patholog|physiolog)\w*\b", 0.80, "Medical terminology"),
+        
+        # ─── SPANISH (ES) MEDICAL QA ───
+        (r"\b(cuáles\s+son|por\s+qué|cómo|qué)\b.*\b(síntoma|causa|tratamiento|medicamento|medicación|efecto)\b", 0.80, "ES: Patrón de pregunta médica"),
+        (r"\b(para\s+qué\s+sirve|para\s+qué\s+se\s+usa)\b", 0.85, "ES: Pregunta de propósito del medicamento"),
+        (r"\b(hipertensión|presión\s+arterial\s+alta|diabetes|arritmia|enfermedad\s+cardíaca)\b", 0.85, "ES: Condición médica"),
+        (r"\b(medicamento|medicina|fármaco|receta)\b", 0.75, "ES: Tema de medicación"),
+        (r"\b(síntoma|presenta\s+con)\b", 0.80, "ES: Discusión de síntomas"),
+        (r"\b(efecto\s+secundario|reacción\s+adversa|contraindicación)\b", 0.85, "ES: Efectos secundarios"),
+        (r"\b(tratamiento|terapia|dosis|dosificación)\b", 0.75, "ES: Guías de tratamiento"),
+        (r"\b(enfermedad|trastorno|condición|síndrome)\b", 0.75, "ES: Tema de salud"),
+        
+        # ─── FRENCH (FR) MEDICAL QA ───
+        (r"\b(quels\s+sont|pourquoi|comment|quel)\b.*\b(symptôme|cause|traitement|médicament|effet)\b", 0.80, "FR: Modèle de question médicale"),
+        (r"\b(à\s+quoi\s+sert|pour\s+quoi\s+est\s+utilisé)\b", 0.85, "FR: Question sur l'usage du médicament"),
+        (r"\b(hypertension|tension\s+artérielle\s+élevée|diabète|arythmie|maladie\s+cardiaque)\b", 0.85, "FR: Condition médicale"),
+        (r"\b(médicament|remède|ordonnance)\b", 0.75, "FR: Sujet de médication"),
+        (r"\b(symptôme|se\s+présente\s+avec)\b", 0.80, "FR: Discussion de symptômes"),
+        (r"\b(effet\s+secondaire|réaction\s+indésirable|contre-indication)\b", 0.85, "FR: Effets secondaires"),
+        (r"\b(traitement|thérapie|dosage|posologie)\b", 0.75, "FR: Directives de traitement"),
+        (r"\b(maladie|trouble|syndrome)\b", 0.75, "FR: Sujet de santé"),
+        
+        # ─── GERMAN (DE) MEDICAL QA ───
+        (r"\b(was\s+sind|warum|wie|welche)\b.*\b(symptom|ursache|behandlung|medikament|wirkung)\b", 0.80, "DE: Medizinisches Fragemuster"),
+        (r"\b(wofür\s+wird\s+verwendet|wofür\s+ist)\b", 0.85, "DE: Frage zum Medikamentenzweck"),
+        (r"\b(bluthochdruck|hoher\s+blutdruck|diabetes|arrhythmie|herzerkrankung)\b", 0.85, "DE: Medizinischer Zustand"),
+        (r"\b(medikament|arznei|rezept)\b", 0.75, "DE: Medikamententhema"),
+        (r"\b(symptom|zeigt\s+sich\s+mit)\b", 0.80, "DE: Symptomdiskussion"),
+        (r"\b(nebenwirkung|unerwünschte\s+reaktion|kontraindikation)\b", 0.85, "DE: Nebenwirkungen"),
+        (r"\b(behandlung|therapie|dosierung)\b", 0.75, "DE: Behandlungsrichtlinien"),
+        (r"\b(krankheit|störung|syndrom)\b", 0.75, "DE: Gesundheitsthema"),
+        
+        # ─── PORTUGUESE (PT) MEDICAL QA ───
+        (r"\b(quais\s+são|por\s+que|como|qual)\b.*\b(sintoma|causa|tratamento|medicamento|efeito)\b", 0.80, "PT: Padrão de pergunta médica"),
+        (r"\b(para\s+que\s+serve|para\s+que\s+é\s+usado)\b", 0.85, "PT: Pergunta sobre uso do medicamento"),
+        (r"\b(hipertensão|pressão\s+arterial\s+alta|diabetes|arritmia|doença\s+cardíaca)\b", 0.85, "PT: Condição médica"),
+        (r"\b(medicamento|remédio|receita)\b", 0.75, "PT: Tema de medicação"),
+        
+        # ─── ITALIAN (IT) MEDICAL QA ───
+        (r"\b(quali\s+sono|perché|come|quale)\b.*\b(sintomo|causa|trattamento|farmaco|effetto)\b", 0.80, "IT: Schema di domanda medica"),
+        (r"\b(a\s+cosa\s+serve|per\s+cosa\s+è\s+usato)\b", 0.85, "IT: Domanda sullo scopo del farmaco"),
+        (r"\b(ipertensione|pressione\s+alta|diabete|aritmia|malattia\s+cardiaca)\b", 0.85, "IT: Condizione medica"),
+        (r"\b(farmaco|medicinale|ricetta)\b", 0.75, "IT: Argomento di medicazione"),
+        
+        # ─── CHINESE (ZH) MEDICAL QA ───
+        (r"(什么是|为什么|怎么|如何).*(症状|原因|治疗|药物|副作用)", 0.80, "ZH: 医学问题模式"),
+        (r"(用于治疗|有什么用|干什么用)", 0.85, "ZH: 药物用途问题"),
+        (r"(高血压|糖尿病|心律失常|心脏病)", 0.85, "ZH: 医学条件"),
+        (r"(药物|药品|处方)", 0.75, "ZH: 药物主题"),
+        
+        # ─── JAPANESE (JA) MEDICAL QA ───
+        (r"(何が|なぜ|どのように|どうやって).*(症状|原因|治療|薬|副作用)", 0.80, "JA: 医学的質問パターン"),
+        (r"(何に使われる|どんな効果)", 0.85, "JA: 薬の目的の質問"),
+        (r"(高血圧|糖尿病|不整脈|心臓病)", 0.85, "JA: 医学的状態"),
+        (r"(薬|医薬品|処方)", 0.75, "JA: 薬のトピック"),
     ]
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -217,12 +369,40 @@ class SemanticRouterV2:
     # ═══════════════════════════════════════════════════════════════════════════
     
     DRUG_INTERACTION_PATTERNS = [
-        # Explicit interaction queries
+        # English explicit interaction queries
         (r"\b(interact|interaction|contraindication|conflict)\b", 0.90, "Explicit interaction query"),
         (r"\b(can\s+i\s+take|safe\s+to\s+take|mix|combine)\b.*?\b(with|and)\b", 0.85, "Combination query"),
         
         # Drug-Drug patterns
         (r"\b(aspirin|warfarin|lisinopril|ibuprofen|metoprolol|sildenafil|nitroglycerin)\b.*?\b(with|and)\b.*?\b(aspirin|warfarin|lisinopril|ibuprofen|metoprolol|sildenafil|nitroglycerin)\b", 0.95, "Specific drug pair"),
+        
+        # ─── SPANISH (ES) DRUG INTERACTION ───
+        (r"\b(interacción|interacciona|contraindicación|conflicto)\b", 0.90, "ES: Consulta de interacción"),
+        (r"\b(puedo\s+tomar|es\s+seguro\s+tomar|mezclar|combinar)\b.*?\b(con|y)\b", 0.85, "ES: Consulta de combinación"),
+        
+        # ─── FRENCH (FR) DRUG INTERACTION ───
+        (r"\b(interaction|interagit|contre-indication|conflit)\b", 0.90, "FR: Question d'interaction"),
+        (r"\b(puis-je\s+prendre|est-il\s+sûr\s+de\s+prendre|mélanger|combiner)\b.*?\b(avec|et)\b", 0.85, "FR: Question de combinaison"),
+        
+        # ─── GERMAN (DE) DRUG INTERACTION ───
+        (r"\b(wechselwirkung|interaktion|kontraindikation|konflikt)\b", 0.90, "DE: Interaktionsanfrage"),
+        (r"\b(kann\s+ich\s+(nehmen|einnehmen)|ist\s+es\s+sicher|mischen|kombinieren)\b.*?\b(mit|und)\b", 0.85, "DE: Kombinationsanfrage"),
+        
+        # ─── PORTUGUESE (PT) DRUG INTERACTION ───
+        (r"\b(interação|contraindicação|conflito)\b", 0.90, "PT: Consulta de interação"),
+        (r"\b(posso\s+tomar|é\s+seguro\s+tomar|misturar|combinar)\b.*?\b(com|e)\b", 0.85, "PT: Consulta de combinação"),
+        
+        # ─── ITALIAN (IT) DRUG INTERACTION ───
+        (r"\b(interazione|controindicazione|conflitto)\b", 0.90, "IT: Domanda di interazione"),
+        (r"\b(posso\s+prendere|è\s+sicuro\s+prendere|mescolare|combinare)\b.*?\b(con|e)\b", 0.85, "IT: Domanda di combinazione"),
+        
+        # ─── CHINESE (ZH) DRUG INTERACTION ───
+        (r"(相互作用|禁忌|冲突)", 0.90, "ZH: 药物相互作用查询"),
+        (r"(可以一起吃|能一起吃|同时服用).*(和|与)", 0.85, "ZH: 药物组合查询"),
+        
+        # ─── JAPANESE (JA) DRUG INTERACTION ───
+        (r"(相互作用|禁忌|飲み合わせ)", 0.90, "JA: 薬物相互作用クエリ"),
+        (r"(一緒に飲んで|併用して).*(と|や)", 0.85, "JA: 薬物組み合わせクエリ"),
     ]
     
     # ═══════════════════════════════════════════════════════════════════════════

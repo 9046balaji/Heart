@@ -175,13 +175,14 @@ Begin with your thinking:"""
         self.thinking_history: List[ThinkingBlock] = []
         self.tool_call_history: List[Dict[str, Any]] = []
     
-    async def run(self, query: str, context: str = "") -> ThinkingResult:
+    async def run(self, query: str, context: str = "", file_ids: Optional[List[str]] = None) -> ThinkingResult:
         """
         Run the thinking agent.
         
         Args:
             query: User query
             context: Previous context
+            file_ids: Optional list of file IDs to process
             
         Returns:
             ThinkingResult with answer and reasoning
@@ -191,6 +192,11 @@ Begin with your thinking:"""
         self.tool_call_history = []
         
         current_context = context
+        
+        # Add file context if files are present
+        if file_ids:
+            file_context = f"\n\n[ATTACHED FILES]: The user has attached {len(file_ids)} file(s) with IDs: {', '.join(file_ids)}. Use the 'analyze_medical_image' or 'analyze_dicom_image' tools to examine them if they are images."
+            current_context += file_context
         
         for round_num in range(self.max_thinking_rounds):
             if self.verbose:
