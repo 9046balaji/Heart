@@ -1,14 +1,14 @@
 """
 Vector Store Manager for HeartGuard Medical Knowledge Base
 
-Wraps ChromaDB and handles embedding generation using sentence-transformers.
+Wraps PostgreSQL/pgvector and handles embedding generation using sentence-transformers.
 This is the core semantic search layer.
 OPTIMIZED: GPU Pre-computation + Batch Insertion.
+
+Migration Note: Previously used ChromaDB, now uses PostgreSQL with pgvector extension.
 """
 
 import logging
-import chromadb
-from chromadb.utils import embedding_functions
 from typing import List, Dict, Any
 import os
 import torch
@@ -17,13 +17,24 @@ from tqdm import tqdm  # Progress bar
 # Import the MedicalDocument schema
 from rag.data_sources.models import MedicalDocument
 
+# Import pgvector store
+try:
+    from rag.pgvector_store import PgVectorStore
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    PgVectorStore = None
+    PGVECTOR_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
 class VectorStoreManager:
     """
-    Manages the ChromaDB vector store for medical documents.
+    Manages the PostgreSQL pgvector store for medical documents.
     OPTIMIZED: GPU Pre-computation + Batch Insertion.
+    
+    Migration Note: Replaced ChromaDB with PostgreSQL/pgvector for better
+    integration with the HeartGuard PostgreSQL database.
     """
     
     _instance = None
@@ -33,26 +44,19 @@ class VectorStoreManager:
             cls._instance = super(VectorStoreManager, cls).__new__(cls)
         return cls._instance
     
-    def __init__(self, db_path: str = "data/chroma_db", collection_name: str = "heart_guard_docs"):
+    def __init__(self, db_path: str = None, collection_name: str = "medical_knowledge"):
         """
         Initialize the vector store manager.
         
         Args:
-            db_path: Path to ChromaDB persistence directory
-            collection_name: Name of the collection to use
+            db_path: Deprecated - PostgreSQL uses DATABASE_URL environment variable
+            collection_name: Name of the collection/table to use
         """
         # Fix: Proper Singleton check using instance attribute
         if hasattr(self, '_initialized') and self._initialized:
             return
         
-        # Ensure directory exists
-        os.makedirs(db_path, exist_ok=True)
-        
-        self.db_path = db_path
         self.collection_name = collection_name
-        
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path=db_path)
         
         # --- GPU SETUP ---
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -66,21 +70,17 @@ class VectorStoreManager:
         from sentence_transformers import SentenceTransformer
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=self.device)
         
-        # Standard Chroma embedding function (for queries later)
-        self.chroma_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2",
-            device=self.device
-        )
+        # Initialize PostgreSQL pgvector store
+        if not PGVECTOR_AVAILABLE:
+            raise ImportError("PgVectorStore not available. Check rag/pgvector_store.py")
         
-        # Get or create collection with cosine similarity
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            embedding_function=self.chroma_ef,
-            metadata={"hnsw:space": "cosine"}  # Cosine similarity for semantic search
-        )
-        
+        self.store = PgVectorStore()
         self._initialized = True
-        logger.info(f"[OK] Vector Store initialized at {db_path} (Collection: {collection_name}, Count: {self.collection.count()})")
+        
+        # Get document count for logging
+        stats = self.store.get_collection_stats()
+        doc_count = stats.get(collection_name, 0)
+        logger.info(f"[OK] Vector Store Manager initialized with PostgreSQL (Collection: {collection_name}, Count: {doc_count})")
 
     @classmethod
     def get_instance(cls, **kwargs) -> "VectorStoreManager":
@@ -93,7 +93,7 @@ class VectorStoreManager:
         """
         Two-Phase Ingestion:
         1. GPU Phase: Compute ALL embeddings at once (Max Throughput)
-        2. I/O Phase: Write data to ChromaDB (Max I/O)
+        2. I/O Phase: Write data to PostgreSQL (Max I/O)
         
         Args:
             documents: List of MedicalDocument objects
@@ -119,37 +119,43 @@ class VectorStoreManager:
         )
         
         # --- PHASE 2: DATABASE WRITE ---
-        print(f"   [Phase 2] Saving to Disk (ChromaDB)...")
+        print(f"   [Phase 2] Saving to PostgreSQL...")
         
-        # Prepare Metadata
-        ids = [doc.document_id for doc in documents]
-        metadatas = []
-        for doc in documents:
-            metadatas.append({
-                "title": doc.title or "",
-                "source": str(doc.source.value) if hasattr(doc.source, 'value') else str(doc.source),
-                "tier": str(doc.tier.value) if hasattr(doc.tier, 'value') else str(doc.tier),
-                "confidence": float(doc.confidence_score),
-                "url": doc.source_url or ""
-            })
-
-        # Insert in chunks to avoid RAM issues
-        write_batch = 5000
+        # Insert using PgVectorStore batch method
+        write_batch = 1000  # Smaller batches for PostgreSQL
+        inserted = 0
         
         with tqdm(total=total, desc="Writing DB", unit="docs") as pbar:
             for i in range(0, total, write_batch):
-                end = i + write_batch
-                self.collection.add(
-                    ids=ids[i:end],
-                    embeddings=embeddings[i:end].tolist(),  # Pass pre-computed vectors!
-                    documents=texts[i:end],
-                    metadatas=metadatas[i:end]
-                )
-                pbar.update(len(ids[i:end]))
+                end = min(i + write_batch, total)
+                batch_docs = documents[i:end]
+                batch_embeddings = embeddings[i:end]
                 
-        print(f"\n✅ COMPLETE. Indexed {total} documents.")
-        logger.info(f"[OK] Ingestion complete. {total}/{total} documents indexed.")
-        return total
+                for j, doc in enumerate(batch_docs):
+                    try:
+                        metadata = {
+                            "title": doc.title or "",
+                            "source": str(doc.source.value) if hasattr(doc.source, 'value') else str(doc.source),
+                            "tier": str(doc.tier.value) if hasattr(doc.tier, 'value') else str(doc.tier),
+                            "confidence": float(doc.confidence_score),
+                            "url": doc.source_url or ""
+                        }
+                        
+                        self.store.add_medical_document(
+                            doc_id=doc.document_id,
+                            content=doc.content,
+                            metadata=metadata,
+                            embedding=batch_embeddings[j].tolist()
+                        )
+                        inserted += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to insert document {doc.document_id}: {e}")
+                
+                pbar.update(len(batch_docs))
+                
+        print(f"\n✅ COMPLETE. Indexed {inserted}/{total} documents.")
+        logger.info(f"[OK] Ingestion complete. {inserted}/{total} documents indexed.")
+        return inserted
 
     def search(self, query: str, top_k: int = 3, min_confidence: float = 0.0) -> List[Dict[str, Any]]:
         """
@@ -167,21 +173,25 @@ class VectorStoreManager:
             return []
             
         try:
-            results = self.collection.query(
-                query_texts=[query],
-                n_results=top_k,
+            # Use PgVectorStore search
+            results = self.store.search_medical_knowledge(
+                query=query,
+                top_k=top_k
             )
             
-            # Format results nicely
+            # Filter by confidence if specified
+            if min_confidence > 0:
+                results = [r for r in results if r.get('metadata', {}).get('confidence', 0) >= min_confidence]
+            
+            # Format results to match expected output format
             formatted_results = []
-            if results['ids'] and results['ids'][0]:
-                for i in range(len(results['ids'][0])):
-                    formatted_results.append({
-                        "id": results['ids'][0][i],
-                        "text": results['documents'][0][i] if results['documents'] else "",
-                        "metadata": results['metadatas'][0][i] if results['metadatas'] else {},
-                        "distance": results['distances'][0][i] if results.get('distances') else 0.0
-                    })
+            for r in results:
+                formatted_results.append({
+                    "id": r.get('id'),
+                    "text": r.get('content', ''),
+                    "metadata": r.get('metadata', {}),
+                    "distance": 1.0 - r.get('score', 0)  # Convert similarity to distance
+                })
                     
             return formatted_results
             
@@ -191,38 +201,31 @@ class VectorStoreManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get collection statistics."""
+        stats = self.store.get_collection_stats()
         return {
-            "db_path": self.db_path,
+            "db_path": "PostgreSQL (via DATABASE_URL)",
             "collection_name": self.collection_name,
-            "document_count": self.collection.count(),
+            "document_count": stats.get(self.collection_name, 0),
         }
 
     def clear(self):
         """Clear all documents from the collection."""
-        self.client.delete_collection(self.collection_name)
-        self.collection = self.client.get_or_create_collection(
-            name=self.collection_name,
-            embedding_function=self.chroma_ef,
-            metadata={"hnsw:space": "cosine"}
-        )
-        logger.info(f"Cleared collection: {self.collection_name}")
+        try:
+            # For PostgreSQL, we truncate the relevant table
+            self.store._execute_sql(f"TRUNCATE TABLE vector_{self.collection_name} RESTART IDENTITY CASCADE")
+            logger.info(f"Cleared collection: {self.collection_name}")
+        except Exception as e:
+            logger.error(f"Failed to clear collection: {e}")
+            raise e
 
     def delete_collection(self):
         """
-        Deletes the entire collection and re-creates it empty.
+        Deletes all documents from the collection.
         Used for resetting the database or clearing corrupted data.
         """
         try:
-            self.client.delete_collection(self.collection_name)
-            logger.info(f"[WARNING] Collection '{self.collection_name}' deleted.")
-            
-            # Re-create immediately so the object remains valid
-            self.collection = self.client.get_or_create_collection(
-                name=self.collection_name,
-                embedding_function=self.chroma_ef,
-                metadata={"hnsw:space": "cosine"}
-            )
-            logger.info(f"[OK] Collection '{self.collection_name}' re-created (empty).")
+            self.clear()
+            logger.info(f"[WARNING] Collection '{self.collection_name}' cleared.")
         except Exception as e:
             logger.error(f"Failed to delete collection: {e}")
             raise e

@@ -48,7 +48,7 @@ class MedicalRAPTORBuilder:
     Key adaptations from original raptor.py:
     1. Uses our LLMGateway instead of ChatOpenAI
     2. Uses our EmbeddingService instead of OpenAIEmbeddings
-    3. Stores in ChromaDB instead of FAISS
+    3. Stores in PostgreSQL/pgvector instead of FAISS
     4. Maintains citation anchoring (child references)
     """
     
@@ -198,7 +198,7 @@ Summary:"""
     
     async def store_tree(self, tree: RAPTORTree) -> int:
         """
-        Store RAPTOR tree nodes in ChromaDB.
+        Store RAPTOR tree nodes in PostgreSQL/pgvector.
         
         Returns:
             Number of nodes stored

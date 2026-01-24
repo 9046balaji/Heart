@@ -6,7 +6,7 @@ to enhance the LLM's responses with accurate medical information.
 
 Components:
 - EmbeddingService: Generate vector embeddings (Factory for ONNX/PyTorch)
-- VectorStore: ChromaDB-based storage for embeddings and documents
+- VectorStore: PostgreSQL/pgvector-based storage for embeddings and documents
 - UnifiedRAGOrchestrator: Unified RAG orchestrator (Vector + Graph)
 - MemoriRAGBridge: Connect RAG with existing Memori memory system
 
@@ -16,7 +16,7 @@ Architecture:
     ├─────────────────────────────────────────────────────────┤
     │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐   │
     │  │ Embedding   │  │ VectorStore  │  │ Unified      │   │
-    │  │ Service     │──│  (ChromaDB)  │──│ RAG Orch.    │   │
+    │  │ Service     │──│  (pgvector)  │──│ RAG Orch.    │   │
     │  └─────────────┘  └──────────────┘  └──────────────┘   │
     │         │                                   │           │
     │         │         ┌──────────────┐         │           │

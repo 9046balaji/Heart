@@ -2,12 +2,12 @@
 Vector Store Initialization Script for HeartGuard Knowledge Base
 
 This is the MASTER initialization script that orchestrates the ingestion of
-medical documents (Textbooks + StatPearls) into ChromaDB with embeddings.
+medical documents (Textbooks + StatPearls) into PostgreSQL/pgvector with embeddings.
 
 Purpose:
 --------
 1. Loads Tier 1 data (Textbooks + StatPearls) from disk
-2. Initializes ChromaDB vector store with embeddings
+2. Initializes PostgreSQL/pgvector store with embeddings
 3. Performs batch ingestion with progress reporting
 4. Validates and reports statistics
 
@@ -29,6 +29,7 @@ Expected Output:
 
 Author: HeartGuard Implementation Team
 Date: January 4, 2026
+Migration: ChromaDB -> PostgreSQL/pgvector (January 24, 2026)
 """
 
 import logging
@@ -61,14 +62,14 @@ class VectorStoreInitializer:
     
     Responsibilities:
     - Load documents from multiple Tier 1 sources
-    - Initialize ChromaDB vector store
+    - Initialize PostgreSQL/pgvector store
     - Batch ingest documents with embeddings
     - Provide detailed progress and statistics
     """
     
     def __init__(
         self,
-        db_path: str = "data/chroma_db",
+        db_path: str = None,  # Deprecated - PostgreSQL uses DATABASE_URL
         batch_size: int = 200,
         clear_existing: bool = False,
     ):
@@ -76,18 +77,18 @@ class VectorStoreInitializer:
         Initialize the orchestrator.
         
         Args:
-            db_path: Path to ChromaDB directory
+            db_path: Deprecated - PostgreSQL uses DATABASE_URL env variable
             batch_size: Documents per batch for ingestion
             clear_existing: Clear vector store before loading
         """
-        self.db_path = db_path
+        self.db_path = db_path  # Kept for backward compatibility
         self.batch_size = batch_size
         self.clear_existing = clear_existing
         self.vdb = None
         self.total_docs_loaded = 0
         self.start_time = None
         
-        logger.info(f"VectorStoreInitializer configured: db_path={db_path}, batch_size={batch_size}")
+        logger.info(f"VectorStoreInitializer configured: batch_size={batch_size}")
     
     def _print_header(self, title: str) -> None:
         """Print a formatted section header."""
@@ -102,27 +103,26 @@ class VectorStoreInitializer:
     
     def initialize_vector_store(self) -> bool:
         """
-        Initialize ChromaDB vector store.
+        Initialize PostgreSQL/pgvector store.
         
         Returns:
             True if successful, False otherwise
         """
-        self._print_step(1, "Initializing ChromaDB Vector Store")
+        self._print_step(1, "Initializing PostgreSQL/pgvector Store")
         
         try:
-            self.vdb = VectorStoreManager.get_instance(db_path=self.db_path)
-            existing_count = self.vdb.collection.count()
+            self.vdb = VectorStoreManager.get_instance()
+            stats = self.vdb.get_stats()
+            existing_count = stats.get('document_count', 0)
             
             if self.clear_existing and existing_count > 0:
                 print(f"[WARNING] Clearing {existing_count} existing documents...")
-                self.vdb.delete_collection()
-                self.vdb = VectorStoreManager.get_instance(
-                    db_path=self.db_path
-                )
+                self.vdb.clear()
+                self.vdb = VectorStoreManager.get_instance()
                 existing_count = 0
             
-            print(f"[OK] ChromaDB ready")
-            print(f"   Database path: {self.db_path}")
+            print(f"[OK] PostgreSQL/pgvector ready")
+            print(f"   Database: PostgreSQL (via DATABASE_URL)")
             print(f"   Embedding model: all-MiniLM-L6-v2")
             print(f"   Existing documents: {existing_count}")
             print(f"   Batch size: {self.batch_size}")
@@ -354,17 +354,18 @@ def main():
         action="store_true",
         help="Clear existing vector store before loading"
     )
+    # --db-path is deprecated but kept for backward compatibility
     parser.add_argument(
         "--db-path",
-        default="data/chroma_db",
-        help="Path to ChromaDB directory (default: data/chroma_db)"
+        default=None,
+        help="DEPRECATED: PostgreSQL uses DATABASE_URL environment variable"
     )
     
     args = parser.parse_args()
     
     # Create initializer and run
     initializer = VectorStoreInitializer(
-        db_path=args.db_path,
+        db_path=args.db_path,  # Ignored - PostgreSQL uses DATABASE_URL
         batch_size=args.batch_size,
         clear_existing=args.clear,
     )

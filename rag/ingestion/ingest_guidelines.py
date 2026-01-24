@@ -7,7 +7,7 @@ This script:
 3. Separates table data from text blocks to prevent corruption
 4. Applies Semantic Chunking to preserve medical concepts
 5. Builds RAPTOR trees for hierarchical retrieval
-6. Stores everything in ChromaDB with citation anchoring
+6. Stores everything in PostgreSQL/pgvector with citation anchoring
 
 Key Features:
 - Table Detection: Uses PyMuPDF's find_tables() to identify dosage/protocol tables
@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 # Add project root to path (3 levels up from rag/ingestion/ingest_guidelines.py)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +37,7 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
 
 # Production imports
-from rag.vector_store import VectorStore
+from rag.vector_store import get_vector_store
 from rag.embedding_service import EmbeddingService
 from rag.ingestion.unified_chunker import UnifiedMedicalChunker
 from rag.knowledge_base.raptor_tree_builder import MedicalRAPTORBuilder
@@ -379,7 +380,7 @@ class MedicalGuidelineIngester:
     2. Extract layout chunks (LayoutChunk objects with metadata)
     3. Apply Semantic Chunking to preserve medical concepts
     4. Build RAPTOR Tree for hierarchical retrieval
-    5. Store in ChromaDB with citation anchoring and content type tracking
+    5. Store in PostgreSQL/pgvector with citation anchoring and content type tracking
     
     Key Improvement:
     - Tables are extracted separately using PyMuPDF's find_tables()
@@ -387,7 +388,7 @@ class MedicalGuidelineIngester:
     - Prevents dosage/protocol information from being corrupted
     """
     
-    def __init__(self, vector_store: VectorStore, llm_gateway=None):
+    def __init__(self, vector_store: Any, llm_gateway=None):
         self.vector_store = vector_store
         self.embedding_service = EmbeddingService.get_instance()
         self.llm = llm_gateway or get_llm_gateway()
@@ -631,8 +632,8 @@ async def main():
     parser.add_argument("--rebuild", action="store_true", help="Delete existing data first")
     args = parser.parse_args()
     
-    # Initialize
-    vector_store = VectorStore()
+    # Initialize using factory function
+    vector_store = get_vector_store()
     
     if args.rebuild:
         logger.warning("Rebuilding - deleting existing medical knowledge")

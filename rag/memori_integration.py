@@ -76,7 +76,7 @@ class MemoriRAGBridge:
         │    Memori       │        RAG                │
         │  (Structured)   │     (Semantic)            │
         │                 │                           │
-        │  - SQLite/PG    │  - ChromaDB               │
+        │  - PostgreSQL   │  - pgvector               │
         │  - Categories   │  - Embeddings             │
         │  - Sessions     │  - Similarity             │
         │  - Timestamps   │  - Vector Search          │

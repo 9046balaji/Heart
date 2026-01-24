@@ -463,7 +463,7 @@ class MultimodalIngestionService:
                 ids.append(chunk.chunk_id)
             
             # Use vector store's add method
-            # This assumes vector store has an add method compatible with ChromaDB
+            # This assumes vector store has an add method compatible with PgVectorStore
             if hasattr(self.vector_store, 'add_documents'):
                 await self._add_to_store_async(documents, embeddings_list, metadatas, ids)
             elif hasattr(self.vector_store, 'add'):
