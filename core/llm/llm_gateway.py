@@ -1,22 +1,30 @@
 """
-LLM Gateway - Unified implementation combining LangChain, LangFuse, and Guardrails.
+LLM Gateway - MedGemma-Only Implementation
 
-This is the ONLY module that should directly call LLM providers (Gemini, Ollama).
+This is the ONLY module that should directly call LLM providers.
 All AI generation in the system MUST flow through this gateway.
 
 Features:
-- ✅ LangChain (for stability)
-- ✅ LangFuse (for debugging)
+- ✅ MedGemma (local medical LLM via OpenAI-compatible API)
+- ✅ LangFuse (for debugging - optional)
 - ✅ Guardrails (for safety)
+- ✅ PII Detection (privacy protection)
 
 Usage:
-    from core.llm_gateway import LLMGateway
+    from core.llm.llm_gateway import LLMGateway, get_llm_gateway
 
-    gateway = LLMGateway()
+    gateway = get_llm_gateway()
     response = await gateway.generate(
         prompt="Explain heart health tips",
         content_type="medical"  # Adds medical disclaimer
     )
+
+Configuration (via .env):
+    MEDGEMMA_BASE_URL=http://127.0.0.1:8090/v1
+    MEDGEMMA_MODEL=medgemma-4b-it
+    MEDGEMMA_API_KEY=sk-no-key-required
+    MEDGEMMA_TEMPERATURE=0.3
+    MEDGEMMA_MAX_TOKENS=2048
 """
 
 import os
@@ -27,22 +35,22 @@ from typing import Optional, AsyncGenerator, Dict, Any
 # Import PromptRegistry for centralized prompt management
 from core.prompts.registry import get_prompt
 
-# Import LangChain components
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_ollama import ChatOllama
+# LangChain components for MedGemma (OpenAI-compatible API)
 try:
     from langchain_openai import ChatOpenAI
-    OPENAI_AVAILABLE = True
+    LANGCHAIN_OPENAI_AVAILABLE = True
 except ImportError:
     ChatOpenAI = None
-    OPENAI_AVAILABLE = False
-    logging.getLogger(__name__).warning("langchain-openai not installed. OpenAI/OpenRouter features disabled.")
+    LANGCHAIN_OPENAI_AVAILABLE = False
+    logging.getLogger(__name__).error(
+        "langchain-openai not installed! MedGemma integration requires this package. "
+        "Install with: pip install langchain-openai"
+    )
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # LangFuse imports (optional - for observability)
-# Only import langfuse if explicitly enabled to avoid auth warnings
-import os
 _langfuse_enabled = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
 
 if _langfuse_enabled:
@@ -70,141 +78,89 @@ from .guardrails import SafetyGuardrail
 
 logger = logging.getLogger(__name__)
 
-# Global dictionary to store user provider selections
-_user_provider_selections: Dict[str, str] = {}
-
 
 class LLMGateway:
     """
-    The Single Source of Truth for LLM interactions.
-    Combines LangChain execution with LangFuse observability and Safety Guardrails.
-    Supports user-selected providers (Ollama or OpenRouter).
+    MedGemma-Only LLM Gateway - Single Source of Truth for LLM interactions.
+    
+    Connects to local MedGemma server via OpenAI-compatible API.
+    All AI generation must flow through this gateway for safety and compliance.
+    
+    Benefits:
+    - No cloud API dependencies (HIPAA-compliant local processing)
+    - Simplified architecture (no fallback chains)
+    - Medical-specialized model for healthcare accuracy
+    - Full control over data and processing
     """
 
     def __init__(self):
-        self.primary_provider = os.getenv("LLM_PROVIDER", "openrouter")
         self.guardrails = SafetyGuardrail()
-        self.use_gemini = os.getenv("USE_GEMINI", "false").lower() == "true"
-
-        # Initialize OpenRouter Model via ChatOpenAI (compatible with OpenRouter API)
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        if openrouter_api_key and OPENAI_AVAILABLE and ChatOpenAI is not None:
+        
+        # MedGemma Configuration (from environment)
+        # Support both new MEDGEMMA_* and legacy LLAMA_LOCAL_* env vars
+        self.medgemma_base_url = os.getenv(
+            "MEDGEMMA_BASE_URL", 
+            os.getenv("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1")
+        )
+        self.medgemma_model = os.getenv(
+            "MEDGEMMA_MODEL", 
+            os.getenv("LLAMA_LOCAL_MODEL", "medgemma-4b-it")
+        )
+        self.medgemma_api_key = os.getenv(
+            "MEDGEMMA_API_KEY", 
+            os.getenv("LLAMA_LOCAL_API_KEY", "sk-no-key-required")
+        )
+        self.medgemma_temperature = float(os.getenv(
+            "MEDGEMMA_TEMPERATURE", 
+            os.getenv("LLAMA_LOCAL_TEMPERATURE", "0.3")
+        ))
+        self.medgemma_max_tokens = int(os.getenv(
+            "MEDGEMMA_MAX_TOKENS", 
+            os.getenv("LLAMA_LOCAL_MAX_TOKENS", "2048")
+        ))
+        
+        # Initialize MedGemma via OpenAI-compatible API
+        self.llm = None
+        if LANGCHAIN_OPENAI_AVAILABLE and ChatOpenAI is not None:
             try:
-                self.openrouter = ChatOpenAI(
-                    model=os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-20b:free"),
-                    api_key=openrouter_api_key,
-                    base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-                    temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.7")),
-                    max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "256")),
+                self.llm = ChatOpenAI(
+                    model=self.medgemma_model,
+                    api_key=self.medgemma_api_key,
+                    base_url=self.medgemma_base_url,
+                    temperature=self.medgemma_temperature,
+                    max_tokens=self.medgemma_max_tokens,
+                )
+                logger.info(
+                    f"✅ MedGemma initialized: model={self.medgemma_model}, "
+                    f"endpoint={self.medgemma_base_url}"
                 )
             except Exception as e:
-                logger.warning(f"Failed to initialize OpenRouter: {e}")
-                self.openrouter = None
-        else:
-            self.openrouter = None
-
-        # Initialize OpenRouter Gemini Model via ChatOpenAI (Fallback)
-        openrouter_gemini_api_key = os.getenv("OPENROUTER_GEMINI_API_KEY")
-        if openrouter_gemini_api_key and OPENAI_AVAILABLE and ChatOpenAI is not None:
-            try:
-                self.openrouter_gemini = ChatOpenAI(
-                    model=os.getenv("OPENROUTER_GEMINI_MODEL", "google/gemma-3-4b-it:free"),
-                    api_key=openrouter_gemini_api_key,
-                    base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-                    temperature=float(os.getenv("OPENROUTER_GEMINI_TEMPERATURE", "0.7")),
-                    max_tokens=int(os.getenv("OPENROUTER_GEMINI_MAX_TOKENS", "256")),
+                logger.error(f"❌ Failed to initialize MedGemma: {e}")
+                logger.error(
+                    f"   Ensure MedGemma server is running at {self.medgemma_base_url}\n"
+                    f"   Start with: llama-server -m medgemma-4b.gguf --port 8090"
                 )
-            except Exception as e:
-                logger.warning(f"Failed to initialize OpenRouter Gemini: {e}")
-                self.openrouter_gemini = None
         else:
-            self.openrouter_gemini = None
+            logger.error("❌ langchain-openai not installed - MedGemma unavailable!")
 
-        # Initialize Google Gemini via LangChain (if USE_GEMINI=true and available)
-        if self.use_gemini:
-            try:
-                self.gemini = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
-                    google_api_key=os.getenv("GOOGLE_API_KEY"),
-                    convert_system_message_to_human=True,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to initialize Google Gemini: {e}")
-                self.gemini = None
-        else:
-            self.gemini = None
-            
-        # Initialize Ollama
-        try:
-            self.ollama = ChatOllama(
-                model=os.getenv("OLLAMA_MODEL", "gemma3:1b"),
-                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    def _get_model(self, provider: str = None):
+        """
+        Get the LLM model. Always returns MedGemma.
+        Provider parameter kept for backward compatibility but is ignored.
+        """
+        if self.llm is None:
+            raise RuntimeError(
+                f"MedGemma not initialized. "
+                f"Check server at {self.medgemma_base_url}"
             )
-        except Exception as e:
-            logger.warning(f"Failed to initialize Ollama: {e}")
-            self.ollama = None
-
-        # Initialize Local Llama Server (MedGemma via OpenAI-compatible API)
-        if OPENAI_AVAILABLE and ChatOpenAI is not None:
-            try:
-                self.llama_local = ChatOpenAI(
-                    model=os.getenv("LLAMA_LOCAL_MODEL", "medgemma-4b-it"),
-                    api_key=os.getenv("LLAMA_LOCAL_API_KEY", "sk-no-key-required"),
-                    base_url=os.getenv("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1"),
-                    temperature=float(os.getenv("LLAMA_LOCAL_TEMPERATURE", "0.7")),
-                    max_tokens=int(os.getenv("LLAMA_LOCAL_MAX_TOKENS", "2048")),
-                )
-                logger.info(f"[SUCCESS] Local Llama Server initialized at {os.getenv('LLAMA_LOCAL_BASE_URL', 'http://127.0.0.1:8090/v1')}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Local Llama Server: {e}")
-                self.llama_local = None
-        else:
-            self.llama_local = None
-            logger.warning("langchain-openai not available - Local Llama Server disabled")
-
-    def _get_model(self, provider: str):
-        if provider == "openrouter":
-            if self.openrouter:
-                return self.openrouter
-            else:
-                logger.warning("OpenRouter not configured, falling back to Ollama")
-                return self.ollama
-        elif provider == "openrouter-gemini":
-            if self.openrouter_gemini:
-                return self.openrouter_gemini
-            else:
-                logger.warning("OpenRouter Gemini not configured, falling back to Ollama")
-                return self.ollama
-        elif provider == "ollama":
-            return self.ollama
-        elif provider == "llama-local":
-            if self.llama_local:
-                return self.llama_local
-            else:
-                logger.warning("Local Llama Server not configured, falling back to Ollama")
-                return self.ollama
-        elif provider == "gemini" and self.gemini:
-            return self.gemini
-        # Fallback to llama-local if available, otherwise Ollama
-        if self.llama_local:
-            return self.llama_local
-        return self.ollama
+        return self.llm
 
     def _get_user_provider(self, user_id: Optional[str] = None) -> str:
         """
-        Get the provider for a user. Uses user selection if available,
-        otherwise falls back to environment configuration.
-        
-        Args:
-            user_id: Optional user ID to get their provider preference
-            
-        Returns:
-            Provider name: 'ollama' or 'openrouter'
+        Get the provider for a user. Always returns 'medgemma'.
+        Kept for backward compatibility with existing code.
         """
-        if user_id and user_id in _user_provider_selections:
-            return _user_provider_selections[user_id]
-        # Fall back to environment default
-        return self.primary_provider
+        return "medgemma"
     
     def _contains_pii(self, text: str) -> bool:
         """
@@ -273,60 +229,53 @@ class LLMGateway:
         """
         Set the LLM provider preference for a user.
         
+        Note: With MedGemma-only architecture, this is a no-op kept for backward compatibility.
+        All requests use MedGemma regardless of provider setting.
+        
         Args:
             user_id: User identifier
-            provider: Provider to use ('ollama' or 'openrouter')
+            provider: Provider to use (ignored - always uses MedGemma)
         """
-        if provider not in ['ollama', 'openrouter']:
-            raise ValueError(f"Invalid provider: {provider}. Must be 'ollama' or 'openrouter'")
-        _user_provider_selections[user_id] = provider
-        logger.info(f"Provider '{provider}' set for user: {user_id}")
+        logger.debug(f"set_user_provider called for user {user_id} with provider {provider} - using MedGemma")
 
-    @observe(name="llm-generation")  # ✅ LangFuse Observability
+    @observe(name="medgemma-generation")  # ✅ LangFuse Observability
     async def generate(
         self, prompt: str, content_type: str = "general", user_id: Optional[str] = None
     ) -> str:
         """
-        Generate text with automatic fallback and safety checks.
+        Generate text using MedGemma with safety checks.
         
-        Automatic PII Detection: If PII is detected in the prompt, automatically
-        switches to Ollama (on-premise) instead of external LLM providers for privacy.
+        Note: With local-only processing, PII detection is logged for compliance
+        but no provider switching occurs (all data stays on-premise).
 
         Args:
-            prompt: The prompt to send to the LLM
+            prompt: The prompt to send to MedGemma
             content_type: "medical", "nutrition", or "general"
-            user_id: Optional user ID for tracing and provider selection
+            user_id: Optional user ID for tracing
 
         Returns:
             Generated response with safety processing applied
         """
-        # Check for PII and auto-select provider
-        user_provider = self._get_user_provider(user_id)
-        
+        # Log PII detection for compliance auditing (no routing needed with local LLM)
         if self._contains_pii(prompt):
-            logger.warning(
-                f"PII detected in prompt - forcing privacy-mode provider (Ollama). "
-                f"Original provider: {user_provider}"
+            logger.info(
+                f"PII detected in prompt (user: {user_id}) - processing locally via MedGemma (HIPAA-compliant)"
             )
-            user_provider = "ollama"  # Force Ollama for PII-containing prompts
         
         try:
-            raw_response = await self._execute_generation(
-                user_provider, prompt, content_type
-            )
+            raw_response = await self._execute_generation(prompt, content_type)
         except Exception as e:
-            logger.warning(f"User provider '{user_provider}' failed: {e}")
-            raise e  # Raise original error
+            logger.error(f"MedGemma generation failed: {e}")
+            raise
 
         # Apply Guardrails ✅
         return self.guardrails.process_output(
             raw_response, {"type": content_type, "user_id": user_id}
         )
 
-    async def _execute_generation(
-        self, provider: str, prompt: str, content_type: str
-    ) -> str:
-        model = self._get_model(provider)
+    async def _execute_generation(self, prompt: str, content_type: str) -> str:
+        """Execute generation with MedGemma."""
+        model = self._get_model()
 
         # Apply appropriate system prompt based on content type using PromptRegistry
         system_prompts = {
@@ -359,34 +308,22 @@ class LLMGateway:
         self, prompt: str, content_type: str = "general", user_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Streaming generation for chat interfaces.
-        Respects user's provider selection.
+        Streaming generation for chat interfaces using MedGemma.
         
-        Automatic PII Detection: If PII is detected in the prompt, automatically
-        switches to Ollama (on-premise) instead of external LLM providers for privacy.
+        Note: PII detection logged for compliance but all processing is local.
         """
-        # Check for PII and auto-select provider
-        user_provider = self._get_user_provider(user_id)
-        
+        # Log PII detection for compliance
         if self._contains_pii(prompt):
-            logger.warning(
-                f"PII detected in streaming prompt - forcing privacy-mode provider (Ollama). "
-                f"Original provider: {user_provider}"
+            logger.info(
+                f"PII detected in streaming prompt (user: {user_id}) - processing locally via MedGemma"
             )
-            user_provider = "ollama"  # Force Ollama for PII-containing prompts
         
-        model = self._get_model(user_provider)
+        model = self._get_model()
 
         system_prompts = {
-            "medical": """You are a healthcare AI assistant.
-            Provide accurate, empathetic, and safety-conscious responses.
-            Always recommend professional medical consultation for serious concerns.
-            Never diagnose conditions - only provide information.""",
-            "nutrition": """You are a nutrition expert specializing in heart-healthy diets.
-            Provide evidence-based nutritional advice.
-            Focus on cardiovascular health benefits.""",
-            "general": """You are a helpful AI assistant.
-            Be friendly, informative, and supportive.""",
+            "medical": get_prompt("llm_gateway", "medical"),
+            "nutrition": get_prompt("llm_gateway", "nutrition"),
+            "general": get_prompt("llm_gateway", "general"),
         }
 
         # Create Chain with LangChain
@@ -407,7 +344,7 @@ class LLMGateway:
         async for chunk in chain.astream({"input": prompt}):
             yield chunk
 
-    @observe(name="llm-multimodal")
+    @observe(name="medgemma-multimodal")
     async def generate_multimodal(
         self, 
         prompt: str, 
@@ -416,7 +353,10 @@ class LLMGateway:
         user_id: Optional[str] = None
     ) -> str:
         """
-        Generate text from multimodal input (text + image).
+        Generate text from multimodal input (text + image) using MedGemma.
+        
+        Note: MedGemma-4B may have limited multimodal capabilities.
+        Consider using MedGemma-27B for better vision support.
         
         Args:
             prompt: Text prompt
@@ -429,8 +369,7 @@ class LLMGateway:
         """
         from langchain_core.messages import HumanMessage, SystemMessage
         
-        user_provider = self._get_user_provider(user_id)
-        model = self._get_model(user_provider)
+        model = self._get_model()
         
         # System prompt from PromptRegistry
         system_msg = SystemMessage(content=get_prompt("llm_gateway", "multimodal_medical"))
@@ -463,19 +402,25 @@ class LLMGateway:
             return str(response)
             
         except Exception as e:
-            logger.error(f"Multimodal generation failed with provider {user_provider}: {e}")
-            raise e
+            logger.error(f"Multimodal generation failed with MedGemma: {e}")
+            raise
+
+    def supports_multimodal(self) -> bool:
+        """
+        Check if current MedGemma model supports vision/multimodal.
+        MedGemma-27B supports multimodal, MedGemma-4B has limited support.
+        """
+        return "27b" in self.medgemma_model.lower()
 
     def get_status(self) -> Dict[str, Any]:
         """Return the health status of the LLM Gateway."""
         return {
-            "status": "online" if any([getattr(self, 'llama_local', None), self.openrouter, self.openrouter_gemini, self.gemini, self.ollama]) else "degraded",
-            "provider": self.primary_provider,
-            "model": os.getenv("OLLAMA_MODEL", "gemma3:1b"),
-            "openrouter_available": self.openrouter is not None,
-            "openrouter_gemini_available": self.openrouter_gemini is not None,
-            "gemini_available": self.gemini is not None,
-            "ollama_available": self.ollama is not None,
+            "status": "online" if self.llm is not None else "offline",
+            "provider": "medgemma",
+            "model": self.medgemma_model,
+            "base_url": self.medgemma_base_url,
+            "medgemma_available": self.llm is not None,
+            "multimodal_supported": self.supports_multimodal(),
         }
 
 

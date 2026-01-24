@@ -48,23 +48,31 @@ class Environment(str, Enum):
 
 
 class LLMConfig(BaseModel):
-    """LLM provider settings."""
+    """MedGemma LLM settings (local medical model only).
     
-    provider: Literal["ollama", "gemini", "openai", "llama-local"] = Field(
-        default="ollama",
-        description="LLM provider to use"
+    This configuration uses a local MedGemma server via OpenAI-compatible API.
+    No cloud LLM providers (OpenRouter, Gemini, OpenAI) are used.
+    
+    MedGemma Variants:
+    - medgemma-4b-it: Lightweight, suitable for most tasks
+    - medgemma-27b-it: Full-featured, better multimodal support
+    """
+    
+    provider: Literal["medgemma"] = Field(
+        default="medgemma",
+        description="LLM provider (MedGemma only - local medical model)"
     )
     model_name: str = Field(
-        default="gemma3:1b",
-        description="Model name/ID to use"
+        default="medgemma-4b-it",
+        description="MedGemma model variant"
     )
-    api_host: str = Field(
-        default="http://localhost:11434",
-        description="API endpoint for LLM provider"
+    base_url: str = Field(
+        default="http://127.0.0.1:8090/v1",
+        description="MedGemma server endpoint (OpenAI-compatible API)"
     )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="API key for cloud providers (optional)"
+    api_key: str = Field(
+        default="sk-no-key-required",
+        description="API key (not required for local server)"
     )
     temperature: float = Field(
         default=0.3,
@@ -73,9 +81,9 @@ class LLMConfig(BaseModel):
         description="Temperature for generation (0=deterministic, 2=creative)"
     )
     max_tokens: int = Field(
-        default=512,
+        default=2048,
         ge=1,
-        le=4096,
+        le=8192,
         description="Maximum tokens to generate in response"
     )
     timeout_seconds: int = Field(
@@ -83,6 +91,12 @@ class LLMConfig(BaseModel):
         ge=5,
         le=600,
         description="Request timeout in seconds"
+    )
+    
+    # Legacy field kept for backward compatibility (ignored)
+    api_host: str = Field(
+        default="http://127.0.0.1:8090/v1",
+        description="Deprecated: Use base_url instead"
     )
     
     model_config = ConfigDict(extra="forbid")
@@ -294,9 +308,9 @@ def get_app_config() -> AppConfig:
         
     Example:
         config = get_app_config()
-        print(config.llm.model_name)        # 'gemma3:1b'
+        print(config.llm.model_name)        # 'medgemma-4b-it'
         print(config.rag.vector_weight)     # 0.5
-        print(config.database.backend)      # 'mysql'
+        print(config.database.backend)      # 'postgres'
     """
     global _global_app_config
     
@@ -307,16 +321,36 @@ def get_app_config() -> AppConfig:
                 load_dotenv()
                 
                 # Load from environment with defaults
+                # MedGemma-only configuration (supports both MEDGEMMA_* and legacy LLAMA_LOCAL_* vars)
                 env_dict = {
                     "env": os.environ.get("APP_ENV", "development"),
                     "debug": os.environ.get("APP_DEBUG", "true").lower() == "true",
                     "llm": {
-                        "provider": os.environ.get("LLM_PROVIDER", "ollama"),
-                        "model_name": os.environ.get("LLM_MODEL_NAME", "gemma3:1b"),
-                        "api_host": os.environ.get("OLLAMA_API_HOST", "http://localhost:11434"),
-                        "api_key": os.environ.get("LLM_API_KEY"),
-                        "temperature": float(os.environ.get("LLM_TEMPERATURE", "0.3")),
-                        "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", "512")),
+                        "provider": "medgemma",  # Always MedGemma
+                        "model_name": os.environ.get(
+                            "MEDGEMMA_MODEL", 
+                            os.environ.get("LLAMA_LOCAL_MODEL", "medgemma-4b-it")
+                        ),
+                        "base_url": os.environ.get(
+                            "MEDGEMMA_BASE_URL", 
+                            os.environ.get("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1")
+                        ),
+                        "api_host": os.environ.get(
+                            "MEDGEMMA_BASE_URL", 
+                            os.environ.get("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1")
+                        ),
+                        "api_key": os.environ.get(
+                            "MEDGEMMA_API_KEY", 
+                            os.environ.get("LLAMA_LOCAL_API_KEY", "sk-no-key-required")
+                        ),
+                        "temperature": float(os.environ.get(
+                            "MEDGEMMA_TEMPERATURE", 
+                            os.environ.get("LLAMA_LOCAL_TEMPERATURE", "0.3")
+                        )),
+                        "max_tokens": int(os.environ.get(
+                            "MEDGEMMA_MAX_TOKENS", 
+                            os.environ.get("LLAMA_LOCAL_MAX_TOKENS", "2048")
+                        )),
                         "timeout_seconds": int(os.environ.get("LLM_TIMEOUT", "60")),
                     },
                     "rag": {

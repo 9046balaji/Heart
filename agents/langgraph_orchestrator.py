@@ -166,48 +166,42 @@ class LangGraphOrchestrator:
         
         self.router_v2 = SemanticRouterV2()
         
-        # Initialize LLM for Supervisor
+        # Initialize LLM for Supervisor (MedGemma-only architecture)
         app_config = get_app_config()
         self.llm = None
         
-        # Try llama-local first (MedGemma on port 8090)
-        if app_config.llm.provider == "llama-local" and ChatOpenAI:
-            import os
+        # MedGemma via OpenAI-compatible API
+        if ChatOpenAI:
             try:
+                # Support both MEDGEMMA_* and legacy LLAMA_LOCAL_* env vars
+                medgemma_base_url = os.getenv(
+                    "MEDGEMMA_BASE_URL", 
+                    os.getenv("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1")
+                )
+                medgemma_model = os.getenv(
+                    "MEDGEMMA_MODEL", 
+                    os.getenv("LLAMA_LOCAL_MODEL", "medgemma-4b-it")
+                )
+                medgemma_api_key = os.getenv(
+                    "MEDGEMMA_API_KEY", 
+                    os.getenv("LLAMA_LOCAL_API_KEY", "sk-no-key-required")
+                )
+                
                 self.llm = ChatOpenAI(
-                    model=os.getenv("LLAMA_LOCAL_MODEL", "medgemma-4b-it"),
-                    api_key=os.getenv("LLAMA_LOCAL_API_KEY", "sk-no-key-required"),
-                    base_url=os.getenv("LLAMA_LOCAL_BASE_URL", "http://127.0.0.1:8090/v1"),
+                    model=medgemma_model,
+                    api_key=medgemma_api_key,
+                    base_url=medgemma_base_url,
                     temperature=0
                 )
-                logger.info(f"Supervisor initialized with Local Llama Server ({os.getenv('LLAMA_LOCAL_MODEL', 'medgemma-4b-it')})")
+                logger.info(f"✅ Supervisor initialized with MedGemma ({medgemma_model}) at {medgemma_base_url}")
             except Exception as e:
-                logger.warning(f"Could not init Local Llama Server: {e}")
-        
-        elif app_config.llm.provider == "ollama":
-            try:
-                self.llm = ChatOllama(
-                    model=app_config.llm.model_name,
-                    base_url=app_config.llm.api_host,
-                    temperature=0
-                )
-                logger.info(f"Supervisor initialized with Ollama ({app_config.llm.model_name})")
-            except Exception as e:
-                logger.warning(f"Could not init ChatOllama: {e}")
-        
-        elif (app_config.llm.provider == "openai" or app_config.llm.provider == "openrouter") and ChatOpenAI:
-            try:
-                self.llm = ChatOpenAI(
-                    model=app_config.llm.model_name if app_config.llm.provider == "openai" else "gpt-4o",
-                    api_key=app_config.llm.api_key,
-                    temperature=0
-                )
-                logger.info(f"Supervisor initialized with OpenAI ({app_config.llm.model_name})")
-            except Exception as e:
-                logger.warning(f"Could not init ChatOpenAI: {e}")
+                logger.error(f"❌ Could not initialize MedGemma supervisor: {e}")
+                logger.error(f"   Ensure MedGemma server is running. Start with: llama-server -m medgemma-4b.gguf --port 8090")
+        else:
+            logger.error("❌ langchain-openai not installed - MedGemma supervisor unavailable!")
         
         if not self.llm:
-            logger.warning("Supervisor LLM not initialized. Supervisor agent will fail.")
+            logger.error("❌ Supervisor LLM not initialized. Supervisor agent will fail.")
 
         # --- Advanced RAG Tools ---
         self.rag_tool = MedicalSelfRAG(
