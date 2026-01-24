@@ -59,7 +59,8 @@ langdetect>=0.1.1
 # ============================================================
 # VECTOR STORE & RAG
 # ============================================================
-chromadb>=0.4.0
+# chromadb>=0.4.0  # DEPRECATED: Migrated to PostgreSQL/pgvector
+pgvector>=0.2.0  # PostgreSQL vector extension for SQLAlchemy
 onnxruntime>=1.16.0
 
 # ============================================================
@@ -206,7 +207,7 @@ isort>=5.13.2
 #    pip install -r requirements.txt
 #
 # 5. Verify installation:
-#    python -c "import torch, transformers, chromadb; print('✓ All imports OK')"
+#    python -c "import torch, transformers, psycopg2; print('✓ All imports OK')"
 #
 # For conda users:
 #    conda create -n medrag python=3.11
@@ -227,8 +228,9 @@ isort>=5.13.2
 #   → Normal behavior - streaming handles this with checkpointing
 #   → Check: logs/pubmed_streaming.log for checkpoint status
 #
-# ERROR: "chromadb.NotImplementedError"
-#   → Ensure chromadb>=0.4.21: pip install --upgrade chromadb
+# ERROR: "pgvector extension not available"
+#   → Install pgvector on PostgreSQL server: https://github.com/pgvector/pgvector
+#   → System falls back to TEXT type if pgvector not available
 #
 # ERROR: ImportError from relative imports (rag.*, tools.*)
 #   → Run setup script: python PROJECT_SETUP.md (contains validation_setup.py)

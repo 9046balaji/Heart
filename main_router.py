@@ -191,7 +191,7 @@ import asyncio
 async def main_async():
     print("\n" + "="*60)
     print("   ❤️  HeartGuard AI - Clinical Assistant")
-    print("   (Powered by ChromaDB + Gemma-2b + RTX 4050 + OpenFDA)")
+    print("   (Powered by PostgreSQL/pgvector + Gemma-2b + RTX 4050 + OpenFDA)")
     print("="*60 + "\n")
 
     # 1. Initialize Components

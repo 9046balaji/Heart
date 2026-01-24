@@ -76,7 +76,7 @@ if os.getenv("ENVIRONMENT", "development").lower() == "production":
     logging.getLogger("rag").setLevel(logging.WARNING)
     logging.getLogger("agents").setLevel(logging.WARNING)
     logging.getLogger("memori").setLevel(logging.WARNING)
-    logging.getLogger("chromadb").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logger.info("⚡ Production mode: Reduced logging for performance")
 

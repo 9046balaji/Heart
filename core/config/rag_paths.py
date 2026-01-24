@@ -119,8 +119,11 @@ class PathConfig:
     
     @property
     def chroma_db_dir(self) -> Path:
-        """Get ChromaDB vector database directory."""
-        return self._ensure_dir(self.base_dir / "chroma_db")
+        """DEPRECATED: ChromaDB has been replaced by PostgreSQL/pgvector.
+        This property is kept for backward compatibility only.
+        """
+        # Return a path but don't create the directory
+        return self.base_dir / "chroma_db_deprecated"
     
     @property
     def models_dir(self) -> Path:
@@ -164,7 +167,7 @@ class PathConfig:
         return self.fixtures_dir / "neo4j_mock_data.json"
     
     def get_chroma_db_path(self) -> Path:
-        """Get path to ChromaDB storage directory."""
+        """DEPRECATED: ChromaDB has been replaced by PostgreSQL/pgvector."""
         return self.chroma_db_dir
     
     def get_onnx_models_dir(self) -> Path:
@@ -194,7 +197,7 @@ class PathConfig:
             "base_dir": self.base_dir.exists(),
             "data_dir": self.data_dir.exists(),
             "dictionaries_dir": self.dictionaries_dir.exists(),
-            "chroma_db_dir": self.chroma_db_dir.exists(),
+            # chroma_db_dir removed - migrated to PostgreSQL/pgvector
             "models_dir": self.models_dir.exists(),
             "logs_dir": self.logs_dir.exists(),
             "memori_dir": self.memori_dir.exists(),
@@ -248,7 +251,6 @@ class PathConfig:
         return (
             f"PathConfig(base_dir={self.base_dir}, "
             f"data_dir={self.data_dir}, "
-            f"chroma_db_dir={self.chroma_db_dir}, "
             f"models_dir={self.models_dir})"
         )
     
@@ -264,7 +266,7 @@ class PathConfig:
             "data_dir": str(self.data_dir),
             "dictionaries_dir": str(self.dictionaries_dir),
             "fixtures_dir": str(self.fixtures_dir),
-            "chroma_db_dir": str(self.chroma_db_dir),
+            # chroma_db_dir removed - migrated to PostgreSQL/pgvector
             "models_dir": str(self.models_dir),
             "onnx_models_dir": str(self.get_onnx_models_dir()),
             "pytorch_models_dir": str(self.get_pytorch_models_dir()),

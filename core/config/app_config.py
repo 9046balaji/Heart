@@ -338,7 +338,7 @@ def get_app_config() -> AppConfig:
                         "max_context_tokens": int(os.environ.get("MAX_CONTEXT_TOKENS", "3000")),
                         "cache_enabled": os.environ.get("CACHE_ENABLED", "true").lower() == "true",
                         "paths": {
-                            "chroma_db_dir": os.environ.get("CHROMA_DB_DIR", "./chroma_data"),
+                            # Vector storage now uses PostgreSQL/pgvector via DATABASE_URL
                             "knowledge_graph_dir": os.environ.get("KNOWLEDGE_GRAPH_DIR", "./kg_data"),
                         },
                     },

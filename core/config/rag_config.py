@@ -107,7 +107,6 @@ class RAGConfig(BaseModel):
             
         Example:
             config = RAGConfig()
-            chroma_path = config.paths.chroma_db_dir
             drug_dict = config.paths.get_drug_dictionary_file()
         """
         from .rag_paths import get_path_config

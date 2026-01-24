@@ -35,16 +35,21 @@ food
 docs
 comprehensive_web_search
 alembic
-chroma_db
+# chroma_db - REMOVED: Migrated to PostgreSQL/pgvector
 data
 
 
-interactions.db
-interactions.db-shm
-interactions.db-wal
+# SQLite databases - DEPRECATED: Migrated to PostgreSQL
+# interactions.db
+# interactions.db-shm
+# interactions.db-wal
+# memory.db
+# health_data.db
+*.db
+*.db-shm
+*.db-wal
+
 server.log
-memory.db
-health_data.db
 alembic.ini
 __pycache__
 *.pyc
