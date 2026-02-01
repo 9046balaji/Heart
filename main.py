@@ -887,6 +887,9 @@ safe_include_router(app, "routes.sse_routes", "router", prefix="/sse", tags=["Se
 # Database Health & Monitoring Routes
 safe_include_router(app, "routes.db_health", "router", prefix="/db", tags=["Database Health"])
 
+# RAG & Memory Health Routes
+safe_include_router(app, "routes.rag_memory_health", "router", prefix="/rag-memory", tags=["RAG Memory Health"])
+
 # WebSocket Routes - Real-time updates via WebSocket
 # Note: WebSocket routes are typically registered directly, not via include_router
 try:

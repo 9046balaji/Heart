@@ -24,6 +24,17 @@ from .core.database import DatabaseManager
 # Core components
 from .core.memory import Memori
 
+# Query optimization
+from .memory_query_optimizer import (
+    MemoryOptimizationConfig,
+    LRUCache,
+    MemoryTieredCache,
+    BatchMemoryWriter,
+    OptimizedMemoryQueries,
+    MemoryPerformanceMonitor,
+    create_optimized_memory_queries,
+)
+
 # Database system (Connectors removed - use DatabaseManager directly)
 # from .database.connectors import MySQLConnector, PostgreSQLConnector, SQLiteConnector
 from .database.queries import (  # EntityQueries removed (graph search simplified)
@@ -101,6 +112,14 @@ _all_components = [
     "AgentSettings",
     "LoggingSettings",
     "ConfigManager",
+    # Query Optimization
+    "MemoryOptimizationConfig",
+    "LRUCache",
+    "MemoryTieredCache",
+    "BatchMemoryWriter",
+    "OptimizedMemoryQueries",
+    "MemoryPerformanceMonitor",
+    "create_optimized_memory_queries",
     # Database
     # "SQLiteConnector",      # Removed - connectors deleted
     # "PostgreSQLConnector",  # Removed - connectors deleted

@@ -30,10 +30,7 @@ test_integrated_system.py
 
 startup_log.txt
 check_tables.py
-
-
-
-
+update_database_schema.py
 
 
 

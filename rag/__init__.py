@@ -43,6 +43,17 @@ from .context_assembler import ContextAssembler, AssembledContext, RetrievalResu
 from .memori_integration import MemoriRAGBridge, SyncConfig, create_memori_rag_bridge
 from .rag_engines import HeartDiseaseRAG
 
+# Query optimization
+from .rag_query_optimizer import (
+    RAGQueryConfig,
+    EmbeddingCache,
+    RAGResultCache,
+    BatchEmbeddingProcessor,
+    OptimizedRAGQueries,
+    RAGPerformanceMonitor,
+    create_optimized_rag_queries,
+)
+
 # Multimodal processing (tables, images, equations)
 from .multimodal import (
     MultimodalConfig,
@@ -72,6 +83,14 @@ __all__ = [
     "MemoriRAGBridge",
     "SyncConfig",
     "create_memori_rag_bridge",
+    # Query Optimization
+    "RAGQueryConfig",
+    "EmbeddingCache",
+    "RAGResultCache",
+    "BatchEmbeddingProcessor",
+    "OptimizedRAGQueries",
+    "RAGPerformanceMonitor",
+    "create_optimized_rag_queries",
     # Multimodal Processing
     "MultimodalConfig",
     "MultimodalIngestionService",
