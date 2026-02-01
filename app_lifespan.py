@@ -61,6 +61,9 @@ _arq_pool: Optional[Any] = None
 _websocket_manager: Optional[Any] = None
 _job_store: Optional[Any] = None
 
+# Database Monitoring Services
+_db_monitoring: Optional[Dict[str, Any]] = None
+
 
 def get_orchestrator() -> Optional[Any]:
     """Get orchestrator instance (initialized during startup)."""
@@ -109,6 +112,22 @@ def get_job_store() -> Optional[Any]:
     if _job_store is None:
         logger.warning("⚠️ Job store not initialized - job tracking unavailable")
     return _job_store
+
+
+def get_db_monitoring() -> Optional[Dict[str, Any]]:
+    """Get database monitoring services (initialized during startup)."""
+    if _db_monitoring is None:
+        logger.warning("⚠️ Database monitoring not initialized")
+    return _db_monitoring
+
+
+def get_db_health_status() -> Dict[str, Any]:
+    """Get current database health status."""
+    if _db_monitoring and _db_monitoring.get("health_checker"):
+        health_checker = _db_monitoring["health_checker"]
+        if health_checker.last_health_check:
+            return health_checker.last_health_check
+    return {"status": "unknown", "error": "Health checker not initialized"}
 
 
 # ============================================================================
@@ -176,6 +195,29 @@ async def startup_event():
             # Register in DIContainer BEFORE auth tries to use it
             container.register_service('db_manager', db_manager)
             logger.info("✅ PostgreSQL database registered in DIContainer")
+            
+            # 0c. Initialize database query monitoring
+            try:
+                global _db_monitoring
+                logger.info("📦 Initializing database query monitoring...")
+                from core.database.query_monitor import initialize_monitoring
+                
+                # Get Redis client if available
+                redis_client = getattr(container, 'redis_client', None)
+                
+                # Get the asyncpg pool from db_manager
+                db_pool = getattr(db_manager, 'pool', None)
+                
+                _db_monitoring = await initialize_monitoring(
+                    db_pool=db_pool,
+                    redis_client=redis_client,
+                    slow_query_threshold_ms=100.0,
+                    log_file="slow_queries.log"
+                )
+                logger.info("✅ Database query monitoring initialized")
+            except Exception as e:
+                logger.warning(f"⚠️ Database monitoring initialization failed: {e}")
+                # Non-critical - continue without monitoring
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
@@ -436,9 +478,18 @@ async def shutdown_event():
     Runs ONCE per worker during graceful shutdown.
     """
     global _orchestrator, _feedback_store, _embedding_search_engine, _auth_db_service
-    global _arq_pool, _websocket_manager, _job_store
+    global _arq_pool, _websocket_manager, _job_store, _db_monitoring
     
     logger.info("🛑 Shutting down application services...")
+    
+    try:
+        # Clean up database monitoring
+        if _db_monitoring:
+            from core.database.query_monitor import shutdown_monitoring
+            await shutdown_monitoring()
+            logger.info("✅ Database monitoring cleaned up")
+    except Exception as e:
+        logger.error(f"Error cleaning up database monitoring: {e}")
     
     try:
         # Clean up WebSocket manager (close all connections gracefully)

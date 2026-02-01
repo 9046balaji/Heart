@@ -6,6 +6,7 @@ Provides a per-session store with:
 - Optional database persistence (SQLite/PostgreSQL)
 - Session timeout policies
 - Automatic cleanup of stale sessions
+- Optional query optimization with batch inserts and tiered caching
 """
 
 import json
@@ -34,6 +35,24 @@ except ImportError:
     import logging
 
     logger = logging.getLogger(__name__)
+
+# Import query optimization modules (optional)
+try:
+    from core.database.query_optimizer import (
+        TieredCache,
+        BatchInsertManager,
+        OptimizedChatHistoryQueries,
+        QueryOptimizationConfig,
+    )
+    from core.database.query_monitor import (
+        get_slow_query_logger,
+        get_performance_monitor,
+        QueryMetrics,
+    )
+    QUERY_OPTIMIZATION_AVAILABLE = True
+except ImportError:
+    QUERY_OPTIMIZATION_AVAILABLE = False
+    logger.info("Query optimization modules not available - using standard queries")
 
 # Import encryption service for PHI protection
 try:
@@ -194,6 +213,7 @@ class PersistentChatHistory:
     Database-backed chat history with session timeout policies.
 
     Provides persistent storage with automatic session cleanup.
+    Optionally uses query optimization with batch inserts and tiered caching.
     """
 
     def __init__(
@@ -201,6 +221,9 @@ class PersistentChatHistory:
         database_url: Optional[str] = None,
         timeout_policy: Optional[SessionTimeoutPolicy] = None,
         in_memory_cache_size: int = 100,
+        use_optimized_queries: bool = True,
+        enable_batch_inserts: bool = False,
+        redis_url: Optional[str] = None,
     ):
         """
         Initialize persistent chat history.
@@ -209,6 +232,9 @@ class PersistentChatHistory:
             database_url: SQLAlchemy database URL. Defaults to PostgreSQL from AppConfig
             timeout_policy: Session timeout configuration
             in_memory_cache_size: Size of LRU cache for recent sessions
+            use_optimized_queries: Use optimized query layer with tiered caching
+            enable_batch_inserts: Enable batch insert mode for high throughput
+            redis_url: Redis URL for L2 cache (optional, uses env var if not provided)
         """
         if not SQLALCHEMY_AVAILABLE:
             raise RuntimeError(
@@ -239,6 +265,8 @@ class PersistentChatHistory:
         self.database_url = database_url
         self.timeout_policy = timeout_policy or SessionTimeoutPolicy()
         self.in_memory_cache_size = in_memory_cache_size
+        self.use_optimized_queries = use_optimized_queries and QUERY_OPTIMIZATION_AVAILABLE
+        self.enable_batch_inserts = enable_batch_inserts
 
         # Initialize encryption service if available
         self._encryption = None
@@ -256,7 +284,34 @@ class PersistentChatHistory:
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
 
-        # In-memory LRU cache for recent sessions
+        # Initialize optimized query components if available
+        self._tiered_cache: Optional[Any] = None
+        self._batch_manager: Optional[Any] = None
+        
+        if self.use_optimized_queries:
+            try:
+                # Initialize tiered cache (L1 in-memory + L2 Redis)
+                redis_url = redis_url or os.environ.get("REDIS_URL", "redis://localhost:6379")
+                self._tiered_cache = TieredCache(
+                    l1_max_size=in_memory_cache_size,
+                    l1_ttl_seconds=60,
+                    redis_url=redis_url,
+                    l2_ttl_seconds=300,
+                )
+                logger.info("Tiered cache (L1+L2) initialized for chat history")
+                
+                if enable_batch_inserts:
+                    self._batch_manager = BatchInsertManager(
+                        table_name="chat_messages",
+                        batch_size=100,
+                        flush_interval_seconds=1.0,
+                    )
+                    logger.info("Batch insert manager initialized for chat history")
+            except Exception as e:
+                logger.warning(f"Failed to initialize query optimizations: {e}")
+                self.use_optimized_queries = False
+
+        # In-memory LRU cache for recent sessions (fallback)
         self._cache: OrderedDict[str, List[Dict[str, str]]] = OrderedDict()
         self._cache_timestamps: Dict[str, float] = {}
         self._lock = RLock()
@@ -309,7 +364,18 @@ class PersistentChatHistory:
             self._cleanup_thread = None
 
     def _update_cache(self, session_id: str, history: List[Dict[str, str]]) -> None:
-        """Update in-memory cache with LRU eviction."""
+        """Update cache with LRU eviction. Uses tiered cache if available."""
+        cache_key = f"chat_history:{session_id}"
+        
+        # Use tiered cache if available (L1 + L2 Redis)
+        if self._tiered_cache:
+            try:
+                self._tiered_cache.set(cache_key, history)
+                return
+            except Exception as e:
+                logger.warning(f"Tiered cache set failed, falling back to local cache: {e}")
+        
+        # Fallback to local LRU cache
         with self._lock:
             if session_id in self._cache:
                 self._cache.move_to_end(session_id)
@@ -324,7 +390,19 @@ class PersistentChatHistory:
             self._cache_timestamps[session_id] = time.time()
 
     def _get_from_cache(self, session_id: str) -> Optional[List[Dict[str, str]]]:
-        """Get session from cache if available and not stale."""
+        """Get session from cache if available and not stale. Uses tiered cache if available."""
+        cache_key = f"chat_history:{session_id}"
+        
+        # Use tiered cache if available (L1 + L2 Redis)
+        if self._tiered_cache:
+            try:
+                cached = self._tiered_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception as e:
+                logger.warning(f"Tiered cache get failed, falling back to local cache: {e}")
+        
+        # Fallback to local LRU cache
         with self._lock:
             if session_id not in self._cache:
                 return None
@@ -336,6 +414,22 @@ class PersistentChatHistory:
 
             self._cache.move_to_end(session_id)
             return list(self._cache[session_id])
+    
+    def _invalidate_cache(self, session_id: str) -> None:
+        """Invalidate cache entry for a session."""
+        cache_key = f"chat_history:{session_id}"
+        
+        # Invalidate tiered cache if available
+        if self._tiered_cache:
+            try:
+                self._tiered_cache.delete(cache_key)
+            except Exception as e:
+                logger.warning(f"Tiered cache delete failed: {e}")
+        
+        # Invalidate local cache
+        with self._lock:
+            self._cache.pop(session_id, None)
+            self._cache_timestamps.pop(session_id, None)
 
     def add_message(
         self,
@@ -404,10 +498,8 @@ class PersistentChatHistory:
             db.flush()
             message_id = message.id
 
-        # Invalidate cache
-        with self._lock:
-            self._cache.pop(session_id, None)
-            self._cache_timestamps.pop(session_id, None)
+        # Invalidate cache using unified method
+        self._invalidate_cache(session_id)
 
         return message_id
 
@@ -528,9 +620,8 @@ class PersistentChatHistory:
             db.query(ChatMessage).filter_by(session_id=session_id).delete()
             db.query(ChatSession).filter_by(session_id=session_id).delete()
 
-        with self._lock:
-            self._cache.pop(session_id, None)
-            self._cache_timestamps.pop(session_id, None)
+        # Invalidate cache using unified method
+        self._invalidate_cache(session_id)
 
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session metadata and statistics."""

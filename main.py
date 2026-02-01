@@ -884,6 +884,9 @@ safe_include_router(app, "routes.job_management", "router", prefix="/api/v2", ta
 # SSE Routes - Server-Sent Events for real-time updates (HTTP fallback)
 safe_include_router(app, "routes.sse_routes", "router", prefix="/sse", tags=["Server-Sent Events"])
 
+# Database Health & Monitoring Routes
+safe_include_router(app, "routes.db_health", "router", prefix="/db", tags=["Database Health"])
+
 # WebSocket Routes - Real-time updates via WebSocket
 # Note: WebSocket routes are typically registered directly, not via include_router
 try:
