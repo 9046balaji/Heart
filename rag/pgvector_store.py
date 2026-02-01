@@ -145,6 +145,8 @@ class PgVectorStore:
         embedding_model: str = "all-MiniLM-L6-v2",
         pool_size: int = 10,
         max_overflow: int = 20,
+        config = None,  # Accept but ignore config for compatibility
+        **kwargs,  # Accept any extra kwargs for flexibility
     ):
         """
         Initialize pgvector store.
@@ -154,6 +156,8 @@ class PgVectorStore:
             embedding_model: Model name for embeddings (default: all-MiniLM-L6-v2)
             pool_size: Connection pool size
             max_overflow: Maximum overflow connections
+            config: Optional AppConfig (accepted for compatibility, not used)
+            **kwargs: Additional arguments (ignored)
         """
         # Get database URL
         self.database_url = database_url or os.getenv("DATABASE_URL")
@@ -226,26 +230,43 @@ class PgVectorStore:
         return self._async_engine
     
     def _verify_pgvector(self):
-        """Verify pgvector extension is installed."""
+        """Verify pgvector extension is installed.
+        
+        Returns True if pgvector is available, False otherwise.
+        Sets _pgvector_verified to True only if extension is available.
+        Sets _pgvector_unavailable to True if extension check fails.
+        """
         if self._pgvector_verified:
-            return
+            return True
         
-        engine = self._get_sync_engine()
-        from sqlalchemy import text
+        if getattr(self, '_pgvector_unavailable', False):
+            return False
         
-        with engine.connect() as conn:
-            result = conn.execute(text(
-                "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
-            ))
-            row = result.fetchone()
-            if row:
-                logger.info(f"✅ pgvector extension verified (v{row[0]})")
-                self._pgvector_verified = True
-            else:
-                raise RuntimeError(
-                    "pgvector extension not installed. "
-                    "Run: CREATE EXTENSION vector;"
-                )
+        try:
+            engine = self._get_sync_engine()
+            from sqlalchemy import text
+            
+            with engine.connect() as conn:
+                result = conn.execute(text(
+                    "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+                ))
+                row = result.fetchone()
+                if row:
+                    logger.info(f"✅ pgvector extension verified (v{row[0]})")
+                    self._pgvector_verified = True
+                    return True
+                else:
+                    logger.warning(
+                        "⚠️ pgvector extension not installed. "
+                        "Vector search will be disabled. "
+                        "Run: CREATE EXTENSION vector;"
+                    )
+                    self._pgvector_unavailable = True
+                    return False
+        except Exception as e:
+            logger.warning(f"⚠️ pgvector check failed: {e}. Vector search will be disabled.")
+            self._pgvector_unavailable = True
+            return False
     
     def _format_embedding(self, embedding: Union[List[float], np.ndarray]) -> str:
         """Format embedding as PostgreSQL vector string."""
@@ -393,7 +414,10 @@ class PgVectorStore:
         Returns:
             List of matching documents with scores
         """
-        self._verify_pgvector()
+        # Check if pgvector is available - return empty list if not
+        if not self._verify_pgvector():
+            logger.warning("pgvector not available - returning empty results for vector search")
+            return []
         
         # Check cache
         if query:

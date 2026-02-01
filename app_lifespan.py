@@ -409,8 +409,10 @@ async def startup_event():
         if _arq_pool:
             from core.services.job_store import JobStore
             
-            # Get the underlying Redis connection from ARQ pool
-            _job_store = JobStore(_arq_pool._pool)
+            # JobStore expects a Redis URL, not the ARQ pool
+            # It creates its own Redis connection internally
+            _job_store = JobStore()  # Uses default REDIS_URL from config
+            await _job_store.initialize()
             
             # Register in DIContainer
             from core.dependencies import DIContainer

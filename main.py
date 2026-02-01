@@ -779,9 +779,19 @@ if MEMORI_MANAGER_AVAILABLE:
     except Exception as e:
         logger.warning(f"Failed to add CorrelationIDMiddleware: {e}")
 
-# Add Request Timeout Middleware (60s max request time)
+# Add Request Timeout Middleware with path-specific timeouts
 # This prevents runaway requests from consuming resources indefinitely
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "60"))
+# Longer timeout for research-heavy endpoints (deep research, complex analysis)
+RESEARCH_TIMEOUT_SECONDS = float(os.getenv("RESEARCH_TIMEOUT_SECONDS", "180"))
+
+# Paths that need longer timeouts (research queries, document analysis, etc.)
+LONG_TIMEOUT_PATHS = {
+    "/chat/message",      # Chat can trigger deep research
+    "/research",          # Explicit research endpoints
+    "/documents/analyze", # Document analysis is slow
+    "/analysis",          # Analysis endpoints
+}
 
 try:
     from starlette.middleware.base import BaseHTTPMiddleware
@@ -790,34 +800,48 @@ try:
     
     class RequestTimeoutMiddleware(BaseHTTPMiddleware):
         """
-        Middleware to enforce a global request timeout.
+        Middleware to enforce request timeouts with path-specific overrides.
+        
+        Standard endpoints: 60s timeout (configurable via REQUEST_TIMEOUT_SECONDS)
+        Research endpoints: 180s timeout (configurable via RESEARCH_TIMEOUT_SECONDS)
         
         Returns 504 Gateway Timeout if request exceeds the timeout limit.
-        Configurable via REQUEST_TIMEOUT_SECONDS environment variable.
         """
         
+        def _get_timeout_for_path(self, path: str) -> float:
+            """Get appropriate timeout based on request path."""
+            # Check if path matches any long-timeout patterns
+            for long_path in LONG_TIMEOUT_PATHS:
+                if path.startswith(long_path):
+                    return RESEARCH_TIMEOUT_SECONDS
+            return REQUEST_TIMEOUT_SECONDS
+        
         async def dispatch(self, request: Request, call_next):
+            path = request.url.path
+            timeout = self._get_timeout_for_path(path)
+            
             try:
                 return await asyncio.wait_for(
                     call_next(request),
-                    timeout=REQUEST_TIMEOUT_SECONDS
+                    timeout=timeout
                 )
             except asyncio.TimeoutError:
                 logger.warning(
-                    f"⏱️ Request timeout ({REQUEST_TIMEOUT_SECONDS}s): "
-                    f"{request.method} {request.url.path}"
+                    f"⏱️ Request timeout ({timeout}s): "
+                    f"{request.method} {path}"
                 )
                 return JSONResponse(
                     status_code=504,
                     content={
                         "detail": "Request timeout",
-                        "timeout_seconds": REQUEST_TIMEOUT_SECONDS,
-                        "path": str(request.url.path),
+                        "timeout_seconds": timeout,
+                        "path": str(path),
+                        "hint": "For long-running research queries, consider using async endpoints."
                     }
                 )
     
     app.add_middleware(RequestTimeoutMiddleware)
-    logger.info(f"✅ RequestTimeoutMiddleware added ({REQUEST_TIMEOUT_SECONDS}s timeout)")
+    logger.info(f"✅ RequestTimeoutMiddleware added (default: {REQUEST_TIMEOUT_SECONDS}s, research: {RESEARCH_TIMEOUT_SECONDS}s)")
 except Exception as e:
     logger.warning(f"Failed to add RequestTimeoutMiddleware: {e}")
 

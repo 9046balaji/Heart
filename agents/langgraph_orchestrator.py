@@ -26,14 +26,21 @@ except ImportError:
 from langchain_ollama import ChatOllama
 from langgraph.graph import StateGraph, END
 
-# Redis Checkpointing for crash recovery and state persistence
-# This enables automatic recovery if a worker crashes mid-workflow
+# Checkpointing for state persistence
+# Redis checkpointing enables automatic recovery if a worker crashes mid-workflow
+# MemorySaver is used as a fallback for development when RedisJSON module is not available
+from langgraph.checkpoint.memory import MemorySaver
 try:
-    from langgraph.checkpoint.redis import RedisSaver
+    from langgraph.checkpoint.redis.aio import AsyncRedisSaver
     REDIS_CHECKPOINTING_AVAILABLE = True
 except ImportError:
-    RedisSaver = None
-    REDIS_CHECKPOINTING_AVAILABLE = False
+    try:
+        # Fallback for older versions
+        from langgraph.checkpoint.redis import RedisSaver as AsyncRedisSaver
+        REDIS_CHECKPOINTING_AVAILABLE = True
+    except ImportError:
+        AsyncRedisSaver = None
+        REDIS_CHECKPOINTING_AVAILABLE = False
 
 from core.config.app_config import get_app_config
 from core.prompts.registry import get_prompt
@@ -259,6 +266,7 @@ class LangGraphOrchestrator:
         # --- Redis Checkpointing for State Persistence ---
         # Enables automatic crash recovery and state persistence
         self.checkpointer = None
+        self._redis_saver_cm = None  # Context manager for cleanup
         self._init_redis_checkpointer()
 
         self.workflow = self._build_workflow()
@@ -287,29 +295,71 @@ class LangGraphOrchestrator:
     
     def _init_redis_checkpointer(self):
         """
-        Initialize Redis checkpointer for state persistence.
+        Initialize checkpointer for state persistence.
         
         This enables:
         - Automatic crash recovery from last checkpoint
         - State persistence across worker restarts
         - Zero data loss guarantee for agent workflows
-        """
-        if not REDIS_CHECKPOINTING_AVAILABLE:
-            logger.warning("⚠️ langgraph-checkpoint-redis not installed. State persistence disabled.")
-            logger.warning("   Install with: pip install langgraph-checkpoint-redis")
-            return
         
+        Tries Redis first (requires RedisJSON module), falls back to MemorySaver for development.
+        """
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         
+        # First, test if Redis has the JSON module (RedisJSON) by running a test command
+        # This avoids runtime failures when the checkpointer tries to save state
+        redis_json_available = False
+        if REDIS_CHECKPOINTING_AVAILABLE:
+            try:
+                import redis
+                # Parse redis_url to extract host/port
+                # Format: redis://host:port/db or redis://host:port
+                url_parts = redis_url.replace("redis://", "").split("/")
+                host_port = url_parts[0].split(":")
+                host = host_port[0] if host_port else "localhost"
+                port = int(host_port[1]) if len(host_port) > 1 else 6379
+                
+                # Test Redis JSON module availability with a simple command
+                test_client = redis.Redis(host=host, port=port, decode_responses=True)
+                test_key = "__checkpointer_test__"
+                try:
+                    # Try JSON.SET - if it works, RedisJSON is available
+                    test_client.execute_command("JSON.SET", test_key, "$", '{"test": true}')
+                    test_client.delete(test_key)
+                    redis_json_available = True
+                    logger.info(f"✅ Redis JSON module available at {host}:{port}")
+                except redis.exceptions.ResponseError as e:
+                    if "unknown command" in str(e).lower():
+                        logger.warning(f"⚠️ Redis JSON module not installed at {host}:{port}")
+                    else:
+                        logger.warning(f"⚠️ Redis JSON test failed: {e}")
+                finally:
+                    test_client.close()
+            except Exception as e:
+                logger.warning(f"⚠️ Could not test Redis JSON availability: {e}")
+        
+        # Use Redis checkpointer only if JSON module is confirmed available
+        if redis_json_available:
+            try:
+                self.checkpointer = AsyncRedisSaver(redis_url=redis_url)
+                self._redis_saver_cm = None
+                logger.info(f"✅ Redis checkpointer initialized ({redis_url})")
+                return
+            except Exception as e:
+                logger.warning(f"⚠️ Redis checkpointer failed ({e}), trying MemorySaver fallback")
+        elif not REDIS_CHECKPOINTING_AVAILABLE:
+            logger.warning("⚠️ langgraph-checkpoint-redis not installed")
+        
+        # Fallback to MemorySaver for development (state not persisted across restarts)
         try:
-            # Use sync context manager for initialization
-            # RedisSaver handles connection pooling internally
-            self.checkpointer = RedisSaver.from_conn_string(redis_url)
-            logger.info(f"✅ Redis checkpointer initialized ({redis_url})")
+            self.checkpointer = MemorySaver()
+            self._redis_saver_cm = None
+            logger.info("✅ MemorySaver checkpointer initialized (development mode - state not persisted)")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Redis checkpointer: {e}")
+            logger.error(f"❌ Failed to initialize any checkpointer: {e}")
             logger.warning("   State persistence disabled - workflows will not recover from crashes")
             self.checkpointer = None
+            self._redis_saver_cm = None
     
     def _compile_workflow(self):
         """
@@ -666,7 +716,12 @@ class LangGraphOrchestrator:
         # Determine prompt based on context using PromptRegistry
         if worker_count > 0:
             # Worker has responded - ask for synthesis
-            synthesis_prompt = get_prompt("orchestrator", "supervisor_synthesis")
+            # Get the base prompt and format it with the worker output
+            synthesis_prompt = get_prompt(
+                "orchestrator", 
+                "supervisor_synthesis",
+                variables={"worker_output": last_user_message[:1000]}
+            )
             full_prompt = (
                 f"A worker has provided information for this request: {last_user_message[:200]}\n\n"
                 f"{synthesis_prompt}\n\n"
@@ -674,25 +729,34 @@ class LangGraphOrchestrator:
             )
         else:
             # First call - route to appropriate worker
-            routing_prompt = get_prompt("orchestrator", "supervisor_routing")
+            # Get the base prompt and format it with the user query
+            routing_prompt = get_prompt(
+                "orchestrator", 
+                "supervisor_routing",
+                variables={"user_query": last_user_message[:300]}
+            )
             full_prompt = (
                 f"User Request: {last_user_message[:300]}\n\n"
                 f"{routing_prompt}\n\n"
                 "Remember: Your response must be a valid JSON object only - no other text."
             )
         
-        # Use only human message - no system message for Gemma compatibility
-        prompt = ChatPromptTemplate.from_messages([
-            ("human", full_prompt)
-        ])
+        # Note: Do NOT escape braces here - the prompts already have properly escaped
+        # JSON examples with {{ and }}. Additional escaping would break them.
+        # The user message was already escaped earlier to prevent template injection.
+        
+        # Use HumanMessage directly instead of ChatPromptTemplate to avoid
+        # LangChain trying to parse the JSON examples in the prompt as variables.
+        # This is simpler and avoids template escaping issues.
+        messages_for_llm = [HumanMessage(content=full_prompt)]
         
         # Use JsonOutputParser for robust parsing (handles Markdown, etc)
         parser = JsonOutputParser(pydantic_object=SupervisorResponse)
-        chain = prompt | self.llm | parser
         
         try:
-            # Parse with JsonOutputParser (automatically handles markdown stripping)
-            result = await chain.ainvoke({})
+            # Invoke LLM directly with messages, then parse
+            llm_response = await self.llm.ainvoke(messages_for_llm)
+            result = parser.parse(llm_response.content)
             
             # Log successful parsing for monitoring
             logger.debug(f"✅ Supervisor JSON parsing successful - routing to: {result.get('next', 'FINISH')}")

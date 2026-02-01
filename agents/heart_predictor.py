@@ -146,11 +146,22 @@ class HeartDiseasePredictor:
         logger.info(f"🔎 Searching knowledge base for: {patient_symptoms[:100]}...")
         retrieval_result = self._rag.retrieve_context(
             query=patient_symptoms,
-            n_results=max_guidelines
+            top_k=max_guidelines
         )
         
-        # Format retrieved guidelines
-        if retrieval_result.documents:
+        # Format retrieved guidelines - handle both dict and object return types
+        if isinstance(retrieval_result, dict):
+            # HeartDiseaseRAG returns dict with 'context' and 'sources'
+            guidelines_context = retrieval_result.get("context", "")
+            citations = retrieval_result.get("sources", [])
+            # Create a simple object-like structure for later use
+            class RetrievalResult:
+                def __init__(self, ctx, srcs):
+                    self.documents = [ctx] if ctx else []
+                    self.sources = srcs
+                    self.scores = [0.5] * len(srcs) if srcs else []
+            retrieval_result = RetrievalResult(guidelines_context, citations)
+        elif hasattr(retrieval_result, 'documents') and retrieval_result.documents:
             guidelines_context = "\n".join(
                 f"- [{src}] {doc}" 
                 for doc, src in zip(retrieval_result.documents, retrieval_result.sources)
@@ -159,6 +170,12 @@ class HeartDiseasePredictor:
         else:
             guidelines_context = "No specific guidelines found. Use general medical knowledge."
             citations = []
+            # Create empty result object
+            class RetrievalResult:
+                documents = []
+                sources = []
+                scores = []
+            retrieval_result = RetrievalResult()
         
         # Step 2: MEMORY - Get patient history (if available)
         patient_history = ""

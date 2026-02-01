@@ -3,14 +3,21 @@ Reasoning Researcher - Chain-of-Thought Research Agent
 
 Transforms linear research into a thinking, adaptive process.
 Uses ThinkingAgent to reason about search strategies and retry on failure.
+
+Performance Optimizations (v2.0):
+- Search deduplication to prevent redundant API calls
+- Reduced max_thinking_rounds (10 -> 4) for faster response
+- Early termination when sufficient results found
+- Query normalization for better cache hits
 """
 
 import asyncio
 import os
 import logging
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
+import hashlib
 
 # Import existing components
 try:
@@ -34,6 +41,18 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _normalize_query(query: str) -> str:
+    """Normalize search query for deduplication."""
+    # Lowercase, strip whitespace, remove extra spaces
+    normalized = ' '.join(query.lower().strip().split())
+    return normalized
+
+
+def _query_hash(query: str) -> str:
+    """Create a hash for quick query comparison."""
+    return hashlib.md5(_normalize_query(query).encode()).hexdigest()[:12]
+
+
 @dataclass
 class ResearchSession:
     """Tracks a complete research session."""
@@ -44,6 +63,8 @@ class ResearchSession:
     insights: List[Dict] = field(default_factory=list)
     reasoning_trace: str = ""
     final_report: Optional[str] = None
+    # v2.0: Track executed queries to prevent duplicates
+    _executed_queries: Set[str] = field(default_factory=set)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -53,7 +74,16 @@ class ResearchSession:
             "urls_crawled": self.urls_crawled,
             "insights_count": len(self.insights),
             "has_report": self.final_report is not None,
+            "unique_searches": len(self._executed_queries),
         }
+    
+    def is_query_executed(self, query: str) -> bool:
+        """Check if a query has already been executed."""
+        return _query_hash(query) in self._executed_queries
+    
+    def mark_query_executed(self, query: str) -> None:
+        """Mark a query as executed."""
+        self._executed_queries.add(_query_hash(query))
 
 
 class ReasoningResearcher:
@@ -66,6 +96,12 @@ class ReasoningResearcher:
     3. Reasons about which URLs to crawl
     4. Reflects on findings and adjusts strategy
     
+    v2.0 Performance Improvements:
+    - Search deduplication prevents redundant API calls
+    - Reduced thinking rounds (10 -> 4) for faster completion
+    - Early termination when enough URLs/insights found
+    - Better prompt to encourage diverse searches
+    
     Example:
         researcher = ReasoningResearcher(llm)
         result = await researcher.research("Latest breakthroughs in quantum computing")
@@ -74,10 +110,15 @@ class ReasoningResearcher:
         print(result.final_report)     # The synthesized report
     """
     
+    # v2.0: Configurable limits
+    DEFAULT_MAX_ROUNDS = 4  # Reduced from 10 - usually enough for good results
+    MIN_URLS_FOR_COMPLETION = 3  # Early exit threshold
+    MAX_URLS_TO_COLLECT = 10  # Don't search forever
+    
     def __init__(
         self,
         llm,
-        max_thinking_rounds: int = 10,
+        max_thinking_rounds: int = DEFAULT_MAX_ROUNDS,
         verbose: bool = True,
     ):
         """
@@ -85,7 +126,7 @@ class ReasoningResearcher:
         
         Args:
             llm: Language model (must support ainvoke)
-            max_thinking_rounds: Maximum think-act cycles
+            max_thinking_rounds: Maximum think-act cycles (default: 4)
             verbose: Log thinking process
         """
         self.llm = llm
@@ -130,7 +171,7 @@ class ReasoningResearcher:
             verbose=self.verbose,
         )
         
-        # Research prompt
+        # Research prompt - v2.0: Encourage diverse searches, mention deduplication
         research_prompt = f"""You are an expert research assistant. Your task is to conduct thorough research on:
 
 "{query}"
@@ -140,15 +181,18 @@ Available tools:
 2. perform_deep_crawl(urls, question) - Crawl specific URLs to extract information
 3. finalize_research(summary) - Complete the research with final summary
 
-Research Strategy:
-1. Start with a broad search to understand the landscape
-2. If results are poor, refine your search query
-3. Select the most relevant URLs to crawl
-4. Extract key findings
-5. If you find references to important papers, search for them
-6. When you have enough information, finalize with a summary
+IMPORTANT RULES:
+- Do NOT repeat the same search query - each search must be DIFFERENT
+- After finding good URLs, use perform_deep_crawl to extract information
+- If you have collected enough information (3+ good sources), call finalize_research
+- Vary your search queries: try different keywords, angles, or add "recent" / "2024"
 
-Think carefully before each action. Explain your reasoning.
+Research Strategy:
+1. Start with a focused search on the main topic
+2. If you need more, search with DIFFERENT keywords or angles
+3. Select 2-3 relevant URLs and crawl them for details
+4. Once you have useful findings, summarize and finalize
+
 Begin your research now."""
 
         # Run the thinking agent
@@ -173,13 +217,35 @@ Begin your research now."""
             Search the web for articles or academic papers.
             
             Args:
-                query: Search query
+                query: Search query (must be DIFFERENT from previous searches)
                 search_pdfs: If True, search specifically for PDF papers
                 
             Returns:
                 Summary of search results with URLs
             """
+            # v2.0: Check for duplicate query
+            if self.current_session.is_query_executed(query):
+                logger.info(f"🔄 Skipping duplicate search: '{query[:50]}...'")
+                return (
+                    f"⚠️ This search query was already executed. "
+                    f"You have {len(self.current_session.urls_searched)} URLs collected. "
+                    f"Please try a DIFFERENT search query with new keywords, "
+                    f"or use perform_deep_crawl to extract information from existing URLs, "
+                    f"or call finalize_research if you have enough information."
+                )
+            
+            # v2.0: Check if we have enough URLs already
+            if len(self.current_session.urls_searched) >= self.MAX_URLS_TO_COLLECT:
+                return (
+                    f"✅ Already collected {len(self.current_session.urls_searched)} URLs. "
+                    f"Please use perform_deep_crawl to extract insights, "
+                    f"or call finalize_research to complete."
+                )
+            
             try:
+                # Mark query as executed
+                self.current_session.mark_query_executed(query)
+                
                 urls = await get_search_results(
                     query, 
                     max_results=5, 
@@ -189,13 +255,18 @@ Begin your research now."""
                 self.current_session.urls_searched.extend(urls)
                 
                 if urls:
-                    result = f"Found {len(urls)} URLs:\n"
+                    result = f"Found {len(urls)} URLs (total collected: {len(self.current_session.urls_searched)}):\n"
                     for i, url in enumerate(urls, 1):
                         type_label = "[PDF]" if url.lower().endswith(".pdf") else "[WEB]"
                         result += f"  {i}. {type_label} {url}\n"
+                    
+                    # v2.0: Hint for early completion
+                    if len(self.current_session.urls_searched) >= self.MIN_URLS_FOR_COMPLETION:
+                        result += f"\n💡 You have enough URLs. Consider using perform_deep_crawl or finalize_research."
+                    
                     return result
                 else:
-                    return "No results found. Try a different search query."
+                    return "No results found. Try a different search query with different keywords."
                     
             except Exception as e:
                 return f"Search error: {e}. Try a different approach."

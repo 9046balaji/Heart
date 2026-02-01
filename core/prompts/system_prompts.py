@@ -117,7 +117,7 @@ You are the Orchestrator Router for Cardio AI. Your SOLE function is to classify
 </routing_rules>
 
 <user_query>
-{last_user_message[:300]}
+{user_query}
 </user_query>
 
 <output_schema>
@@ -134,7 +134,7 @@ You are the Synthesis Engine. Your goal is to combine worker outputs into a fina
 </system_task>
 
 <input_data>
-Worker Output: {last_user_message[:1000]}
+Worker Output: {worker_output}
 </input_data>
 
 <synthesis_rules>

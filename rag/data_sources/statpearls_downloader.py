@@ -91,13 +91,15 @@ class StatPearlsDownloader(DocumentLoader):
     Usage:
         downloader = StatPearlsDownloader(
             corpus_dir="corpus/statpearls",
-            medrag_repo_path="MedRAG"
         )
         
         # Download raw XML (1.5GB)
         downloader.download_raw_xml()
         
-        # Process XML with MedRAG scripts
+        # Process XML with native Python (no MedRAG subprocess needed)
+        downloader.process_xml_native()
+        
+        # Or use MedRAG scripts if available
         downloader.process_xml()
         
         # Load processed documents
@@ -108,10 +110,13 @@ class StatPearlsDownloader(DocumentLoader):
     NCBI_FTP_URL = "https://ftp.ncbi.nlm.nih.gov/pub/litarch/3d/12/"
     STATPEARLS_ARCHIVE = "statpearls_NBK430685.tar.gz"
     
+    # Default MedRAG path relative to this file's location
+    _DEFAULT_MEDRAG_PATH = Path(__file__).parent / "MedRAG"
+    
     def __init__(
         self,
         corpus_dir: str = "corpus/statpearls",
-        medrag_repo_path: str = "MedRAG",
+        medrag_repo_path: str = None,
         skip_download: bool = False,
     ):
         """
@@ -119,11 +124,17 @@ class StatPearlsDownloader(DocumentLoader):
         
         Args:
             corpus_dir: Where to store raw XML and processed data
-            medrag_repo_path: Path to cloned MedRAG repository
+            medrag_repo_path: Path to cloned MedRAG repository (auto-detected if None)
             skip_download: Set True if already downloaded
         """
         self.corpus_dir = Path(corpus_dir)
-        self.medrag_repo_path = Path(medrag_repo_path)
+        
+        # Auto-detect MedRAG path if not provided
+        if medrag_repo_path is None:
+            self.medrag_repo_path = self._DEFAULT_MEDRAG_PATH
+        else:
+            self.medrag_repo_path = Path(medrag_repo_path)
+        
         self.skip_download = skip_download
         
         # Subdirectories
@@ -426,6 +437,239 @@ class StatPearlsDownloader(DocumentLoader):
         except ImportError:
             return False
     
+    # =========================================================================
+    # NATIVE PYTHON XML PROCESSOR (No MedRAG subprocess dependency)
+    # =========================================================================
+    
+    @staticmethod
+    def _ends_with_ending_punctuation(s: str) -> bool:
+        """Check if string ends with ending punctuation."""
+        ending_punctuation = ('.', '?', '!')
+        return any(s.endswith(char) for char in ending_punctuation)
+    
+    @staticmethod
+    def _concat_title_content(title: str, content: str) -> str:
+        """Concatenate title and content with proper punctuation."""
+        title = title.strip()
+        content = content.strip()
+        if StatPearlsDownloader._ends_with_ending_punctuation(title):
+            return f"{title} {content}"
+        return f"{title}. {content}"
+    
+    @staticmethod
+    def _extract_text_from_element(element) -> str:
+        """Recursively extract text from XML element."""
+        text = (element.text or "").strip()
+        
+        for child in element:
+            child_text = StatPearlsDownloader._extract_text_from_element(child)
+            if child_text:
+                text += (" " if text else "") + child_text
+            if child.tail and child.tail.strip():
+                text += (" " if text else "") + child.tail.strip()
+        
+        return text.strip()
+    
+    @staticmethod
+    def _is_subtitle(element) -> bool:
+        """Check if element is a subtitle (bold paragraph)."""
+        if element.tag != 'p':
+            return False
+        children = list(element)
+        if len(children) != 1:
+            return False
+        if children[0].tag != 'bold':
+            return False
+        if children[0].tail and children[0].tail.strip():
+            return False
+        return True
+    
+    def _process_single_nxml(self, fpath: Path) -> List[Dict[str, Any]]:
+        """
+        Process a single .nxml file and extract text chunks.
+        
+        This is a native Python implementation of the MedRAG statpearls.py logic.
+        
+        Args:
+            fpath: Path to the .nxml file
+            
+        Returns:
+            List of dictionaries with id, title, content, contents
+        """
+        fname = fpath.stem  # filename without extension
+        
+        try:
+            tree = ET.parse(fpath)
+            root = tree.getroot()
+            
+            # Get document title
+            title_elem = root.find(".//title")
+            if title_elem is None or title_elem.text is None:
+                logger.warning(f"No title found in {fpath}")
+                return []
+            
+            doc_title = title_elem.text.strip()
+            sections = root.findall(".//sec")
+            
+            saved_chunks = []
+            chunk_idx = 0
+            
+            for sec in sections:
+                sec_title_elem = sec.find('./title')
+                if sec_title_elem is None or sec_title_elem.text is None:
+                    continue
+                
+                sec_title = sec_title_elem.text.strip()
+                prefix = f"{doc_title} -- {sec_title}"
+                
+                last_text = None
+                last_chunk = None
+                last_node = None
+                
+                for ch in sec:
+                    if self._is_subtitle(ch):
+                        last_text = None
+                        last_chunk = None
+                        sub_title = self._extract_text_from_element(ch)
+                        prefix = f"{doc_title} -- {sec_title} -- {sub_title}"
+                    
+                    elif ch.tag == 'p':
+                        curr_text = self._extract_text_from_element(ch)
+                        
+                        # Merge short paragraphs with previous
+                        if len(curr_text) < 200 and last_text and len(last_text + curr_text) < 1000:
+                            last_text = f"{last_chunk['content']} {curr_text}"
+                            last_chunk = {
+                                "id": last_chunk['id'],
+                                "title": last_chunk['title'],
+                                "content": last_text,
+                                "contents": self._concat_title_content(last_chunk['title'], last_text)
+                            }
+                            saved_chunks[-1] = last_chunk
+                        else:
+                            last_text = curr_text
+                            last_chunk = {
+                                "id": f"{fname}_{chunk_idx}",
+                                "title": prefix,
+                                "content": curr_text,
+                                "contents": self._concat_title_content(prefix, curr_text)
+                            }
+                            saved_chunks.append(last_chunk)
+                            chunk_idx += 1
+                    
+                    elif ch.tag == 'list':
+                        list_texts = [self._extract_text_from_element(c) for c in ch]
+                        joined_list = " ".join(list_texts)
+                        
+                        if last_text and len(joined_list + last_text) < 1000:
+                            last_text = f"{last_chunk['content']} {joined_list}"
+                            last_chunk = {
+                                "id": last_chunk['id'],
+                                "title": last_chunk['title'],
+                                "content": last_text,
+                                "contents": self._concat_title_content(last_chunk['title'], last_text)
+                            }
+                            saved_chunks[-1] = last_chunk
+                        elif len(joined_list) < 1000:
+                            last_text = joined_list
+                            last_chunk = {
+                                "id": f"{fname}_{chunk_idx}",
+                                "title": prefix,
+                                "content": last_text,
+                                "contents": self._concat_title_content(prefix, last_text)
+                            }
+                            saved_chunks.append(last_chunk)
+                            chunk_idx += 1
+                        else:
+                            # Split large lists into individual items
+                            last_text = None
+                            last_chunk = None
+                            for item_text in list_texts:
+                                saved_chunks.append({
+                                    "id": f"{fname}_{chunk_idx}",
+                                    "title": prefix,
+                                    "content": item_text,
+                                    "contents": self._concat_title_content(prefix, item_text)
+                                })
+                                chunk_idx += 1
+                        
+                        # Reset prefix if previous was subtitle
+                        if last_node is not None and self._is_subtitle(last_node):
+                            prefix = f"{doc_title} -- {sec_title}"
+                    
+                    last_node = ch
+            
+            return saved_chunks
+        
+        except ET.ParseError as e:
+            logger.warning(f"XML parse error in {fpath}: {e}")
+            return []
+        except Exception as e:
+            logger.warning(f"Error processing {fpath}: {e}")
+            return []
+    
+    def process_xml_native(self) -> bool:
+        """
+        Process StatPearls XML files using native Python (no MedRAG subprocess).
+        
+        This is the recommended method as it doesn't require subprocess calls.
+        Produces JSONL files compatible with the MedRAG format.
+        
+        Returns:
+            True if processing succeeded
+        """
+        logger.info("Processing StatPearls XML files (native Python)...")
+        
+        # Find extracted XML directory
+        extracted_dir = self.raw_dir / "statpearls_NBK430685"
+        
+        if not extracted_dir.exists():
+            # Try alternate location
+            xml_files = list(self.raw_dir.glob("*.nxml"))
+            if not xml_files:
+                logger.error(f"No extracted XML files found in {self.raw_dir}")
+                return False
+            extracted_dir = self.raw_dir
+        
+        # Find all .nxml files
+        nxml_files = sorted(extracted_dir.glob("*.nxml"))
+        
+        if not nxml_files:
+            logger.error(f"No .nxml files found in {extracted_dir}")
+            return False
+        
+        logger.info(f"Found {len(nxml_files)} .nxml files to process")
+        
+        # Create chunk output directory
+        chunk_dir = self.processed_dir
+        chunk_dir.mkdir(parents=True, exist_ok=True)
+        
+        total_chunks = 0
+        errors = 0
+        
+        for nxml_file in nxml_files:
+            try:
+                chunks = self._process_single_nxml(nxml_file)
+                
+                if chunks:
+                    # Write JSONL file
+                    output_file = chunk_dir / f"{nxml_file.stem}.jsonl"
+                    with open(output_file, 'w', encoding='utf-8') as f:
+                        for chunk in chunks:
+                            f.write(json.dumps(chunk) + '\n')
+                    
+                    total_chunks += len(chunks)
+                    
+                    if len(nxml_files) <= 100 or (nxml_files.index(nxml_file) + 1) % 100 == 0:
+                        logger.debug(f"Processed {nxml_file.name}: {len(chunks)} chunks")
+            
+            except Exception as e:
+                logger.warning(f"Error processing {nxml_file.name}: {e}")
+                errors += 1
+        
+        logger.info(f"✓ Native processing complete: {total_chunks} chunks from {len(nxml_files)} files ({errors} errors)")
+        return total_chunks > 0
+    
     def full_pipeline(self) -> bool:
         """
         Run complete pipeline: download → extract → process → load
@@ -438,7 +682,7 @@ class StatPearlsDownloader(DocumentLoader):
         steps = [
             ("Download", self.download_raw_xml),
             ("Extract", self.extract_xml),
-            ("Process", self.process_xml),
+            ("Process (Native)", self.process_xml_native),  # Use native by default
         ]
         
         for step_name, step_fn in steps:
@@ -473,7 +717,7 @@ if __name__ == "__main__":
     
     downloader = StatPearlsDownloader(
         corpus_dir="corpus/statpearls",
-        medrag_repo_path="MedRAG",
+        # medrag_repo_path auto-detected to rag/data_sources/MedRAG
         skip_download=False,  # Set to True if already downloaded
     )
     
