@@ -20,6 +20,7 @@ Environment Variables (highest priority override):
     MEMORY_WEIGHT: '0.15'
     DB_BACKEND: 'mysql' | 'postgres'
     
+    
 Usage:
     from core.config.app_config import AppConfig, get_app_config
     
@@ -115,9 +116,17 @@ class RAGConfig(BaseModel):
         default="all-MiniLM-L6-v2",
         description="Embedding model to use"
     )
-    embedding_backend: Literal["onnx", "pytorch", "huggingface"] = Field(
+    embedding_backend: Literal["onnx", "pytorch", "huggingface", "remote"] = Field(
         default="onnx",
         description="Embedding backend for performance tuning"
+    )
+    use_remote_embeddings: bool = Field(
+        default=False,
+        description=(
+            "When True the factory will prefer the remote (Colab/ngrok) "
+            "backend if COLAB_API_URL is set and reachable, before falling "
+            "back to local backends."
+        ),
     )
     
     # Chunking settings

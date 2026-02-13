@@ -4,6 +4,7 @@ SpaCy Profiler
 Profile spaCy pipeline performance to identify bottlenecks.
 """
 
+
 import time
 from typing import Dict, Any, List
 from contextlib import contextmanager

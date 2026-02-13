@@ -10,3 +10,4 @@ class ResearchInsight(BaseModel):
     relevant_quotes: List[str] = Field(..., description="Direct quotes that support the findings.")
     source_links: List[str] = Field(default_factory=list, description="External links found on the page (for depth-2 research).")
     screenshot_path: Optional[str] = Field(default=None, description="Path to saved screenshot if available.")
+

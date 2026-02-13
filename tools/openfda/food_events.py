@@ -12,6 +12,7 @@ CAERS collects adverse event reports for:
 API Documentation: https://open.fda.gov/apis/food/event/
 """
 
+
 import logging
 import asyncio
 from typing import List, Dict, Optional, Any

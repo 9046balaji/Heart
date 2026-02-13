@@ -6,6 +6,7 @@ Provides:
 - Exposes patient data retrieval to the agent
 """
 
+
 import logging
 from typing import Optional, Type
 from langchain_core.tools import BaseTool

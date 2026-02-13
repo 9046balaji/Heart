@@ -7,6 +7,7 @@ Extends spaCy service with multilingual support for:
 - Cross-lingual medical entity extraction
 - Translation-aware processing
 
+
 Supported Languages:
 - en: English (primary, en_core_web_trf/lg/md/sm)
 - es: Spanish (es_core_news_md)

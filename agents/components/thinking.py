@@ -8,6 +8,7 @@ Provides:
 
 Based on Test-Time Compute paper and DeepSeek-R1 patterns.
 """
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone

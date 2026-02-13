@@ -18,3 +18,4 @@ def reset_health_service():
 
 SessionLocal = None
 engine = None
+

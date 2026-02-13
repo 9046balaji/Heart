@@ -11,6 +11,7 @@ Usage:
     vital_prompt = get_medical_prompt("vital_signs_table")
 """
 
+
 from typing import Dict, Any
 from core.prompts.registry import get_prompt
 

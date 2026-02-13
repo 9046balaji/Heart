@@ -9,6 +9,7 @@ Functionality:
 - Identifies severity indicators
 """
 
+
 from spacy.tokens import Doc, Span, Token
 from spacy.language import Language
 import logging

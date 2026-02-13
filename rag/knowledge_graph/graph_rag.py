@@ -12,6 +12,7 @@ Features:
 - Relevance scoring with graph signals
 """
 
+
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field

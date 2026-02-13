@@ -16,6 +16,7 @@ import json
 logger = logging.getLogger(__name__)
 
 
+
 @dataclass
 class GraphNode:
     """A node in the graph."""

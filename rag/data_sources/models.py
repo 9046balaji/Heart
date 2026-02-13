@@ -9,6 +9,7 @@ This module defines the common data structures used across all three medical dat
 All sources are normalized to this schema before insertion into the vector database.
 """
 
+
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Optional, Dict, List, Any

@@ -646,6 +646,7 @@ async def main():
     
     ingester = MedicalGuidelineIngester(vector_store)
     
+    
     path = Path(args.path)
     if path.is_file():
         result = await ingester.ingest_document(str(path))

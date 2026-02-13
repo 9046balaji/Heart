@@ -8,6 +8,7 @@ Provides:
 
 Based on smolagents managed_agents pattern.
 """
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime

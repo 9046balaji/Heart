@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 
+
 class ESILevel(Enum):
     ESI_1 = 1  # Immediate: Life-saving intervention required
     ESI_2 = 2  # Emergent: High risk, confusion, severe pain

@@ -10,6 +10,7 @@ Provides targeted search capabilities for medical guidelines from reputable sour
 Uses the existing WebSearchTool but with domain-restricted queries.
 """
 
+
 import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field

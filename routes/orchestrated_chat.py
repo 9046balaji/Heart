@@ -13,6 +13,7 @@ Migration from sync to async pattern enables:
 - HIPAA-compliant audit trail
 """
 
+
 import logging
 import uuid
 from typing import Dict, Any, Optional, List, TYPE_CHECKING

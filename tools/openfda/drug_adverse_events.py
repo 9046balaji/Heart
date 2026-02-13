@@ -12,6 +12,7 @@ Key Concepts:
 - Seriousness flags: death, hospitalization, life-threatening, disability
 """
 
+
 import logging
 import asyncio
 from typing import Dict, Any, List, Optional

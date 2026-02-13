@@ -17,6 +17,7 @@ try:
 except ImportError:
     sqlparse = None
 
+
 from core.prompts.registry import get_prompt
 
 logger = logging.getLogger(__name__)

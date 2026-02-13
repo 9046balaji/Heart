@@ -9,6 +9,7 @@ import os
 from typing import Dict
 
 
+
 class TokenBudgetCalculator:
     """P2.3: Token budget pre-allocation for optimal LLM usage.
     

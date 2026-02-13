@@ -2,11 +2,30 @@
 Configuration for Multimodal RAG Processing
 
 Adapted from RAG-Anything for medical domain use cases.
+
+Example usage::
+
+    # Default (local embeddings only)
+    config = MultimodalConfig()
+
+    # Remote Colab embeddings
+    config = MultimodalConfig(
+        use_remote_embeddings=True,
+        colab_api_url="https://abc-123.ngrok-free.app",
+        remote_text_dim=768,
+        remote_image_dim=1152,
+    )
+
+    # Environment-variable driven (all fields support env vars)
+    #   USE_REMOTE_EMBEDDINGS=true
+    #   COLAB_API_URL=https://abc-123.ngrok-free.app
+    config = MultimodalConfig()
 """
 
 import os
 from dataclasses import dataclass, field
 from typing import List, Optional
+
 
 
 def get_env_value(key: str, default, value_type=str):
@@ -140,9 +159,38 @@ class MultimodalConfig:
     cache_ttl_hours: int = field(default_factory=lambda: get_env_value("MULTIMODAL_CACHE_TTL", 24, int))
     """Cache time-to-live in hours."""
     
+    # Remote embedding settings (Colab via ngrok)
+    use_remote_embeddings: bool = field(
+        default_factory=lambda: get_env_value("USE_REMOTE_EMBEDDINGS", False, bool),
+        metadata={"help": "Use remote Colab-hosted embeddings instead of local models."},
+    )
+    """Use remote Colab-hosted embeddings instead of local models."""
+    
+    colab_api_url: str = field(
+        default_factory=lambda: get_env_value("COLAB_API_URL", ""),
+        metadata={"help": "ngrok URL for the Colab embedding server (e.g. https://abc-123.ngrok-free.app)."},
+    )
+    """ngrok URL for the Colab embedding server."""
+    
+    remote_text_dim: int = field(
+        default_factory=lambda: get_env_value("REMOTE_TEXT_DIM", 768, int),
+        metadata={"help": "Text embedding dimension from remote MedCPT model (default: 768)."},
+    )
+    """Text embedding dimension from remote MedCPT model."""
+    
+    remote_image_dim: int = field(
+        default_factory=lambda: get_env_value("REMOTE_IMAGE_DIM", 1152, int),
+        metadata={"help": "Image embedding dimension from remote SigLIP model (default: 1152)."},
+    )
+    """Image embedding dimension from remote SigLIP model."""
+    
     def __post_init__(self):
         """Validate configuration after initialization."""
         import os
+        import logging as _log
+        import warnings
+
+        _logger = _log.getLogger(__name__)
         
         # Create working directory if it doesn't exist
         if not os.path.exists(self.working_dir):
@@ -158,6 +206,37 @@ class MultimodalConfig:
         # Validate parse method
         if self.parse_method not in ["auto", "ocr", "txt"]:
             raise ValueError(f"Invalid parse_method: {self.parse_method}. Must be 'auto', 'ocr', or 'txt'.")
+
+        # --- Remote embedding validation ---
+        if self.use_remote_embeddings:
+            if not self.colab_api_url:
+                raise ValueError(
+                    "use_remote_embeddings is True but colab_api_url is empty. "
+                    "Set the COLAB_API_URL environment variable or pass "
+                    "colab_api_url='https://...' explicitly."
+                )
+            if not self.colab_api_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"colab_api_url must start with http:// or https://, "
+                    f"got: {self.colab_api_url!r}"
+                )
+
+        # --- Dimension validation ---
+        if self.remote_text_dim <= 0:
+            raise ValueError(
+                f"remote_text_dim must be a positive integer, got {self.remote_text_dim}"
+            )
+        if self.remote_image_dim <= 0:
+            raise ValueError(
+                f"remote_image_dim must be a positive integer, got {self.remote_image_dim}"
+            )
+        if self.remote_text_dim == self.remote_image_dim:
+            warnings.warn(
+                f"remote_text_dim and remote_image_dim are both {self.remote_text_dim}. "
+                "This is unusual — text (MedCPT) typically uses 768 and images "
+                "(SigLIP) typically use 1152. Verify your model configuration.",
+                stacklevel=2,
+            )
 
 
 # Alias for RAG-Anything compatibility

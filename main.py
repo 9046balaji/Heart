@@ -6,6 +6,7 @@ import sys
 import io
 import platform
 
+
 # Force UTF-8 encoding for Windows consoles to prevent charmap errors with emojis
 # Also unbuffer stdout for real-time log output
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)

@@ -7,13 +7,18 @@ for local, fast, and free semantic search capabilities.
 This is the standard PyTorch implementation, used as a fallback when ONNX is unavailable.
 """
 
+from __future__ import annotations
+
 import logging
 import hashlib
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from core.services.advanced_cache import MultiTierCache
 
 try:
     from .interfaces.embedding_base import BaseEmbeddingService
@@ -28,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 # Optional MultiTierCache import
 try:
-    from core.services.advanced_cache import MultiTierCache
+    from core.services.advanced_cache import MultiTierCache as _MultiTierCache
     MULTI_TIER_CACHE_AVAILABLE = True
 except ImportError:
-    MultiTierCache = None
+    _MultiTierCache = None  # type: ignore[assignment,misc]
     MULTI_TIER_CACHE_AVAILABLE = False
     logger.info("MultiTierCache not available, using local cache fallback")
 
@@ -63,14 +68,14 @@ class PyTorchEmbeddingService(BaseEmbeddingService):
     }
 
     # Shared MultiTierCache instance (singleton for all embedding services)
-    _shared_multi_tier_cache: Optional["MultiTierCache"] = None
+    _shared_multi_tier_cache: Optional[MultiTierCache] = None
 
     def __init__(
         self,
         model_name: str = "all-MiniLM-L6-v2",
         cache_size: int = 10000,
         device: str = None,
-        multi_tier_cache: Optional["MultiTierCache"] = None,
+        multi_tier_cache: Optional[MultiTierCache] = None,
     ):
         """
         Initialize Embedding Service.
@@ -101,7 +106,7 @@ class PyTorchEmbeddingService(BaseEmbeddingService):
         elif MULTI_TIER_CACHE_AVAILABLE:
             # Use shared singleton
             if PyTorchEmbeddingService._shared_multi_tier_cache is None:
-                PyTorchEmbeddingService._shared_multi_tier_cache = MultiTierCache(
+                PyTorchEmbeddingService._shared_multi_tier_cache = _MultiTierCache(
                     l1_max_size=cache_size,
                     enable_l2=True,  # Enable Redis L2 if available
                 )

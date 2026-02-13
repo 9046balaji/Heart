@@ -11,6 +11,7 @@ import io
 logger = logging.getLogger(__name__)
 
 
+
 @dataclass
 class CategoryDefinition:
     name: str

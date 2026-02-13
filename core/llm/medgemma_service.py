@@ -5,6 +5,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class MedGemmaService:
     """
     Client for the local MedGemma-4B GGUF server.

@@ -6,6 +6,7 @@ import logging
 from typing import List, Dict, Optional, Union
 from datetime import datetime
 
+
 # External Dependencies
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode, CrawlResult
 from crawl4ai.extraction_strategy import LLMExtractionStrategy

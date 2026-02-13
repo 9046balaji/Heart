@@ -7,6 +7,7 @@ Features:
 - Handles complex layouts (merged cells, multi-line headers)
 - Integrates with Unstructured.io or similar libraries
 
+
 Performance:
 - OCR Latency: ~1-2s per page
 - Parsing Accuracy: >90% for standard medical tables
@@ -21,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 # Try importing dependencies
 try:
-    from unstructured.partition.pdf import partition_pdf
-    from unstructured.staging.base import convert_to_dict
+    from unstructured.partition.pdf import partition_pdf  # type: ignore[import-untyped]
+    from unstructured.staging.base import convert_to_dict  # type: ignore[import-untyped]
     UNSTRUCTURED_AVAILABLE = True
 except ImportError:
     UNSTRUCTURED_AVAILABLE = False

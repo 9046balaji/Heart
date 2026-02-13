@@ -12,6 +12,7 @@ terminated, and the client will never receive the result.
 
 Solution: Send a "processing..." keep-alive signal every 15 seconds during job execution.
 
+
 Features:
 - Per-user connections
 - Per-job subscriptions

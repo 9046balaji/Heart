@@ -9,6 +9,7 @@ Key patterns:
 2. Partial response construction
 3. Service status tracking
 
+
 Usage:
     from core.graceful_degradation import fallback_chain, with_fallback
 

@@ -5,6 +5,7 @@ Defines the abstract base class for all embedding services to ensure
 consistent API across different implementations (ONNX, PyTorch, etc.)
 """
 
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 

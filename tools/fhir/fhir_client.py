@@ -7,6 +7,7 @@ Provides:
 - Smart on FHIR authentication
 - Resource caching with automatic TTL expiration (prevents memory leaks)
 
+
 Prerequisites:
 - pip install fhirpy fhir.resources cachetools
 """

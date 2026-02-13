@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .rag_paths import PathConfig
 
 
+
 class RAGConfig(BaseModel):
     """
     Configuration for the RAG system with validated fields.

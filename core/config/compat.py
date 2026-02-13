@@ -12,6 +12,7 @@ from core.config.app_config import get_app_config
 import os
 
 
+
 class SettingsCompat:
     """Compatibility wrapper for old Settings class interface."""
     

@@ -15,6 +15,7 @@ Performance:
 - HuggingFace: 1-5ms per tokenization
 - Character approximation: <0.1ms
 
+
 Example:
     manager = TokenBudgetManager(model_name="gpt-4", max_tokens=4096)
     

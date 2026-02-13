@@ -14,6 +14,7 @@ except ImportError:
         logger.error(f"Failed to import VerifiedWebSearchTool: {e}")
         raise
 
+
 logger = logging.getLogger(__name__)
 
 async def get_search_results(query: str, max_results: int = 5, search_pdfs: bool = False) -> List[str]:

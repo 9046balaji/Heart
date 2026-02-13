@@ -8,6 +8,7 @@ into a single, easy-to-use interface for the chatbot router.
 This service abstracts away the complexity of multiple API endpoints
 and provides formatted, human-readable responses.
 
+
 Usage:
     >>> from tools.openfda.openfda_safety_service import OpenFDASafetyService
     >>> safety = OpenFDASafetyService()

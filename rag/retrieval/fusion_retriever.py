@@ -15,7 +15,10 @@ RAGFlow Enhancement:
 - Normalizes case and spacing
 """
 
-from typing import List, Dict, Any, Optional
+
+from __future__ import annotations
+
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 import numpy as np
 from collections import defaultdict
@@ -23,7 +26,11 @@ import logging
 import re
 
 from langchain_core.documents import Document
-from rag.vector_store import VectorStore
+
+if TYPE_CHECKING:
+    from rag.vector_store import PgVectorStore, InMemoryVectorStore
+
+    VectorStore = PgVectorStore | InMemoryVectorStore
 
 logger = logging.getLogger(__name__)
 

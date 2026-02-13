@@ -1,8 +1,13 @@
 """
 Medical Phrase Matcher
 ======================
-Efficient O(1) matching for medical terminology using spaCy's PhraseMatcher.
+Efficient matching for medical terminology using spaCy's PhraseMatcher.
+
+Complexity: matching cost is linear in the number of document tokens and
+proportional to the number of patterns. spaCy's PhraseMatcher is highly
+optimized but is *not* constant-time (O(1)).
 """
+
 from typing import List, Dict, Any, Union
 import json
 import os
@@ -14,7 +19,7 @@ from spacy.tokens import Doc
 logger = logging.getLogger(__name__)
 
 class MedicalPhraseMatcher:
-    """Efficient O(1) matching for medical terminology."""
+    """Efficient matching for medical terminology (linear in doc tokens, proportional to patterns)."""
     
     def __init__(self, nlp: Language, data_dir: str = "data"):
         self.nlp = nlp

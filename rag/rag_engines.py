@@ -11,6 +11,7 @@ from rag.ingestion.vector_store_manager import VectorStoreManager
 logger = logging.getLogger(__name__)
 
 
+
 class HeartDiseaseRAG:
     """
     Singleton engine that connects the Router to the Vector Database.

@@ -10,12 +10,16 @@ This ensures agents receive actionable error information with
 suggestions for recovery or alternative approaches.
 """
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 import traceback
 import logging
 from datetime import datetime
 
+if TYPE_CHECKING:
+    from tools.tool_registry import ToolResult
+
 logger = logging.getLogger(__name__)
+
 
 
 @dataclass

@@ -4,6 +4,7 @@ Batch processing functionality for RAGAnything
 Contains methods for processing multiple documents in batch mode
 """
 
+
 import asyncio
 import logging
 from pathlib import Path

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 security_manager = SecurityManager()
 
+
 # Database service (replaces MOCK_USERS_DB)
 # ✅ SECURITY FIX: Persistent storage, multi-worker safe
 auth_db_service = None

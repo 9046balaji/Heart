@@ -8,6 +8,7 @@ This module handles:
 - Adverse event information
 """
 
+
 import logging
 import asyncio
 from typing import List, Dict, Optional, Any

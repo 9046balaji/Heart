@@ -235,3 +235,4 @@ class VectorStoreManager:
 def get_vector_store_manager(**kwargs) -> VectorStoreManager:
     """Get the default vector store manager instance."""
     return VectorStoreManager.get_instance(**kwargs)
+

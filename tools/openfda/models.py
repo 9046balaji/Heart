@@ -8,6 +8,7 @@ class RecallStatus:
     COMPLETED = "Completed"
     TERMINATED = "Terminated"
 
+
 class DrugRecall(BaseModel):
     """Model representing a drug recall event"""
     recall_number: str

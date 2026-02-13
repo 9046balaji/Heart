@@ -13,6 +13,7 @@ Migration Note: ChromaDB support has been removed. All vector storage
 now uses PostgreSQL/pgvector for better integration with the HeartGuard
 database infrastructure.
 
+
 Collections (as PostgreSQL tables):
 1. vector_user_memories - Per-user memory embeddings
 2. vector_medical_knowledge - RAG knowledge base (shared)
@@ -24,7 +25,7 @@ import logging
 import os
 import hashlib
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, TypeAlias
 from collections import OrderedDict
 import threading
 
@@ -229,7 +230,7 @@ except ImportError:
         logger.warning("PgVectorStore not available")
 
 
-def get_vector_store(**kwargs) -> "PgVectorStore | InMemoryVectorStore":
+def get_vector_store(**kwargs) -> Union["PgVectorStore", "InMemoryVectorStore"]:
     """
     Factory function to get the appropriate vector store.
     
@@ -258,8 +259,9 @@ def get_vector_store(**kwargs) -> "PgVectorStore | InMemoryVectorStore":
     return InMemoryVectorStore(**kwargs)
 
 
-# Backward compatibility alias
-VectorStore = PgVectorStore if PGVECTOR_STORE_AVAILABLE else InMemoryVectorStore
+# Backward compatibility alias — declared as a TypeAlias so Pylance
+# treats it as a type rather than a plain variable.
+VectorStore: TypeAlias = PgVectorStore if PGVECTOR_STORE_AVAILABLE else InMemoryVectorStore  # type: ignore[type-arg]
 
 
 # =============================================================================

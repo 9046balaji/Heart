@@ -10,6 +10,7 @@ Features:
 - Refresh token management
 - GDPR compliance (export, delete user data)
 
+
 **Security Guarantees:**
 ✅ Passwords hashed with argon2 (OWASP standard)
 ✅ Works with multi-worker deployments (no shared memory)

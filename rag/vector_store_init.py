@@ -11,6 +11,7 @@ Purpose:
 3. Performs batch ingestion with progress reporting
 4. Validates and reports statistics
 
+
 Usage:
 ------
     python rag/vector_store_init.py

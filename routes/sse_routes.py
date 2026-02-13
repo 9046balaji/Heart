@@ -15,6 +15,7 @@ Usage:
     GET /sse/user/{user_id} - Stream updates for all user's jobs
 """
 
+
 import logging
 import json
 import asyncio

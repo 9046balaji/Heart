@@ -7,8 +7,9 @@ Assembles a custom spaCy pipeline with:
 3. Negation detector for medical safety
 4. Custom medical annotator
 
-Reference: spcacy_guide2.md, spacy_guide3.md
+Reference: spacy_guide2.md, spacy_guide3.md
 """
+
 
 import spacy
 from spacy.language import Language

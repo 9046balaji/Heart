@@ -8,6 +8,7 @@ This is a compatibility wrapper that imports from the actual implementation
 in agents.deep_research_agent.deep_research
 """
 
+
 # Import from the actual implementation
 from agents.deep_research_agent.deep_research import (
     get_search_results,

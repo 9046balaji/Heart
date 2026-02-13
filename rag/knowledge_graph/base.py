@@ -13,6 +13,7 @@ from dataclasses import dataclass
 logger = None  # Will be set by inheriting classes
 
 
+
 @dataclass
 class Neo4jConfig:
     """Neo4j connection configuration."""

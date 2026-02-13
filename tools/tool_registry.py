@@ -23,6 +23,7 @@ Example:
     result = execute_tool("calculate_bmi", {"weight_kg": 70, "height_m": 1.75})
 """
 
+
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable, Literal

@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any, Tuple
 logger = logging.getLogger(__name__)
 
 
+
 class CRAGFallback:
     """Corrective RAG: Use web search when local knowledge is insufficient."""
     

@@ -12,6 +12,7 @@ Prevents scenarios like:
     - Tool queries Neo4j for non-existent "CardioFix"
     - Returns empty result, wasting cycles
     
+    
   With validation:
     - Fuzzy matcher finds no similar drug
     - Tool is not executed, or fuzzy-matched alternative is suggested

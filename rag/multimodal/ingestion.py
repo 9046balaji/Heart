@@ -429,72 +429,210 @@ class MultimodalIngestionService:
         return [c for c in chunks if c]  # Filter empty chunks
     
     async def _store_chunks(self, chunks: List[ChunkData]) -> None:
-        """Store chunks in vector store"""
+        """Store chunks in vector store, with optional remote image embeddings.
+
+        Fallback behaviour
+        ------------------
+        - If ``use_remote_embeddings`` is ``True`` but ``colab_api_url`` is
+          empty or the remote server is unreachable, image chunks fall back
+          to text-based embeddings with a logged warning.
+        - A dimension mismatch between the returned embedding and the
+          expected dimension is logged as an error and the chunk is skipped.
+        """
         if not self.vector_store:
             logger.warning("No vector store configured, chunks not stored")
             return
         
-        # Generate embeddings if function provided
-        if self.embedding_func:
-            texts = [chunk.text for chunk in chunks]
+        # Validate remote configuration upfront
+        use_remote = self.config.use_remote_embeddings
+        remote_available = False
+        if use_remote:
+            if not self.config.colab_api_url:
+                logger.warning(
+                    "use_remote_embeddings is True but colab_api_url is empty. "
+                    "Image chunks will fall back to text embeddings."
+                )
+                use_remote = False
+            else:
+                # Probe remote health before processing
+                try:
+                    from rag.embedding_remote import RemoteEmbeddingService
+                    remote_svc = RemoteEmbeddingService.get_instance(
+                        base_url=self.config.colab_api_url
+                    )
+                    remote_available = remote_svc.health_check()
+                    if not remote_available:
+                        logger.warning(
+                            "Remote embedding server is not reachable at "
+                            f"{self.config.colab_api_url}. Image chunks will "
+                            "fall back to text embeddings."
+                        )
+                        use_remote = False
+                except ImportError:
+                    logger.warning(
+                        "RemoteEmbeddingService not available, "
+                        "using text embeddings for images"
+                    )
+                    use_remote = False
+        
+        # Separate text and image chunks for dual-embedding
+        text_chunks = [c for c in chunks if c.chunk_type != "image"]
+        image_chunks = [c for c in chunks if c.chunk_type == "image"]
+        
+        # Generate text embeddings if function provided
+        if self.embedding_func and text_chunks:
+            texts = [chunk.text for chunk in text_chunks]
             try:
                 embeddings = await self._generate_embeddings(texts)
-                for chunk, embedding in zip(chunks, embeddings):
+                for chunk, embedding in zip(text_chunks, embeddings):
                     chunk.embedding = embedding
+                    chunk.metadata["embedding_collection"] = "medical_text_768"
             except Exception as e:
-                logger.error(f"Embedding generation failed: {e}")
+                logger.error(f"Text embedding generation failed: {e}")
         
-        # Store in vector store
-        try:
-            # Prepare documents for vector store
-            documents = []
-            embeddings_list = []
-            metadatas = []
-            ids = []
-            
-            for chunk in chunks:
-                documents.append(chunk.text)
-                embeddings_list.append(chunk.embedding)
-                metadatas.append({
-                    "doc_id": chunk.doc_id,
-                    "chunk_type": chunk.chunk_type,
-                    **chunk.metadata
-                })
-                ids.append(chunk.chunk_id)
-            
-            # Use vector store's add method
-            # This assumes vector store has an add method compatible with PgVectorStore
-            if hasattr(self.vector_store, 'add_documents'):
-                await self._add_to_store_async(documents, embeddings_list, metadatas, ids)
-            elif hasattr(self.vector_store, 'add'):
-                self.vector_store.add(
-                    documents=documents,
-                    embeddings=embeddings_list if embeddings_list[0] else None,
-                    metadatas=metadatas,
-                    ids=ids
+        # Generate image embeddings via remote SigLIP (1152-dim) if configured
+        # NOTE: SigLIP produces 1152-dim vectors vs text embeddings (e.g. 768-dim).
+        # Image chunks are tagged with embedding_collection="medical_images_1152"
+        # so they are stored in a separate index from text chunks.
+        if image_chunks and use_remote and self.config.colab_api_url:
+            try:
+                from rag.embedding_remote import RemoteEmbeddingService
+                remote_svc = RemoteEmbeddingService.get_instance(
+                    base_url=self.config.colab_api_url
                 )
-            else:
-                logger.warning("Vector store does not have compatible add method")
-            
-            logger.info(f"Stored {len(chunks)} chunks in vector store")
-            
-        except Exception as e:
-            logger.error(f"Failed to store chunks: {e}")
-            raise
+                expected_dim = self.config.remote_image_dim
+                loop = asyncio.get_running_loop()
+                for chunk in image_chunks:
+                    image_path = chunk.metadata.get("image_path", "")
+                    if image_path and os.path.exists(image_path):
+                        try:
+                            # Offload blocking embed_image call to a thread
+                            chunk.embedding = await loop.run_in_executor(
+                                None, remote_svc.embed_image, image_path
+                            )
+                            # Validate embedding dimension
+                            if len(chunk.embedding) != expected_dim:
+                                logger.error(
+                                    f"Dimension mismatch for {image_path}: "
+                                    f"got {len(chunk.embedding)}, expected {expected_dim}. "
+                                    "Skipping chunk."
+                                )
+                                chunk.embedding = None
+                                continue
+                            # Tag chunk for the separate image collection
+                            chunk.metadata["embedding_collection"] = "medical_images_1152"
+                            logger.debug(
+                                f"SigLIP embedding generated for {image_path} "
+                                f"(dim={len(chunk.embedding)})"
+                            )
+                        except Exception as img_err:
+                            logger.warning(f"Image embedding failed for {image_path}: {img_err}")
+                    else:
+                        # Fall back to text-based embedding of the image description
+                        if self.embedding_func:
+                            try:
+                                embs = await self._generate_embeddings([chunk.text])
+                                chunk.embedding = embs[0]
+                                chunk.metadata["embedding_collection"] = "medical_text_768"
+                            except Exception as e:
+                                logger.error(
+                                    f"Text-fallback embedding failed for image chunk "
+                                    f"{chunk.chunk_id!r} (text={chunk.text[:80]!r}): {e}",
+                                    exc_info=True,
+                                )
+            except ImportError:
+                logger.warning("RemoteEmbeddingService not available, using text embeddings for images")
+                if self.embedding_func:
+                    texts = [c.text for c in image_chunks]
+                    try:
+                        embeddings = await self._generate_embeddings(texts)
+                        for chunk, embedding in zip(image_chunks, embeddings):
+                            chunk.embedding = embedding
+                            chunk.metadata["embedding_collection"] = "medical_text_768"
+                    except Exception as e:
+                        logger.error(f"Fallback image text embedding failed: {e}", exc_info=True)
+        elif image_chunks and self.embedding_func:
+            # No remote embeddings — use text embedding on image descriptions
+            texts = [c.text for c in image_chunks]
+            try:
+                embeddings = await self._generate_embeddings(texts)
+                for chunk, embedding in zip(image_chunks, embeddings):
+                    chunk.embedding = embedding
+                    chunk.metadata["embedding_collection"] = "medical_text_768"
+            except Exception as e:
+                logger.error(f"Image text embedding failed: {e}", exc_info=True)
+        
+        # Recombine all chunks for storage, grouped by embedding collection
+        all_chunks = text_chunks + image_chunks
+        
+        # Group chunks by their target collection so different-dimension
+        # embeddings are never mixed in the same index.
+        from collections import defaultdict
+        collection_groups: Dict[str, List] = defaultdict(list)
+        for chunk in all_chunks:
+            col = chunk.metadata.get("embedding_collection", "medical_text_768")
+            collection_groups[col].append(chunk)
+        
+        # Store each collection group separately
+        for collection_name, col_chunks in collection_groups.items():
+            try:
+                documents = []
+                embeddings_list = []
+                metadatas = []
+                ids = []
+                
+                for chunk in col_chunks:
+                    documents.append(chunk.text)
+                    embeddings_list.append(chunk.embedding)
+                    metadatas.append({
+                        "doc_id": chunk.doc_id,
+                        "chunk_type": chunk.chunk_type,
+                        **chunk.metadata
+                    })
+                    ids.append(chunk.chunk_id)
+                
+                # Use vector store's add method, passing collection name when supported
+                store_kwargs: Dict[str, Any] = {}
+                if hasattr(self.vector_store, 'add_documents'):
+                    if 'collection' in (getattr(self.vector_store.add_documents, '__code__', None) and
+                                        getattr(self.vector_store.add_documents, '__code__').co_varnames or []):
+                        store_kwargs['collection'] = collection_name
+                    await self._add_to_store_async(documents, embeddings_list, metadatas, ids, **store_kwargs)
+                elif hasattr(self.vector_store, 'add'):
+                    self.vector_store.add(
+                        documents=documents,
+                        embeddings=embeddings_list if embeddings_list and embeddings_list[0] else None,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
+                else:
+                    logger.warning("Vector store does not have compatible add method")
+                
+                logger.info(
+                    f"Stored {len(col_chunks)} chunks in collection "
+                    f"{collection_name!r}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to store chunks for collection "
+                    f"{collection_name!r}: {e}"
+                )
+                raise
     
     async def _add_to_store_async(
         self,
         documents: List[str],
         embeddings: List[Optional[List[float]]],
         metadatas: List[Dict],
-        ids: List[str]
+        ids: List[str],
+        **kwargs: Any,
     ) -> None:
         """Async wrapper for vector store add"""
         if hasattr(self.vector_store, 'add_documents'):
             if asyncio.iscoroutinefunction(self.vector_store.add_documents):
-                await self.vector_store.add_documents(documents, embeddings, metadatas, ids)
+                await self.vector_store.add_documents(documents, embeddings, metadatas, ids, **kwargs)
             else:
-                self.vector_store.add_documents(documents, embeddings, metadatas, ids)
+                self.vector_store.add_documents(documents, embeddings, metadatas, ids, **kwargs)
     
     async def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for texts"""

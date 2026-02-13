@@ -8,6 +8,7 @@ All file paths go through this module to ensure:
 - Automatic directory creation
 - Path validation
 
+
 The path hierarchy:
 BASE_DIR (project root, typically where main.py is)
 ├── data/                      (JSON data files, dictionaries)

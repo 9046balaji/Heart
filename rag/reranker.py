@@ -14,6 +14,7 @@ Key Features:
 - Fallback: Returns original ranking if reranker unavailable
 """
 
+
 import logging
 import time
 from typing import List, Dict, Optional

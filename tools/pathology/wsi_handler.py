@@ -7,6 +7,7 @@ Supported formats: .svs, .tiff, .ndpi (via OpenSlide)
 Note: Requires 'openslide-python' and system binaries.
 """
 
+
 import logging
 import os
 from dataclasses import dataclass

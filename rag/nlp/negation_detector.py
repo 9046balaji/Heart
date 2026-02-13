@@ -10,8 +10,9 @@ Examples of negated statements:
 - "She stopped taking aspirin"
 - "Without any allergies"
 
-Reference: spcacy-guide1.md (Dependency Parsing)
+Reference: spacy-guide1.md (Dependency Parsing)
 """
+
 
 from spacy.tokens import Doc, Span, Token
 from spacy.language import Language

@@ -7,6 +7,7 @@ Phase 2: Encryption Service
 Security: Cache is sized to prevent memory exhaustion from high-cardinality salts.
 """
 
+
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC

@@ -13,6 +13,7 @@ Usage:
     WebSocket /ws/user/{user_id} - Subscribe to all user's job updates
 """
 
+
 import logging
 import json
 from typing import Optional, Set, Dict, Any

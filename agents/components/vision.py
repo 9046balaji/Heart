@@ -13,6 +13,7 @@ import base64
 import io
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 # Try to import PIL

@@ -13,6 +13,7 @@ Pattern: Cache-Aside, Write-Through
 Reference: Designing Data-Intensive Applications (Kleppmann)
 """
 
+
 import logging
 import time
 import pickle

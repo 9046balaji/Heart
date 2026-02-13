@@ -7,6 +7,7 @@ from tools.openfda.models import FDAResult
 
 logger = logging.getLogger(__name__)
 
+
 class OpenFDAClient:
     """
     Client for interacting with the OpenFDA API.

@@ -11,6 +11,7 @@ It replaces global state initialization patterns with proper ASGI lifespan manag
 ✅ Predictable initialization order
 ✅ Exception handling prevents crashed workers
 
+
 **Architecture:**
 - Startup: Initialize all services (orchestrator, feedback store, embedding engine, auth DB)
 - Running: Request handling with all services available

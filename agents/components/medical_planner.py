@@ -8,6 +8,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
 from core.llm.llm_gateway import get_llm_gateway
 
+
 # --- Data Models ---
 class Plan(BaseModel):
     steps: List[str] = Field(description="List of steps to follow, in logical order.")

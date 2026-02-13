@@ -8,6 +8,7 @@ Provides:
 
 Based on smolagents planning_interval pattern.
 """
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from enum import Enum

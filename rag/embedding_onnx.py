@@ -16,15 +16,21 @@ HIPAA Compliance Notes:
 - SECURE CACHING: Cache uses content hashes, not raw text
 """
 
+from __future__ import annotations
+
 import os
 import logging
 import hashlib
 import time
 import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Union, Any, TYPE_CHECKING
 from collections import OrderedDict
 import threading
+
+if TYPE_CHECKING:
+    import onnxruntime as ort
+    from core.services.advanced_cache import MultiTierCache
 
 import numpy as np
 
@@ -42,10 +48,10 @@ logger = logging.getLogger(__name__)
 
 # Optional MultiTierCache import
 try:
-    from core.services.advanced_cache import MultiTierCache, CacheKeyBuilder
+    from core.services.advanced_cache import MultiTierCache as _MultiTierCache, CacheKeyBuilder
     MULTI_TIER_CACHE_AVAILABLE = True
 except ImportError:
-    MultiTierCache = None
+    _MultiTierCache = None  # type: ignore[assignment,misc]
     CacheKeyBuilder = None
     MULTI_TIER_CACHE_AVAILABLE = False
     logger.info("MultiTierCache not available, using local cache fallback")
@@ -56,7 +62,7 @@ try:
 
     ONNX_AVAILABLE = True
 except ImportError:
-    ort = None
+    ort = None  # type: ignore[assignment]
     ONNX_AVAILABLE = False
     logger.warning("onnxruntime not installed. " "Run: pip install onnxruntime")
 
@@ -129,7 +135,8 @@ class ONNXEmbeddingService(BaseEmbeddingService):
     }
 
     # Shared MultiTierCache instance (singleton for all embedding services)
-    _shared_multi_tier_cache: Optional["MultiTierCache"] = None
+    # MultiTierCache is imported under TYPE_CHECKING so annotation is str at runtime
+    _shared_multi_tier_cache: Optional[MultiTierCache] = None
 
     def __init__(
         self,
@@ -137,7 +144,7 @@ class ONNXEmbeddingService(BaseEmbeddingService):
         model_type: str = "fast",
         cache_size: int = 10000,
         use_gpu: bool = False,
-        multi_tier_cache: Optional["MultiTierCache"] = None,
+        multi_tier_cache: Optional[MultiTierCache] = None,
     ):
         """
         Initialize ONNX embedding service.
@@ -171,7 +178,7 @@ class ONNXEmbeddingService(BaseEmbeddingService):
         elif MULTI_TIER_CACHE_AVAILABLE:
             # Use shared singleton
             if ONNXEmbeddingService._shared_multi_tier_cache is None:
-                ONNXEmbeddingService._shared_multi_tier_cache = MultiTierCache(
+                ONNXEmbeddingService._shared_multi_tier_cache = _MultiTierCache(
                     l1_max_size=cache_size,
                     enable_l2=True,  # Enable Redis L2 if available
                 )
@@ -192,7 +199,10 @@ class ONNXEmbeddingService(BaseEmbeddingService):
             self.model_path = Path.cwd() / "models" / "onnx_models"
 
         # Initialize session and tokenizer
-        self.session: Optional["ort.InferenceSession"] = None
+        # ort may be None at runtime when onnxruntime is not installed;
+        # the conditional import makes the variable non-type, but the
+        # annotation is correct when onnxruntime is installed.
+        self.session: Optional["ort.InferenceSession"] = None  # type: ignore[type-arg]
         self.tokenizer = None
 
         self._initialize(use_gpu)

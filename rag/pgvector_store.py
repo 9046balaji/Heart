@@ -330,6 +330,7 @@ class PgVectorStore:
     # MEDICAL KNOWLEDGE BASE
     # =========================================================================
     
+    
     def add_medical_document(
         self,
         doc_id: str,

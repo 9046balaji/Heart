@@ -4,6 +4,7 @@ Performance Monitor Stub
 Stub implementation for performance monitoring.
 """
 
+
 def record_rerank_operation(elapsed_ms: float):
     """Record rerank operation duration."""
     pass

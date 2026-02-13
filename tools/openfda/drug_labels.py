@@ -5,6 +5,7 @@ from tools.openfda.api_client import OpenFDAClient
 
 logger = logging.getLogger(__name__)
 
+
 class DrugLabelQuerier:
     """
     Query drug product labeling (package inserts) for clinical information.

@@ -8,14 +8,15 @@ Security features:
 - No function calls except whitelisted math functions
 - Overflow protection (MAX_RESULT limit)
 - Recursion depth limit to prevent stack overflow
-- Execution timeout to prevent CPU exhaustion
+- Execution timeout (thread-based) to prevent CPU exhaustion
 - No access to builtins or other modules
 """
+
 import ast
 import operator
 import math
 import sys
-import signal
+import threading
 from typing import Union
 from contextlib import contextmanager
 
@@ -84,6 +85,7 @@ class SafeCalculator:
     MAX_POWER = 100    # Prevent 10**1000 type attacks
     MAX_RECURSION_DEPTH = 100  # Prevent stack overflow from deeply nested expressions
     MAX_NODES = 1000  # Prevent AST with too many operations
+    EVAL_TIMEOUT = 5  # Seconds before evaluation is aborted
     
     def __init__(self):
         """Initialize calculator with recursion tracking."""
@@ -102,6 +104,7 @@ class SafeCalculator:
             
         Raises:
             ValueError: If expression is invalid, unsafe, or hits complexity limits
+            TimeoutError: If evaluation exceeds EVAL_TIMEOUT seconds
         """
         if not expression or not expression.strip():
             raise ValueError("Empty expression")
@@ -121,7 +124,31 @@ class SafeCalculator:
             if self._count_nodes(tree) > self.MAX_NODES:
                 raise ValueError(f"Expression too complex (max {self.MAX_NODES} operations)")
             
-            return self._eval_node(tree.body)
+            # Evaluate with a thread-based timeout (cross-platform)
+            result_holder: list = []
+            error_holder: list = []
+
+            def _target():
+                try:
+                    result_holder.append(self._eval_node(tree.body))
+                except Exception as exc:
+                    error_holder.append(exc)
+
+            worker = threading.Thread(target=_target, daemon=True)
+            worker.start()
+            worker.join(timeout=self.EVAL_TIMEOUT)
+
+            if worker.is_alive():
+                # Thread is still running — evaluation timed out
+                raise TimeoutError(
+                    f"Expression evaluation timed out after "
+                    f"{self.EVAL_TIMEOUT}s"
+                )
+
+            if error_holder:
+                raise error_holder[0]
+
+            return result_holder[0]
         except SyntaxError as e:
             raise ValueError(f"Invalid syntax: {e}")
         except (TypeError, KeyError) as e:

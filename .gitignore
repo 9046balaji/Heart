@@ -86,3 +86,9 @@ core_postgresql_schema.sql
 .python-version
 
 Docker
+
+# Build / runtime artifacts
+*.egg-info/
+dist/
+build/
+*.whl

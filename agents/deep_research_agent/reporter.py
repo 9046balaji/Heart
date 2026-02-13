@@ -6,6 +6,7 @@ from .models import ResearchInsight
 
 logger = logging.getLogger(__name__)
 
+
 def synthesize_report(query: str, insights: List[ResearchInsight]) -> str:
     """
     Synthesizes discrete insights into a cohesive markdown report.

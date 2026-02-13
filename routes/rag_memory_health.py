@@ -384,3 +384,4 @@ async def refresh_materialized_views():
     except Exception as e:
         logger.error(f"Failed to refresh materialized views: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
