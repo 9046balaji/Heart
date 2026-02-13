@@ -28,7 +28,8 @@ import re
 from langchain_core.documents import Document
 
 if TYPE_CHECKING:
-    from rag.vector_store import PgVectorStore, InMemoryVectorStore
+    from rag.pgvector_store import PgVectorStore
+    from rag.vector_store import InMemoryVectorStore
 
     VectorStore = PgVectorStore | InMemoryVectorStore
 

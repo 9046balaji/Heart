@@ -1132,7 +1132,7 @@ class MemorySearchEngine:
                         self._execute_keyword_search,
                         search_plan,
                         db_manager,
-                        namespace,
+                        user_id,
                         limit,
                     )
                 )
@@ -1148,7 +1148,7 @@ class MemorySearchEngine:
                         self._execute_category_search,
                         search_plan,
                         db_manager,
-                        namespace,
+                        user_id,
                         limit,
                     )
                 )

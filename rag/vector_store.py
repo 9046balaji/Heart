@@ -25,11 +25,14 @@ import logging
 import os
 import hashlib
 import json
-from typing import List, Dict, Any, Optional, Union, TypeAlias
+from typing import List, Dict, Any, Optional, Union, TypeAlias, TYPE_CHECKING
 from collections import OrderedDict
 import threading
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .pgvector_store import PgVectorStore as PgVectorStoreType
 
 logger = logging.getLogger(__name__)
 
@@ -217,20 +220,20 @@ class InMemoryVectorStore:
 
 # Try to import PgVectorStore for PostgreSQL-based storage
 PGVECTOR_STORE_AVAILABLE = False
-PgVectorStore = None
+_PgVectorStoreClass = None
 
 try:
-    from .pgvector_store import PgVectorStore
+    from .pgvector_store import PgVectorStore as _PgVectorStoreClass
     PGVECTOR_STORE_AVAILABLE = True
 except ImportError:
     try:
-        from rag.pgvector_store import PgVectorStore
+        from rag.pgvector_store import PgVectorStore as _PgVectorStoreClass
         PGVECTOR_STORE_AVAILABLE = True
     except ImportError:
         logger.warning("PgVectorStore not available")
 
 
-def get_vector_store(**kwargs) -> Union["PgVectorStore", "InMemoryVectorStore"]:
+def get_vector_store(**kwargs) -> Union["PgVectorStoreType", "InMemoryVectorStore"]:
     """
     Factory function to get the appropriate vector store.
     
@@ -245,9 +248,9 @@ def get_vector_store(**kwargs) -> Union["PgVectorStore", "InMemoryVectorStore"]:
         PgVectorStore or InMemoryVectorStore instance
     """
     # Priority 1: PostgreSQL pgvector store (recommended for production)
-    if PGVECTOR_STORE_AVAILABLE:
+    if PGVECTOR_STORE_AVAILABLE and _PgVectorStoreClass is not None:
         try:
-            store = PgVectorStore(**kwargs)
+            store = _PgVectorStoreClass(**kwargs)
             logger.info("✅ Using PgVectorStore (PostgreSQL/pgvector)")
             return store
         except Exception as e:
@@ -261,7 +264,7 @@ def get_vector_store(**kwargs) -> Union["PgVectorStore", "InMemoryVectorStore"]:
 
 # Backward compatibility alias — declared as a TypeAlias so Pylance
 # treats it as a type rather than a plain variable.
-VectorStore: TypeAlias = PgVectorStore if PGVECTOR_STORE_AVAILABLE else InMemoryVectorStore  # type: ignore[type-arg]
+VectorStore: TypeAlias = _PgVectorStoreClass if PGVECTOR_STORE_AVAILABLE else InMemoryVectorStore  # type: ignore[type-arg]
 
 
 # =============================================================================
