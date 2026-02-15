@@ -5,17 +5,16 @@ import { visionService, VisionServiceError } from '../services/visionService';
 import { ParsedMedication } from '../services/api.types';
 import { Medication } from '../types';
 import { useMedications } from '../hooks/useMedications';
+import ScreenHeader from '../components/ScreenHeader';
 
 /**
  * Convert service errors to user-friendly messages
- * Never exposes PHI, stack traces, or technical details
  */
 function getUserFriendlyError(error: unknown): string {
     if (error instanceof VisionServiceError) {
         return error.userMessage;
     }
     if (error instanceof Error) {
-        // Generic fallback - don't expose technical details
         console.error('[MedicationScreen] Scan error:', error);
         return 'Could not read the label. Please try a clearer photo.';
     }
@@ -40,12 +39,8 @@ const MedicationScreen: React.FC = () => {
         frequency: 'Daily',
         time: '08:00',
         instructions: '',
-        quantity: '30' // Default quantity
+        quantity: '30'
     });
-
-
-
-
 
     const handleAddMedication = async () => {
         if (!newMed.name || !newMed.dosage) return;
@@ -59,8 +54,7 @@ const MedicationScreen: React.FC = () => {
             takenToday: [false],
             instructions: newMed.instructions,
             quantity: parseInt(newMed.quantity) || 30,
-            // userId not needed for local type but kept for structure consistency if needed
-        } as any; // Cast to avoid strict type check on extra fields
+        } as any;
 
         addMedication(medData);
         setShowAddModal(false);
@@ -94,9 +88,6 @@ const MedicationScreen: React.FC = () => {
         setAnalysisResult(null);
 
         try {
-            // Call backend API proxy
-            const medList = medications.map(m => `${m.name} ${m.dosage}`).join(', ');
-
             const response = await apiClient.medicationInsights({
                 medications: medications.map(m => ({ name: m.name, dosage: m.dosage })),
                 supplements: [],
@@ -141,17 +132,14 @@ const MedicationScreen: React.FC = () => {
         setScanError(null);
 
         try {
-            // Use vision service for medication label analysis
             const result = await visionService.analyzeVision(
                 base64Data,
                 'document',
                 'medication_label'
             );
 
-            // Extract medication info from vision analysis
             const medData: ParsedMedication = visionService.parseMedicationFromVisionResult(result);
 
-            // Validate we got at least a medication name
             if (!medData.name || medData.name === 'Unknown Medication') {
                 throw new Error('Could not extract medication name from image');
             }
@@ -161,15 +149,13 @@ const MedicationScreen: React.FC = () => {
                 name: medData.name,
                 dosage: medData.dosage || 'See label',
                 frequency: medData.frequency || 'As directed',
-                times: ['08:00'], // Default time
+                times: ['08:00'],
                 takenToday: [false],
                 instructions: medData.instructions,
                 quantity: medData.quantity || 30,
             };
 
             addMedication(newMed);
-
-            // Close the modal on success
             setShowAddModal(false);
 
         } catch (error) {
@@ -181,248 +167,267 @@ const MedicationScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24 relative">
-            {/* Header */}
-            <div className="flex items-center p-4 bg-white dark:bg-card-dark sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800 shadow-sm">
-                <button onClick={() => navigate('/dashboard')} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white transition-colors">
-                    <span className="material-symbols-outlined">arrow_back</span>
-                </button>
-                <h2 className="flex-1 text-center font-bold text-lg dark:text-white">Medicine Cabinet</h2>
-                <div className="w-10"></div>
-            </div>
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans">
+            <ScreenHeader
+                title="Medicine Cabinet"
+                subtitle="Track & Manage Prescriptions"
+            />
 
-            <div className="p-4 space-y-6">
-                {/* Interaction Checker Card */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
-                    <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-2xl">medical_services</span>
+            <div className="max-w-4xl mx-auto p-4 space-y-6">
+
+                {/* AI Safety Card */}
+                <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+
+                    <div className="relative z-10">
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-2xl">science</span>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg">AI Interaction Check</h3>
+                                <p className="text-indigo-100 text-sm">Scan your medication list for potential drug interactions and safety warnings.</p>
+                            </div>
                         </div>
-                        <div className="flex-1">
-                            <h3 className="font-bold text-lg">Safety Check</h3>
-                            <p className="text-blue-100 text-sm mb-4">Use AI to scan your medication list for potential interactions.</p>
+
+                        {analysisResult ? (
+                            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20 animate-in fade-in slide-in-from-top-2">
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{analysisResult}</p>
+                                <button
+                                    onClick={() => setAnalysisResult(null)}
+                                    className="mt-3 text-xs font-bold text-indigo-200 hover:text-white flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined text-sm">refresh</span> Check Again
+                                </button>
+                            </div>
+                        ) : (
                             <button
                                 onClick={checkInteractions}
                                 disabled={isAnalyzing}
-                                className="bg-white text-blue-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-50 transition-colors disabled:opacity-70"
+                                className="bg-white text-indigo-700 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-indigo-50 transition-colors disabled:opacity-70 shadow-sm"
                             >
                                 {isAnalyzing ? (
                                     <>
-                                        <span className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                                        Analyzing...
+                                        <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                                        Analyzing Safety...
                                     </>
                                 ) : (
                                     <>
-                                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                                        <span className="material-symbols-outlined">health_and_safety</span>
                                         Check Interactions
                                     </>
                                 )}
                             </button>
-                        </div>
+                        )}
                     </div>
-
-                    {analysisResult && (
-                        <div className="mt-4 bg-white/10 p-3 rounded-xl border border-white/20 animate-in fade-in slide-in-from-top-2">
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{analysisResult}</p>
-                        </div>
-                    )}
                 </div>
 
                 {/* Medication List */}
                 <div>
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 px-1">
                         <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-lg dark:text-white">Your Medications</h3>
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Active Medications</h3>
                             {isLoading && <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></span>}
                         </div>
-                        <span className="text-xs text-slate-500">{medications.length} active</span>
+                        <span className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500">{medications.length} total</span>
                     </div>
 
                     {!isLoading && medications.length > 0 ? (
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {medications.sort((a, b) => a.times[0].localeCompare(b.times[0])).map((med) => (
-                                <div key={med.id} className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm relative group">
+                                <div key={med.id} className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative group">
                                     <button
                                         onClick={() => deleteMed(med.id)}
-                                        className="absolute top-2 right-2 text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-slate-800 rounded-full shadow-sm"
                                     >
-                                        <span className="material-symbols-outlined text-sm">delete</span>
+                                        <span className="material-symbols-outlined text-lg">delete</span>
                                     </button>
-                                    <div className="flex items-start gap-4">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${parseInt(med.times[0]) < 12 ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
-                                            parseInt(med.times[0]) < 18 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+
+                                    <div className="flex items-start gap-4 mb-4">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${parseInt(med.times[0]) < 12 ? 'bg-orange-50 text-orange-500 dark:bg-orange-900/10 dark:text-orange-400' :
+                                                parseInt(med.times[0]) < 18 ? 'bg-blue-50 text-blue-500 dark:bg-blue-900/10 dark:text-blue-400' :
+                                                    'bg-indigo-50 text-indigo-500 dark:bg-indigo-900/10 dark:text-indigo-400'
                                             }`}>
-                                            <span className="material-symbols-outlined">pill</span>
+                                            <span className="material-symbols-outlined text-3xl">medication_liquid</span>
                                         </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-slate-900 dark:text-white text-lg">{med.name}</h4>
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-400">{med.dosage} • {med.frequency}</p>
-                                                    <p className="text-xs text-slate-400 mt-1 italic">{med.instructions || "No special instructions"}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${(med.quantity || 0) < 5 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                                        }`}>
-                                                        {(med.quantity || 0) < 5 ? 'Refill Needed' : `${med.quantity} left`}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-slate-900 dark:text-white text-lg truncate">{med.name}</h4>
+                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{med.dosage}</p>
+                                            <p className="text-xs text-slate-400 mt-1 truncate">{med.instructions || "Take as directed"}</p>
                                         </div>
                                     </div>
 
-                                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto">
-                                        {med.times.map((time, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => toggleTaken(med.id, idx)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${med.takenToday[idx]
-                                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                                    }`}
-                                            >
-                                                <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${med.takenToday[idx] ? 'border-green-600 bg-green-600 text-white' : 'border-slate-400'
-                                                    }`}>
-                                                    {med.takenToday[idx] && <span className="material-symbols-outlined text-[10px]">check</span>}
-                                                </span>
-                                                {time}
-                                            </button>
-                                        ))}
+                                    <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-800/50">
+                                        <div className="flex gap-2">
+                                            {med.times.map((time, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => toggleTaken(med.id, idx)}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${med.takenToday[idx]
+                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ring-1 ring-green-600/20'
+                                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                        }`}
+                                                >
+                                                    <span className={`w-2 h-2 rounded-full ${med.takenToday[idx] ? 'bg-green-500' : 'bg-slate-400'}`}></span>
+                                                    {time}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${(med.quantity || 0) < 5
+                                                ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}>
+                                            {(med.quantity || 0) < 5 ? 'Low Stock' : `${med.quantity} left`}
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : !isLoading && (
-                        <div className="text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-xl border-dashed border-2 border-slate-200 dark:border-slate-700">
-                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">medication</span>
-                            <p className="text-slate-500 font-medium">Cabinet is empty</p>
-                            <p className="text-slate-400 text-sm">Add your prescriptions to track them.</p>
+                        <div className="text-center py-16 bg-white dark:bg-card-dark rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+                            <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span className="material-symbols-outlined text-4xl text-slate-300">medication</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Cabinet is Empty</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto">Add your medications manually or scan a pill bottle to get started.</p>
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="mt-6 text-primary font-bold text-sm hover:underline"
+                            >
+                                + Add First Medication
+                            </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* FAB */}
+            {/* Floating Action Button */}
             <button
                 onClick={() => setShowAddModal(true)}
-                className="fixed bottom-6 right-6 w-14 h-14 bg-primary hover:bg-primary-dark text-white rounded-full shadow-lg shadow-primary/30 flex items-center justify-center transition-transform hover:scale-105 z-20"
+                className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-primary to-indigo-600 text-white rounded-full shadow-lg shadow-primary/30 flex items-center justify-center transition-transform hover:scale-105 hover:rotate-90 active:scale-95 z-20"
+                aria-label="Add Medication"
             >
                 <span className="material-symbols-outlined text-3xl">add</span>
             </button>
 
             {/* Add Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowAddModal(false)}>
-                    <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold dark:text-white">Add Medication</h3>
-                            <button onClick={() => setShowAddModal(false)}><span className="material-symbols-outlined text-slate-400">close</span></button>
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowAddModal(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white">Add Medication</h3>
+                            <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                                <span className="material-symbols-outlined text-slate-500">close</span>
+                            </button>
                         </div>
 
-                        {/* AI Scan Button */}
-                        <div className="mb-4">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isScanning}
-                                className="w-full py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-200 dark:border-indigo-800 border-dashed flex items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
-                            >
-                                {isScanning ? (
-                                    <>
-                                        <span className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
-                                        Scanning Label...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined">document_scanner</span>
-                                        Scan Pill Bottle
-                                    </>
-                                )}
-                            </button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={handleFileChange}
-                            />
+                        <div className="p-6 max-h-[80vh] overflow-y-auto">
+                            {/* AI Scan Button */}
+                            <div className="mb-6">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isScanning}
+                                    className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 border-dashed flex flex-col items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-all group"
+                                >
+                                    {isScanning ? (
+                                        <>
+                                            <span className="w-6 h-6 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                                            <span className="font-bold">Analyzing Label...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-12 h-12 bg-white dark:bg-indigo-900 rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                                <span className="material-symbols-outlined text-2xl">document_scanner</span>
+                                            </div>
+                                            <span className="font-bold">Scan Pill Bottle</span>
+                                            <span className="text-xs text-indigo-400">Auto-fill details from photo</span>
+                                        </>
+                                    )}
+                                </button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={handleFileChange}
+                                />
 
-                            {/* Scan Error Display */}
-                            {scanError && (
-                                <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                                    <div className="flex items-start gap-2">
+                                {scanError && (
+                                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
                                         <span className="material-symbols-outlined text-red-500 text-sm mt-0.5">error</span>
                                         <div className="flex-1">
-                                            <p className="text-red-700 dark:text-red-400 text-sm">{scanError}</p>
+                                            <p className="text-red-700 dark:text-red-400 text-sm font-medium">{scanError}</p>
                                             <button
                                                 onClick={() => { setScanError(null); fileInputRef.current?.click(); }}
-                                                className="text-red-600 dark:text-red-400 text-xs font-medium mt-1 hover:underline"
+                                                className="text-red-600 dark:text-red-400 text-xs font-bold mt-1 hover:underline"
                                             >
-                                                Try again
+                                                Try Another Photo
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Medication Name</label>
-                                <input
-                                    type="text"
-                                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                    placeholder="e.g. Metoprolol"
-                                    value={newMed.name}
-                                    onChange={e => setNewMed({ ...newMed, name: e.target.value })}
-                                />
+                                )}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Dosage</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Medication Name</label>
                                     <input
                                         type="text"
-                                        className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                        placeholder="e.g. 50mg"
-                                        value={newMed.dosage}
-                                        onChange={e => setNewMed({ ...newMed, dosage: e.target.value })}
+                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold placeholder:font-normal transition-all"
+                                        placeholder="e.g. Metoprolol"
+                                        value={newMed.name}
+                                        onChange={e => setNewMed({ ...newMed, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Dosage</label>
+                                        <input
+                                            type="text"
+                                            className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold placeholder:font-normal transition-all"
+                                            placeholder="50mg"
+                                            value={newMed.dosage}
+                                            onChange={e => setNewMed({ ...newMed, dosage: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Qty (Pills)</label>
+                                        <input
+                                            type="number"
+                                            className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold placeholder:font-normal transition-all"
+                                            placeholder="30"
+                                            value={newMed.quantity}
+                                            onChange={e => setNewMed({ ...newMed, quantity: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Time</label>
+                                    <input
+                                        type="time"
+                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold transition-all"
+                                        value={newMed.time}
+                                        onChange={e => setNewMed({ ...newMed, time: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Qty (Pills)</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Instructions (Optional)</label>
                                     <input
-                                        type="number"
-                                        className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                        placeholder="30"
-                                        value={newMed.quantity}
-                                        onChange={e => setNewMed({ ...newMed, quantity: e.target.value })}
+                                        type="text"
+                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold placeholder:font-normal transition-all"
+                                        placeholder="e.g. Take with food"
+                                        value={newMed.instructions}
+                                        onChange={e => setNewMed({ ...newMed, instructions: e.target.value })}
                                     />
                                 </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Time</label>
-                                <input
-                                    type="time"
-                                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                    value={newMed.time}
-                                    onChange={e => setNewMed({ ...newMed, time: e.target.value })}
-                                />
+
+                            <div className="flex gap-3 mt-8">
+                                <button onClick={() => setShowAddModal(false)} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
+                                <button onClick={handleAddMedication} className="flex-1 py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all active:scale-95">Save Medication</button>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Instructions (Optional)</label>
-                                <input
-                                    type="text"
-                                    className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                    placeholder="e.g. Take with food"
-                                    value={newMed.instructions}
-                                    onChange={e => setNewMed({ ...newMed, instructions: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                            <button onClick={() => setShowAddModal(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
-                            <button onClick={handleAddMedication} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Save</button>
                         </div>
                     </div>
                 </div>

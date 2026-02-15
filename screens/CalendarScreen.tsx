@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     View,
     Text,
@@ -15,7 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
 import { useAuth } from '../hooks/useAuth';
 
-export default function CalendarScreen({ navigation }: any) {
+export default function CalendarScreen() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [events, setEvents] = useState<any[]>([]);
@@ -82,7 +84,7 @@ export default function CalendarScreen({ navigation }: any) {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Calendar</Text>

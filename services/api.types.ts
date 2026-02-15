@@ -256,3 +256,28 @@ export interface ServiceStatus {
     last_check?: string;
     error_message?: string;
 }
+
+// ============================================================================
+// Heart Disease Types
+// ============================================================================
+
+export interface HeartDiseasePredictionRequest {
+    age: number;
+    sex: number;
+    chest_pain_type: number;
+    resting_bp_s: number;
+    cholesterol: number;
+    fasting_blood_sugar: number;
+    resting_ecg: number;
+    max_heart_rate: number;
+    exercise_angina: number;
+    oldpeak: number;
+    st_slope: number;
+}
+
+export interface HeartDiseasePredictionResponse {
+    prediction: number;
+    probability: number;
+    risk_level: string;
+    message: string;
+}

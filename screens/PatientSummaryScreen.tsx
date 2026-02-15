@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
 
-export default function PatientSummaryScreen({ navigation }: any) {
+export default function PatientSummaryScreen() {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [summary, setSummary] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export default function PatientSummaryScreen({ navigation }: any) {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Patient Summary</Text>

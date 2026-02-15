@@ -1,360 +1,183 @@
-import React, { useState, useEffect } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
 import { useUserStore } from '../store/useUserStore';
-import { DocumentUploadResponse } from '../services/api.types';
+import { useAuth } from '../hooks/useAuth';
+import { DocumentDetails } from '../services/api.types';
+import ScreenHeader from '../components/ScreenHeader';
 
-interface Document {
-    id: string;
-    name: string;
-    status: string;
-    date: string;
-    file_size?: number;
-    content_type?: string;
-}
+// Use the shared type from api.types
+type Document = DocumentDetails;
 
 export default function DocumentScreen() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [documents, setDocuments] = useState<Document[]>([]);
-    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-    const user = useUserStore(state => state.user);
+    const [showUploadModal, setShowUploadModal] = useState(false);
+    const [uploading, setUploading] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         loadDocuments();
-    }, []);
+    }, [user]);
 
     const loadDocuments = async () => {
+        if (!user) return;
+        setLoading(true);
         try {
-            // In a real implementation, you would fetch documents from the backend
-            // For now, we'll just refresh the local state
+            const docs = await apiClient.getDocuments();
+            setDocuments(docs);
         } catch (error) {
-            console.error('Error loading documents:', error);
-            Alert.alert('Error', 'Failed to load documents');
+            console.error('Failed to load documents:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const onRefresh = async () => {
-        setRefreshing(true);
-        await loadDocuments();
-        setRefreshing(false);
-    };
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !user) return;
 
-    const handleUpload = async () => {
-        // Since expo-document-picker is not available, we'll simulate the upload
-        Alert.alert(
-            'Feature Not Available',
-            'Document upload functionality requires additional setup. This would normally open a file picker.',
-            [{ text: 'OK' }]
-        );
-
-        // Simulate adding a document for UI demonstration
-        if (documents.length === 0) {
-            setDocuments([{
-                id: 'doc_' + Date.now(),
-                name: 'sample_medical_report.pdf',
-                status: 'processed',
-                date: new Date().toISOString(),
-                file_size: 1024000,
-                content_type: 'application/pdf'
-            }]);
+        setUploading(true);
+        try {
+            await apiClient.uploadDocument(file); // Backend handles user and type for now
+            await loadDocuments();
+            setShowUploadModal(false);
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Failed to upload document');
+        } finally {
+            setUploading(false);
         }
     };
 
-    const handleDocumentPress = (document: Document) => {
-        // Navigate to document detail screen
-        navigate(`/scan-document?docId=${document.id}`);
-    };
-
-    const formatFileSize = (bytes?: number): string => {
-        if (!bytes) return '';
-        if (bytes < 1024) return bytes + ' bytes';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
+    const getIconForType = (type: string) => {
+        switch (type.toLowerCase()) {
+            case 'lab report': return 'biotech';
+            case 'prescription': return 'prescriptions';
+            case 'imaging': return 'radiology';
+            default: return 'description';
+        }
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <LinearGradient
-                colors={['#1a1a2e', '#16213e']}
-                style={styles.header}
-            >
-                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Documents</Text>
-                <TouchableOpacity style={styles.headerButton} onPress={loadDocuments}>
-                    <Ionicons name="refresh" size={24} color="#fff" />
-                </TouchableOpacity>
-            </LinearGradient>
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans">
+            <ScreenHeader
+                title="Medical Records"
+                subtitle="Secure Document Storage"
+                rightIcon="add"
+                onRightAction={() => setShowUploadModal(true)}
+            />
 
-            <ScrollView
-                style={styles.content}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-            >
-                <View style={styles.uploadSection}>
-                    <TouchableOpacity
-                        style={styles.uploadButton}
-                        onPress={handleUpload}
-                        disabled={loading}
-                    >
-                        <LinearGradient
-                            colors={['#4e54c8', '#8f94fb']}
-                            style={styles.gradientButton}
+            <div className="max-w-4xl mx-auto p-4 space-y-6">
+
+                {/* Search / Filter (Placeholder for now) */}
+                <div className="relative">
+                    <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">search</span>
+                    <input
+                        type="text"
+                        placeholder="Search records..."
+                        className="w-full pl-12 pr-4 py-3 bg-white dark:bg-card-dark rounded-xl border-none shadow-sm focus:ring-2 focus:ring-primary/20 dark:text-white"
+                    />
+                </div>
+
+                {loading ? (
+                    <div className="flex justify-center py-12">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                ) : documents.length === 0 ? (
+                    <div className="text-center py-16">
+                        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="material-symbols-outlined text-4xl text-slate-300">folder_off</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No Documents Yet</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto mb-6">Upload your lab reports, prescriptions, or imaging results to keep them organized.</p>
+                        <button
+                            onClick={() => setShowUploadModal(true)}
+                            className="bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
                         >
-                            {loading ? (
-                                <>
-                                    <ActivityIndicator color="#fff" />
-                                    {uploadProgress !== null && (
-                                        <Text style={styles.progressText}>{uploadProgress}%</Text>
+                            Upload First Document
+                        </button>
+                    </div>
+                ) : (
+                    <div className="grid gap-4">
+                        {documents.map((doc) => (
+                            <div key={doc.document_id} className="bg-white dark:bg-card-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow group">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${doc.classification?.document_type === 'Lab Report' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' :
+                                    doc.classification?.document_type === 'Prescription' ? 'bg-green-50 text-green-600 dark:bg-green-900/20' :
+                                        'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20'
+                                    }`}>
+                                    <span className="material-symbols-outlined">{getIconForType(doc.classification?.document_type || 'default')}</span>
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-slate-900 dark:text-white truncate">{doc.filename}</h4>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                            {doc.classification?.document_type}
+                                        </span>
+                                        <span className="text-xs text-slate-400">
+                                            {new Date(doc.created_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    {doc.classification?.category && (
+                                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">
+                                            {doc.classification.category}
+                                        </p>
                                     )}
-                                </>
+                                </div>
+
+                                <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                    <span className="material-symbols-outlined">download</span>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Upload Modal */}
+            {showUploadModal && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowUploadModal(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Upload Document</h3>
+
+                        <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                        >
+                            {uploading ? (
+                                <div className="py-4">
+                                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                    <p className="font-bold text-slate-900 dark:text-white">Uploading...</p>
+                                </div>
                             ) : (
                                 <>
-                                    <Ionicons name="cloud-upload" size={24} color="#fff" />
-                                    <Text style={styles.buttonText}>Upload Document</Text>
+                                    <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
+                                    <p className="font-bold text-slate-900 dark:text-white">Tap to Select File</p>
+                                    <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG up to 10MB</p>
                                 </>
                             )}
-                        </LinearGradient>
-                    </TouchableOpacity>
+                        </div>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            onChange={handleFileUpload}
+                            accept=".pdf,.jpg,.jpeg,.png"
+                        />
 
-                    <Text style={styles.supportedText}>
-                        Supports PDF, JPG, PNG files up to 10MB
-                    </Text>
-                </View>
-
-                <View style={styles.listSection}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Recent Documents</Text>
-                        <Text style={styles.documentCount}>{documents.length} items</Text>
-                    </View>
-
-                    {documents.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <Ionicons name="document-text-outline" size={48} color="#666" />
-                            <Text style={styles.emptyText}>No documents uploaded yet</Text>
-                            <Text style={styles.emptySubtext}>Upload your medical documents, prescriptions, or reports</Text>
-                        </View>
-                    ) : (
-                        documents.map((doc) => (
-                            <TouchableOpacity
-                                key={doc.id}
-                                style={styles.documentCard}
-                                onPress={() => handleDocumentPress(doc)}
-                                disabled={doc.status !== 'processed'}
-                            >
-                                <View style={styles.docIcon}>
-                                    <Ionicons
-                                        name={
-                                            doc.content_type?.includes('pdf') ? 'document-text' :
-                                                doc.content_type?.includes('image') ? 'image' :
-                                                    'document'
-                                        }
-                                        size={24}
-                                        color="#4e54c8"
-                                    />
-                                </View>
-                                <View style={styles.docInfo}>
-                                    <Text style={styles.docName} numberOfLines={1}>{doc.name}</Text>
-                                    <Text style={styles.docDate}>
-                                        {new Date(doc.date).toLocaleDateString()}
-                                        {doc.file_size ? ` • ${formatFileSize(doc.file_size)}` : ''}
-                                    </Text>
-                                </View>
-                                <View style={[
-                                    styles.docStatus,
-                                    doc.status === 'processed' ? styles.statusProcessed :
-                                        doc.status === 'processing' ? styles.statusProcessing :
-                                            doc.status === 'failed' ? styles.statusFailed :
-                                                styles.statusUploaded
-                                ]}>
-                                    <Text style={styles.statusText}>
-                                        {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                                    </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                            </TouchableOpacity>
-                        ))
-                    )}
-                </View>
-            </ScrollView>
-        </SafeAreaView>
+                        <button
+                            onClick={() => setShowUploadModal(false)}
+                            className="w-full mt-6 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    headerButton: {
-        padding: 5,
-    },
-    content: {
-        flex: 1,
-        padding: 20,
-    },
-    uploadSection: {
-        marginBottom: 30,
-    },
-    uploadButton: {
-        borderRadius: 15,
-        overflow: 'hidden',
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-    },
-    gradientButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        gap: 10,
-    },
-    buttonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    progressText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    supportedText: {
-        textAlign: 'center',
-        marginTop: 10,
-        color: '#666',
-        fontSize: 14,
-    },
-    listSection: {
-        flex: 1,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    documentCount: {
-        fontSize: 14,
-        color: '#666',
-    },
-    emptyState: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 40,
-        backgroundColor: '#fff',
-        borderRadius: 15,
-        borderStyle: 'dashed',
-        borderWidth: 2,
-        borderColor: '#ddd',
-    },
-    emptyText: {
-        marginTop: 10,
-        color: '#666',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    emptySubtext: {
-        marginTop: 5,
-        color: '#999',
-        fontSize: 14,
-        textAlign: 'center',
-    },
-    documentCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        padding: 15,
-        borderRadius: 12,
-        marginBottom: 10,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-    },
-    docIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#f0f0f5',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 15,
-    },
-    docInfo: {
-        flex: 1,
-        marginRight: 10,
-    },
-    docName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 4,
-    },
-    docDate: {
-        fontSize: 12,
-        color: '#888',
-    },
-    docStatus: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 10,
-        marginRight: 10,
-    },
-    statusUploaded: {
-        backgroundColor: '#e3f2fd',
-    },
-    statusProcessing: {
-        backgroundColor: '#fff3e0',
-    },
-    statusProcessed: {
-        backgroundColor: '#e8f5e9',
-    },
-    statusFailed: {
-        backgroundColor: '#ffebee',
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: '500',
-    },
-});

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     View,
     Text,
@@ -17,7 +18,8 @@ import { apiClient } from '../services/apiClient';
 
 type Tab = 'ecg' | 'food';
 
-export default function VisionScreen({ navigation }: any) {
+export default function VisionScreen() {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('ecg');
     const [loading, setLoading] = useState(false);
     const [image, setImage] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function VisionScreen({ navigation }: any) {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Vision Analysis</Text>

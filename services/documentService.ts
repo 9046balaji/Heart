@@ -310,6 +310,70 @@ export async function classifyDocument(
 }
 
 /**
+ * List documents for a user
+ */
+export async function listDocuments(
+    userId: string,
+    skip: number = 0,
+    limit: number = 50,
+    status?: string
+): Promise<DocumentDetails[]> {
+    const params = new URLSearchParams({
+        user_id: userId,
+        skip: skip.toString(),
+        limit: limit.toString()
+    });
+
+    if (status) {
+        params.append('status', status);
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/documents/list?${params}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw { status: response.status, detail: errorData.detail };
+        }
+
+        return await response.json();
+    } catch (error) {
+        handleError(error, 'listDocuments');
+    }
+}
+
+/**
+ * Delete a document
+ */
+export async function deleteDocument(
+    documentId: string,
+    userId: string
+): Promise<{ message: string }> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/documents/${documentId}?user_id=${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw { status: response.status, detail: errorData.detail };
+        }
+
+        return await response.json();
+    } catch (error) {
+        handleError(error, 'deleteDocument');
+    }
+}
+
+/**
  * Upload and process a document in one call
  * Convenience method that chains upload + process
  *
@@ -347,6 +411,8 @@ export const documentService = {
     extractEntities,
     classifyDocument,
     uploadAndProcess,
+    listDocuments,
+    deleteDocument,
 
     // Configuration exports for UI components
     MAX_FILE_SIZE_MB,

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     View,
     Text,
@@ -15,7 +16,8 @@ import { apiClient } from '../services/apiClient';
 
 import { useAuth } from '../hooks/useAuth';
 
-export default function NotificationScreen({ navigation }: any) {
+export default function NotificationScreen() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const [whatsappEnabled, setWhatsappEnabled] = useState(false);
     const [emailEnabled, setEmailEnabled] = useState(true);
@@ -74,7 +76,7 @@ export default function NotificationScreen({ navigation }: any) {
     return (
         <SafeAreaView style={styles.container}>
             <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Notifications</Text>

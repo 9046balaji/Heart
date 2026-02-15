@@ -628,7 +628,7 @@ const ExerciseScreen: React.FC = () => {
             {/* Header with Tabs */}
             <div className="sticky top-0 bg-background-light dark:bg-background-dark z-10">
                 <div className="flex items-center justify-between p-4 pb-2 border-b border-slate-100 dark:border-slate-800/50">
-                    <button onClick={() => navigate('/dashboard')} className="p-2 -ml-2 rounded-full text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <span className="material-symbols-outlined">arrow_back_ios_new</span>
                     </button>
                     <h2 className="font-bold text-lg dark:text-white">Fitness</h2>

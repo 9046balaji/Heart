@@ -14,6 +14,7 @@ const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.me
 
 import { handleError, retryWithBackoff, ErrorType } from '../utils/errorHandling';
 import { authService } from './authService';
+import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, DocumentDetails } from './api.types';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -339,6 +340,20 @@ async function apiCallWithRetry<T>(
 // ============================================================================
 
 export const apiClient = {
+  // ==========================================================================
+  // HEART DISEASE API
+  // ==========================================================================
+
+  /**
+   * Predict Heart Disease Risk
+   */
+  predictHeartDisease: async (data: HeartDiseasePredictionRequest) => {
+    return apiCall<HeartDiseasePredictionResponse>('/api/predict-heart-disease', {
+      method: 'POST',
+      body: data
+    });
+  },
+
   // ==========================================================================
   // AUTHENTICATION API
   // ==========================================================================
@@ -884,6 +899,10 @@ export const apiClient = {
 
   getDocument: async (documentId: string) => {
     return apiCall<DocumentResponse>(`/api/documents/${documentId}`);
+  },
+
+  getDocuments: async () => {
+    return apiCall<DocumentDetails[]>('/api/documents');
   },
 
   // ==========================================================================
