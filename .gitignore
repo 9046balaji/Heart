@@ -12,8 +12,13 @@ check_ui_overflow_puppeteer.js
 playwright.config.js
 UI_BUG_LOG.json
 
-backend
+backend/models
+backend/test
+backend/uploads
+CHATBOT_ANALYSIS.md
 
+
+*__pycache__*
 node_modules
 tests/
 test-results

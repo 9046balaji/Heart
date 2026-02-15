@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+scikit-learn==1.2.2
+joblib
+pandas
+numpy<2.0.0
+xgboost
+lightgbm
+imbalanced-learn
+python-multipart
+aiofiles
+sqlalchemy
+

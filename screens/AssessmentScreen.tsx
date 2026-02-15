@@ -62,8 +62,8 @@ const AssessmentScreen: React.FC = () => {
             <div className="max-w-4xl mx-auto p-4 space-y-6">
 
                 {/* Info Card */}
-                <div className="bg-blue-600 dark:bg-blue-600/20 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/20 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-700 dark:to-indigo-800 text-white rounded-3xl p-6 shadow-xl shadow-blue-500/20 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:scale-110 transition-transform duration-700"></div>
                     <div className="relative z-10 flex items-start gap-4">
                         <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
                             <span className="material-symbols-outlined text-2xl">cardiology</span>
@@ -81,9 +81,11 @@ const AssessmentScreen: React.FC = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
 
                     {/* Section 1: Vitals */}
-                    <section className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <section className="bg-white dark:bg-card-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow duration-300">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-50 dark:border-slate-800">
-                            <span className="material-symbols-outlined text-primary">vital_signs</span>
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                                <span className="material-symbols-outlined">vital_signs</span>
+                            </div>
                             <h3 className="font-bold text-lg text-slate-800 dark:text-white">Patient Vitals</h3>
                         </div>
 
@@ -112,8 +114,8 @@ const AssessmentScreen: React.FC = () => {
                                             type="button"
                                             onClick={() => handleChange('sex', opt.value)}
                                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${formData.sex === opt.value
-                                                    ? 'bg-white dark:bg-slate-700 shadow-sm text-primary dark:text-white'
-                                                    : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                                ? 'bg-white dark:bg-slate-700 shadow-sm text-primary dark:text-white'
+                                                : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-lg">{opt.icon}</span>
@@ -182,9 +184,11 @@ const AssessmentScreen: React.FC = () => {
                     </section>
 
                     {/* Section 2: Clinical Factors */}
-                    <section className="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                    <section className="bg-white dark:bg-card-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow duration-300">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-50 dark:border-slate-800">
-                            <span className="material-symbols-outlined text-primary">stethoscope</span>
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                <span className="material-symbols-outlined">stethoscope</span>
+                            </div>
                             <h3 className="font-bold text-lg text-slate-800 dark:text-white">Clinical Factors</h3>
                         </div>
 
@@ -203,8 +207,8 @@ const AssessmentScreen: React.FC = () => {
                                             type="button"
                                             onClick={() => handleChange('chest_pain_type', opt.val)}
                                             className={`p-4 rounded-xl border-2 text-left transition-all hover:shadow-md ${formData.chest_pain_type === opt.val
-                                                    ? 'bg-primary/5 border-primary shadow-sm'
-                                                    : 'bg-slate-50 dark:bg-slate-800 border-transparent hover:bg-white dark:hover:bg-slate-700'
+                                                ? 'bg-primary/5 border-primary shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800 border-transparent hover:bg-white dark:hover:bg-slate-700'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-1">
@@ -247,8 +251,8 @@ const AssessmentScreen: React.FC = () => {
                                                 type="button"
                                                 onClick={() => handleChange('exercise_angina', opt.value)}
                                                 className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${formData.exercise_angina === opt.value
-                                                        ? `bg-white dark:bg-slate-700 shadow-sm ${opt.color}`
-                                                        : 'text-slate-500'
+                                                    ? `bg-white dark:bg-slate-700 shadow-sm ${opt.color}`
+                                                    : 'text-slate-500'
                                                     }`}
                                             >
                                                 {opt.label}
@@ -316,8 +320,8 @@ const AssessmentScreen: React.FC = () => {
                 {result && (
                     <div className="animate-in slide-in-from-bottom-10 fade-in duration-500 pb-10">
                         <div className={`rounded-3xl border-2 overflow-hidden shadow-2xl ${result.prediction === 1
-                                ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50'
-                                : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/50'
+                            ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50'
+                            : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/50'
                             }`}>
                             <div className="p-8 text-center relative">
                                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">

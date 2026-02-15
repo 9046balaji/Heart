@@ -281,3 +281,19 @@ export interface HeartDiseasePredictionResponse {
     risk_level: string;
     message: string;
 }
+
+// ============================================================================
+// Audio & Speech Types
+// ============================================================================
+
+export interface AudioTranscriptionResponse {
+    success: boolean;
+    text: string;
+    error?: string;
+}
+
+export interface TextToSpeechResponse {
+    success: boolean;
+    audio: string; // Base64 encoded audio
+    error?: string;
+}

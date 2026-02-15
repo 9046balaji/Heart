@@ -16,7 +16,7 @@ const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-[80px] bg-white/90 dark:bg-card-dark/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50">
+    <div className="absolute bottom-0 left-0 right-0 h-[65px] bg-white/90 dark:bg-card-dark/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50">
       <div className="flex justify-around items-center h-full px-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
@@ -24,14 +24,13 @@ const BottomNav: React.FC = () => {
             <Link
               key={item.label}
               to={item.path}
-              className={`flex flex-col items-center gap-1 min-w-[60px] p-2 rounded-xl transition-all duration-300 ${
-                isActive
+              className={`flex flex-col items-center gap-0.5 min-w-[50px] p-1 rounded-xl transition-all duration-300 ${isActive
                   ? 'text-primary'
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
+                }`}
             >
               <span
-                className={`material-symbols-outlined text-2xl ${isActive || item.filled ? 'filled' : ''} ${isActive ? 'scale-110' : ''}`}
+                className={`material-symbols-outlined text-2xl ${isActive || item.filled ? 'filled' : ''}`}
                 style={item.filled && isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
               >
                 {item.icon}

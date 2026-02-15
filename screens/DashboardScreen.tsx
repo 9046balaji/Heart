@@ -546,54 +546,65 @@ const DashboardScreen: React.FC = () => {
             {/* Vitals Grid with Interactive Chart */}
             <div className="grid grid-cols-2 gap-4">
                 {/* Heart Rate Card */}
-                <div className="col-span-2 bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 relative">
-                    <div className="flex justify-between items-center mb-4">
+                <div className="col-span-2 bg-white dark:bg-card-dark rounded-3xl p-6 shadow-lg border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none"></div>
+
+                    <div className="flex justify-between items-center mb-6 relative z-10">
                         <div>
-                            <h3 className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                                {t('dashboard.heart_rate')} {(connectedDevice || caretakerMode) && <span className={`text-[10px] uppercase font-bold tracking-wider ml-1 animate-pulse ${caretakerMode ? 'text-red-500' : 'text-primary'}`}>• Live</span>}
+                            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                {t('dashboard.heart_rate')}
+                                {(connectedDevice || caretakerMode) && (
+                                    <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${caretakerMode ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} animate-pulse`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                                        LIVE
+                                    </span>
+                                )}
                             </h3>
-                            <div className="flex items-baseline gap-2">
-                                <span className={`text-3xl font-bold ${caretakerMode && liveHeartRate > 100 ? 'text-red-500' : 'dark:text-white'}`}>
+                            <div className="flex items-baseline gap-3 mt-1">
+                                <span className={`text-4xl font-black tracking-tight ${caretakerMode && liveHeartRate > 100 ? 'text-red-500' : 'text-slate-900 dark:text-white'}`}>
                                     {liveHeartRate > 0 ? liveHeartRate : '72'}
                                 </span>
+                                <span className="text-sm font-bold text-slate-400">BPM</span>
                                 {connectedDevice && (
-                                    <span className="text-[10px] text-slate-400">from {connectedDevice.name}</span>
+                                    <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[10px]">watch</span>
+                                        {connectedDevice.name}
+                                    </span>
                                 )}
-                                {!connectedDevice && !caretakerMode && <span className="text-green-500 text-xs font-bold">↓ 1%</span>}
-                                {caretakerMode && <span className="text-red-500 text-xs font-bold">High</span>}
                             </div>
                         </div>
-                        <span className={`material-symbols-outlined ${caretakerMode ? 'text-red-500' : 'text-red-500'} ${(connectedDevice || caretakerMode) ? 'animate-pulse' : ''}`}>favorite</span>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${caretakerMode ? 'bg-red-50 text-red-500' : 'bg-red-50 dark:bg-red-900/20 text-red-500'} ${(connectedDevice || caretakerMode) ? 'animate-pulse' : ''}`}>
+                            <span className="material-symbols-outlined text-2xl">favorite</span>
+                        </div>
                     </div>
 
-                    <div className="h-[150px] w-full min-w-0 min-h-0 relative">
+                    <div className="h-[180px] w-full min-w-0 min-h-0 relative z-10">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                             <AreaChart data={caretakerMode ? DAD_VITALS : data} onClick={handleChartClick}>
                                 <defs>
                                     <linearGradient id="colorBpm" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={caretakerMode ? "#ef4444" : "#137fec"} stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor={caretakerMode ? "#ef4444" : "#137fec"} stopOpacity={0} />
+                                        <stop offset="5%" stopColor={caretakerMode ? "#ef4444" : "#ec4899"} stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor={caretakerMode ? "#ef4444" : "#ec4899"} stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    cursor={{ stroke: caretakerMode ? "#ef4444" : "#137fec", strokeWidth: 1 }}
+                                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', fontSize: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                    itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                                    cursor={{ stroke: caretakerMode ? "#ef4444" : "#ec4899", strokeWidth: 1, strokeDasharray: '4 4' }}
                                 />
                                 <Area
                                     type="monotone"
                                     dataKey="bpm"
-                                    stroke={caretakerMode ? "#ef4444" : "#137fec"}
-                                    strokeWidth={3}
+                                    stroke={caretakerMode ? "#ef4444" : "#ec4899"}
+                                    strokeWidth={4}
                                     fillOpacity={1}
                                     fill="url(#colorBpm)"
-                                    activeDot={{ r: 6, onClick: handleChartClick }}
+                                    activeDot={{ r: 6, strokeWidth: 0 }}
                                 />
-                                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} interval={0} />
-                                <Brush dataKey="day" height={20} stroke="#334155" fill="#1e293b" />
+                                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }} dy={10} interval={0} />
                             </AreaChart>
                         </ResponsiveContainer>
-                        <p className="text-[10px] text-slate-400 text-center mt-1">Tap a point for details or drag bottom bar to zoom</p>
+                        <p className="text-[10px] text-slate-400 text-center mt-2 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Tap points for details</p>
                     </div>
 
                     {/* Context Modal Overlay for Chart Click */}
@@ -615,23 +626,34 @@ const DashboardScreen: React.FC = () => {
 
                 {/* Small Stats Cards */}
                 {connectedDevice || caretakerMode ? (
-                    <div className="bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                    <div className="bg-white dark:bg-card-dark rounded-3xl p-5 shadow-lg border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:scale-[1.02] transition-transform">
                         <div className="flex justify-between items-start">
-                            <p className="text-xs text-slate-500 mb-1">{t('dashboard.steps')}</p>
-                            <span className={`material-symbols-outlined ${caretakerMode && steps < 3000 ? 'text-red-500' : 'text-green-500'} text-base`}>directions_walk</span>
+                            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center">
+                                <span className={`material-symbols-outlined text-xl`}>directions_walk</span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${steps >= 8000 ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                                {Math.round((steps / 8000) * 100)}%
+                            </span>
                         </div>
-                        <div>
-                            <p className="text-xl font-bold dark:text-white">{steps.toLocaleString()}</p>
-                            <p className={`text-[10px] ${caretakerMode ? 'text-red-400' : 'text-slate-400'} mt-1`}>
-                                {caretakerMode ? t('dashboard.sedentary') : `${t('dashboard.goal')}: 8,000`}
-                            </p>
+                        <div className="mt-4">
+                            <p className="text-2xl font-black text-slate-900 dark:text-white">{steps.toLocaleString()}</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('dashboard.steps')}</p>
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-card-light dark:bg-card-dark rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800">
-                        <p className="text-xs text-slate-500 mb-1">{t('dashboard.bp')}</p>
-                        <p className="text-xl font-bold dark:text-white">{assessment ? `${assessment.vitals.systolic}/80` : '118/75'}</p>
-                        <p className="text-xs text-slate-400">mmHg</p>
+                    <div className="bg-white dark:bg-card-dark rounded-3xl p-5 shadow-lg border border-slate-100 dark:border-slate-800 hover:scale-[1.02] transition-transform">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-xl">monitor_heart</span>
+                            </div>
+                            {assessment && (
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${assessment.vitals.systolic < 120 ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                                    Normal
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white">{assessment ? `${assessment.vitals.systolic}/80` : '118/75'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('dashboard.bp')} <span className="text-[10px] normal-case opacity-70">(mmHg)</span></p>
                     </div>
                 )}
 
@@ -703,42 +725,49 @@ const DashboardScreen: React.FC = () => {
             {/* Quick Actions */}
             {!caretakerMode && (
                 <div>
-                    <h3 className="font-bold text-lg mb-3 dark:text-white">{t('dashboard.quick_actions')}</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        <Link to="/chat" className="bg-slate-800 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-slate-700 transition-colors border border-slate-700">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined">smart_toy</span>
+                    <h3 className="font-bold text-lg mb-4 dark:text-white flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary">bolt</span>
+                        {t('dashboard.quick_actions')}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Link to="/chat" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">smart_toy</span>
                             </div>
-                            <div className="text-center">
-                                <p className="font-bold text-sm text-white">{t('dashboard.chat_ai')}</p>
-                                <p className="text-xs text-slate-400">{t('dashboard.ask_cardio')}</p>
-                            </div>
-                        </Link>
-                        <Link to="/medications" className="bg-slate-800 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-slate-700 transition-colors border border-slate-700">
-                            <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined">pill</span>
-                            </div>
-                            <div className="text-center">
-                                <p className="font-bold text-sm text-white">{t('dashboard.meds_manage')}</p>
-                                <p className="text-xs text-slate-400">{t('dashboard.meds_desc')}</p>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">{t('dashboard.chat_ai')}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t('dashboard.ask_cardio')}</p>
                             </div>
                         </Link>
-                        <Link to="/documents" className="bg-slate-800 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-slate-700 transition-colors border border-slate-700">
-                            <div className="w-10 h-10 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined">folder_open</span>
+                        <Link to="/medications" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">pill</span>
                             </div>
-                            <div className="text-center">
-                                <p className="font-bold text-sm text-white">Documents</p>
-                                <p className="text-xs text-slate-400">Medical records</p>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">{t('dashboard.meds_manage')}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t('dashboard.meds_desc')}</p>
                             </div>
                         </Link>
-                        <Link to="/analytics" className="bg-slate-800 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-slate-700 transition-colors border border-slate-700">
-                            <div className="w-10 h-10 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center">
-                                <span className="material-symbols-outlined">analytics</span>
+                        <Link to="/documents" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-green-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">folder_open</span>
                             </div>
-                            <div className="text-center">
-                                <p className="font-bold text-sm text-white">Analytics</p>
-                                <p className="text-xs text-slate-400">Health insights</p>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">Documents</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Medical records</p>
+                            </div>
+                        </Link>
+                        <Link to="/analytics" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">analytics</span>
+                            </div>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">Analytics</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Health insights</p>
                             </div>
                         </Link>
                     </div>

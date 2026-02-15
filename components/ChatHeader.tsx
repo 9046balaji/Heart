@@ -21,9 +21,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
     return (
         <div className="flex items-center justify-between p-4 z-10 bg-[#101922] border-b border-slate-800/50">
-            <button onClick={onMenuClick} className="p-2 -ml-2 text-slate-300 hover:text-white transition-colors">
-                <span className="material-symbols-outlined text-2xl">menu</span>
-            </button>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="p-2 -ml-2 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+                >
+                    <span className="material-symbols-outlined text-xl">arrow_back</span>
+                </button>
+                <button onClick={onMenuClick} className="p-2 text-slate-300 hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-xl">menu</span>
+                </button>
+            </div>
 
             <div className="flex flex-col items-center">
                 <h1 className="font-bold text-lg text-white">Cardio AI Agent</h1>
@@ -56,13 +64,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                                         setIsModelDropdownOpen(false);
                                     }}
                                     disabled={!provider.available}
-                                    className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${
-                                        selectedProvider === provider.name
+                                    className={`w-full flex items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${selectedProvider === provider.name
                                             ? 'bg-slate-700 text-white'
                                             : 'text-slate-300 hover:bg-slate-800'
-                                    } ${!provider.available ? 'opacity-50 cursor-not-allowed' : ''} ${
-                                        provider.name !== 'ollama' ? 'border-t border-slate-700' : ''
-                                    }`}
+                                        } ${!provider.available ? 'opacity-50 cursor-not-allowed' : ''} ${provider.name !== 'ollama' ? 'border-t border-slate-700' : ''
+                                        }`}
                                 >
                                     <span className="material-symbols-outlined text-base">
                                         {provider.name === 'ollama' ? 'memory' : 'cloud'}

@@ -325,12 +325,17 @@ const ChatScreen: React.FC = () => {
   };
 
   const transcribeAudio = async (audioBlob: Blob) => {
-    // In a real app, we would use setLoading(true) here
-    // But since we are just setting input, we don't strictly need to block UI
     try {
       const base64Audio = await blobToBase64(audioBlob);
-      // For now, use a simple transcription placeholder
-      setInput("Audio message received. Please type your response.");
+      // Call backend API
+      const response = await apiClient.transcribeAudio(base64Audio);
+
+      if (response.success) {
+        setInput(response.text);
+      } else {
+        console.error("Transcription failed:", response.error);
+        alert("Failed to transcribe audio: " + response.error);
+      }
     } catch (error) {
       console.error("Transcription error:", error);
       alert("Failed to transcribe audio.");
@@ -338,22 +343,65 @@ const ChatScreen: React.FC = () => {
   };
 
   const playTTS = async (text: string, messageId: string) => {
-    if (activeSourceNodeRef.current) {
+    // Stop current playback if same message
+    if (activeSourceNodeRef.current && isPlayingId === messageId) {
       activeSourceNodeRef.current.stop();
       activeSourceNodeRef.current = null;
       setIsPlayingId(null);
-      if (messageId === isPlayingId) return;
+      return;
+    }
+
+    // Stop request if playing another message
+    if (activeSourceNodeRef.current) {
+      activeSourceNodeRef.current.stop();
+      activeSourceNodeRef.current = null;
     }
 
     setIsPlayingId(messageId);
 
     try {
-      console.log("Text-to-speech requested for:", text);
-      alert("Text-to-speech feature is currently disabled.");
-      setIsPlayingId(null);
+      // Check if browser supports speech synthesis (fallback)
+      if ('speechSynthesis' in window) {
+        // We can keep this formatted but let's try API first? 
+        // Actually let's just use browser API for now as it is faster and cheaper
+        // But the requirement is to use the API... let's do API then fallback
+      }
+
+      const response = await apiClient.synthesizeSpeech(text);
+      if (response.success && response.audio) {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = audioContext;
+        const audioData = base64ToUint8Array(response.audio);
+        const audioBuffer = await audioContext.decodeAudioData(audioData.buffer);
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+
+        source.onended = () => {
+          setIsPlayingId(null);
+          activeSourceNodeRef.current = null;
+        };
+
+        source.start(0);
+        activeSourceNodeRef.current = source;
+      } else {
+        // Fallback to browser TTS
+        console.warn("TTS API failed, falling back to browser TTS", response.error);
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.onend = () => setIsPlayingId(null);
+        window.speechSynthesis.speak(utterance);
+      }
+
     } catch (error) {
       console.error("TTS Error:", error);
       setIsPlayingId(null);
+      // Fallback
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.onend = () => setIsPlayingId(null);
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
@@ -405,7 +453,7 @@ const ChatScreen: React.FC = () => {
   const ProviderQuickSelect = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentProvider, setCurrentProvider] = useState<'ollama' | 'openrouter'>('ollama');
-    
+
     // Safe provider context usage with fallback
     try {
       const providerContext = useProvider();
@@ -467,11 +515,10 @@ const ChatScreen: React.FC = () => {
                 key={provider.name}
                 onClick={() => handleProviderChange(provider.name)}
                 disabled={!provider.available}
-                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${
-                  currentProvider === provider.name
+                className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${currentProvider === provider.name
                     ? 'bg-slate-700 text-white font-medium'
                     : 'text-slate-300 hover:bg-slate-800'
-                } ${!provider.available ? 'opacity-50 cursor-not-allowed' : ''} border-b border-slate-800 last:border-0`}
+                  } ${!provider.available ? 'opacity-50 cursor-not-allowed' : ''} border-b border-slate-800 last:border-0`}
               >
                 <span className="material-symbols-outlined text-xs flex-shrink-0">
                   {provider.name === 'ollama' ? 'memory' : 'cloud'}
@@ -503,126 +550,126 @@ const ChatScreen: React.FC = () => {
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
               {/* New Chat Button */}
               <div className="px-4 sm:px-6 pt-4 sm:pt-6 flex-shrink-0">
-              <button
-                onClick={() => {
-                  createSession();
-                  setMessages([{
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    content: 'I am ready to help. You can ask me to log your vitals, add medications, book appointments, or analyze your trends.',
-                    timestamp: new Date().toISOString(),
-                    type: 'text'
-                  }]);
-                  setIsMenuOpen(false);
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2 sm:p-3 mb-3 sm:mb-4 bg-[#D32F2F] hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm sm:text-base"
-              >
-                <span className="material-symbols-outlined text-lg sm:text-xl">add</span>
-                <span>New Chat</span>
-              </button>
+                <button
+                  onClick={() => {
+                    createSession();
+                    setMessages([{
+                      id: Date.now().toString(),
+                      role: 'assistant',
+                      content: 'I am ready to help. You can ask me to log your vitals, add medications, book appointments, or analyze your trends.',
+                      timestamp: new Date().toISOString(),
+                      type: 'text'
+                    }]);
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-2 sm:p-3 mb-3 sm:mb-4 bg-[#D32F2F] hover:bg-red-700 text-white rounded-lg transition-colors font-medium text-sm sm:text-base"
+                >
+                  <span className="material-symbols-outlined text-lg sm:text-xl">add</span>
+                  <span>New Chat</span>
+                </button>
               </div>
 
               <div className="px-4 sm:px-6 flex flex-col min-h-0 flex-1 overflow-hidden">
-              <div className="relative mb-3 sm:mb-4">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base">search</span>
-                <input
-                  type="text"
-                  placeholder="Search"
-                  className="w-full bg-[#101922] border border-slate-700 rounded-lg py-2 pl-9 sm:pl-10 pr-4 text-slate-200 text-xs sm:text-sm focus:outline-none focus:border-red-500"
-                  aria-label="Search conversations"
-                />
-              </div>
+                <div className="relative mb-3 sm:mb-4">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base">search</span>
+                  <input
+                    type="text"
+                    placeholder="Search"
+                    className="w-full bg-[#101922] border border-slate-700 rounded-lg py-2 pl-9 sm:pl-10 pr-4 text-slate-200 text-xs sm:text-sm focus:outline-none focus:border-red-500"
+                    aria-label="Search conversations"
+                  />
+                </div>
 
-              {/* Provider Selector */}
-              <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-slate-700">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">AI Provider</h3>
-                <ProviderQuickSelect />
-              </div>
+                {/* Provider Selector */}
+                <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-slate-700">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1">AI Provider</h3>
+                  <ProviderQuickSelect />
+                </div>
 
-              {/* Conversation History */}
-              {sessions.length > 0 && (
-                <div className="mb-3 sm:mb-4 min-h-0 max-h-40 flex flex-col">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Recent Chats</h3>
-                  <div className="space-y-1 overflow-y-auto min-h-0">
-                    {sessions.slice(0, 5).map((session: ChatSession) => (
-                      <div
-                        key={session.id}
-                        className="group flex items-center gap-2 p-2 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors cursor-pointer text-sm"
-                        onClick={() => {
-                          if (editingSessionId === session.id) return;
-                          loadSession(session.id);
-                          setIsMenuOpen(false);
-                        }}
-                      >
-                        <span className="material-symbols-outlined text-xs sm:text-sm text-slate-500 flex-shrink-0">chat_bubble</span>
+                {/* Conversation History */}
+                {sessions.length > 0 && (
+                  <div className="mb-3 sm:mb-4 min-h-0 max-h-40 flex flex-col">
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 flex-shrink-0">Recent Chats</h3>
+                    <div className="space-y-1 overflow-y-auto min-h-0">
+                      {sessions.slice(0, 5).map((session: ChatSession) => (
+                        <div
+                          key={session.id}
+                          className="group flex items-center gap-2 p-2 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors cursor-pointer text-sm"
+                          onClick={() => {
+                            if (editingSessionId === session.id) return;
+                            loadSession(session.id);
+                            setIsMenuOpen(false);
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-xs sm:text-sm text-slate-500 flex-shrink-0">chat_bubble</span>
 
-                        {editingSessionId === session.id ? (
-                          <input
-                            type="text"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onBlur={() => handleRenameSession(session.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleRenameSession(session.id);
-                            }}
-                            autoFocus
-                            className="flex-1 bg-transparent border-b border-blue-500 text-xs sm:text-sm focus:outline-none text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs sm:text-sm truncate">{session.title}</p>
-                            <p className="text-xs text-slate-500 truncate">
-                              {session.lastMessage || `${session.messageCount} messages`}
-                            </p>
+                          {editingSessionId === session.id ? (
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onBlur={() => handleRenameSession(session.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRenameSession(session.id);
+                              }}
+                              autoFocus
+                              className="flex-1 bg-transparent border-b border-blue-500 text-xs sm:text-sm focus:outline-none text-white"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm truncate">{session.title}</p>
+                              <p className="text-xs text-slate-500 truncate">
+                                {session.lastMessage || `${session.messageCount} messages`}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingSessionId(session.id);
+                                setEditTitle(session.title);
+                              }}
+                              className="p-1 text-slate-500 hover:text-blue-400 transition-all"
+                              aria-label="Rename conversation"
+                            >
+                              <span className="material-symbols-outlined text-xs sm:text-sm">edit</span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSession(session.id);
+                              }}
+                              className="p-1 text-slate-500 hover:text-red-400 transition-all"
+                              aria-label="Delete conversation"
+                            >
+                              <span className="material-symbols-outlined text-xs sm:text-sm">delete</span>
+                            </button>
                           </div>
-                        )}
-
-                        <div className="flex opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSessionId(session.id);
-                              setEditTitle(session.title);
-                            }}
-                            className="p-1 text-slate-500 hover:text-blue-400 transition-all"
-                            aria-label="Rename conversation"
-                          >
-                            <span className="material-symbols-outlined text-xs sm:text-sm">edit</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteSession(session.id);
-                            }}
-                            className="p-1 text-slate-500 hover:text-red-400 transition-all"
-                            aria-label="Delete conversation"
-                          >
-                            <span className="material-symbols-outlined text-xs sm:text-sm">delete</span>
-                          </button>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Actions */}
+                <div className="flex-1 min-h-0 mb-3 sm:mb-4 overflow-y-auto">
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 sticky top-0 bg-[#192633]">Quick Actions</h3>
+                  <div className="space-y-1">
+                    {menuItems.slice(1).map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => { setIsMenuOpen(false); handleSend(item.label); }}
+                        className="w-full flex items-center gap-3 sm:gap-4 p-2 sm:p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left text-xs sm:text-sm"
+                      >
+                        <span className="material-symbols-outlined text-base sm:text-xl flex-shrink-0">{item.icon}</span>
+                        <span className="font-medium truncate">{item.label}</span>
+                      </button>
                     ))}
                   </div>
                 </div>
-              )}
-
-              {/* Quick Actions */}
-              <div className="flex-1 min-h-0 mb-3 sm:mb-4 overflow-y-auto">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-1 sticky top-0 bg-[#192633]">Quick Actions</h3>
-                <div className="space-y-1">
-                  {menuItems.slice(1).map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={() => { setIsMenuOpen(false); handleSend(item.label); }}
-                      className="w-full flex items-center gap-3 sm:gap-4 p-2 sm:p-3 text-slate-300 hover:bg-[#101922] hover:text-white rounded-lg transition-colors text-left text-xs sm:text-sm"
-                    >
-                      <span className="material-symbols-outlined text-base sm:text-xl flex-shrink-0">{item.icon}</span>
-                      <span className="font-medium truncate">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
               </div>
 
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-800 flex-shrink-0">
@@ -1011,17 +1058,17 @@ const ChatScreen: React.FC = () => {
             </button>
           </div>
 
-          {/* Mic Button */}
+          {/* Mic Button - Toggle Behavior */}
           <button
-            onMouseDown={startRecording}
-            onMouseUp={stopRecording}
-            onTouchStart={startRecording}
-            onTouchEnd={stopRecording}
-            className={`flex items-center justify-center w-12 h-12 rounded-full bg-[#D32F2F] text-white shadow-lg hover:bg-red-700 transition-all shrink-0 ${isRecording ? 'animate-pulse scale-110' : ''}`}
-            aria-label={isRecording ? 'Recording... Release to stop' : 'Hold to record voice message'}
-            title={isRecording ? 'Release to send' : 'Voice input'}
+            onClick={() => isRecording ? stopRecording() : startRecording()}
+            className={`flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-all shrink-0 ${isRecording
+                ? 'bg-red-600 text-white animate-pulse scale-110 shadow-red-900/50'
+                : 'bg-[#D32F2F] text-white hover:bg-red-700'
+              }`}
+            aria-label={isRecording ? 'Stop recording' : 'Start voice recording'}
+            title={isRecording ? 'Stop recording' : 'Start voice recording'}
           >
-            <span className="material-symbols-outlined">{isRecording ? 'mic_off' : 'mic'}</span>
+            <span className="material-symbols-outlined">{isRecording ? 'stop' : 'mic'}</span>
           </button>
         </div>
 

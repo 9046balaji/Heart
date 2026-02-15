@@ -235,7 +235,7 @@ const MedicationScreen: React.FC = () => {
                     {!isLoading && medications.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {medications.sort((a, b) => a.times[0].localeCompare(b.times[0])).map((med) => (
-                                <div key={med.id} className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow relative group">
+                                <div key={med.id} className="bg-white dark:bg-card-dark p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-lg hover:scale-[1.01] transition-all duration-300 relative group">
                                     <button
                                         onClick={() => deleteMed(med.id)}
                                         className="absolute top-4 right-4 text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-slate-800 rounded-full shadow-sm"
@@ -245,8 +245,8 @@ const MedicationScreen: React.FC = () => {
 
                                     <div className="flex items-start gap-4 mb-4">
                                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${parseInt(med.times[0]) < 12 ? 'bg-orange-50 text-orange-500 dark:bg-orange-900/10 dark:text-orange-400' :
-                                                parseInt(med.times[0]) < 18 ? 'bg-blue-50 text-blue-500 dark:bg-blue-900/10 dark:text-blue-400' :
-                                                    'bg-indigo-50 text-indigo-500 dark:bg-indigo-900/10 dark:text-indigo-400'
+                                            parseInt(med.times[0]) < 18 ? 'bg-blue-50 text-blue-500 dark:bg-blue-900/10 dark:text-blue-400' :
+                                                'bg-indigo-50 text-indigo-500 dark:bg-indigo-900/10 dark:text-indigo-400'
                                             }`}>
                                             <span className="material-symbols-outlined text-3xl">medication_liquid</span>
                                         </div>
@@ -264,8 +264,8 @@ const MedicationScreen: React.FC = () => {
                                                     key={idx}
                                                     onClick={() => toggleTaken(med.id, idx)}
                                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${med.takenToday[idx]
-                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ring-1 ring-green-600/20'
-                                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ring-1 ring-green-600/20'
+                                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                                                         }`}
                                                 >
                                                     <span className={`w-2 h-2 rounded-full ${med.takenToday[idx] ? 'bg-green-500' : 'bg-slate-400'}`}></span>
@@ -275,8 +275,8 @@ const MedicationScreen: React.FC = () => {
                                         </div>
 
                                         <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${(med.quantity || 0) < 5
-                                                ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
-                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                            ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                                             }`}>
                                             {(med.quantity || 0) < 5 ? 'Low Stock' : `${med.quantity} left`}
                                         </div>
@@ -328,7 +328,7 @@ const MedicationScreen: React.FC = () => {
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={isScanning}
-                                    className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 border-dashed flex flex-col items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-all group"
+                                    className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 border-dashed flex flex-col items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 hover:border-indigo-300 transition-all group relative overflow-hidden"
                                 >
                                     {isScanning ? (
                                         <>
@@ -375,7 +375,7 @@ const MedicationScreen: React.FC = () => {
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Medication Name</label>
                                     <input
                                         type="text"
-                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold placeholder:font-normal transition-all"
+                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-4 focus:ring-indigo-500/10 dark:text-white font-semibold placeholder:font-normal transition-all"
                                         placeholder="e.g. Metoprolol"
                                         value={newMed.name}
                                         onChange={e => setNewMed({ ...newMed, name: e.target.value })}

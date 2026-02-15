@@ -14,7 +14,7 @@ const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.me
 
 import { handleError, retryWithBackoff, ErrorType } from '../utils/errorHandling';
 import { authService } from './authService';
-import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, DocumentDetails } from './api.types';
+import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, DocumentDetails, AudioTranscriptionResponse, TextToSpeechResponse } from './api.types';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -589,6 +589,26 @@ export const apiClient = {
     }>('/api/nlp/process', {
       method: 'POST',
       body: params,
+    });
+  },
+
+  /**
+   * Transcribe audio using the backend
+   */
+  transcribeAudio: async (base64Audio: string) => {
+    return apiCall<AudioTranscriptionResponse>('/api/speech/transcribe', {
+      method: 'POST',
+      body: { audio: base64Audio },
+    });
+  },
+
+  /**
+   * Synthesize speech using the backend
+   */
+  synthesizeSpeech: async (text: string) => {
+    return apiCall<TextToSpeechResponse>('/api/speech/synthesize', {
+      method: 'POST',
+      body: { text },
     });
   },
 
