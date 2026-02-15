@@ -24,6 +24,7 @@ const BottomNav: React.FC = () => {
             <Link
               key={item.label}
               to={item.path}
+              data-discover="true"
               className={`flex flex-col items-center gap-0.5 min-w-[50px] p-1 rounded-xl transition-all duration-300 ${isActive
                   ? 'text-primary'
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'

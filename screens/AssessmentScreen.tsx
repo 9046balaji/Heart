@@ -10,7 +10,22 @@ const AssessmentScreen: React.FC = () => {
     const [result, setResult] = useState<HeartDiseasePredictionResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const [formData, setFormData] = useState<HeartDiseasePredictionRequest>({
+    // Local state type to allow empty strings during input
+    interface AssessmentFormState {
+        age: number | string;
+        sex: number;
+        chest_pain_type: number;
+        resting_bp_s: number | string;
+        cholesterol: number | string;
+        fasting_blood_sugar: number | string;
+        resting_ecg: number | string;
+        max_heart_rate: number | string;
+        exercise_angina: number;
+        oldpeak: number | string;
+        st_slope: number | string;
+    }
+
+    const [formData, setFormData] = useState<AssessmentFormState>({
         age: 50,
         sex: 1, // Male
         chest_pain_type: 1, // Typical Angina
@@ -24,10 +39,21 @@ const AssessmentScreen: React.FC = () => {
         st_slope: 1 // Up
     });
 
-    const handleChange = (field: keyof HeartDiseasePredictionRequest, value: string | number) => {
+    const handleChange = (field: keyof AssessmentFormState, value: string | number) => {
+        // Allow empty string to clear the input
+        if (value === '') {
+            setFormData(prev => ({
+                ...prev,
+                [field]: ''
+            }));
+            return;
+        }
+
+        // For other values, keep as string if it ends with decimal point (for oldpeak)
+        // or just set it. We'll parse on submit.
         setFormData(prev => ({
             ...prev,
-            [field]: Number(value)
+            [field]: value
         }));
     };
 
@@ -37,13 +63,38 @@ const AssessmentScreen: React.FC = () => {
         setError(null);
         setResult(null);
 
+        // Convert form state to API request format
+        const requestData: HeartDiseasePredictionRequest = {
+            age: Number(formData.age),
+            sex: Number(formData.sex),
+            chest_pain_type: Number(formData.chest_pain_type),
+            resting_bp_s: Number(formData.resting_bp_s),
+            cholesterol: Number(formData.cholesterol),
+            fasting_blood_sugar: Number(formData.fasting_blood_sugar),
+            resting_ecg: Number(formData.resting_ecg),
+            max_heart_rate: Number(formData.max_heart_rate),
+            exercise_angina: Number(formData.exercise_angina),
+            oldpeak: Number(formData.oldpeak),
+            st_slope: Number(formData.st_slope)
+        };
+
+        // Validate that no fields are NaN (empty strings converted to 0 is default Number behavior, but check for safety)
+        // If Number('') === 0, that might be okay, or we might want to warn.
+        // For now, standard behavior is fine, but let's ensure we don't send NaN.
+        const hasInvalid = Object.values(requestData).some(val => isNaN(val));
+        if (hasInvalid) {
+            setError('Please fill in all fields with valid numbers.');
+            setLoading(false);
+            return;
+        }
+
         // Smooth scroll to results
         setTimeout(() => {
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }, 100);
 
         try {
-            const data = await apiClient.predictHeartDisease(formData);
+            const data = await apiClient.predictHeartDisease(requestData);
             setResult(data);
         } catch (err: any) {
             setError(err.message || 'Failed to get prediction. Ensure the backend is running.');
@@ -97,7 +148,7 @@ const AssessmentScreen: React.FC = () => {
                                     type="number"
                                     value={formData.age}
                                     onChange={(e) => handleChange('age', e.target.value)}
-                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium transition-all"
+                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
                                     required
                                 />
                             </div>
@@ -133,7 +184,7 @@ const AssessmentScreen: React.FC = () => {
                                         type="number"
                                         value={formData.resting_bp_s}
                                         onChange={(e) => handleChange('resting_bp_s', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium transition-all"
+                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">blood_pressure</span>
@@ -147,7 +198,7 @@ const AssessmentScreen: React.FC = () => {
                                         type="number"
                                         value={formData.cholesterol}
                                         onChange={(e) => handleChange('cholesterol', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium transition-all"
+                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">water_drop</span>
@@ -157,14 +208,13 @@ const AssessmentScreen: React.FC = () => {
                             {/* Fasting BS & Max HR */}
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Fasting Blood Sugar</label>
-                                <select
+                                <input
+                                    type="number"
+                                    placeholder="1 if > 120 mg/dl, else 0"
                                     value={formData.fasting_blood_sugar}
                                     onChange={(e) => handleChange('fasting_blood_sugar', e.target.value)}
-                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium appearance-none"
-                                >
-                                    <option value={0}>Normal (&lt; 120 mg/dl)</option>
-                                    <option value={1}>High (&gt; 120 mg/dl)</option>
-                                </select>
+                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                />
                             </div>
 
                             <div className="space-y-2">
@@ -174,7 +224,7 @@ const AssessmentScreen: React.FC = () => {
                                         type="number"
                                         value={formData.max_heart_rate}
                                         onChange={(e) => handleChange('max_heart_rate', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium transition-all"
+                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">favorite</span>
@@ -212,7 +262,7 @@ const AssessmentScreen: React.FC = () => {
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className={`font-bold ${formData.chest_pain_type === opt.val ? 'text-primary' : 'text-slate-700 dark:text-white'}`}>
+                                                <span className={`font-bold ${formData.chest_pain_type === opt.val ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>
                                                     {opt.label}
                                                 </span>
                                                 {formData.chest_pain_type === opt.val && (
@@ -227,16 +277,14 @@ const AssessmentScreen: React.FC = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting ECG</label>
-                                    <select
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting ECG (0-2)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="0=Normal, 1=ST, 2=LVH"
                                         value={formData.resting_ecg}
                                         onChange={(e) => handleChange('resting_ecg', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium"
-                                    >
-                                        <option value={0}>Normal</option>
-                                        <option value={1}>ST-T Wave Abnormality</option>
-                                        <option value={2}>Left Ventricular Hypertrophy</option>
-                                    </select>
+                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
@@ -268,22 +316,20 @@ const AssessmentScreen: React.FC = () => {
                                         step="0.1"
                                         value={formData.oldpeak}
                                         onChange={(e) => handleChange('oldpeak', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium transition-all"
+                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
                                         required
                                     />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ST Slope</label>
-                                    <select
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ST Slope (1-3)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="1=Up, 2=Flat, 3=Down"
                                         value={formData.st_slope}
                                         onChange={(e) => handleChange('st_slope', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 dark:text-white font-medium"
-                                    >
-                                        <option value={1}>Upsloping</option>
-                                        <option value={2}>Flat</option>
-                                        <option value={3}>Downsloping</option>
-                                    </select>
+                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -317,51 +363,76 @@ const AssessmentScreen: React.FC = () => {
                     </div>
                 )}
 
+                {/* Result Modal */}
                 {result && (
-                    <div className="animate-in slide-in-from-bottom-10 fade-in duration-500 pb-10">
-                        <div className={`rounded-3xl border-2 overflow-hidden shadow-2xl ${result.prediction === 1
-                            ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50'
-                            : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/50'
-                            }`}>
-                            <div className="p-8 text-center relative">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-200 dark:border-slate-800">
+
+                            {/* Close Button */}
+                            <button
+                                onClick={() => setResult(null)}
+                                className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors z-10"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+
+                            <div className={`p-8 text-center relative overflow-hidden ${result.prediction === 1
+                                ? 'bg-red-50/50 dark:bg-red-950/10'
+                                : 'bg-green-50/50 dark:bg-green-950/10'
+                                }`}>
+
                                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">
                                     <span className="material-symbols-outlined absolute top-4 left-4 text-6xl">ecg_heart</span>
                                     <span className="material-symbols-outlined absolute bottom-4 right-4 text-6xl">monitor_heart</span>
                                 </div>
 
-                                <div className={`inline-flex p-4 rounded-full mb-4 shadow-lg ${result.prediction === 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                <div className={`inline-flex p-4 rounded-full mb-6 shadow-lg relative z-10 ${result.prediction === 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
                                     }`}>
                                     <span className="material-symbols-outlined text-4xl">
                                         {result.prediction === 1 ? 'warning' : 'verified'}
                                     </span>
                                 </div>
 
-                                <h2 className={`text-3xl font-black mb-2 ${result.prediction === 1 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                                <h2 className={`text-3xl font-black mb-2 relative z-10 ${result.prediction === 1 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
                                     }`}>
                                     {result.prediction === 1 ? 'High Probability' : 'Low Probability'}
                                 </h2>
 
-                                <p className="text-slate-600 dark:text-slate-300 text-lg mb-8 max-w-lg mx-auto leading-relaxed">
+                                <p className="text-slate-600 dark:text-slate-300 text-lg mb-8 max-w-lg mx-auto leading-relaxed relative z-10">
                                     {result.message}
                                 </p>
 
-                                <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto mb-6">
-                                    <div className="bg-white/60 dark:bg-black/20 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10">
-                                        <p className="text-xs uppercase tracking-wide font-bold text-slate-500 mb-1">Probability</p>
-                                        <p className={`text-2xl font-black ${result.prediction === 1 ? 'text-red-600' : 'text-green-600'}`}>
-                                            {(result.probability * 100).toFixed(1)}%
-                                        </p>
+                                <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto mb-6 relative z-10">
+                                    {/* Probability Bar */}
+                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-5 rounded-2xl border border-white/50 dark:border-white/10 shadow-sm">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <p className="text-xs uppercase tracking-wide font-bold text-slate-500">Probability</p>
+                                            <p className={`text-lg font-black ${result.prediction === 1 ? 'text-red-600' : 'text-green-600'}`}>
+                                                {(result.probability * 100).toFixed(1)}%
+                                            </p>
+                                        </div>
+                                        <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-1000 ease-out ${result.prediction === 1 ? 'bg-red-500' : 'bg-green-500'}`}
+                                                style={{ width: `${result.probability * 100}%` }}
+                                            ></div>
+                                        </div>
                                     </div>
-                                    <div className="bg-white/60 dark:bg-black/20 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10">
-                                        <p className="text-xs uppercase tracking-wide font-bold text-slate-500 mb-1">Risk Level</p>
-                                        <p className={`text-2xl font-black ${result.prediction === 1 ? 'text-red-600' : 'text-green-600'}`}>
+
+                                    {/* Risk Level */}
+                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10 flex items-center justify-between shadow-sm">
+                                        <p className="text-xs uppercase tracking-wide font-bold text-slate-500">Risk Level</p>
+                                        <span className={`px-4 py-1.5 rounded-full text-sm font-bold shadow-sm ${result.risk_level === 'High'
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200'
+                                            }`}>
                                             {result.risk_level}
-                                        </p>
+                                        </span>
                                     </div>
                                 </div>
 
                                 {result.prediction === 1 && (
-                                    <div className="bg-red-100/50 dark:bg-red-900/30 p-4 rounded-xl border border-red-200 dark:border-red-800 mx-auto max-w-lg text-left flex items-start gap-3">
+                                    <div className="bg-red-100/50 dark:bg-red-900/30 p-4 rounded-xl border border-red-200 dark:border-red-800 mx-auto max-w-lg text-left flex items-start gap-3 relative z-10">
                                         <span className="material-symbols-outlined text-red-600 mt-0.5">medical_services</span>
                                         <div>
                                             <p className="font-bold text-red-800 dark:text-red-300 text-sm">Action Required</p>
@@ -372,11 +443,19 @@ const AssessmentScreen: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                        </div>
 
-                        <p className="text-center text-xs text-slate-400 mt-6 mb-12 max-w-xl mx-auto">
-                            *This AI model has an accuracy of ~85% based on the Statlog Heart Data Set. It should not replace professional medical advice.
-                        </p>
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 text-center">
+                                <button
+                                    onClick={() => setResult(null)}
+                                    className="w-full py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+                                >
+                                    Done
+                                </button>
+                                <p className="text-[10px] text-slate-400 mt-3 px-4">
+                                    *This AI model has an accuracy of ~85% based on the Statlog Heart Data Set. It should not replace professional medical advice.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

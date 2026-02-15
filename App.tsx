@@ -53,7 +53,7 @@ const DetailFallback = () => <PageSkeleton type="detail" className="h-screen bg-
 const AppContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Swipe Back Logic
   const touchStartRef = useRef(0);
@@ -88,7 +88,7 @@ const AppContent: React.FC = () => {
     '/profile',
     '/settings',
     '/appointment'
-  ].includes(location.pathname);
+  ].includes(location.pathname) && !location.pathname.startsWith('/chat');
 
   // Update HTML class for dark mode
   useEffect(() => {
@@ -110,7 +110,7 @@ const AppContent: React.FC = () => {
       onTouchEnd={handleTouchEnd}
     >
       <ErrorBoundary>
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
+        <div className={`flex-1 ${location.pathname.startsWith('/chat') ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar pb-20'}`}>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginScreen />} />

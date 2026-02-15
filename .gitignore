@@ -15,6 +15,12 @@ UI_BUG_LOG.json
 backend/models
 backend/test
 backend/uploads
+backend/photos
+backend/verify_visuals.py
+backend/verify_predictions.py
+
+
+
 CHATBOT_ANALYSIS.md
 
 

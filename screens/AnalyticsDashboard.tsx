@@ -235,20 +235,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ classNam
     <div className={`p-4 space-y-6 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Analytics Dashboard</h1>
-          <p className="text-slate-500 dark:text-slate-400">Monitor your health assistant performance</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <span className="material-symbols-outlined text-slate-600 dark:text-slate-300">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Analytics Dashboard</h1>
+            <p className="text-slate-500 dark:text-slate-400">Monitor your health assistant performance</p>
+          </div>
         </div>
         <div className="flex gap-2">
           {(['7d', '30d', '90d'] as const).map((range) => (
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                timeRange === range
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${timeRange === range
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-              }`}
+                }`}
             >
               {range === '7d' ? 'Week' : range === '30d' ? 'Month' : 'Quarter'}
             </button>
