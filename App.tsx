@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
+import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import './styles/charts.css';
 
 // Eagerly loaded screens (critical path - login/signup)
@@ -52,7 +52,33 @@ const DetailFallback = () => <PageSkeleton type="detail" className="h-screen bg-
 
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Swipe Back Logic
+  const touchStartRef = useRef(0);
+  const touchEndRef = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = e.targetTouches[0].clientX;
+    touchEndRef.current = 0;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartRef.current || !touchEndRef.current) return;
+    const distance = touchEndRef.current - touchStartRef.current;
+    const isLeftEdge = touchStartRef.current < 50;
+
+    if (isLeftEdge && distance > 100) {
+      navigate(-1);
+    }
+    touchStartRef.current = 0;
+    touchEndRef.current = 0;
+  };
 
   // Routes where the bottom navigation should be visible
   const showBottomNav = [
@@ -77,7 +103,12 @@ const AppContent: React.FC = () => {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto relative bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden">
+    <div
+      className="flex flex-col min-h-screen max-w-md mx-auto relative bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <ErrorBoundary>
         <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
           <Routes>

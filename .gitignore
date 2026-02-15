@@ -12,6 +12,8 @@ check_ui_overflow_puppeteer.js
 playwright.config.js
 UI_BUG_LOG.json
 
+backend
+
 node_modules
 tests/
 test-results

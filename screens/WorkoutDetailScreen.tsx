@@ -259,7 +259,26 @@ const WorkoutDetailScreen: React.FC = () => {
         window.scrollTo(0, 0);
     }, [id]);
 
-    const workout = workoutData.find(w => w.id === id);
+    const rawWorkout = workoutData.find(w => w.id === id);
+
+    const workout = React.useMemo(() => {
+        if (!rawWorkout) return null;
+        const w = rawWorkout as any;
+        return {
+            ...w,
+            title: w.title || w.name || 'Untitled Workout',
+            category: w.category || w.area || 'General',
+            duration_min: w.duration_min || 15,
+            intensity: w.intensity || 'medium',
+            equipment: (w.equipment && w.equipment.length > 0) ? w.equipment : ['none'],
+            accessibility: w.accessibility || [],
+            goal: w.goal || ['General Fitness'],
+            image: w.image || w.image_url || '',
+            steps: w.steps || (w.process ? [w.process] : ['Follow the video instructions.']),
+            videoUrl: w.videoUrl || w.youtube || '',
+            estimated_calories_per_min: w.estimated_calories_per_min || 5
+        } as any; // Cast to any to avoid strict type checks on the component usage
+    }, [rawWorkout]);
 
     const getImageUrl = (url: string, seed: string) => {
         if (!url) return `https://picsum.photos/seed/${seed}/800/600`;
@@ -576,8 +595,18 @@ const WorkoutDetailScreen: React.FC = () => {
         'Recovery': 'text-green-500 bg-green-50 dark:bg-green-900/20',
     }[workout.category] || 'text-slate-500 bg-slate-50 dark:bg-slate-900/20';
 
-    const videoSrc = workout.videoUrl || "https://www.youtube.com/embed/ml6cT4AZdqI";
-    const isYouTube = videoSrc.includes('youtube.com') || videoSrc.includes('youtu.be');
+    let videoSrc = workout.videoUrl || "https://www.youtube.com/embed/ml6cT4AZdqI";
+
+    // Convert standard YouTube watch URLs to embed URLs
+    if (videoSrc.includes('youtube.com/watch?v=')) {
+        const videoId = videoSrc.split('v=')[1]?.split('&')[0];
+        if (videoId) videoSrc = `https://www.youtube.com/embed/${videoId}`;
+    } else if (videoSrc.includes('youtu.be/')) {
+        const videoId = videoSrc.split('youtu.be/')[1]?.split('?')[0];
+        if (videoId) videoSrc = `https://www.youtube.com/embed/${videoId}`;
+    }
+
+    const isYouTube = videoSrc.includes('youtube.com/embed') || videoSrc.includes('youtube.com') || videoSrc.includes('youtu.be');
 
     return (
         <div className="min-h-screen bg-white dark:bg-background-dark pb-24 relative">
@@ -661,8 +690,8 @@ const WorkoutDetailScreen: React.FC = () => {
 
                     <div
                         className={`transition-all duration-300 ease-in-out ${isVideoExpanded
-                                ? 'fixed inset-0 z-[100] bg-black flex items-center justify-center p-4'
-                                : 'rounded-2xl overflow-hidden bg-black aspect-video shadow-md relative group'
+                            ? 'fixed inset-0 z-[100] bg-black flex items-center justify-center p-4'
+                            : 'rounded-2xl overflow-hidden bg-black aspect-video shadow-md relative group'
                             }`}
                     >
                         {isYouTube ? (
@@ -733,8 +762,8 @@ const WorkoutDetailScreen: React.FC = () => {
                         <button
                             onClick={isLiveCoachActive ? stopLiveCoach : startLiveCoach}
                             className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all shadow-lg shrink-0 ${isLiveCoachActive
-                                    ? 'bg-red-500 text-white shadow-red-500/20'
-                                    : 'bg-slate-800 text-slate-400'
+                                ? 'bg-red-500 text-white shadow-red-500/20'
+                                : 'bg-slate-800 text-slate-400'
                                 }`}
                         >
                             {isCoachSpeaking && (

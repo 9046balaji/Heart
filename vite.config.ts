@@ -7,7 +7,7 @@ import reactNativeWeb from 'vite-plugin-react-native-web';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const isProd = mode === 'production';
-  
+
   return {
     // Use relative base path for Capacitor mobile compatibility
     base: './',
@@ -52,6 +52,7 @@ export default defineConfig(({ mode }) => {
         'invariant': path.resolve(__dirname, 'mocks/invariant.ts'),
         'fontfaceobserver': path.resolve(__dirname, 'mocks/fontfaceobserver.ts'),
         'expo-modules-core': path.resolve(__dirname, 'mocks/expo-modules-core.ts'),
+        'expo-font': path.resolve(__dirname, 'mocks/expo-font.ts'),
       },
       extensions: ['.web.js', '.web.jsx', '.web.ts', '.web.tsx', '.js', '.jsx', '.ts', '.tsx', '.json'],
     },
@@ -77,7 +78,6 @@ export default defineConfig(({ mode }) => {
         'expo',
         'expo-modules-core',
         'expo-linear-gradient',
-        'expo-font',
         'expo-image-manipulator',
       ],
     },

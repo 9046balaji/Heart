@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import recipeData from '../data/formattedRecipes';
+import { Recipe, FlexibleRecipe } from '../types/recipeTypes';
 import { apiClient, APIError } from '../services/apiClient';
 
 interface FoodLogItem {
@@ -79,10 +80,7 @@ const ShoppingListModal: React.FC<{
                     <button
                         onClick={() => {
                             const text = list.map(c => `${c.name}:
-${c.items.join('
-')}`).join('
-
-');
+${c.items.join('\n')}`).join('\n\n');
                             navigator.clipboard.writeText(text);
                             alert("Copied to clipboard!");
                         }}
@@ -187,6 +185,11 @@ const NutritionScreen: React.FC = () => {
     const [detectedIngredients, setDetectedIngredients] = useState<string[]>([]);
     const fridgeInputRef = useRef<HTMLInputElement>(null);
 
+    // Pagination & Sorting State
+    const [displayCount, setDisplayCount] = useState(12);
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [sortBy, setSortBy] = useState<'name' | 'calories' | 'time' | 'rating'>('name');
+
     useEffect(() => {
         // Load Saved Recipes
         const saved = JSON.parse(localStorage.getItem('saved_recipes') || '[]');
@@ -201,8 +204,38 @@ const NutritionScreen: React.FC = () => {
         setDailyLog(savedLog);
     }, [activeTab]);
 
-    // Combine static data with generated custom recipes
-    const allRecipes = [...customRecipes, ...recipeData.map(item => item.recipe)];
+    // Helper function to standardize recipe format
+    const standardizeRecipeFormat = (recipe: any): Recipe => {
+        return {
+            id: recipe.id || `fallback_${Date.now()}`,
+            title: recipe.title || recipe.name || 'Untitled Recipe',
+            description: recipe.description || 'No description available',
+            image: recipe.image || recipe.image_url || `https://picsum.photos/seed/${recipe.id || 'default'}/400/400`,
+            calories: recipe.calories || recipe.calorie_count || 0,
+            macros: {
+                protein_g: recipe.macros?.protein_g || recipe.protein || 0,
+                carbs_g: recipe.macros?.carbs_g || recipe.carbs || 0,
+                fat_g: recipe.macros?.fat_g || recipe.macros?.fats_g || recipe.fat || recipe.fats || 0
+            },
+            servings: recipe.servings || 1,
+            prep_time_min: recipe.prep_time_min || recipe.prepTime || 0,
+            cook_time_min: recipe.cook_time_min || recipe.cookTime || 0,
+            difficulty: recipe.difficulty || 'medium',
+            tags: recipe.tags || [],
+            ingredients: recipe.ingredients || [],
+            steps: recipe.steps || (recipe.process ? recipe.process.split(/\r?\n\s*\r?\n/) : []),
+            ratings: {
+                avg: recipe.ratings?.avg || recipe.rating || 0,
+                count: recipe.ratings?.count || 0
+            }
+        };
+    };
+
+    // Combine static data with generated custom recipes, ensuring consistent format
+    const allRecipes = [
+        ...customRecipes.map(standardizeRecipeFormat),
+        ...recipeData.map(standardizeRecipeFormat)
+    ];
 
     // Mock initial state for meal plan (ensure we use IDs that exist either in static or custom)
     const initialMealPlan = [
@@ -230,10 +263,38 @@ const NutritionScreen: React.FC = () => {
         { title: "Hydration for Heart Health", sub: "Why water is essential for your heart.", read: "4 min", img: "https://picsum.photos/id/325/100/100" }
     ];
 
-    const filteredRecipes = allRecipes.filter(r =>
-        r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    // Get unique categories from all recipes
+    const categories = ['All', ...Array.from(new Set(allRecipes.flatMap(r => r.tags?.slice(0, 2) || []).filter(Boolean)))];
+
+    // Filter recipes by search and category
+    const filteredRecipes = allRecipes
+        .filter(r => {
+            const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                r.tags?.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+            const matchesCategory = selectedCategory === 'All' || r.tags?.includes(selectedCategory);
+            return matchesSearch && matchesCategory;
+        })
+        .sort((a, b) => {
+            switch (sortBy) {
+                case 'calories': return a.calories - b.calories;
+                case 'time': return (a.prep_time_min + a.cook_time_min) - (b.prep_time_min + b.cook_time_min);
+                case 'rating': return (b.ratings?.avg || 0) - (a.ratings?.avg || 0);
+                default: return a.title.localeCompare(b.title);
+            }
+        });
+
+    // Paginated recipes for display
+    const displayedRecipes = filteredRecipes.slice(0, displayCount);
+    const hasMoreRecipes = displayCount < filteredRecipes.length;
+
+    const loadMoreRecipes = () => {
+        setDisplayCount(prev => prev + 12);
+    };
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setDisplayCount(12);
+    }, [searchQuery, selectedCategory, sortBy]);
 
     const savedRecipesList = allRecipes.filter(r => savedIds.includes(r.id));
 
@@ -263,7 +324,7 @@ const NutritionScreen: React.FC = () => {
 
             // For now, use default meal plan since AI generates text format
             // In production, parse the response and map to recipes
-            const combinedDB = [...recipeData.map(item => item.recipe), ...customRecipes];
+            const combinedDB = [...recipeData, ...customRecipes];
             setMealPlan(combinedDB.slice(0, 3));
 
         } catch (error) {
@@ -705,13 +766,52 @@ const NutritionScreen: React.FC = () => {
                         />
                     </div>
 
-                    {filteredRecipes.length > 0 ? (
+                    {/* Category Filter & Sort */}
+                    <div className="px-4 mb-4 flex gap-2 overflow-x-auto no-scrollbar">
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="flex-shrink-0 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                            {categories.slice(0, 15).map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="flex-shrink-0 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                            <option value="name">Sort: A-Z</option>
+                            <option value="calories">Sort: Calories</option>
+                            <option value="time">Sort: Quick First</option>
+                            <option value="rating">Sort: Top Rated</option>
+                        </select>
+                        <span className="flex-shrink-0 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {filteredRecipes.length} recipes
+                        </span>
+                    </div>
+
+                    {displayedRecipes.length > 0 ? (
                         <>
                             <div className="px-4 grid grid-cols-2 gap-4">
-                                {filteredRecipes.map(recipe => (
+                                {displayedRecipes.map(recipe => (
                                     <RecipeCard key={recipe.id} recipe={recipe} />
                                 ))}
                             </div>
+
+                            {/* Load More Button */}
+                            {hasMoreRecipes && (
+                                <div className="px-4 mt-6">
+                                    <button
+                                        onClick={loadMoreRecipes}
+                                        className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-sm">expand_more</span>
+                                        Load More ({filteredRecipes.length - displayCount} remaining)
+                                    </button>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <div className="px-4 py-8 text-center">
