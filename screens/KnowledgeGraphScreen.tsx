@@ -1,22 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    TextInput,
-    ScrollView,
-    ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
 import { useToast } from '../components/Toast';
+import ScreenHeader from '../components/ScreenHeader';
 
 export default function KnowledgeGraphScreen() {
-    const navigate = useNavigate();
     const { showToast } = useToast();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
@@ -26,7 +13,6 @@ export default function KnowledgeGraphScreen() {
 
     const handleSearch = async () => {
         if (!query.trim()) return;
-
         setLoading(true);
         try {
             if (mode === 'search') {
@@ -46,317 +32,159 @@ export default function KnowledgeGraphScreen() {
         }
     };
 
-    const renderNode = (node: any, index: number) => (
-        <View key={index} style={styles.nodeCard}>
-            <View style={[styles.nodeIcon, { backgroundColor: getNodeColor(node.label) }]}>
-                <Text style={styles.nodeIconText}>{node.label[0]}</Text>
-            </View>
-            <View style={styles.nodeInfo}>
-                <Text style={styles.nodeTitle}>{node.properties.name || node.id}</Text>
-                <Text style={styles.nodeType}>{node.label}</Text>
-                {Object.entries(node.properties).map(([key, value]: [string, any], i) => (
-                    key !== 'name' && (
-                        <Text key={i} style={styles.nodeProp}>
-                            {key}: {String(value)}
-                        </Text>
-                    )
-                ))}
-            </View>
-        </View>
-    );
-
     const getNodeColor = (label: string) => {
         switch (label.toLowerCase()) {
-            case 'condition': return '#e91e63';
-            case 'symptom': return '#ff9800';
-            case 'medication': return '#2196f3';
-            case 'treatment': return '#4caf50';
-            default: return '#9c27b0';
+            case 'condition': return { bg: 'bg-pink-500', iconBg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-600 dark:text-pink-400' };
+            case 'symptom': return { bg: 'bg-orange-500', iconBg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' };
+            case 'medication': return { bg: 'bg-blue-500', iconBg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' };
+            case 'treatment': return { bg: 'bg-emerald-500', iconBg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' };
+            default: return { bg: 'bg-purple-500', iconBg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' };
         }
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Knowledge Graph</Text>
-                <View style={{ width: 24 }} />
-            </LinearGradient>
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
+            <ScreenHeader title="Knowledge Graph" subtitle="Medical Knowledge Search" />
 
-            <View style={styles.searchSection}>
-                <View style={styles.searchBar}>
-                    <Ionicons name="search" size={20} color="#666" />
-                    <TextInput
-                        style={styles.input}
+            {/* Search Section */}
+            <div className="p-4 bg-white dark:bg-card-dark border-b border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl px-4 h-11">
+                    <span className="material-symbols-outlined text-lg text-slate-400">search</span>
+                    <input
+                        type="text"
                         placeholder="Search medical knowledge..."
                         value={query}
-                        onChangeText={setQuery}
-                        onSubmitEditing={handleSearch}
-                        returnKeyType="search"
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        className="flex-1 bg-transparent border-none outline-none text-sm text-slate-800 dark:text-white placeholder-slate-400"
                     />
                     {query.length > 0 && (
-                        <TouchableOpacity onPress={() => setQuery('')}>
-                            <Ionicons name="close-circle" size={20} color="#ccc" />
-                        </TouchableOpacity>
+                        <button onClick={() => setQuery('')} className="text-slate-300 hover:text-slate-500 transition-colors">
+                            <span className="material-symbols-outlined text-lg">cancel</span>
+                        </button>
                     )}
-                </View>
-                <View style={styles.modeToggle}>
-                    <TouchableOpacity
-                        style={[styles.modeButton, mode === 'search' && styles.modeButtonActive]}
-                        onPress={() => setMode('search')}
+                    <button
+                        onClick={handleSearch}
+                        disabled={!query.trim() || loading}
+                        className="w-9 h-9 bg-indigo-600 text-white rounded-lg flex items-center justify-center -mr-1 disabled:opacity-50 hover:bg-indigo-700 transition-colors"
                     >
-                        <Text style={[styles.modeText, mode === 'search' && styles.modeTextActive]}>Search</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.modeButton, mode === 'rag' && styles.modeButtonActive]}
-                        onPress={() => setMode('rag')}
-                    >
-                        <Text style={[styles.modeText, mode === 'rag' && styles.modeTextActive]}>RAG Query</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                    </button>
+                </div>
 
-            <ScrollView style={styles.content}>
+                {/* Mode Toggle */}
+                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                    <button
+                        onClick={() => setMode('search')}
+                        className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
+                            mode === 'search' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                    >
+                        Search
+                    </button>
+                    <button
+                        onClick={() => setMode('rag')}
+                        className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
+                            mode === 'rag' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                    >
+                        RAG Query
+                    </button>
+                </div>
+            </div>
+
+            <div className="p-4">
                 {loading ? (
-                    <ActivityIndicator size="large" color="#4e54c8" style={{ marginTop: 50 }} />
+                    <div className="flex justify-center py-16">
+                        <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                 ) : results ? (
-                    <View>
-                        <Text style={styles.resultCount}>
+                    <div className="space-y-4">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             Found {results.nodes.length} nodes and {results.relationships.length} relationships
-                        </Text>
+                        </p>
 
-                        <Text style={styles.sectionTitle}>Nodes</Text>
-                        {results.nodes.map((node: any, index: number) => renderNode(node, index))}
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Nodes</h2>
+                        <div className="space-y-2.5">
+                            {results.nodes.map((node: any, index: number) => {
+                                const colors = getNodeColor(node.label);
+                                return (
+                                    <div key={index} className="flex gap-3 bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${colors.bg}`}>
+                                            <span className="text-white text-lg font-bold">{node.label[0]}</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-sm font-semibold text-slate-800 dark:text-white">{node.properties.name || node.id}</h4>
+                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{node.label}</span>
+                                            {Object.entries(node.properties).map(([key, value]: [string, any], i) => (
+                                                key !== 'name' && (
+                                                    <p key={i} className="text-xs text-slate-400 dark:text-slate-500">
+                                                        {key}: {String(value)}
+                                                    </p>
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
 
                         {results.relationships.length > 0 && (
                             <>
-                                <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Relationships</Text>
-                                {results.relationships.map((rel: any, index: number) => (
-                                    <View key={index} style={styles.relCard}>
-                                        <Text style={styles.relText}>
-                                            {rel.from} <Ionicons name="arrow-forward" size={14} /> {rel.type} <Ionicons name="arrow-forward" size={14} /> {rel.to}
-                                        </Text>
-                                    </View>
-                                ))}
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Relationships</h2>
+                                <div className="space-y-2">
+                                    {results.relationships.map((rel: any, index: number) => (
+                                        <div key={index} className="bg-white dark:bg-card-dark rounded-xl p-3 border-l-4 border-indigo-500 shadow-sm">
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-1 flex-wrap">
+                                                <span className="font-medium">{rel.from}</span>
+                                                <span className="material-symbols-outlined text-xs text-slate-400">arrow_forward</span>
+                                                <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{rel.type}</span>
+                                                <span className="material-symbols-outlined text-xs text-slate-400">arrow_forward</span>
+                                                <span className="font-medium">{rel.to}</span>
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
                             </>
                         )}
-                    </View>
+                    </div>
                 ) : ragAnswer ? (
-                    <View>
-                        <View style={styles.answerCard}>
-                            <View style={styles.answerHeader}>
-                                <Ionicons name="bulb" size={20} color="#4e54c8" />
-                                <Text style={styles.answerTitle}>Answer</Text>
-                            </View>
-                            <Text style={styles.answerText}>{ragAnswer.answer}</Text>
-                        </View>
+                    <div className="space-y-4">
+                        {/* Answer Card */}
+                        <div className="bg-white dark:bg-card-dark rounded-xl p-5 border-l-4 border-indigo-500 shadow-sm">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined text-lg text-indigo-600 dark:text-indigo-400">auto_awesome</span>
+                                <h4 className="text-sm font-bold text-slate-800 dark:text-white">Answer</h4>
+                            </div>
+                            <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{ragAnswer.answer}</p>
+                        </div>
+
                         {ragAnswer.context && ragAnswer.context.length > 0 && (
                             <>
-                                <Text style={styles.sectionTitle}>Context Sources</Text>
-                                {ragAnswer.context.map((ctx: any, index: number) => (
-                                    <View key={index} style={styles.contextCard}>
-                                        <Text style={styles.contextText}>{ctx.text || ctx.content || JSON.stringify(ctx)}</Text>
-                                    </View>
-                                ))}
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Context Sources</h2>
+                                <div className="space-y-2">
+                                    {ragAnswer.context.map((ctx: any, index: number) => (
+                                        <div key={index} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border-l-2 border-slate-300 dark:border-slate-600">
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                {ctx.text || ctx.content || JSON.stringify(ctx)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
                             </>
                         )}
-                    </View>
+                    </div>
                 ) : (
-                    <View style={styles.emptyState}>
-                        <Ionicons name="share-social-outline" size={64} color="#ddd" />
-                        <Text style={styles.emptyText}>
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-300 dark:text-slate-600">
+                        <span className="material-symbols-outlined text-7xl mb-4">hub</span>
+                        <p className="text-center text-base text-slate-400 dark:text-slate-500 leading-relaxed max-w-xs">
                             {mode === 'search'
                                 ? 'Explore connections between symptoms, conditions, and treatments'
                                 : 'Ask questions and get contextual answers from the knowledge graph'}
-                        </Text>
-                    </View>
+                        </p>
+                    </div>
                 )}
-            </ScrollView>
-        </SafeAreaView>
+            </div>
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    searchSection: {
-        padding: 15,
-        backgroundColor: '#fff',
-        elevation: 2,
-    },
-    searchBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        height: 45,
-    },
-    input: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 16,
-        color: '#333',
-    },
-    content: {
-        flex: 1,
-        padding: 20,
-    },
-    resultCount: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 15,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 10,
-    },
-    nodeCard: {
-        flexDirection: 'row',
-        backgroundColor: '#fff',
-        padding: 15,
-        borderRadius: 12,
-        marginBottom: 10,
-        elevation: 1,
-    },
-    nodeIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 15,
-    },
-    nodeIconText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    nodeInfo: {
-        flex: 1,
-    },
-    nodeTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 2,
-    },
-    nodeType: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 5,
-        textTransform: 'uppercase',
-        fontWeight: '500',
-    },
-    nodeProp: {
-        fontSize: 12,
-        color: '#888',
-    },
-    relCard: {
-        backgroundColor: '#fff',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 8,
-        borderLeftWidth: 3,
-        borderLeftColor: '#4e54c8',
-    },
-    relText: {
-        fontSize: 14,
-        color: '#555',
-    },
-    emptyState: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 80,
-        padding: 40,
-    },
-    emptyText: {
-        marginTop: 20,
-        textAlign: 'center',
-        color: '#999',
-        fontSize: 16,
-        lineHeight: 24,
-    },
-    modeToggle: {
-        flexDirection: 'row',
-        marginTop: 10,
-        borderRadius: 8,
-        backgroundColor: '#f0f0f0',
-        padding: 3,
-    },
-    modeButton: {
-        flex: 1,
-        paddingVertical: 8,
-        alignItems: 'center',
-        borderRadius: 6,
-    },
-    modeButtonActive: {
-        backgroundColor: '#4e54c8',
-    },
-    modeText: {
-        fontSize: 14,
-        color: '#666',
-        fontWeight: '600',
-    },
-    modeTextActive: {
-        color: '#fff',
-    },
-    answerCard: {
-        backgroundColor: '#fff',
-        padding: 20,
-        borderRadius: 12,
-        marginBottom: 20,
-        elevation: 2,
-        borderLeftWidth: 4,
-        borderLeftColor: '#4e54c8',
-    },
-    answerHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    answerTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        marginLeft: 8,
-    },
-    answerText: {
-        fontSize: 15,
-        color: '#444',
-        lineHeight: 22,
-    },
-    contextCard: {
-        backgroundColor: '#f9f9f9',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 10,
-        borderLeftWidth: 2,
-        borderLeftColor: '#ddd',
-    },
-    contextText: {
-        fontSize: 13,
-        color: '#666',
-        lineHeight: 18,
-    },
-});

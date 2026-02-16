@@ -19,7 +19,7 @@ const BottomNav: React.FC = () => {
     <div className="bottom-nav-container absolute bottom-0 left-0 right-0 h-[65px] bg-white/90 dark:bg-card-dark/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50">
       <div className="flex justify-around items-center h-full px-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
           return (
             <Link
               key={item.label}

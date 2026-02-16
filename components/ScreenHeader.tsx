@@ -31,14 +31,14 @@ export default function ScreenHeader({
                     <span className="material-symbols-outlined">arrow_back</span>
                 </button>
 
-                <div className="flex-1 text-center mx-2">
-                    <h2 className="font-bold text-lg text-slate-900 dark:text-white leading-tight">{title}</h2>
+                <div className="flex-1 text-center mx-2 min-w-0">
+                    <h2 className="font-bold text-lg text-slate-900 dark:text-white leading-tight truncate">{title}</h2>
                     {subtitle && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{subtitle}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{subtitle}</p>
                     )}
                 </div>
 
-                <div className="w-10 flex justify-end">
+                <div className="w-10 flex justify-end shrink-0">
                     {(onRightAction || onRefresh) ? (
                         <button
                             onClick={onRightAction || onRefresh}
@@ -49,7 +49,7 @@ export default function ScreenHeader({
                             </span>
                         </button>
                     ) : (
-                        <div className="w-2" />
+                        <div className="w-10" />
                     )}
                 </div>
             </div>

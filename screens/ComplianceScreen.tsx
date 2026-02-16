@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient, AuditLogEntry } from '../services/apiClient';
+import ScreenHeader from '../components/ScreenHeader';
 
 export default function ComplianceScreen() {
-    const navigate = useNavigate();
     const [logs, setLogs] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -19,7 +14,6 @@ export default function ComplianceScreen() {
     const loadAuditLogs = async () => {
         try {
             setLoading(true);
-            // In a real app, we would get the current user ID from context
             const data = await apiClient.getAuditLog('current_user', 50);
             setLogs(data);
             setError(null);
@@ -33,11 +27,11 @@ export default function ComplianceScreen() {
 
     const getActionColor = (action: string) => {
         switch (action) {
-            case 'read': return '#4e54c8';
-            case 'write': return '#25D366';
-            case 'delete': return '#EA4335';
-            case 'export': return '#F9A825';
-            default: return '#888';
+            case 'read': return { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-600 dark:text-indigo-400' };
+            case 'write': return { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' };
+            case 'delete': return { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' };
+            case 'export': return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400' };
+            default: return { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400' };
         }
     };
 
@@ -46,183 +40,79 @@ export default function ComplianceScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Compliance Audit Log</Text>
-                <View style={{ width: 24 }} />
-            </LinearGradient>
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
+            <ScreenHeader
+                title="Compliance Audit Log"
+                subtitle="Data Access Records"
+                rightIcon="refresh"
+                onRightAction={loadAuditLogs}
+            />
 
-            <View style={styles.content}>
+            <div className="p-4">
                 {loading ? (
-                    <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color="#4e54c8" />
-                        <Text style={styles.loadingText}>Loading audit records...</Text>
-                    </View>
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading audit records...</p>
+                    </div>
                 ) : error ? (
-                    <View style={styles.centerContainer}>
-                        <Ionicons name="alert-circle" size={48} color="#EA4335" />
-                        <Text style={styles.errorText}>{error}</Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={loadAuditLogs}>
-                            <Text style={styles.retryText}>Retry</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <span className="material-symbols-outlined text-5xl text-red-500 mb-3">error</span>
+                        <p className="text-red-500 text-sm mb-4">{error}</p>
+                        <button
+                            onClick={loadAuditLogs}
+                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                ) : logs.length === 0 ? (
+                    <div className="flex flex-col items-center py-20 text-slate-400 dark:text-slate-500">
+                        <span className="material-symbols-outlined text-5xl mb-3">fact_check</span>
+                        <p className="text-base italic">No audit records found.</p>
+                    </div>
                 ) : (
-                    <ScrollView style={styles.logList}>
-                        <View style={styles.tableHeader}>
-                            <Text style={[styles.headerCell, { flex: 2 }]}>Timestamp</Text>
-                            <Text style={[styles.headerCell, { flex: 1 }]}>Action</Text>
-                            <Text style={[styles.headerCell, { flex: 2 }]}>Resource</Text>
-                        </View>
+                    <div className="space-y-3">
+                        {/* Table Header */}
+                        <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <span className="flex-[2]">Timestamp</span>
+                            <span className="flex-1">Action</span>
+                            <span className="flex-[2]">Resource</span>
+                        </div>
 
-                        {logs.length === 0 ? (
-                            <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>No audit records found.</Text>
-                            </View>
-                        ) : (
-                            logs.map((log) => (
-                                <View key={log.id} style={styles.logRow}>
-                                    <View style={styles.rowMain}>
-                                        <Text style={[styles.cellText, { flex: 2, fontSize: 12, color: '#666' }]}>
+                        {/* Log Rows */}
+                        {logs.map((log) => {
+                            const colors = getActionColor(log.action);
+                            return (
+                                <div
+                                    key={log.id}
+                                    className="bg-white dark:bg-card-dark rounded-xl p-3 shadow-sm border border-slate-100 dark:border-slate-800"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex-[2] text-xs text-slate-500 dark:text-slate-400">
                                             {formatDate(log.timestamp)}
-                                        </Text>
-                                        <View style={{ flex: 1 }}>
-                                            <View style={[styles.badge, { backgroundColor: getActionColor(log.action) + '20' }]}>
-                                                <Text style={[styles.badgeText, { color: getActionColor(log.action) }]}>
-                                                    {log.action.toUpperCase()}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                        <Text style={[styles.cellText, { flex: 2, fontWeight: '500' }]}>
+                                        </span>
+                                        <div className="flex-1">
+                                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${colors.bg} ${colors.text}`}>
+                                                {log.action}
+                                            </span>
+                                        </div>
+                                        <span className="flex-[2] text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
                                             {log.resource_type}
-                                        </Text>
-                                    </View>
+                                        </span>
+                                    </div>
                                     {log.details && (
-                                        <View style={styles.detailsContainer}>
-                                            <Text style={styles.detailsText}>
+                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                            <code className="text-[11px] text-slate-400 dark:text-slate-500 font-mono break-all">
                                                 {JSON.stringify(log.details)}
-                                            </Text>
-                                        </View>
+                                            </code>
+                                        </div>
                                     )}
-                                </View>
-                            ))
-                        )}
-                    </ScrollView>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
-            </View>
-        </SafeAreaView>
+            </div>
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    content: {
-        flex: 1,
-        padding: 15,
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 10,
-        color: '#666',
-    },
-    errorText: {
-        marginTop: 10,
-        color: '#EA4335',
-        marginBottom: 20,
-    },
-    retryButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        backgroundColor: '#4e54c8',
-        borderRadius: 8,
-    },
-    retryText: {
-        color: '#fff',
-        fontWeight: 'bold',
-    },
-    logList: {
-        flex: 1,
-    },
-    tableHeader: {
-        flexDirection: 'row',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-        marginBottom: 10,
-    },
-    headerCell: {
-        fontWeight: 'bold',
-        color: '#444',
-    },
-    logRow: {
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 10,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 1,
-    },
-    rowMain: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 5,
-    },
-    cellText: {
-        color: '#333',
-    },
-    badge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-        alignSelf: 'flex-start',
-    },
-    badgeText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-    },
-    detailsContainer: {
-        marginTop: 5,
-        paddingTop: 5,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-    },
-    detailsText: {
-        fontSize: 11,
-        color: '#888',
-        fontFamily: 'monospace',
-    },
-    emptyContainer: {
-        padding: 20,
-        alignItems: 'center',
-    },
-    emptyText: {
-        color: '#888',
-        fontStyle: 'italic',
-    },
-});

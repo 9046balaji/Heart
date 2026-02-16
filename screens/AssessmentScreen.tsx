@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
 import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse } from '../services/api.types';
@@ -9,61 +9,93 @@ const AssessmentScreen: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<HeartDiseasePredictionResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-    // Local state type to allow empty strings during input
     interface AssessmentFormState {
         age: number | string;
         sex: number;
         chest_pain_type: number;
         resting_bp_s: number | string;
         cholesterol: number | string;
-        fasting_blood_sugar: number | string;
-        resting_ecg: number | string;
+        fasting_blood_sugar: number;
+        resting_ecg: number;
         max_heart_rate: number | string;
         exercise_angina: number;
         oldpeak: number | string;
-        st_slope: number | string;
+        st_slope: number;
     }
 
     const [formData, setFormData] = useState<AssessmentFormState>({
         age: 50,
-        sex: 1, // Male
-        chest_pain_type: 1, // Typical Angina
+        sex: 1,
+        chest_pain_type: 1,
         resting_bp_s: 120,
         cholesterol: 200,
-        fasting_blood_sugar: 0, // < 120 mg/dl
-        resting_ecg: 0, // Normal
+        fasting_blood_sugar: 0,
+        resting_ecg: 0,
         max_heart_rate: 150,
-        exercise_angina: 0, // No
+        exercise_angina: 0,
         oldpeak: 0.0,
-        st_slope: 1 // Up
+        st_slope: 1,
     });
 
-    const handleChange = (field: keyof AssessmentFormState, value: string | number) => {
-        // Allow empty string to clear the input
+    const handleChange = useCallback((field: keyof AssessmentFormState, value: string | number) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
         if (value === '') {
-            setFormData(prev => ({
-                ...prev,
-                [field]: ''
-            }));
+            setFormData(prev => ({ ...prev, [field]: '' }));
             return;
         }
+        setFormData(prev => ({ ...prev, [field]: value }));
+    }, []);
 
-        // For other values, keep as string if it ends with decimal point (for oldpeak)
-        // or just set it. We'll parse on submit.
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
+    const markTouched = useCallback((field: string) => {
+        setTouched(prev => ({ ...prev, [field]: true }));
+    }, []);
+
+    /* ---- Inline validation helpers ---- */
+    const validate = useCallback(() => {
+        const errors: Record<string, string> = {};
+        const age = Number(formData.age);
+        if (formData.age === '' || isNaN(age)) errors.age = 'Required';
+        else if (age < 1 || age > 120) errors.age = 'Enter 1–120';
+
+        const bp = Number(formData.resting_bp_s);
+        if (formData.resting_bp_s === '' || isNaN(bp)) errors.resting_bp_s = 'Required';
+        else if (bp < 60 || bp > 250) errors.resting_bp_s = 'Enter 60–250';
+
+        const chol = Number(formData.cholesterol);
+        if (formData.cholesterol === '' || isNaN(chol)) errors.cholesterol = 'Required';
+        else if (chol < 50 || chol > 600) errors.cholesterol = 'Enter 50–600';
+
+        const hr = Number(formData.max_heart_rate);
+        if (formData.max_heart_rate === '' || isNaN(hr)) errors.max_heart_rate = 'Required';
+        else if (hr < 50 || hr > 250) errors.max_heart_rate = 'Enter 50–250';
+
+        const op = Number(formData.oldpeak);
+        if (formData.oldpeak === '' || isNaN(op)) errors.oldpeak = 'Required';
+        else if (op < -5 || op > 10) errors.oldpeak = 'Enter -5 to 10';
+
+        return errors;
+    }, [formData]);
+
+    const validationErrors = validate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Mark everything touched so errors show
+        const allFields = Object.keys(formData);
+        setTouched(Object.fromEntries(allFields.map(f => [f, true])));
+
+        if (Object.keys(validationErrors).length > 0) {
+            setError('Please fix the highlighted fields before submitting.');
+            return;
+        }
+
         setLoading(true);
         setError(null);
         setResult(null);
 
-        // Convert form state to API request format
         const requestData: HeartDiseasePredictionRequest = {
             age: Number(formData.age),
             sex: Number(formData.sex),
@@ -75,12 +107,9 @@ const AssessmentScreen: React.FC = () => {
             max_heart_rate: Number(formData.max_heart_rate),
             exercise_angina: Number(formData.exercise_angina),
             oldpeak: Number(formData.oldpeak),
-            st_slope: Number(formData.st_slope)
+            st_slope: Number(formData.st_slope),
         };
 
-        // Validate that no fields are NaN (empty strings converted to 0 is default Number behavior, but check for safety)
-        // If Number('') === 0, that might be okay, or we might want to warn.
-        // For now, standard behavior is fine, but let's ensure we don't send NaN.
         const hasInvalid = Object.values(requestData).some(val => isNaN(val));
         if (hasInvalid) {
             setError('Please fill in all fields with valid numbers.');
@@ -88,7 +117,6 @@ const AssessmentScreen: React.FC = () => {
             return;
         }
 
-        // Smooth scroll to results
         setTimeout(() => {
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }, 100);
@@ -102,6 +130,25 @@ const AssessmentScreen: React.FC = () => {
             setLoading(false);
         }
     };
+
+    /* ---- Small helper: inline error text ---- */
+    const FieldError: React.FC<{ field: string }> = ({ field }) => {
+        if (!touched[field] || !validationErrors[field]) return null;
+        return (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">error</span>
+                {validationErrors[field]}
+            </p>
+        );
+    };
+
+    /* ---- Shared input class builder ---- */
+    const inputCls = (field: string, extra = '') =>
+        `w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400 ${extra} ${
+            touched[field] && validationErrors[field]
+                ? 'border-red-400 dark:border-red-500 focus:border-red-400'
+                : 'border-transparent focus:border-primary/20'
+        }`;
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
@@ -131,7 +178,7 @@ const AssessmentScreen: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
 
-                    {/* Section 1: Vitals */}
+                    {/* ═══════ Section 1: Patient Vitals ═══════ */}
                     <section className="bg-white dark:bg-card-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow duration-300">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-50 dark:border-slate-800">
                             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -141,21 +188,26 @@ const AssessmentScreen: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Age & Sex Row */}
+                            {/* Age */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Age</label>
+                                <label htmlFor="field-age" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Age <span className="text-red-400">*</span></label>
                                 <input
+                                    id="field-age"
                                     type="number"
+                                    min={1} max={120}
                                     value={formData.age}
                                     onChange={(e) => handleChange('age', e.target.value)}
-                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                    onBlur={() => markTouched('age')}
+                                    className={inputCls('age')}
                                     required
                                 />
+                                <FieldError field="age" />
                             </div>
 
+                            {/* Sex — toggle */}
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Sex</label>
-                                <div className="flex bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl">
+                                <div className="flex bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl" role="radiogroup" aria-label="Sex">
                                     {[
                                         { label: 'Male', value: 1, icon: 'male' },
                                         { label: 'Female', value: 0, icon: 'female' }
@@ -163,6 +215,8 @@ const AssessmentScreen: React.FC = () => {
                                         <button
                                             key={opt.value}
                                             type="button"
+                                            role="radio"
+                                            aria-checked={formData.sex === opt.value}
                                             onClick={() => handleChange('sex', opt.value)}
                                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${formData.sex === opt.value
                                                 ? 'bg-white dark:bg-slate-700 shadow-sm text-primary dark:text-white'
@@ -176,64 +230,91 @@ const AssessmentScreen: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* BP & Cholesterol */}
+                            {/* Resting BP */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting BP (mm Hg)</label>
+                                <label htmlFor="field-bp" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting BP (mm Hg) <span className="text-red-400">*</span></label>
                                 <div className="relative">
                                     <input
+                                        id="field-bp"
                                         type="number"
+                                        min={60} max={250}
                                         value={formData.resting_bp_s}
                                         onChange={(e) => handleChange('resting_bp_s', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                        onBlur={() => markTouched('resting_bp_s')}
+                                        className={inputCls('resting_bp_s', 'pl-12')}
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">blood_pressure</span>
                                 </div>
+                                <FieldError field="resting_bp_s" />
                             </div>
 
+                            {/* Cholesterol */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cholesterol (mg/dl)</label>
+                                <label htmlFor="field-chol" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cholesterol (mg/dl) <span className="text-red-400">*</span></label>
                                 <div className="relative">
                                     <input
+                                        id="field-chol"
                                         type="number"
+                                        min={50} max={600}
                                         value={formData.cholesterol}
                                         onChange={(e) => handleChange('cholesterol', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                        onBlur={() => markTouched('cholesterol')}
+                                        className={inputCls('cholesterol', 'pl-12')}
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">water_drop</span>
                                 </div>
+                                <FieldError field="cholesterol" />
                             </div>
 
-                            {/* Fasting BS & Max HR */}
+                            {/* Fasting Blood Sugar — Yes/No toggle instead of raw number */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Fasting Blood Sugar</label>
-                                <input
-                                    type="number"
-                                    placeholder="1 if > 120 mg/dl, else 0"
-                                    value={formData.fasting_blood_sugar}
-                                    onChange={(e) => handleChange('fasting_blood_sugar', e.target.value)}
-                                    className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
-                                />
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Fasting Blood Sugar &gt; 120 mg/dl?</label>
+                                <div className="flex bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl" role="radiogroup" aria-label="Fasting Blood Sugar">
+                                    {[
+                                        { label: 'Yes', value: 1, color: 'text-amber-600 dark:text-amber-400' },
+                                        { label: 'No', value: 0, color: 'text-green-600 dark:text-green-400' }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={formData.fasting_blood_sugar === opt.value}
+                                            onClick={() => handleChange('fasting_blood_sugar', opt.value)}
+                                            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${formData.fasting_blood_sugar === opt.value
+                                                ? `bg-white dark:bg-slate-700 shadow-sm ${opt.color}`
+                                                : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
+                            {/* Max Heart Rate */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Max Heart Rate</label>
+                                <label htmlFor="field-hr" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Max Heart Rate <span className="text-red-400">*</span></label>
                                 <div className="relative">
                                     <input
+                                        id="field-hr"
                                         type="number"
+                                        min={50} max={250}
                                         value={formData.max_heart_rate}
                                         onChange={(e) => handleChange('max_heart_rate', e.target.value)}
-                                        className="w-full p-3.5 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                        onBlur={() => markTouched('max_heart_rate')}
+                                        className={inputCls('max_heart_rate', 'pl-12')}
                                         required
                                     />
                                     <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">favorite</span>
                                 </div>
+                                <FieldError field="max_heart_rate" />
                             </div>
                         </div>
                     </section>
 
-                    {/* Section 2: Clinical Factors */}
+                    {/* ═══════ Section 2: Clinical Factors ═══════ */}
                     <section className="bg-white dark:bg-card-dark rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow duration-300">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-50 dark:border-slate-800">
                             <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
@@ -243,18 +324,21 @@ const AssessmentScreen: React.FC = () => {
                         </div>
 
                         <div className="space-y-6">
+                            {/* Chest Pain Type — card selector (unchanged, already good) */}
                             <div className="space-y-3">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Chest Pain Type</label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Chest Pain Type">
                                     {[
-                                        { val: 1, label: 'Typical Angina', desc: 'Exertional chest pain' },
-                                        { val: 2, label: 'Atypical Angina', desc: 'Non-specific pain' },
-                                        { val: 3, label: 'Non-Anginal', desc: 'Not heart related' },
-                                        { val: 4, label: 'Asymptomatic', desc: 'No pain present' }
+                                        { val: 1, label: 'Typical Angina', desc: 'Exertional chest pain', icon: 'cardiology' },
+                                        { val: 2, label: 'Atypical Angina', desc: 'Non-specific pain', icon: 'help_clinic' },
+                                        { val: 3, label: 'Non-Anginal', desc: 'Not heart related', icon: 'sentiment_neutral' },
+                                        { val: 4, label: 'Asymptomatic', desc: 'No pain present', icon: 'check_circle' }
                                     ].map(opt => (
                                         <button
                                             key={opt.val}
                                             type="button"
+                                            role="radio"
+                                            aria-checked={formData.chest_pain_type === opt.val}
                                             onClick={() => handleChange('chest_pain_type', opt.val)}
                                             className={`p-4 rounded-xl border-2 text-left transition-all hover:shadow-md ${formData.chest_pain_type === opt.val
                                                 ? 'bg-primary/5 border-primary shadow-sm'
@@ -262,34 +346,56 @@ const AssessmentScreen: React.FC = () => {
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className={`font-bold ${formData.chest_pain_type === opt.val ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>
-                                                    {opt.label}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`material-symbols-outlined text-lg ${formData.chest_pain_type === opt.val ? 'text-primary' : 'text-slate-400'}`}>{opt.icon}</span>
+                                                    <span className={`font-bold ${formData.chest_pain_type === opt.val ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>
+                                                        {opt.label}
+                                                    </span>
+                                                </div>
                                                 {formData.chest_pain_type === opt.val && (
                                                     <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 ml-7">{opt.desc}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Resting ECG — 3-option card selector */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting ECG</label>
+                                <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Resting ECG">
+                                    {[
+                                        { val: 0, label: 'Normal', icon: 'check_circle', color: 'text-green-600 dark:text-green-400' },
+                                        { val: 1, label: 'ST Abnormality', icon: 'show_chart', color: 'text-amber-600 dark:text-amber-400' },
+                                        { val: 2, label: 'LVH', icon: 'ecg_heart', color: 'text-red-600 dark:text-red-400' }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.val}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={formData.resting_ecg === opt.val}
+                                            onClick={() => handleChange('resting_ecg', opt.val)}
+                                            className={`p-3 rounded-xl border-2 text-center transition-all hover:shadow-md ${formData.resting_ecg === opt.val
+                                                ? 'bg-primary/5 border-primary shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800 border-transparent hover:bg-white dark:hover:bg-slate-700'
+                                                }`}
+                                        >
+                                            <span className={`material-symbols-outlined text-2xl mb-1 block ${formData.resting_ecg === opt.val ? 'text-primary' : opt.color}`}>{opt.icon}</span>
+                                            <span className={`text-xs font-bold block ${formData.resting_ecg === opt.val ? 'text-primary' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                {opt.label}
+                                            </span>
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Resting ECG (0-2)</label>
-                                    <input
-                                        type="number"
-                                        placeholder="0=Normal, 1=ST, 2=LVH"
-                                        value={formData.resting_ecg}
-                                        onChange={(e) => handleChange('resting_ecg', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
-                                    />
-                                </div>
-
+                                {/* Exercise Angina */}
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Exercise Angina?</label>
-                                    <div className="flex bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl">
+                                    <div className="flex bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl" role="radiogroup" aria-label="Exercise Angina">
                                         {[
                                             { label: 'Yes', value: 1, color: 'text-red-500' },
                                             { label: 'No', value: 0, color: 'text-green-500' }
@@ -297,10 +403,12 @@ const AssessmentScreen: React.FC = () => {
                                             <button
                                                 key={opt.value}
                                                 type="button"
+                                                role="radio"
+                                                aria-checked={formData.exercise_angina === opt.value}
                                                 onClick={() => handleChange('exercise_angina', opt.value)}
                                                 className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${formData.exercise_angina === opt.value
                                                     ? `bg-white dark:bg-slate-700 shadow-sm ${opt.color}`
-                                                    : 'text-slate-500'
+                                                    : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-700/50'
                                                     }`}
                                             >
                                                 {opt.label}
@@ -309,33 +417,57 @@ const AssessmentScreen: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Oldpeak */}
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Oldpeak (ST Depression)</label>
+                                    <label htmlFor="field-oldpeak" className="text-xs font-bold text-slate-500 uppercase tracking-wide">Oldpeak (ST Depression) <span className="text-red-400">*</span></label>
                                     <input
+                                        id="field-oldpeak"
                                         type="number"
                                         step="0.1"
+                                        min={-5} max={10}
                                         value={formData.oldpeak}
                                         onChange={(e) => handleChange('oldpeak', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
+                                        onBlur={() => markTouched('oldpeak')}
+                                        className={inputCls('oldpeak')}
                                         required
                                     />
+                                    <FieldError field="oldpeak" />
                                 </div>
+                            </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ST Slope (1-3)</label>
-                                    <input
-                                        type="number"
-                                        placeholder="1=Up, 2=Flat, 3=Down"
-                                        value={formData.st_slope}
-                                        onChange={(e) => handleChange('st_slope', e.target.value)}
-                                        className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary/20 outline-none focus:ring-4 focus:ring-primary/10 text-slate-900 dark:text-white font-medium transition-all placeholder:text-slate-400"
-                                    />
+                            {/* ST Slope — 3-option card selector */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ST Slope</label>
+                                <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="ST Slope">
+                                    {[
+                                        { val: 1, label: 'Up', icon: 'trending_up', color: 'text-green-600 dark:text-green-400' },
+                                        { val: 2, label: 'Flat', icon: 'trending_flat', color: 'text-amber-600 dark:text-amber-400' },
+                                        { val: 3, label: 'Down', icon: 'trending_down', color: 'text-red-600 dark:text-red-400' }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.val}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={formData.st_slope === opt.val}
+                                            onClick={() => handleChange('st_slope', opt.val)}
+                                            className={`p-3 rounded-xl border-2 text-center transition-all hover:shadow-md ${formData.st_slope === opt.val
+                                                ? 'bg-primary/5 border-primary shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800 border-transparent hover:bg-white dark:hover:bg-slate-700'
+                                                }`}
+                                        >
+                                            <span className={`material-symbols-outlined text-2xl mb-1 block ${formData.st_slope === opt.val ? 'text-primary' : opt.color}`}>{opt.icon}</span>
+                                            <span className={`text-xs font-bold block ${formData.st_slope === opt.val ? 'text-primary' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                {opt.label}
+                                            </span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         </div>
                     </section>
 
-                    <div className="sticky bottom-6 pt-4">
+                    {/* Submit — standard flow (no sticky) */}
+                    <div className="pt-2 pb-4">
                         <button
                             type="submit"
                             disabled={loading}

@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import ScreenHeader from '../components/ScreenHeader';
 
 export default function PatientSummaryScreen() {
-    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [summary, setSummary] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -30,367 +25,166 @@ export default function PatientSummaryScreen() {
         }
     };
 
-    const renderConditionCard = (condition: any, index: number) => (
-        <View key={index} style={styles.conditionCard}>
-            <View style={styles.conditionHeader}>
-                <Ionicons name="medical" size={20} color="#e91e63" />
-                <Text style={styles.conditionName}>{condition.name || condition.condition}</Text>
-            </View>
-            {condition.diagnosed_date && (
-                <Text style={styles.conditionDetail}>Diagnosed: {new Date(condition.diagnosed_date).toLocaleDateString()}</Text>
-            )}
-            {condition.severity && (
-                <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(condition.severity) + '20' }]}>
-                    <Text style={[styles.severityText, { color: getSeverityColor(condition.severity) }]}>
-                        {condition.severity}
-                    </Text>
-                </View>
-            )}
-        </View>
-    );
-
-    const renderMedicationCard = (medication: any, index: number) => (
-        <View key={index} style={styles.medicationCard}>
-            <View style={styles.medicationHeader}>
-                <Ionicons name="medkit" size={20} color="#2196f3" />
-                <Text style={styles.medicationName}>{medication.name}</Text>
-            </View>
-            <Text style={styles.medicationDetail}>
-                {medication.dosage} - {medication.frequency || 'As needed'}
-            </Text>
-            {medication.prescriber && (
-                <Text style={styles.medicationPrescriber}>Prescribed by: {medication.prescriber}</Text>
-            )}
-        </View>
-    );
-
     const getSeverityColor = (severity: string) => {
         switch (severity?.toLowerCase()) {
-            case 'critical': return '#EA4335';
-            case 'high': return '#ff9800';
-            case 'moderate': return '#F9A825';
-            case 'low': return '#4caf50';
-            default: return '#666';
+            case 'critical': return { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' };
+            case 'high': return { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400' };
+            case 'moderate': return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400' };
+            case 'low': return { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' };
+            default: return { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400' };
         }
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.header}>
-                <TouchableOpacity onPress={() => navigate(-1)} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Patient Summary</Text>
-                <TouchableOpacity onPress={loadSummary}>
-                    <Ionicons name="refresh" size={24} color="#fff" />
-                </TouchableOpacity>
-            </LinearGradient>
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
+            <ScreenHeader
+                title="Patient Summary"
+                subtitle="Health Record Overview"
+                rightIcon="refresh"
+                onRightAction={loadSummary}
+            />
 
-            <ScrollView style={styles.content}>
+            <div className="p-4 space-y-4">
                 {loading ? (
-                    <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color="#4e54c8" />
-                        <Text style={styles.loadingText}>Loading summary...</Text>
-                    </View>
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading summary...</p>
+                    </div>
                 ) : error ? (
-                    <View style={styles.centerContainer}>
-                        <Ionicons name="alert-circle" size={48} color="#EA4335" />
-                        <Text style={styles.errorText}>{error}</Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={loadSummary}>
-                            <Text style={styles.retryText}>Retry</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <span className="material-symbols-outlined text-5xl text-red-500 mb-3">error</span>
+                        <p className="text-red-500 text-sm mb-4">{error}</p>
+                        <button
+                            onClick={loadSummary}
+                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
                 ) : summary ? (
-                    <View>
+                    <>
+                        {/* AI Summary */}
                         {summary.ai_summary && (
-                            <View style={styles.summaryCard}>
-                                <View style={styles.summaryHeader}>
-                                    <Ionicons name="sparkles" size={20} color="#4e54c8" />
-                                    <Text style={styles.summaryTitle}>AI-Generated Summary</Text>
-                                </View>
-                                <Text style={styles.summaryText}>{summary.ai_summary}</Text>
-                            </View>
+                            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border-l-4 border-indigo-500">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-lg text-indigo-600 dark:text-indigo-400">auto_awesome</span>
+                                    <h4 className="text-sm font-bold text-slate-800 dark:text-white">AI-Generated Summary</h4>
+                                </div>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{summary.ai_summary}</p>
+                            </div>
                         )}
 
+                        {/* Demographics */}
                         {summary.demographics && (
                             <>
-                                <Text style={styles.sectionTitle}>Demographics</Text>
-                                <View style={styles.infoCard}>
-                                    <View style={styles.infoRow}>
-                                        <Text style={styles.infoLabel}>Age:</Text>
-                                        <Text style={styles.infoValue}>{summary.demographics.age}</Text>
-                                    </View>
-                                    <View style={styles.infoRow}>
-                                        <Text style={styles.infoLabel}>Gender:</Text>
-                                        <Text style={styles.infoValue}>{summary.demographics.gender}</Text>
-                                    </View>
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Demographics</h2>
+                                <div className="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-700">
+                                    <div className="flex justify-between py-2.5">
+                                        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Age</span>
+                                        <span className="text-sm text-slate-800 dark:text-white font-semibold">{summary.demographics.age}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2.5">
+                                        <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Gender</span>
+                                        <span className="text-sm text-slate-800 dark:text-white font-semibold">{summary.demographics.gender}</span>
+                                    </div>
                                     {summary.demographics.blood_type && (
-                                        <View style={styles.infoRow}>
-                                            <Text style={styles.infoLabel}>Blood Type:</Text>
-                                            <Text style={styles.infoValue}>{summary.demographics.blood_type}</Text>
-                                        </View>
+                                        <div className="flex justify-between py-2.5">
+                                            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Blood Type</span>
+                                            <span className="text-sm text-slate-800 dark:text-white font-semibold">{summary.demographics.blood_type}</span>
+                                        </div>
                                     )}
-                                </View>
+                                </div>
                             </>
                         )}
 
+                        {/* Medical Conditions */}
                         {summary.conditions && summary.conditions.length > 0 && (
                             <>
-                                <Text style={styles.sectionTitle}>Medical Conditions</Text>
-                                {summary.conditions.map((condition: any, index: number) =>
-                                    renderConditionCard(condition, index)
-                                )}
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Medical Conditions</h2>
+                                <div className="space-y-2.5">
+                                    {summary.conditions.map((condition: any, index: number) => {
+                                        const sevColors = condition.severity ? getSeverityColor(condition.severity) : null;
+                                        return (
+                                            <div key={index} className="bg-white dark:bg-card-dark rounded-xl p-4 border-l-4 border-pink-500 shadow-sm">
+                                                <div className="flex items-center gap-2.5 mb-1">
+                                                    <span className="material-symbols-outlined text-lg text-pink-500">medical_services</span>
+                                                    <h4 className="text-sm font-semibold text-slate-800 dark:text-white flex-1">{condition.name || condition.condition}</h4>
+                                                </div>
+                                                {condition.diagnosed_date && (
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 ml-8 mb-1">Diagnosed: {new Date(condition.diagnosed_date).toLocaleDateString()}</p>
+                                                )}
+                                                {sevColors && (
+                                                    <span className={`inline-block ml-8 mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${sevColors.bg} ${sevColors.text}`}>
+                                                        {condition.severity}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </>
                         )}
 
+                        {/* Current Medications */}
                         {summary.medications && summary.medications.length > 0 && (
                             <>
-                                <Text style={styles.sectionTitle}>Current Medications</Text>
-                                {summary.medications.map((medication: any, index: number) =>
-                                    renderMedicationCard(medication, index)
-                                )}
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Current Medications</h2>
+                                <div className="space-y-2.5">
+                                    {summary.medications.map((medication: any, index: number) => (
+                                        <div key={index} className="bg-white dark:bg-card-dark rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
+                                            <div className="flex items-center gap-2.5 mb-1">
+                                                <span className="material-symbols-outlined text-lg text-blue-500">medication</span>
+                                                <h4 className="text-sm font-semibold text-slate-800 dark:text-white">{medication.name}</h4>
+                                            </div>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 ml-8">
+                                                {medication.dosage} — {medication.frequency || 'As needed'}
+                                            </p>
+                                            {medication.prescriber && (
+                                                <p className="text-xs text-slate-400 dark:text-slate-500 ml-8 mt-1">Prescribed by: {medication.prescriber}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             </>
                         )}
 
+                        {/* Allergies */}
                         {summary.allergies && summary.allergies.length > 0 && (
                             <>
-                                <Text style={styles.sectionTitle}>Allergies</Text>
-                                <View style={styles.allergiesContainer}>
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Allergies</h2>
+                                <div className="flex flex-wrap gap-2">
                                     {summary.allergies.map((allergy: string, index: number) => (
-                                        <View key={index} style={styles.allergyBadge}>
-                                            <Ionicons name="warning" size={14} color="#EA4335" />
-                                            <Text style={styles.allergyText}>{allergy}</Text>
-                                        </View>
+                                        <span key={index} className="inline-flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-sm font-medium">
+                                            <span className="material-symbols-outlined text-sm">warning</span>
+                                            {allergy}
+                                        </span>
                                     ))}
-                                </View>
+                                </div>
                             </>
                         )}
 
+                        {/* Risk Factors */}
                         {summary.risk_factors && summary.risk_factors.length > 0 && (
                             <>
-                                <Text style={styles.sectionTitle}>Risk Factors</Text>
-                                {summary.risk_factors.map((factor: string, index: number) => (
-                                    <View key={index} style={styles.riskFactorItem}>
-                                        <Ionicons name="alert-circle" size={16} color="#ff9800" />
-                                        <Text style={styles.riskFactorText}>{factor}</Text>
-                                    </View>
-                                ))}
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Risk Factors</h2>
+                                <div className="space-y-2">
+                                    {summary.risk_factors.map((factor: string, index: number) => (
+                                        <div key={index} className="flex items-center gap-2.5 bg-white dark:bg-card-dark rounded-xl p-3 shadow-sm border border-slate-100 dark:border-slate-800">
+                                            <span className="material-symbols-outlined text-base text-amber-500">error</span>
+                                            <p className="text-sm text-slate-600 dark:text-slate-300 flex-1">{factor}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             </>
                         )}
-                    </View>
+                    </>
                 ) : (
-                    <View style={styles.centerContainer}>
-                        <Text style={styles.emptyText}>No patient data available</Text>
-                    </View>
+                    <div className="flex flex-col items-center py-20 text-slate-400 dark:text-slate-500">
+                        <span className="material-symbols-outlined text-5xl mb-3">person_off</span>
+                        <p className="text-base italic">No patient data available</p>
+                    </div>
                 )}
-            </ScrollView>
-        </SafeAreaView>
+            </div>
+        </div>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    content: {
-        flex: 1,
-        padding: 15,
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingTop: 60,
-    },
-    loadingText: {
-        marginTop: 10,
-        color: '#666',
-    },
-    errorText: {
-        marginTop: 10,
-        color: '#EA4335',
-        marginBottom: 20,
-    },
-    retryButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        backgroundColor: '#4e54c8',
-        borderRadius: 8,
-    },
-    retryText: {
-        color: '#fff',
-        fontWeight: 'bold',
-    },
-    summaryCard: {
-        backgroundColor: '#E8EAF6',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 20,
-        borderLeftWidth: 4,
-        borderLeftColor: '#4e54c8',
-    },
-    summaryHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    summaryTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        marginLeft: 8,
-    },
-    summaryText: {
-        fontSize: 14,
-        color: '#555',
-        lineHeight: 22,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-        marginTop: 15,
-        marginBottom: 10,
-    },
-    infoCard: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 10,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    infoLabel: {
-        fontSize: 14,
-        color: '#666',
-        fontWeight: '500',
-    },
-    infoValue: {
-        fontSize: 14,
-        color: '#333',
-        fontWeight: '600',
-    },
-    conditionCard: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 10,
-        borderLeftWidth: 3,
-        borderLeftColor: '#e91e63',
-    },
-    conditionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    conditionName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginLeft: 10,
-        flex: 1,
-    },
-    conditionDetail: {
-        fontSize: 13,
-        color: '#666',
-        marginBottom: 5,
-    },
-    severityBadge: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginTop: 5,
-    },
-    severityText: {
-        fontSize: 11,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-    },
-    medicationCard: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 10,
-        borderLeftWidth: 3,
-        borderLeftColor: '#2196f3',
-    },
-    medicationHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    medicationName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginLeft: 10,
-    },
-    medicationDetail: {
-        fontSize: 14,
-        color: '#555',
-        marginBottom: 5,
-    },
-    medicationPrescriber: {
-        fontSize: 12,
-        color: '#888',
-    },
-    allergiesContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-    },
-    allergyBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFEBEE',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        gap: 6,
-    },
-    allergyText: {
-        fontSize: 13,
-        color: '#EA4335',
-        fontWeight: '500',
-    },
-    riskFactorItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        padding: 12,
-        marginBottom: 8,
-        gap: 10,
-    },
-    riskFactorText: {
-        fontSize: 14,
-        color: '#555',
-        flex: 1,
-    },
-    emptyText: {
-        color: '#888',
-        fontSize: 16,
-        fontStyle: 'italic',
-    },
-});
