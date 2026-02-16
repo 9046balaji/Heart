@@ -1,16 +1,18 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Device } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { pdfExportService } from '../services/pdfExport';
 import { calendarService, CalendarServiceError } from '../services/calendarService';
 import { notificationService, NotificationServiceError } from '../services/notificationService';
+import { nativeNotificationService } from '../services/nativeNotificationService';
 import { apiClient } from '../services/apiClient';
 import { useBluetooth } from '../hooks/useBluetooth';
 import { useToast } from '../components/Toast';
 import type { CalendarProvider, WeeklySummaryPreferences, DeliveryChannel } from '../services/api.types';
 import { Modal } from '../components/Modal';
+import { Capacitor } from '@capacitor/core';
 
 interface SettingsProps {
   isDark: boolean;
@@ -54,10 +56,13 @@ const DevicesModal = ({
   const {
     isScanning,
     devices: foundDevices,
+    smartwatchData,
     error: btError,
     startScan,
     stopScan,
-    connectToDevice
+    connectToDevice,
+    readBatteryLevel,
+    startHeartRateNotifications,
   } = useBluetooth();
   const [connectingId, setConnectingId] = useState<string | null>(null);
 
@@ -73,13 +78,34 @@ const DevicesModal = ({
     try {
       await connectToDevice(bluetoothDevice.deviceId);
 
+      // Try to read battery level after connecting
+      let battery = 100;
+      try {
+        const level = await readBatteryLevel(bluetoothDevice.deviceId);
+        if (level !== null) battery = level;
+      } catch { /* optional */ }
+
+      // Start heart rate monitoring
+      try {
+        await startHeartRateNotifications(bluetoothDevice.deviceId);
+      } catch { /* optional - device may not support HR */ }
+
+      // Determine device type from name heuristics
+      const nameLower = (bluetoothDevice.name || '').toLowerCase();
+      let deviceType: 'watch' | 'chest-strap' | 'ring' = 'chest-strap';
+      if (nameLower.includes('watch') || nameLower.includes('band') || nameLower.includes('fitbit') || nameLower.includes('garmin') || nameLower.includes('galaxy') || nameLower.includes('mi band')) {
+        deviceType = 'watch';
+      } else if (nameLower.includes('ring') || nameLower.includes('oura')) {
+        deviceType = 'ring';
+      }
+
       const newDevice: Device = {
         id: bluetoothDevice.deviceId,
         name: bluetoothDevice.name || 'Unknown Device',
-        type: 'chest-strap', // Default type, user could perhaps select
+        type: deviceType,
         lastSync: 'Now',
         status: 'connected',
-        battery: 100 // Placeholder
+        battery: battery
       };
 
       onConnect(newDevice);
@@ -369,7 +395,14 @@ const HelpModal = ({ onClose }: { onClose: () => void }) => (
         </details>
       ))}
     </div>
-    <button className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors">
+    <button
+      onClick={() => {
+        const subject = encodeURIComponent('Cardio AI Support Request');
+        const body = encodeURIComponent('Hi Cardio AI Support Team,\n\nI need help with:\n\n');
+        window.open(`mailto:support@cardioai.com?subject=${subject}&body=${body}`, '_self');
+      }}
+      className="w-full mt-4 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 shrink-0 hover:bg-primary-dark transition-colors"
+    >
       Contact Support
     </button>
   </Modal>
@@ -409,8 +442,27 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
     setError(null);
 
     try {
-      // In production, this would trigger OAuth flow
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Use Capacitor Browser for OAuth flow on native, window.open on web
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          const oauthUrl = provider === 'google'
+            ? `https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_GOOGLE_CLIENT_ID&redirect_uri=com.cardioai.assistant://callback&response_type=code&scope=https://www.googleapis.com/auth/calendar.readonly`
+            : `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=YOUR_OUTLOOK_CLIENT_ID&redirect_uri=com.cardioai.assistant://callback&response_type=code&scope=Calendars.Read`;
+
+          await Browser.open({ url: oauthUrl });
+
+          // In production, the redirect callback would provide the auth code
+          // For now, simulate successful connection
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch {
+          // Fallback: simulated connection for development
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      } else {
+        // Web: simulate OAuth flow (in production, redirect to OAuth endpoint)
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
 
       await calendarService.storeCalendarCredentials(user.id, {
         provider,
@@ -419,7 +471,7 @@ const CalendarModal = ({ onClose }: { onClose: () => void }) => {
 
       const updated = connections.map(c =>
         c.provider === provider
-          ? { ...c, connected: true, email: `user@${provider}.com`, lastSync: 'Never' }
+          ? { ...c, connected: true, email: user.email || `user@${provider}.com`, lastSync: 'Never' }
           : c
       );
       setConnections(updated);
@@ -583,9 +635,10 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
   const [preferences, setPreferences] = useState<WeeklySummaryPreferences>({
     enabled: false,
     delivery_channels: [
-      { channel: 'email', enabled: true, destination: 'user@example.com' },
+      { channel: 'email', enabled: true, destination: user?.email || 'user@example.com' },
       { channel: 'push', enabled: false },
-      { channel: 'whatsapp', enabled: false },
+      { channel: 'whatsapp', enabled: false, destination: '' },
+      { channel: 'sms' as any, enabled: false, destination: '' },
     ],
     preferred_day: 0,
     preferred_time: '09:00',
@@ -628,11 +681,20 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
     }
   };
 
-  const toggleChannel = (channel: 'push' | 'email' | 'whatsapp') => {
+  const toggleChannel = (channel: 'push' | 'email' | 'whatsapp' | 'sms') => {
     setPreferences(prev => ({
       ...prev,
       delivery_channels: prev.delivery_channels.map(c =>
         c.channel === channel ? { ...c, enabled: !c.enabled } : c
+      ),
+    }));
+  };
+
+  const updateChannelDestination = (channel: string, destination: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      delivery_channels: prev.delivery_channels.map(c =>
+        c.channel === channel ? { ...c, destination } : c
       ),
     }));
   };
@@ -677,22 +739,36 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
                 <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Delivery Channels</label>
                 <div className="space-y-2">
                   {preferences.delivery_channels.map(dc => (
-                    <div key={dc.channel} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-slate-400">
-                          {dc.channel === 'email' ? 'mail' : dc.channel === 'push' ? 'notifications' : 'chat'}
-                        </span>
-                        <span className="text-sm font-medium dark:text-white capitalize">{dc.channel}</span>
+                    <div key={dc.channel} className="bg-slate-50 dark:bg-slate-800/50 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-slate-400">
+                            {dc.channel === 'email' ? 'mail' : dc.channel === 'push' ? 'notifications' : dc.channel === 'sms' ? 'sms' : 'chat'}
+                          </span>
+                          <span className="text-sm font-medium dark:text-white capitalize">{dc.channel === 'sms' ? 'SMS' : dc.channel}</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={dc.enabled}
+                            onChange={() => toggleChannel(dc.channel as 'push' | 'email' | 'whatsapp' | 'sms')}
+                          />
+                          <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={dc.enabled}
-                          onChange={() => toggleChannel(dc.channel as 'push' | 'email' | 'whatsapp')}
-                        />
-                        <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-                      </label>
+                      {/* Destination input for email, whatsapp, sms */}
+                      {dc.enabled && dc.channel !== 'push' && (
+                        <div className="px-3 pb-3">
+                          <input
+                            type={dc.channel === 'email' ? 'email' : 'tel'}
+                            placeholder={dc.channel === 'email' ? 'your@email.com' : dc.channel === 'sms' ? '+1234567890' : '+1234567890 (WhatsApp)'}
+                            value={dc.destination || ''}
+                            onChange={(e) => updateChannelDestination(dc.channel, e.target.value)}
+                            className="w-full p-2 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none dark:text-white focus:ring-2 focus:ring-primary/50 placeholder:text-slate-400"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -764,6 +840,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   const { t, language, setLanguage } = useLanguage();
   const { showToast } = useToast();
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Initialize state from localStorage or defaults
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -799,15 +876,36 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
     localStorage.setItem('connected_devices', JSON.stringify(devices));
   }, [devices]);
 
+  // Search filter logic
+  const sq = searchQuery.toLowerCase().trim();
+  const settingsSections = useMemo(() => ({
+    account: ['profile', 'password', 'devices', 'smartwatch', 'bluetooth', 'account', 'manage devices'],
+    preferences: ['language', 'units', 'metric', 'imperial', 'theme', 'dark', 'light', 'preferences'],
+    integrations: ['calendar', 'google', 'outlook', 'weekly summary', 'recap', 'integrations'],
+    notifications: ['notification', 'medication', 'reminders', 'insights', 'alerts'],
+    data: ['export', 'health report', 'pdf', 'chat history', 'data', 'download'],
+    support: ['help', 'faq', 'feedback', 'contact', 'support'],
+    about: ['version', 'terms', 'privacy', 'about', 'legal'],
+  }), []);
+
+  const sectionVisible = (sectionKey: keyof typeof settingsSections) => {
+    if (!sq) return true;
+    return settingsSections[sectionKey].some(keyword => keyword.includes(sq));
+  };
+
   const toggleNotification = async (key: keyof AppSettings['notifications']) => {
     // Request Permission for All Notifications
     if (key === 'all' && !settings.notifications.all) {
-      if ('Notification' in window) {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            console.log('Notification permission granted.');
-          }
-        });
+      try {
+        const granted = await nativeNotificationService.requestNotificationPermission();
+        if (!granted) {
+          showToast('Notification permission denied. Please enable in device settings.', 'error');
+          return;
+        }
+        // Create notification channels on Android
+        await nativeNotificationService.createNotificationChannels();
+      } catch (e) {
+        console.error('Failed to request notification permission', e);
       }
     }
 
@@ -900,8 +998,17 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
             <input
               className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-slate-100 dark:bg-slate-800 focus:border-none h-full placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal"
               placeholder={t('settings.search_placeholder')}
-              defaultValue=""
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="flex items-center justify-center pr-3 bg-slate-100 dark:bg-slate-800 rounded-r-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            )}
           </div>
         </label>
       </div>
@@ -912,7 +1019,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
 
       <div className="space-y-6 pb-12">
         {/* Account Management Section */}
-        <div>
+        {sectionVisible('account') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-6">
             {t('settings.account')}
           </h3>
@@ -959,10 +1066,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">chevron_right</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* App Preferences Section */}
-        <div>
+        {sectionVisible('preferences') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.preferences')}
           </h3>
@@ -1011,10 +1118,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">toggle_on</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Integrations Section */}
-        <div>
+        {sectionVisible('integrations') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             Integrations
           </h3>
@@ -1052,10 +1159,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Notifications Section */}
-        <div>
+        {sectionVisible('notifications') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.notifications')}
           </h3>
@@ -1101,16 +1208,21 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <ToggleSwitch checked={settings.notifications.insights} onChange={() => toggleNotification('insights')} />
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Data Management Section */}
-        <div>
+        {sectionVisible('data') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             Data Management
           </h3>
           <div
             onClick={() => {
-              pdfExportService.exportQuickSummary();
+              try {
+                pdfExportService.exportQuickSummary();
+                showToast('Health report exported successfully!', 'success');
+              } catch (err: any) {
+                showToast(err.message || 'Failed to export report.', 'error');
+              }
             }}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
           >
@@ -1129,15 +1241,20 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
           </div>
           <div
             onClick={() => {
-              // Get chat messages from localStorage
-              const messages = JSON.parse(localStorage.getItem('chat_messages') || '[]');
-              if (messages.length > 0) {
-                pdfExportService.exportChatHistory({
-                  messages,
-                  exportDate: new Date(),
-                });
-              } else {
-                showToast('No chat history to export.', 'info');
+              try {
+                // Get chat messages from localStorage
+                const messages = JSON.parse(localStorage.getItem('chat_messages') || '[]');
+                if (messages.length > 0) {
+                  pdfExportService.exportChatHistory({
+                    messages,
+                    exportDate: new Date(),
+                  });
+                  showToast('Chat history exported successfully!', 'success');
+                } else {
+                  showToast('No chat history to export.', 'info');
+                }
+              } catch (err: any) {
+                showToast(err.message || 'Failed to export chat history.', 'error');
               }
             }}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
@@ -1155,10 +1272,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">download</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Support & Feedback Section */}
-        <div>
+        {sectionVisible('support') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.support')}
           </h3>
@@ -1190,10 +1307,10 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* About Section */}
-        <div>
+        {sectionVisible('about') && <div>
           <h3 className="text-slate-900 dark:text-white text-lg font-bold leading-tight px-4 pb-2 pt-4">
             {t('settings.about')}
           </h3>
@@ -1222,7 +1339,15 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
               <span className="material-symbols-outlined">chevron_right</span>
             </div>
           </div>
-        </div>
+        </div>}
+
+        {/* No results message */}
+        {sq && !sectionVisible('account') && !sectionVisible('preferences') && !sectionVisible('integrations') && !sectionVisible('notifications') && !sectionVisible('data') && !sectionVisible('support') && !sectionVisible('about') && (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500">
+            <span className="material-symbols-outlined text-4xl mb-2">search_off</span>
+            <p className="text-sm">No settings found for "{searchQuery}"</p>
+          </div>
+        )}
       </div>
 
       {/* Render Active Modal */}

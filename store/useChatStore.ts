@@ -5,6 +5,9 @@ import { memoryService } from '../services/memoryService';
 import { apiClient } from '../services/apiClient';
 import { Message, Citation } from '../types';
 
+// Re-export types so store/index.ts can re-export them
+export type { Message, Citation };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -279,7 +282,17 @@ export const useChatStore = create<ChatState>()(
   )
 );
 
-// ... (keep selectors)
+// ============================================================================
+// Selectors
+// ============================================================================
+
+export const selectMessages = (state: ChatState) => state.messages;
+export const selectIsLoading = (state: ChatState) => state.isLoading;
+export const selectIsStreaming = (state: ChatState) => state.isStreaming;
+export const selectSelectedModel = (state: ChatState) => state.selectedModel;
+export const selectSessions = (state: ChatState) => state.sessions;
+export const selectCurrentSession = (state: ChatState) =>
+  state.sessions.find(s => s.id === state.currentSessionId) || null;
 
 export const chatActions = {
   sendMessage: async (content: string, model?: ModelType) => {

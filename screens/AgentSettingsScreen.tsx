@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
+import { Modal } from '../components/Modal';
 
 interface AgentSettings {
     model: 'gemini-pro' | 'gpt-4' | 'claude-3';
@@ -32,6 +34,8 @@ const AgentSettingsScreen: React.FC = () => {
     });
 
     const [saved, setSaved] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const { showToast } = useToast();
 
     // Load settings from backend on mount
     useEffect(() => {
@@ -64,25 +68,49 @@ const AgentSettingsScreen: React.FC = () => {
     }, [settings]);
 
     const handleSave = async () => {
+        // Validate temperature
+        if (settings.temperature < 0 || settings.temperature > 1 || isNaN(settings.temperature)) {
+            showToast('Temperature must be between 0 and 1', 'error');
+            setSettings(prev => ({ ...prev, temperature: Math.max(0, Math.min(1, prev.temperature || 0.7)) }));
+            return;
+        }
+
         setSaved(true);
+        // Dispatch storage event so ChatScreen picks up changes immediately
+        window.dispatchEvent(new StorageEvent('storage', {
+            key: 'agent_settings',
+            newValue: JSON.stringify(settings),
+        }));
+
         if (user) {
             try {
                 await apiClient.updatePreferences(user.id, {
                     agent_settings: settings
                 });
+                showToast('Agent settings saved successfully!', 'success');
             } catch (error) {
                 console.error('Failed to sync agent settings to backend', error);
+                showToast('Settings saved locally. Backend sync failed.', 'info');
             }
+        } else {
+            showToast('Settings saved locally.', 'success');
         }
         setTimeout(() => setSaved(false), 2000);
     };
 
     const handleReset = () => {
-        if (window.confirm('Are you sure you want to reset all settings to default?')) {
-            setSettings(DEFAULT_SETTINGS);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 1500);
-        }
+        setShowResetConfirm(true);
+    };
+
+    const confirmReset = () => {
+        setSettings(DEFAULT_SETTINGS);
+        localStorage.setItem('agent_settings', JSON.stringify(DEFAULT_SETTINGS));
+        window.dispatchEvent(new StorageEvent('storage', {
+            key: 'agent_settings',
+            newValue: JSON.stringify(DEFAULT_SETTINGS),
+        }));
+        setShowResetConfirm(false);
+        showToast('Settings reset to defaults.', 'success');
     };
 
     if (loading) {
@@ -278,6 +306,29 @@ const AgentSettingsScreen: React.FC = () => {
                     )}
                 </button>
             </div>
+
+            {/* Reset Confirmation Modal */}
+            {showResetConfirm && (
+                <Modal isOpen={true} onClose={() => setShowResetConfirm(false)} title="Reset Settings">
+                    <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">
+                        Are you sure you want to reset all agent settings to their defaults? This cannot be undone.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setShowResetConfirm(false)}
+                            className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={confirmReset}
+                            className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

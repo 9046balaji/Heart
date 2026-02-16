@@ -207,7 +207,7 @@ export interface DeviceRegistrationRequest {
 }
 
 export interface DeliveryChannel {
-    channel: 'push' | 'email' | 'whatsapp';
+    channel: 'push' | 'email' | 'whatsapp' | 'sms';
     enabled: boolean;
     destination?: string;
 }

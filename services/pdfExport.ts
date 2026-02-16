@@ -403,7 +403,7 @@ class PDFExportService {
     }
 
     this.addFooter();
-    this.doc!.save('cardio-health-report.pdf');
+    this.savePdf('cardio-health-report.pdf');
   }
 
   /**
@@ -454,7 +454,7 @@ class PDFExportService {
       this.doc!.setFontSize(10);
       this.doc!.setTextColor(...hexToRgb(COLORS.text));
 
-      const lines = this.doc!.splitTextToSize(msg.text, this.contentWidth - 10);
+      const lines = this.doc!.splitTextToSize(msg.content || '', this.contentWidth - 10);
       const boxHeight = Math.max(10, lines.length * 4 + 6);
 
       // Message background
@@ -468,7 +468,7 @@ class PDFExportService {
     });
 
     this.addFooter();
-    this.doc!.save('cardio-chat-history.pdf');
+    this.savePdf('cardio-chat-history.pdf');
   }
 
   /**
@@ -486,7 +486,64 @@ class PDFExportService {
       appointments: savedAppts ? JSON.parse(savedAppts) : undefined,
     };
 
+    // Check if there's any data to export
+    if (!data.assessment && !data.medications?.length && !data.appointments?.length) {
+      // Return early - caller should show a toast/message
+      console.warn('[PDFExport] No health data available for export');
+      throw new Error('No health data available. Complete a health assessment first.');
+    }
+
     this.exportHealthReport(data);
+  }
+
+  /**
+   * Save PDF using Capacitor Filesystem on native, or browser download on web
+   */
+  private async savePdf(filename: string): Promise<void> {
+    if (!this.doc) return;
+
+    try {
+      // Check if running on native platform
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { Filesystem, Directory } = await import('@capacitor/filesystem');
+          const pdfOutput = this.doc.output('datauristring');
+          const base64Data = pdfOutput.split(',')[1];
+
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64Data,
+            directory: Directory.Documents,
+          });
+
+          // Try to share the file
+          try {
+            const { Share } = await import('@capacitor/share');
+            const fileUri = await Filesystem.getUri({
+              path: filename,
+              directory: Directory.Documents,
+            });
+            await Share.share({
+              title: filename,
+              url: fileUri.uri,
+              dialogTitle: 'Share Health Report',
+            });
+          } catch {
+            // Share not available, file is saved to Documents
+            console.log(`[PDFExport] File saved to Documents/${filename}`);
+          }
+          return;
+        } catch (err) {
+          console.warn('[PDFExport] Filesystem save failed, falling back to download:', err);
+        }
+      }
+    } catch {
+      // Not running on Capacitor, use browser download
+    }
+
+    // Browser fallback
+    this.doc.save(filename);
   }
 }
 

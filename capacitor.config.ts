@@ -39,6 +39,22 @@ const config: CapacitorConfig = {
     Browser: {
       windowName: '_system',
     },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_heart',
+      iconColor: '#D32F2F',
+      sound: 'notification.wav',
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    BluetoothLe: {
+      displayStrings: {
+        scanning: 'Scanning for health devices...',
+        cancel: 'Cancel',
+        availableDevices: 'Available Devices',
+        noDeviceFound: 'No devices found. Make sure your device is in pairing mode.',
+      },
+    },
   },
 };
 

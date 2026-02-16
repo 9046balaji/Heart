@@ -74,7 +74,14 @@ export interface Message {
     tokens?: number;
     memoryContext?: string[];
     citations?: Citation[];
+    is_emergency?: boolean;
   };
+
+  // Agent routing fields (used by multi-agent / doctor mode)
+  agentType?: 'doctor' | 'general' | string;
+  routingReason?: string;
+  complexityScore?: number;
+  structuredData?: StructuredMedicalData;
 }
 
 /**
