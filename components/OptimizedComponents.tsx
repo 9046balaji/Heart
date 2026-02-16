@@ -169,30 +169,19 @@ const DefaultLoadingFallback: React.FC = () => (
  * Lazy load screens with route-based code splitting
  *
  * NOTE: These lazy imports are configured for screens that will be implemented.
- * Currently, only AnalyticsDashboard exists. As screens are added, uncomment
- * the corresponding lazy loader.
+ * As screens are added, uncomment the corresponding lazy loader.
  *
  * Usage:
  * ```tsx
  * import { LazyScreens } from './components/OptimizedComponents';
- *
- * // In router or component:
- * <LazyScreens.Analytics />
  * ```
  */
-
-// Screen that exists:
-const AnalyticsScreen = lazyWithFallback(
-  () => import('../screens/AnalyticsDashboard')
-);
 
 // Placeholder for future screens - implement as screens are created
 // Example pattern for when screens are added:
 // const DashboardScreen = lazyWithFallback(() => import('../screens/Dashboard'), { preload: true });
 
 export const LazyScreens = {
-  // Currently implemented
-  Analytics: AnalyticsScreen,
 
   // Future screens (add as implemented):
   // Dashboard: DashboardScreen,

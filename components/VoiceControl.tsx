@@ -270,11 +270,15 @@ Return JSON ONLY:
   return (
     <>
         {/* Standard FAB */}
-        <div className="fixed bottom-24 left-4 z-40 flex flex-col gap-3 no-print">
-            {/* Hands Free Toggle (Mini) */}
+        <div className="fixed bottom-24 left-4 z-40 flex flex-col gap-2.5 no-print">
+            {/* Hands Free Toggle */}
             <button
                 onClick={toggleHandsFreeMode}
-                className="w-10 h-10 rounded-full bg-slate-700 text-white shadow-lg flex items-center justify-center hover:bg-slate-600 transition-colors"
+                className={`w-10 h-10 rounded-xl shadow-lg flex items-center justify-center transition-all duration-200 active:scale-90 border ${
+                    isHandsFree
+                        ? 'bg-blue-600 text-white border-blue-500/50 shadow-blue-900/30'
+                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700/50'
+                }`}
                 title="Enter Hands-Free Mode"
             >
                 <span className="material-symbols-outlined text-lg">accessibility_new</span>
@@ -282,40 +286,51 @@ Return JSON ONLY:
 
             {/* Main Mic FAB */}
             <button
-                onMouseDown={toggleListen} // Desktop hold
-                onClick={toggleListen} // Mobile tap toggle
-                className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 border-2 border-slate-700/50 ${
+                onMouseDown={toggleListen}
+                onClick={toggleListen}
+                className={`w-12 h-12 rounded-xl shadow-xl flex items-center justify-center transition-all duration-300 border ${
                     isListening
-                    ? 'bg-red-600 text-white scale-110 animate-pulse ring-4 ring-red-500/30'
-                    : 'bg-slate-800 text-white hover:bg-slate-700'
+                    ? 'bg-red-600 text-white scale-105 voice-orb-active border-red-500/50'
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700/50'
                 }`}
                 title="Voice Control"
             >
-                <span className="material-symbols-outlined text-2xl">{isListening ? 'mic' : 'mic_none'}</span>
+                <span className="material-symbols-outlined text-xl">{isListening ? 'mic' : 'mic_none'}</span>
             </button>
         </div>
 
         {/* Simple Toast */}
         {showToast && !isHandsFree && (
-            <div className="fixed bottom-40 left-6 z-50 bg-black/80 text-white px-4 py-3 rounded-xl text-sm backdrop-blur-md animate-in slide-in-from-left fade-in duration-300 flex items-center gap-3 shadow-2xl max-w-[200px]">
-                <span className="material-symbols-outlined text-sm text-green-400">graphic_eq</span>
-                <span className="truncate">"{transcript}"</span>
+            <div className="fixed bottom-40 left-6 z-50 bg-white/95 dark:bg-[#131d28]/95 text-slate-900 dark:text-white px-4 py-3 rounded-xl text-sm backdrop-blur-md animate-scaleIn shadow-2xl shadow-black/10 dark:shadow-black/40 max-w-[220px] border border-slate-200 dark:border-slate-700/40">
+                <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-0.5 h-4 flex-shrink-0">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="w-0.5 bg-emerald-400 rounded-full waveform-bar" style={{ animationDelay: `${i * 0.12}s` }}></div>
+                        ))}
+                    </div>
+                    <span className="truncate text-xs text-slate-700 dark:text-slate-200">"{transcript}"</span>
+                </div>
             </div>
         )}
 
         {/* Full Screen Hands-Free Overlay */}
         {isHandsFree && (
-            <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-between p-8 animate-in fade-in duration-300">
+            <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-[#0a1118] flex flex-col items-center justify-between p-6 animate-fadeIn">
 
                 {/* Header */}
                 <div className="w-full flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-white/50">
-                        <span className="material-symbols-outlined">accessibility_new</span>
-                        <span className="text-sm font-bold uppercase tracking-widest">Hands-Free Mode</span>
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700/50">
+                            <span className="material-symbols-outlined text-slate-500 dark:text-slate-400 text-lg">accessibility_new</span>
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-900/70 dark:text-white/70 uppercase tracking-widest block">Hands-Free Mode</span>
+                            <span className="text-[10px] text-slate-500">Voice-activated cardiac assistant</span>
+                        </div>
                     </div>
                     <button
                         onClick={toggleHandsFreeMode}
-                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-white font-bold text-sm transition-colors"
+                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-slate-900 dark:text-white font-medium text-sm transition-all duration-200 border border-slate-200 dark:border-slate-700/50 active:scale-95"
                     >
                         Exit
                     </button>
@@ -325,37 +340,72 @@ Return JSON ONLY:
                 <div className="flex flex-col items-center justify-center flex-1 w-full text-center">
 
                     {/* Status Text */}
-                    <h2 className="text-2xl font-medium text-slate-400 mb-8 h-8">
-                        {aiState === 'listening' ? "Listening..." : aiState === 'processing' ? "Thinking..." : "Speaking..."}
-                    </h2>
-
-                    {/* Orb */}
-                    <div className="relative mb-12">
-                        <div className={`w-48 h-48 rounded-full blur-3xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-colors duration-500 ${
-                            aiState === 'listening' ? 'bg-red-600/40' :
-                            aiState === 'processing' ? 'bg-purple-600/40' : 'bg-blue-600/40'
-                        }`}></div>
-                        <div className={`w-32 h-32 rounded-full border-4 flex items-center justify-center relative z-10 transition-all duration-300 ${
-                            aiState === 'listening' ? 'border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.5)] scale-110' :
-                            aiState === 'processing' ? 'border-purple-500 animate-pulse' : 'border-blue-500'
+                    <div className="mb-8">
+                        <h2 className={`text-xl font-semibold mb-1 transition-colors duration-300 ${
+                            aiState === 'listening' ? 'text-red-600 dark:text-red-400' :
+                            aiState === 'processing' ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'
                         }`}>
-                            <span className="material-symbols-outlined text-6xl text-white">
+                            {aiState === 'listening' ? "Listening..." : aiState === 'processing' ? "Processing..." : "Speaking..."}
+                        </h2>
+                        <p className="text-xs text-slate-500">
+                            {aiState === 'listening' ? 'Speak clearly — I\'m ready' :
+                             aiState === 'processing' ? 'Analyzing your request' : 'Please wait...'}
+                        </p>
+                    </div>
+
+                    {/* Orb with waveform */}
+                    <div className="relative mb-10">
+                        {/* Glow background */}
+                        <div className={`w-52 h-52 rounded-full blur-[60px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ${
+                            aiState === 'listening' ? 'bg-red-600/15 dark:bg-red-600/25' :
+                            aiState === 'processing' ? 'bg-purple-600/15 dark:bg-purple-600/25' : 'bg-blue-600/15 dark:bg-blue-600/25'
+                        }`}></div>
+
+                        {/* Main orb */}
+                        <div className={`w-36 h-36 rounded-full border-2 flex flex-col items-center justify-center relative z-10 transition-all duration-500 bg-white/80 dark:bg-transparent ${
+                            aiState === 'listening' ? 'border-red-500/60 shadow-[0_0_40px_rgba(239,68,68,0.2)] dark:shadow-[0_0_40px_rgba(239,68,68,0.3)] scale-110' :
+                            aiState === 'processing' ? 'border-purple-500/60 shadow-[0_0_40px_rgba(168,85,247,0.2)] dark:shadow-[0_0_40px_rgba(168,85,247,0.3)]' :
+                            'border-blue-500/60 shadow-[0_0_40px_rgba(59,130,246,0.2)] dark:shadow-[0_0_40px_rgba(59,130,246,0.3)]'
+                        }`}>
+                            <span className="material-symbols-outlined text-5xl text-slate-700 dark:text-white mb-1">
                                 {aiState === 'listening' ? 'mic' : aiState === 'processing' ? 'smart_toy' : 'volume_up'}
                             </span>
+
+                            {/* Waveform inside orb */}
+                            {aiState === 'listening' && (
+                                <div className="flex items-center gap-0.5 h-5">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div key={i} className="w-0.5 bg-red-400 rounded-full waveform-bar" style={{ animationDelay: `${i * 0.1}s` }}></div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {aiState === 'processing' && (
+                                <div className="flex items-center gap-1 mt-1">
+                                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full typing-dot"></div>
+                                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full typing-dot"></div>
+                                    <div className="w-1.5 h-1.5 bg-purple-400 rounded-full typing-dot"></div>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Pulse ring */}
+                        {aiState === 'listening' && (
+                            <div className="absolute inset-0 w-36 h-36 rounded-full border border-red-500/20 animate-ping z-0"></div>
+                        )}
                     </div>
 
                     {/* Transcripts */}
-                    <div className="space-y-6 max-w-lg w-full">
-                        <div className="min-h-[60px]">
-                            <p className="text-3xl font-bold text-white leading-tight">
+                    <div className="space-y-4 max-w-md w-full">
+                        <div className="min-h-[50px]">
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">
                                 "{transcript || "..."}"
                             </p>
                         </div>
 
                         {aiResponse && (
-                            <div className="bg-white/10 rounded-2xl p-6 border border-white/10">
-                                <p className="text-xl text-blue-200">
+                            <div className="glass-surface rounded-2xl p-5 border border-slate-200 dark:border-slate-700/40 shadow-lg">
+                                <p className="text-lg text-blue-700 dark:text-blue-200 leading-relaxed">
                                     {aiResponse}
                                 </p>
                             </div>
@@ -364,17 +414,17 @@ Return JSON ONLY:
                 </div>
 
                 {/* Footer Controls */}
-                <div className="w-full flex flex-col gap-4">
-                    <div className="grid grid-cols-2 gap-4">
+                <div className="w-full flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => speak("I'm stopping.")}
-                            className="py-6 bg-slate-800 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
+                            className="py-5 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-900 dark:text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 border border-slate-200 dark:border-slate-700/50 active:scale-[0.98]"
                         >
                             <span className="material-symbols-outlined">stop_circle</span> Stop
                         </button>
                         <button
                             onClick={() => { setTranscript(''); startListening(); }}
-                            className="py-6 bg-slate-800 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors"
+                            className="py-5 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-900 dark:text-white font-bold text-base flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 border border-slate-200 dark:border-slate-700/50 active:scale-[0.98]"
                         >
                             <span className="material-symbols-outlined">refresh</span> Retry
                         </button>
@@ -382,9 +432,9 @@ Return JSON ONLY:
 
                     <a
                         href="tel:911"
-                        className="w-full py-6 bg-red-600 rounded-2xl text-white font-black text-2xl uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-red-700 transition-colors shadow-lg shadow-red-900/50"
+                        className="w-full py-5 bg-gradient-to-r from-red-600 to-red-700 rounded-2xl text-white font-black text-xl uppercase tracking-widest flex items-center justify-center gap-3 hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-xl shadow-red-900/40 active:scale-[0.98]"
                     >
-                        <span className="material-symbols-outlined text-3xl">emergency</span>
+                        <span className="material-symbols-outlined text-2xl animate-heartbeat">emergency</span>
                         Emergency SOS
                     </a>
                 </div>

@@ -12,10 +12,6 @@ export type { Message, Citation };
 // Types
 // ============================================================================
 
-
-
-
-
 export interface ChatSession {
   id: string;
   title: string;
@@ -23,17 +19,66 @@ export interface ChatSession {
   updatedAt: string;
   messageCount: number;
   lastMessage?: string;
-  model?: 'gemini' | 'ollama';
+  model?: ModelType;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  messages: Message[];
 }
 
 export type ModelType = 'gemini' | 'ollama';
 
+export interface ChatSettings {
+  temperature: number;
+  systemPrompt: string;
+  maxTokens: number;
+  streamResponses: boolean;
+  autoGenerateTitle: boolean;
+}
+
 // ============================================================================
-// Initial State
+// Helpers
 // ============================================================================
 
 const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 const generateSessionId = () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+/** Generate a short title from the first user message */
+function generateTitleFromMessage(content: string): string {
+  let text = content.replace(/\n/g, ' ').trim();
+  text = text.replace(/^(hi|hello|hey|good morning|good afternoon|good evening|yo|sup)[,!.\s]*/i, '').trim();
+  if (!text) return content.slice(0, 40);
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  if (text.length > 40) {
+    text = text.slice(0, 40).replace(/\s+\S*$/, '') + '…';
+  }
+  return text;
+}
+
+/** Group sessions by date category */
+export function groupSessionsByDate(sessions: ChatSession[]): Record<string, ChatSession[]> {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const prev7 = new Date(today.getTime() - 7 * 86400000);
+  const prev30 = new Date(today.getTime() - 30 * 86400000);
+
+  const groups: Record<string, ChatSession[]> = {};
+
+  for (const s of sessions) {
+    const d = new Date(s.updatedAt);
+    let key: string;
+    if (d >= today) key = 'Today';
+    else if (d >= yesterday) key = 'Yesterday';
+    else if (d >= prev7) key = 'Previous 7 Days';
+    else if (d >= prev30) key = 'Previous 30 Days';
+    else key = 'Older';
+
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(s);
+  }
+
+  return groups;
+}
 
 const defaultMessage: Message = {
   id: 'welcome',
@@ -42,152 +87,202 @@ const defaultMessage: Message = {
   timestamp: new Date().toISOString(),
 };
 
-const initialState = {
-  messages: [defaultMessage],
-  currentSessionId: null,
-  sessions: [],
-  isLoading: false,
-  isStreaming: false,
-  isSearchingMemories: false,
-  error: null,
-  selectedModel: 'gemini' as ModelType,
-  isThinkingEnabled: false,
-  autoSaveEnabled: true,
-  isRecording: false,
-  isPlayingId: null,
+const defaultSettings: ChatSettings = {
+  temperature: 0.7,
+  systemPrompt: 'You are Cardio AI, a helpful cardiovascular health assistant. Be concise, caring, and medically informed. Always recommend consulting a doctor for serious concerns.',
+  maxTokens: 2048,
+  streamResponses: true,
+  autoGenerateTitle: true,
 };
 
-export interface ChatState {
-  // Messages
-  messages: Message[];
-  currentSessionId: string | null;
-  sessions: ChatSession[];
+// ============================================================================
+// State Interface
+// ============================================================================
 
-  // UI State
+export interface ChatState {
+  sessions: ChatSession[];
+  currentSessionId: string | null;
+  messages: Message[];
+
   isLoading: boolean;
   isStreaming: boolean;
   isSearchingMemories: boolean;
   error: string | null;
 
-  // Preferences
   selectedModel: ModelType;
   isThinkingEnabled: boolean;
   autoSaveEnabled: boolean;
+  settings: ChatSettings;
 
-  // Voice
   isRecording: boolean;
   isPlayingId: string | null;
 
-  // Actions
+  // Message Actions
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   removeMessage: (id: string) => void;
   clearMessages: () => void;
 
-  // Session actions
+  // Session Actions
   createSession: (title?: string) => string;
   loadSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   loadSessions: (userId: string) => Promise<void>;
+  pinSession: (sessionId: string) => void;
+  archiveSession: (sessionId: string) => void;
+  duplicateSession: (sessionId: string) => string;
+  deleteAllSessions: () => void;
 
-  // State setters
+  // Settings
+  updateSettings: (updates: Partial<ChatSettings>) => void;
+
+  // State Setters
   setLoading: (loading: boolean) => void;
   setStreaming: (streaming: boolean) => void;
   setSearchingMemories: (searching: boolean) => void;
   setError: (error: string | null) => void;
-
-  // Preference setters
   setSelectedModel: (model: ModelType) => void;
   setThinkingEnabled: (enabled: boolean) => void;
-
-  // Voice actions
   setRecording: (recording: boolean) => void;
   setPlayingId: (id: string | null) => void;
 
   // Computed
   getCurrentSession: () => ChatSession | null;
   getSessionMessages: (sessionId: string) => Message[];
+  searchSessions: (query: string) => ChatSession[];
 }
 
-// ... (keep existing initial state)
+// ============================================================================
+// Store
+// ============================================================================
 
 export const useChatStore = create<ChatState>()(
   devtools(
     persist(
       immer((set, get) => ({
-        ...initialState,
+        sessions: [] as ChatSession[],
+        currentSessionId: null as string | null,
+        messages: [defaultMessage] as Message[],
 
-        // ... (keep existing message actions)
+        isLoading: false,
+        isStreaming: false,
+        isSearchingMemories: false,
+        error: null as string | null,
 
-        setMessages: (messages) => set({ messages }),
+        selectedModel: 'gemini' as ModelType,
+        isThinkingEnabled: false,
+        autoSaveEnabled: true,
+        settings: { ...defaultSettings },
 
-        addMessage: (message) => set((state) => {
-          state.messages.push({
-            ...message,
-            id: message.id || generateId(),
-            timestamp: message.timestamp || new Date().toISOString(),
-          });
+        isRecording: false,
+        isPlayingId: null as string | null,
 
-          // Update session locally (backend updates on its own)
-          if (state.currentSessionId) {
-            const session = state.sessions.find(s => s.id === state.currentSessionId);
+        // ====================================================================
+        // Message Actions
+        // ====================================================================
+
+        setMessages: (messages: Message[]) =>
+          set((state) => {
+            state.messages = messages;
+            const session = state.sessions.find((s) => s.id === state.currentSessionId);
             if (session) {
+              session.messages = messages;
+              session.messageCount = messages.length;
+            }
+          }),
+
+        addMessage: (message: Message) =>
+          set((state) => {
+            const msg = {
+              ...message,
+              id: message.id || generateId(),
+              timestamp: message.timestamp || new Date().toISOString(),
+            };
+            state.messages.push(msg);
+
+            const session = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (session) {
+              session.messages = [...state.messages];
               session.updatedAt = new Date().toISOString();
               session.messageCount = state.messages.length;
-              session.lastMessage = message.content.slice(0, 100);
+              session.lastMessage = msg.content.slice(0, 100);
+
+              // Auto-generate title from first user message
+              if (
+                state.settings.autoGenerateTitle &&
+                msg.role === 'user' &&
+                (session.title.startsWith('New Chat') || session.title.startsWith('Chat '))
+              ) {
+                session.title = generateTitleFromMessage(msg.content);
+              }
             }
-          }
-        }),
+          }),
 
-        updateMessage: (id, updates) => set((state) => {
-          const index = state.messages.findIndex(m => m.id === id);
-          if (index !== -1) {
-            state.messages[index] = { ...state.messages[index], ...updates };
-          }
-        }),
+        updateMessage: (id: string, updates: Partial<Message>) =>
+          set((state) => {
+            const idx = state.messages.findIndex((m) => m.id === id);
+            if (idx !== -1) {
+              state.messages[idx] = { ...state.messages[idx], ...updates };
+            }
+            const session = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (session) {
+              session.messages = [...state.messages];
+              if (updates.content) {
+                session.lastMessage = updates.content.slice(0, 100);
+              }
+            }
+          }),
 
-        removeMessage: (id) => set((state) => {
-          state.messages = state.messages.filter(m => m.id !== id);
-        }),
+        removeMessage: (id: string) =>
+          set((state) => {
+            state.messages = state.messages.filter((m) => m.id !== id);
+            const session = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (session) {
+              session.messages = [...state.messages];
+              session.messageCount = state.messages.length;
+            }
+          }),
 
-        clearMessages: () => set((state) => {
-          state.messages = [defaultMessage];
-        }),
+        clearMessages: () =>
+          set((state) => {
+            state.messages = [defaultMessage];
+            const session = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (session) {
+              session.messages = [defaultMessage];
+              session.messageCount = 1;
+            }
+          }),
 
-        // Session actions
-        loadSessions: async (userId: string) => {
-          try {
-            const sessions = await memoryService.getSessions(userId);
-            set((state) => {
-              state.sessions = sessions.map(s => ({
-                id: s.sessionId,
-                title: `Chat ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`, // Backend might not return title
-                createdAt: s.createdAt || new Date().toISOString(),
-                updatedAt: s.lastActivity || new Date().toISOString(),
-                messageCount: s.messageCount,
-                model: 'gemini' // Default
-              }));
-            });
-          } catch (error) {
-            console.error('Failed to load sessions:', error);
-          }
-        },
+        // ====================================================================
+        // Session Actions
+        // ====================================================================
 
-        createSession: (title) => {
+        createSession: (title?: string) => {
           const sessionId = generateSessionId();
           const now = new Date().toISOString();
 
           set((state) => {
-            state.sessions.unshift({
+            // Save current session before switching
+            const currentSession = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (currentSession) {
+              currentSession.messages = [...state.messages];
+            }
+
+            const newSession: ChatSession = {
               id: sessionId,
-              title: title || `Chat ${state.sessions.length + 1}`,
+              title: title || 'New Chat',
               createdAt: now,
               updatedAt: now,
               messageCount: 1,
               model: state.selectedModel,
-            });
+              isPinned: false,
+              isArchived: false,
+              messages: [defaultMessage],
+            };
+
+            state.sessions.unshift(newSession);
             state.currentSessionId = sessionId;
             state.messages = [defaultMessage];
           });
@@ -195,87 +290,190 @@ export const useChatStore = create<ChatState>()(
           return sessionId;
         },
 
-        loadSession: async (sessionId) => {
-          set({ isLoading: true });
-          try {
-            const { messages } = await memoryService.getSessionHistory(sessionId);
-            set((state) => {
+        loadSession: (sessionId: string) => {
+          set((state) => {
+            // Save current session before switching
+            const currentSession = state.sessions.find((s) => s.id === state.currentSessionId);
+            if (currentSession) {
+              currentSession.messages = [...state.messages];
+            }
+
+            const target = state.sessions.find((s) => s.id === sessionId);
+            if (target) {
               state.currentSessionId = sessionId;
-              state.messages = messages.map(m => ({
-                id: generateId(), // Backend might not return IDs for all
-                role: m.role,
-                content: m.content,
-                timestamp: m.timestamp || new Date().toISOString(),
-                metadata: m.metadata
-              }));
-            });
-          } catch (error) {
-            console.error('Failed to load session history:', error);
-            // Fallback to local if needed or just error
-          } finally {
-            set({ isLoading: false });
-          }
+              state.messages =
+                target.messages && target.messages.length > 0
+                  ? [...target.messages]
+                  : [defaultMessage];
+            }
+          });
         },
 
-        deleteSession: async (sessionId) => {
-          try {
-            await memoryService.deleteSession(sessionId);
-            set((state) => {
-              state.sessions = state.sessions.filter(s => s.id !== sessionId);
-              if (state.currentSessionId === sessionId) {
+        deleteSession: (sessionId: string) => {
+          set((state) => {
+            state.sessions = state.sessions.filter((s) => s.id !== sessionId);
+            if (state.currentSessionId === sessionId) {
+              if (state.sessions.length > 0) {
+                const next = state.sessions[0];
+                state.currentSessionId = next.id;
+                state.messages =
+                  next.messages && next.messages.length > 0 ? [...next.messages] : [defaultMessage];
+              } else {
                 state.currentSessionId = null;
                 state.messages = [defaultMessage];
               }
-            });
-          } catch (error) {
-            console.error('Failed to delete session:', error);
-          }
+            }
+          });
+          memoryService.deleteSession(sessionId).catch(() => {});
         },
 
-        updateSessionTitle: async (sessionId, title) => {
+        updateSessionTitle: async (sessionId: string, title: string) => {
+          set((state) => {
+            const session = state.sessions.find((s) => s.id === sessionId);
+            if (session) session.title = title;
+          });
+          memoryService.updateSession(sessionId, { title }).catch(() => {});
+        },
+
+        loadSessions: async (userId: string) => {
           try {
-            await memoryService.updateSession(sessionId, { title });
+            const sessions = await memoryService.getSessions(userId);
             set((state) => {
-              const session = state.sessions.find(s => s.id === sessionId);
-              if (session) {
-                session.title = title;
-              }
+              const localIds = new Set(state.sessions.map((s) => s.id));
+              const backendSessions: ChatSession[] = sessions
+                .filter((s) => !localIds.has(s.sessionId))
+                .map((s) => ({
+                  id: s.sessionId,
+                  title: `Chat ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
+                  createdAt: s.createdAt || new Date().toISOString(),
+                  updatedAt: s.lastActivity || new Date().toISOString(),
+                  messageCount: s.messageCount,
+                  model: 'gemini' as ModelType,
+                  isPinned: false,
+                  isArchived: false,
+                  messages: [],
+                }));
+              state.sessions = [...state.sessions, ...backendSessions];
             });
           } catch (error) {
-            console.error('Failed to update session title:', error);
+            console.error('Failed to load sessions from backend:', error);
           }
         },
 
-        // ... (keep state setters)
-        setLoading: (loading) => set({ isLoading: loading }),
-        setStreaming: (streaming) => set({ isStreaming: streaming }),
-        setSearchingMemories: (searching) => set({ isSearchingMemories: searching }),
-        setError: (error) => set({ error }),
+        pinSession: (sessionId: string) =>
+          set((state) => {
+            const session = state.sessions.find((s) => s.id === sessionId);
+            if (session) session.isPinned = !session.isPinned;
+          }),
 
-        setSelectedModel: (model) => set({ selectedModel: model }),
-        setThinkingEnabled: (enabled) => set({ isThinkingEnabled: enabled }),
+        archiveSession: (sessionId: string) =>
+          set((state) => {
+            const session = state.sessions.find((s) => s.id === sessionId);
+            if (session) session.isArchived = !session.isArchived;
+          }),
 
-        setRecording: (recording) => set({ isRecording: recording }),
-        setPlayingId: (id) => set({ isPlayingId: id }),
+        duplicateSession: (sessionId: string) => {
+          const newId = generateSessionId();
+          set((state) => {
+            const source = state.sessions.find((s) => s.id === sessionId);
+            if (source) {
+              state.sessions.unshift({
+                ...source,
+                id: newId,
+                title: `${source.title} (Copy)`,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isPinned: false,
+                messages: [...source.messages],
+              });
+            }
+          });
+          return newId;
+        },
+
+        deleteAllSessions: () =>
+          set((state) => {
+            state.sessions = [];
+            state.currentSessionId = null;
+            state.messages = [defaultMessage];
+          }),
+
+        // ====================================================================
+        // Settings
+        // ====================================================================
+
+        updateSettings: (updates: Partial<ChatSettings>) =>
+          set((state) => {
+            state.settings = { ...state.settings, ...updates };
+          }),
+
+        // ====================================================================
+        // State Setters
+        // ====================================================================
+
+        setLoading: (loading: boolean) => set({ isLoading: loading }),
+        setStreaming: (streaming: boolean) => set({ isStreaming: streaming }),
+        setSearchingMemories: (searching: boolean) => set({ isSearchingMemories: searching }),
+        setError: (error: string | null) => set({ error }),
+        setSelectedModel: (model: ModelType) => set({ selectedModel: model }),
+        setThinkingEnabled: (enabled: boolean) => set({ isThinkingEnabled: enabled }),
+        setRecording: (recording: boolean) => set({ isRecording: recording }),
+        setPlayingId: (id: string | null) => set({ isPlayingId: id }),
+
+        // ====================================================================
+        // Computed
+        // ====================================================================
 
         getCurrentSession: () => {
           const state = get();
-          return state.sessions.find(s => s.id === state.currentSessionId) || null;
+          return state.sessions.find((s) => s.id === state.currentSessionId) || null;
         },
 
-        getSessionMessages: (sessionId) => {
+        getSessionMessages: (sessionId: string) => {
           const state = get();
-          return state.currentSessionId === sessionId ? state.messages : [];
+          const session = state.sessions.find((s) => s.id === sessionId);
+          return session?.messages || [];
+        },
+
+        searchSessions: (query: string) => {
+          const state = get();
+          const q = query.toLowerCase();
+          return state.sessions.filter(
+            (s) =>
+              !s.isArchived &&
+              (s.title.toLowerCase().includes(q) ||
+                s.lastMessage?.toLowerCase().includes(q) ||
+                s.messages.some((m) => m.content.toLowerCase().includes(q)))
+          );
         },
       })),
       {
         name: 'chat-store',
+        version: 2,
         partialize: (state) => ({
           sessions: state.sessions,
+          currentSessionId: state.currentSessionId,
           selectedModel: state.selectedModel,
           isThinkingEnabled: state.isThinkingEnabled,
           autoSaveEnabled: state.autoSaveEnabled,
+          settings: state.settings,
         }),
+        migrate: (persistedState: any, version: number) => {
+          if (version < 2) {
+            const sessions = (persistedState as any).sessions || [];
+            return {
+              ...persistedState,
+              sessions: sessions.map((s: any) => ({
+                ...s,
+                messages: s.messages || [],
+                isPinned: s.isPinned || false,
+                isArchived: s.isArchived || false,
+              })),
+              settings: defaultSettings,
+            };
+          }
+          return persistedState;
+        },
       }
     ),
     { name: 'ChatStore' }
@@ -292,19 +490,23 @@ export const selectIsStreaming = (state: ChatState) => state.isStreaming;
 export const selectSelectedModel = (state: ChatState) => state.selectedModel;
 export const selectSessions = (state: ChatState) => state.sessions;
 export const selectCurrentSession = (state: ChatState) =>
-  state.sessions.find(s => s.id === state.currentSessionId) || null;
+  state.sessions.find((s) => s.id === state.currentSessionId) || null;
+
+// ============================================================================
+// Actions (callable outside React)
+// ============================================================================
 
 export const chatActions = {
   sendMessage: async (content: string, model?: ModelType) => {
     const store = useChatStore.getState();
     const userId = localStorage.getItem('user_id');
     if (!userId) {
-      console.error("User ID not found. Please log in.");
+      console.error('User ID not found. Please log in.');
       return;
     }
+
     const sessionId = store.currentSessionId || store.createSession();
 
-    // Add user message
     const userMessage: Message = {
       id: generateId(),
       role: 'user',
@@ -317,8 +519,8 @@ export const chatActions = {
 
     try {
       const selectedModel = model || store.selectedModel;
+      const { settings } = store;
 
-      // Create assistant message placeholder
       const assistantId = generateId();
       store.addMessage({
         id: assistantId,
@@ -331,34 +533,37 @@ export const chatActions = {
       store.setStreaming(true);
 
       if (selectedModel === 'ollama') {
-        // Streaming with Ollama
+        const conversationHistory = store.messages
+          .filter((m) => m.id !== 'welcome' && m.id !== assistantId)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const fullHistory = [
+          { role: 'system' as const, content: settings.systemPrompt },
+          ...conversationHistory,
+          { role: 'user' as const, content },
+        ];
+
         const generator = apiClient.streamOllamaResponse({
           message: content,
-          model: 'llama3', // Or config
-          conversation_history: store.messages.map(m => ({ role: m.role, content: m.content })),
+          conversation_history: fullHistory,
+          temperature: settings.temperature,
         });
 
         let fullContent = '';
         for await (const chunk of generator) {
           if (chunk.type === 'token') {
             fullContent += chunk.data;
-            store.updateMessage(assistantId, {
-              content: fullContent,
-            });
+            store.updateMessage(assistantId, { content: fullContent });
           } else if (chunk.type === 'error') {
             throw new Error(chunk.data.error);
           }
         }
 
-        store.updateMessage(assistantId, {
-          isStreaming: false,
-        });
-
+        store.updateMessage(assistantId, { isStreaming: false });
       } else {
-        // Standard query (Gemini/Agent)
         const response = await memoryService.aiQuery(userId, sessionId, content, {
           aiProvider: 'gemini',
-          patientName: 'User', // TODO: Get from profile
+          patientName: 'User',
         });
 
         if (response.success) {
@@ -369,21 +574,23 @@ export const chatActions = {
               model: 'gemini',
               processingTime: response.metadata.processingTimeMs,
               tokens: response.metadata.tokensEstimated,
-              memoryContext: response.contextUsed.map(c => c.source),
+              memoryContext: response.contextUsed.map((c) => c.source),
             },
           });
         } else {
           throw new Error(response.error || 'AI query failed');
         }
       }
-
     } catch (error) {
       store.setError(error instanceof Error ? error.message : 'Failed to send message');
-      store.updateMessage(store.messages[store.messages.length - 1].id, {
-        content: 'Sorry, I encountered an error processing your request.',
-        isError: true,
-        isStreaming: false
-      });
+      const lastMsg = store.messages[store.messages.length - 1];
+      if (lastMsg) {
+        store.updateMessage(lastMsg.id, {
+          content: 'Sorry, I encountered an error processing your request.',
+          isError: true,
+          isStreaming: false,
+        });
+      }
     } finally {
       store.setLoading(false);
       store.setStreaming(false);
@@ -394,19 +601,16 @@ export const chatActions = {
     const store = useChatStore.getState();
     const messages = store.messages;
 
-    // Find last user message
-    const lastUserMsgIndex = [...messages].reverse().findIndex(m => m.role === 'user');
+    const lastUserMsgIndex = [...messages].reverse().findIndex((m) => m.role === 'user');
     if (lastUserMsgIndex === -1) return;
 
     const lastUserMsg = messages[messages.length - 1 - lastUserMsgIndex];
 
-    // Remove last assistant message
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role === 'assistant') {
       store.removeMessage(lastMsg.id);
     }
 
-    // Resend
     await chatActions.sendMessage(lastUserMsg.content);
   },
 };

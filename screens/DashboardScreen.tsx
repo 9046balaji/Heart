@@ -760,16 +760,7 @@ const DashboardScreen: React.FC = () => {
                                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Medical records</p>
                             </div>
                         </Link>
-                        <Link to="/analytics" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
-                            <div className="absolute inset-0 bg-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                            <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                                <span className="material-symbols-outlined text-2xl">analytics</span>
-                            </div>
-                            <div className="text-center relative z-10">
-                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">Analytics</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Health insights</p>
-                            </div>
-                        </Link>
+
                     </div>
                 </div>
             )}

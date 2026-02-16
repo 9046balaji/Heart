@@ -14,7 +14,7 @@ const initCapacitorPlugins = async () => {
   } catch { /* not on native */ }
 
   try {
-    // Configure status bar for dark theme
+    // Configure status bar (initial setup, will be updated by theme toggle)
     const { StatusBar, Style } = await import('@capacitor/status-bar');
     await StatusBar.setStyle({ style: Style.Dark });
     await StatusBar.setBackgroundColor({ color: '#111111' });
@@ -61,7 +61,6 @@ const WeeklySummaryScreen = lazy(() => import('./screens/WeeklySummaryScreen'));
 const PatientSummaryScreen = lazy(() => import('./screens/PatientSummaryScreen'));
 const ConsentScreen = lazy(() => import('./screens/ConsentScreen'));
 const DocumentScreen = lazy(() => import('./screens/DocumentScreen'));
-const AnalyticsDashboard = lazy(() => import('./screens/AnalyticsDashboard'));
 const AgentSettingsScreen = lazy(() => import('./screens/AgentSettingsScreen'));
 
 import BottomNav from './components/BottomNav';
@@ -120,13 +119,28 @@ const AppContent: React.FC = () => {
     '/appointment'
   ].includes(location.pathname) && !location.pathname.startsWith('/chat');
 
-  // Update HTML class for dark mode
+  // Update HTML class for dark mode and native status bar
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    // Update native status bar to match theme
+    (async () => {
+      try {
+        const { StatusBar, Style } = await import('@capacitor/status-bar');
+        if (isDarkMode) {
+          await StatusBar.setStyle({ style: Style.Dark });
+          await StatusBar.setBackgroundColor({ color: '#111111' });
+        } else {
+          await StatusBar.setStyle({ style: Style.Light });
+          await StatusBar.setBackgroundColor({ color: '#f8fafc' });
+        }
+      } catch { /* not on native */ }
+    })();
+
     console.log('AppContent mounted, isDarkMode:', isDarkMode, 'location:', location.pathname);
   }, [isDarkMode, location.pathname]);
 
@@ -264,11 +278,6 @@ const AppContent: React.FC = () => {
             <Route path="/documents" element={
               <Suspense fallback={<ListFallback />}>
                 <DocumentScreen />
-              </Suspense>
-            } />
-            <Route path="/analytics" element={
-              <Suspense fallback={<DashboardFallback />}>
-                <AnalyticsDashboard />
               </Suspense>
             } />
             <Route path="/agent-settings" element={
