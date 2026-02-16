@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
+import { useBluetooth } from '../hooks/useBluetooth';
 import {
     LineChart,
     Line,
@@ -26,6 +27,48 @@ export default function SmartWatchScreen() {
     const [isLive, setIsLive] = useState(false);
     const [heartRateHistory, setHeartRateHistory] = useState<VitalData[]>([]);
 
+    // BLE integration via useBluetooth hook
+    const {
+        isInitialized: bleInitialized,
+        isConnected: bleConnected,
+        connectedDeviceId,
+        smartwatchData,
+        startHeartRateNotifications,
+        stopHeartRateNotifications,
+    } = useBluetooth();
+
+    // When BLE is connected and providing heart rate, use it
+    useEffect(() => {
+        if (bleConnected && connectedDeviceId) {
+            setDeviceStatus('Connected (BLE)');
+            setIsLive(true);
+            // Start receiving real BLE heart rate notifications
+            startHeartRateNotifications(connectedDeviceId).catch(console.error);
+
+            return () => {
+                stopHeartRateNotifications(connectedDeviceId).catch(console.error);
+            };
+        }
+    }, [bleConnected, connectedDeviceId]);
+
+    // Update vitals and chart from BLE smartwatch data
+    useEffect(() => {
+        if (bleConnected && smartwatchData.heartRate) {
+            setVitals((prev: any) => ({
+                ...prev,
+                heart_rate: smartwatchData.heartRate,
+            }));
+
+            setHeartRateHistory(prev => {
+                const newPoint = {
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    value: smartwatchData.heartRate!,
+                };
+                return [...prev, newPoint].slice(-20);
+            });
+        }
+    }, [bleConnected, smartwatchData.heartRate, smartwatchData.heartRateTimestamp]);
+
     useEffect(() => {
         const init = async () => {
             await loadVitals();
@@ -34,6 +77,9 @@ export default function SmartWatchScreen() {
     }, []);
 
     useEffect(() => {
+        // Skip WebSocket fallback if BLE is providing real data
+        if (bleConnected) return;
+
         // Get device ID from storage or default
         const devicesRaw = localStorage.getItem('connected_devices');
         let deviceId = 'mock_device_id';
@@ -88,7 +134,7 @@ export default function SmartWatchScreen() {
         return () => {
             ws.close();
         };
-    }, []);
+    }, [bleConnected]);
 
     const loadVitals = async () => {
         setLoading(true);
@@ -184,8 +230,21 @@ export default function SmartWatchScreen() {
                 {/* Device Card */}
                 <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex items-center justify-between">
                     <div>
-                        <h3 className="text-white font-bold text-lg mb-1">Apple Watch Series 8</h3>
-                        <p className="text-slate-300 text-sm">Battery: 78%</p>
+                        <h3 className="text-white font-bold text-lg mb-1">
+                            {bleConnected && smartwatchData.modelNumber
+                                ? smartwatchData.modelNumber
+                                : 'Smart Watch'}
+                        </h3>
+                        <p className="text-slate-300 text-sm">
+                            {bleConnected && smartwatchData.batteryLevel != null
+                                ? `Battery: ${smartwatchData.batteryLevel}%`
+                                : bleConnected
+                                    ? 'Connected via BLE'
+                                    : 'Battery: --'}
+                        </p>
+                        {bleConnected && smartwatchData.manufacturerName && (
+                            <p className="text-slate-400 text-xs mt-1">{smartwatchData.manufacturerName}</p>
+                        )}
                     </div>
                     <span className="material-symbols-outlined text-4xl text-white/80">watch</span>
                 </div>

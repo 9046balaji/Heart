@@ -12,6 +12,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import {
+    requestNotificationPermission,
+    scheduleLocalNotification,
+    createNotificationChannels,
+} from '../services/nativeNotificationService';
 import { useToast } from '../components/Toast';
 
 import { useAuth } from '../hooks/useAuth';
@@ -29,14 +34,23 @@ export default function NotificationScreen() {
         if (!user) return;
         setLoading(true);
         try {
-            // Mock saving preferences
-            // In a real app, we would call an endpoint to update user preferences
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // We can also register the device here if needed
+            // Request native notification permission when push is enabled
             if (pushEnabled) {
-                await apiClient.registerDevice(user.id, 'mock_token', 'ios');
+                const granted = await requestNotificationPermission();
+                if (!granted) {
+                    showToast('Notification permission denied. Please enable in device settings.', 'error');
+                    setPushEnabled(false);
+                    setLoading(false);
+                    return;
+                }
+                // Ensure notification channels exist on Android
+                await createNotificationChannels();
+                // Register device token with backend
+                await apiClient.registerDevice(user.id, 'native_push_token', 'android');
             }
+
+            // Mock saving other preferences (email, whatsapp)
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             showToast('Notification preferences saved', 'success');
         } catch (error) {
@@ -121,14 +135,27 @@ export default function NotificationScreen() {
                             onPress={async () => {
                                 if (!user) return;
                                 try {
-                                    await apiClient.sendPushNotification({
-                                        user_id: user.id,
+                                    // Send a native local notification on the device
+                                    await scheduleLocalNotification({
+                                        id: Date.now(),
                                         title: 'Test Notification',
-                                        body: 'This is a test push notification from Cardio AI.'
+                                        body: 'This is a test push notification from Cardio AI.',
+                                        scheduledAt: new Date(Date.now() + 1000), // 1 second from now
+                                        channelId: 'cardio-reminders',
                                     });
                                     showToast('Test notification sent!', 'success');
                                 } catch (e) {
-                                    showToast('Failed to send test notification', 'error');
+                                    // Fallback to backend push if native fails
+                                    try {
+                                        await apiClient.sendPushNotification({
+                                            user_id: user.id,
+                                            title: 'Test Notification',
+                                            body: 'This is a test push notification from Cardio AI.'
+                                        });
+                                        showToast('Test notification sent via server!', 'success');
+                                    } catch (err) {
+                                        showToast('Failed to send test notification', 'error');
+                                    }
                                 }
                             }}
                         >

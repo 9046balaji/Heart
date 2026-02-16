@@ -30,6 +30,12 @@ const initCapacitorPlugins = async () => {
       document.body.classList.remove('keyboard-visible');
     });
   } catch { /* not on native */ }
+
+  try {
+    // Create notification channels on startup so they exist before any notification is sent
+    const { createNotificationChannels } = await import('./services/nativeNotificationService');
+    await createNotificationChannels();
+  } catch { /* not on native or service unavailable */ }
 };
 
 // Eagerly loaded screens (critical path - login/signup)
