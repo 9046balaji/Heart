@@ -236,6 +236,8 @@ const WorkoutDetailScreen: React.FC = () => {
     const [heartRate, setHeartRate] = useState<number>(0);
     const [isBlueToothConnected, setIsBlueToothConnected] = useState(false);
     const lastSentHRRef = useRef<number>(0);
+    const hrSimIntervalRef = useRef<any>(null);
+    const isActiveRef = useRef(false);
 
     // Dynamic Music State
     const [isMusicEnabled, setIsMusicEnabled] = useState(false);
@@ -290,6 +292,11 @@ const WorkoutDetailScreen: React.FC = () => {
         return url;
     };
 
+    // Keep isActiveRef in sync for use in intervals/closures
+    useEffect(() => {
+        isActiveRef.current = isActive;
+    }, [isActive]);
+
     // Timer Effect
     useEffect(() => {
         if (isActive) {
@@ -313,10 +320,14 @@ const WorkoutDetailScreen: React.FC = () => {
         return () => clearInterval(timerRef.current);
     }, [isActive, isMusicEnabled]);
 
-    // Cleanup Live API and Audio on unmount
+    // Cleanup Live API, Audio, and HR simulator on unmount
     useEffect(() => {
         return () => {
             stopLiveCoach();
+            if (hrSimIntervalRef.current) {
+                clearInterval(hrSimIntervalRef.current);
+                hrSimIntervalRef.current = null;
+            }
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current = null;
@@ -411,11 +422,12 @@ const WorkoutDetailScreen: React.FC = () => {
             if (!isBlueToothConnected) {
                 showToast("Simulating Heart Rate Monitor for Demo.", 'info');
                 setIsBlueToothConnected(true);
-                const interval = setInterval(() => {
+                // Clear any previous simulator
+                if (hrSimIntervalRef.current) clearInterval(hrSimIntervalRef.current);
+                hrSimIntervalRef.current = setInterval(() => {
                     setHeartRate(prev => {
-                        if (!isBlueToothConnected) { clearInterval(interval); return 0; }
-                        // Simulate HR rising during workout
-                        return Math.min(185, Math.max(60, (prev || 70) + (isActive ? Math.floor(Math.random() * 5) : -2)));
+                        // Simulate HR rising during workout (uses ref to avoid stale closure)
+                        return Math.min(185, Math.max(60, (prev || 70) + (isActiveRef.current ? Math.floor(Math.random() * 5) : -2)));
                     });
                 }, 2000);
             }
@@ -480,6 +492,7 @@ const WorkoutDetailScreen: React.FC = () => {
             if (heartRate > 0) {
                 setVitals(v => ({ ...v, hr: heartRate.toString() }));
             }
+            setIsSafetyLocked(false); // Reset locked state each time modal opens
             setShowPreCheck(true);
         } else {
             startWorkout();
@@ -489,9 +502,10 @@ const WorkoutDetailScreen: React.FC = () => {
     const checkVitals = () => {
         const sys = parseInt(vitals.systolic);
         const dia = parseInt(vitals.diastolic);
+        const hr = parseInt(vitals.hr);
 
-        // Safety Thresholds
-        if (sys > 160 || dia > 100) {
+        // Safety Thresholds (BP or resting HR too high)
+        if (sys > 160 || dia > 100 || (hr && hr > 120)) {
             setIsSafetyLocked(true);
         } else {
             setShowPreCheck(false);
@@ -603,6 +617,12 @@ const WorkoutDetailScreen: React.FC = () => {
 
     const categoryColor = {
         'Cardio': 'text-red-500 bg-red-50 dark:bg-red-900/20',
+        'Chest': 'text-orange-500 bg-orange-50 dark:bg-orange-900/20',
+        'Back': 'text-blue-500 bg-blue-50 dark:bg-blue-900/20',
+        'Arms': 'text-purple-500 bg-purple-50 dark:bg-purple-900/20',
+        'Shoulders': 'text-teal-500 bg-teal-50 dark:bg-teal-900/20',
+        'Legs': 'text-green-500 bg-green-50 dark:bg-green-900/20',
+        'Abs': 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20',
         'Strength': 'text-orange-500 bg-orange-50 dark:bg-orange-900/20',
         'Flexibility': 'text-purple-500 bg-purple-50 dark:bg-purple-900/20',
         'Balance': 'text-blue-500 bg-blue-50 dark:bg-blue-900/20',
@@ -869,7 +889,17 @@ const WorkoutDetailScreen: React.FC = () => {
                                                 placeholder="72"
                                                 className="w-full p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none dark:text-white text-center font-bold"
                                             />
-                                            <button onClick={() => setVitals({ ...vitals, hr: heartRate.toString() })} className="bg-primary/20 text-primary px-3 rounded-xl font-bold text-xs whitespace-nowrap">
+                                            <button
+                                                onClick={() => {
+                                                    if (heartRate > 0) {
+                                                        setVitals({ ...vitals, hr: heartRate.toString() });
+                                                    } else {
+                                                        showToast('No heart rate data. Connect a device first.', 'error');
+                                                    }
+                                                }}
+                                                disabled={!isBlueToothConnected}
+                                                className="bg-primary/20 text-primary px-3 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-50"
+                                            >
                                                 Read Device
                                             </button>
                                         </div>
@@ -889,8 +919,8 @@ const WorkoutDetailScreen: React.FC = () => {
                                 <p className="text-slate-600 dark:text-slate-300 mb-6 text-sm">
                                     Your blood pressure is too high for intense exercise. We recommend a recovery session or consulting a doctor.
                                 </p>
-                                <button onClick={() => navigate('/workout/w_breathing_07_calm')} className="w-full py-3 bg-green-500 text-white font-bold rounded-xl mb-3 flex items-center justify-center gap-2">
-                                    <span className="material-symbols-outlined">self_improvement</span> Switch to Breathing Exercise
+                                <button onClick={() => { setShowPreCheck(false); navigate('/exercise'); }} className="w-full py-3 bg-green-500 text-white font-bold rounded-xl mb-3 flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined">self_improvement</span> Browse Low-Intensity Exercises
                                 </button>
                                 <button onClick={() => setShowPreCheck(false)} className="text-slate-400 text-sm underline">Cancel</button>
                             </div>

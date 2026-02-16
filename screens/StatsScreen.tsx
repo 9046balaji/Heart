@@ -7,6 +7,25 @@ const StatsScreen: React.FC = () => {
   const [period, setPeriod] = useState<'Week' | 'Month' | 'Year' | 'All-Time'>('Week');
   const data = statsData[period];
 
+  // Simulated streak data
+  const currentStreak = 12;
+  const longestStreak = 28;
+  const weeklyGoalDays = 5;
+  const completedDays = 4;
+  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const completedMap = [true, true, false, true, true, false, false]; // this week
+
+  // Custom tooltip that adapts to theme
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 shadow-lg text-xs">
+        <p className="text-slate-500 dark:text-slate-400 mb-0.5">{label}</p>
+        <p className="font-bold text-slate-900 dark:text-white">{payload[0].value.toLocaleString()}</p>
+      </div>
+    );
+  };
+
   return (
     <div className="pb-24 animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 pt-4">
       {/* Period Selector */}
@@ -24,6 +43,41 @@ const StatsScreen: React.FC = () => {
             {p}
           </button>
         ))}
+      </div>
+
+      {/* Streak & Consistency Widget */}
+      <div className="bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl p-5 mb-6 text-white shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+        <div className="flex items-center justify-between mb-4 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined filled text-2xl">local_fire_department</span>
+              <span className="text-3xl font-bold">{currentStreak}</span>
+              <span className="text-sm opacity-90">day streak</span>
+            </div>
+            <p className="text-xs text-white/70">Longest: {longestStreak} days</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-white/70 mb-1">Weekly Goal</p>
+            <p className="text-lg font-bold">{completedDays}/{weeklyGoalDays} days</p>
+          </div>
+        </div>
+        {/* Mini week dots */}
+        <div className="flex gap-2 justify-center relative z-10">
+          {weekDays.map((d, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                completedMap[i]
+                  ? 'bg-white text-orange-600 shadow-sm'
+                  : i < new Date().getDay() ? 'bg-white/20 text-white/60' : 'bg-white/10 text-white/40'
+              }`}>
+                {completedMap[i] ? (
+                  <span className="material-symbols-outlined text-sm">check</span>
+                ) : d}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Summary Metrics */}
@@ -61,10 +115,7 @@ const StatsScreen: React.FC = () => {
                   <stop offset="95%" stopColor="#137fec" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px', color: '#fff' }}
-                cursor={{ stroke: '#137fec', strokeWidth: 1 }}
-              />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#137fec', strokeWidth: 1 }} />
               <Area
                 type="monotone"
                 dataKey="value"
@@ -85,13 +136,10 @@ const StatsScreen: React.FC = () => {
         <div className="h-40 w-full min-w-0 min-h-0">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={data.frequencyData}>
-              <Tooltip
-                cursor={{fill: 'transparent'}}
-                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px', color: '#fff' }}
-              />
-              <Bar dataKey="val" radius={[4, 4, 4, 4]}>
+              <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
+              <Bar dataKey="val" radius={[6, 6, 6, 6]}>
                 {data.frequencyData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.val > 50 ? '#10b981' : '#cbd5e1'} />
+                  <Cell key={`cell-${index}`} fill={entry.val > 50 ? '#10b981' : '#e2e8f0'} />
                 ))}
               </Bar>
               <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
@@ -102,22 +150,57 @@ const StatsScreen: React.FC = () => {
 
       {/* Personal Bests */}
       <div>
-        <h3 className="font-bold text-lg dark:text-white mb-4">Personal Records</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-lg dark:text-white">Personal Records</h3>
+          <span className="material-symbols-outlined text-amber-400 filled">emoji_events</span>
+        </div>
         <div className="space-y-3">
           {personalBestsData.map((pb, i) => (
-            <div key={i} className="flex items-center gap-4 bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${pb.color}`}>
+            <div key={i} className="flex items-center gap-4 bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm group hover:border-primary/30 transition-all">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${pb.color} transition-transform group-hover:scale-110`}>
                 <span className="material-symbols-outlined">{pb.icon}</span>
               </div>
               <div className="flex-1">
                 <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">{pb.title}</p>
                 <p className="text-lg font-bold dark:text-white">{pb.value}</p>
               </div>
-              <span className="text-xs text-slate-400">{pb.date}</span>
+              <div className="text-right">
+                <span className="text-xs text-slate-400">{pb.date}</span>
+                <div className="mt-1">
+                  <span className="material-symbols-outlined text-amber-400 text-sm filled">star</span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Weekly Comparison */}
+      {period === 'Week' && (
+        <div className="mt-6 bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+          <h3 className="font-bold dark:text-white mb-3">vs Last Week</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'Total Duration', current: '300 min', prev: '285 min', pct: '+5%', up: true },
+              { label: 'Workouts', current: '6', prev: '5', pct: '+20%', up: true },
+              { label: 'Avg Intensity', current: 'Medium', prev: 'Medium', pct: '—', up: false }
+            ].map((row, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">{row.label}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 line-through">{row.prev}</span>
+                  <span className="text-sm font-bold dark:text-white">{row.current}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    row.up ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                  }`}>
+                    {row.pct}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

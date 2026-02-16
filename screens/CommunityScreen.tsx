@@ -39,7 +39,10 @@ const CommunityScreen: React.FC = () => {
 
   // Data State
   const [posts, setPosts] = useState<CommunityPost[]>(communityFeed);
-  const [challenges, setChallenges] = useState<Challenge[]>(challengesData);
+  const [challenges, setChallenges] = useState<Challenge[]>(() => {
+    const savedJoined = JSON.parse(localStorage.getItem('joined_challenges') || '[]') as string[];
+    return challengesData.map(c => ({ ...c, joined: savedJoined.includes(c.id) }));
+  });
   const [friends, setFriends] = useState<Friend[]>(friendsData);
 
   // Challenge Detail State
@@ -66,6 +69,8 @@ const CommunityScreen: React.FC = () => {
   const [comments, setComments] = useState<Record<string, Comment[]>>(MOCK_COMMENTS);
   // Local Chats State (FriendID -> Messages[])
   const [chats, setChats] = useState<Record<string, ChatMessage[]>>(MOCK_CHATS);
+  // Track liked posts
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -73,10 +78,20 @@ const CommunityScreen: React.FC = () => {
 
   // --- Feed Logic ---
   const handleLike = (postId: string, isChallengePost = false) => {
+    const alreadyLiked = likedPosts.has(postId);
+    const delta = alreadyLiked ? -1 : 1;
+
+    setLikedPosts(prev => {
+      const next = new Set(prev);
+      if (alreadyLiked) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+
     if (isChallengePost) {
-        setChallengePosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+        setChallengePosts(prev => prev.map(p => p.id === postId ? { ...p, likes: Math.max(0, p.likes + delta) } : p));
     } else {
-        setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: Math.max(0, p.likes + delta) } : p));
     }
   };
 
@@ -200,7 +215,9 @@ const CommunityScreen: React.FC = () => {
 
   // --- Challenge Logic ---
   const openChallenge = (c: Challenge) => {
-      setSelectedChallenge(c);
+      // Get latest joined state from our tracked challenges
+      const current = challenges.find(ch => ch.id === c.id) || c;
+      setSelectedChallenge(current);
       // Initialize mock data for this challenge view
       setChallengePosts([
           {
@@ -246,6 +263,11 @@ const CommunityScreen: React.FC = () => {
       if (!selectedChallenge) return;
       setChallenges(prev => prev.map(c => c.id === selectedChallenge.id ? {...c, joined: true} : c));
       setSelectedChallenge({...selectedChallenge, joined: true});
+      // Persist joined challenges
+      const savedJoined = JSON.parse(localStorage.getItem('joined_challenges') || '[]') as string[];
+      if (!savedJoined.includes(selectedChallenge.id)) {
+          localStorage.setItem('joined_challenges', JSON.stringify([...savedJoined, selectedChallenge.id]));
+      }
   };
 
   useEffect(() => {
@@ -449,9 +471,9 @@ const CommunityScreen: React.FC = () => {
         <div className="flex items-center justify-start gap-1 p-4 pt-2 border-t border-slate-100 dark:border-slate-800/50">
             <button
                 onClick={() => handleLike(post.id, selectedChallenge !== null)}
-                className={`flex min-w-[48px] items-center justify-center rounded-lg h-10 px-3 gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${post.likes > 0 ? 'text-red-500' : 'text-slate-500 dark:text-white'}`}
+                className={`flex min-w-[48px] items-center justify-center rounded-lg h-10 px-3 gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${likedPosts.has(post.id) ? 'text-red-500' : 'text-slate-500 dark:text-white'}`}
             >
-                <span className={`material-symbols-outlined ${post.likes > 0 ? 'filled' : ''}`}>favorite</span>
+                <span className={`material-symbols-outlined ${likedPosts.has(post.id) ? 'filled' : ''}`}>favorite</span>
                 <span className="text-sm">{post.likes}</span>
             </button>
             <button
@@ -460,6 +482,19 @@ const CommunityScreen: React.FC = () => {
             >
                 <span className="material-symbols-outlined">chat_bubble</span>
                 <span className="text-sm">{post.comments}</span>
+            </button>
+            <button
+                onClick={() => {
+                    if (navigator.share) {
+                        navigator.share({ title: post.user.name, text: post.content, url: window.location.href });
+                    } else {
+                        navigator.clipboard.writeText(post.content);
+                        showToast('Post copied to clipboard!', 'success');
+                    }
+                }}
+                className="flex min-w-[48px] items-center justify-center rounded-lg h-10 px-3 text-slate-500 dark:text-white gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ml-auto"
+            >
+                <span className="material-symbols-outlined">share</span>
             </button>
         </div>
     </div>
@@ -657,7 +692,7 @@ const CommunityScreen: React.FC = () => {
   return (
     <div className="pb-24 animate-in fade-in slide-in-from-bottom-4 duration-300 relative min-h-screen overflow-x-hidden">
         {/* Internal Tabs */}
-        <div className="sticky top-[60px] z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
+        <div className="bg-background-light dark:bg-background-dark">
             <div className="flex border-b border-slate-200 dark:border-white/10 px-4 justify-between">
                 {['Feed', 'Challenges', 'Friends'].map(tab => (
                     <button

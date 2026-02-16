@@ -182,6 +182,10 @@ export interface Workout {
   image: string;
   steps: string[];
   videoUrl?: string;
+  all_images?: string[];
+  target_muscles?: string[];
+  secondary_muscles?: string[];
+  process?: string;
 }
 
 export interface PlanDay {

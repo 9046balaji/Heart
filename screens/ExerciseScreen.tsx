@@ -18,54 +18,56 @@ const TEMPLATE_CATEGORIES = ['Full Body', 'Core', 'Upper Body', 'Lower Body', 'C
 
 const TEMPLATES: Record<string, { id: string, name: string, desc: string, days: number, exercises: string[] }[]> = {
     'Full Body': [
-        { id: 't_fb_1', name: 'Total Body Tone', desc: 'A balanced mix of strength and cardio for general fitness.', days: 3, exercises: ['w_strength_25_full_body_bw', 'w_cardio_20_jumping_jacks', 'w_flexibility_10_full_body'] },
-        { id: 't_fb_2', name: 'Advanced Strength', desc: 'Heavy dumbbell work targeting all muscle groups.', days: 4, exercises: ['w_dumbbell_20_full_body', 'w_strength_30_full_body_db', 'w_core_05_quick', 'w_stretch_07_post_workout'] }
+        { id: 't_fb_1', name: 'Total Body Tone', desc: 'A balanced mix of strength and cardio for general fitness.', days: 3, exercises: ['gym_57', 'gym_908', 'gym_56'] },
+        { id: 't_fb_2', name: 'Advanced Strength', desc: 'Heavy dumbbell work targeting all muscle groups.', days: 4, exercises: ['gym_822', 'gym_1022', 'gym_980', 'gym_805'] }
     ],
     'Core': [
-        { id: 't_core_1', name: 'Core Crusher', desc: 'Intense focus on abs and lower back stability.', days: 3, exercises: ['w_strength_10_core', 'w_strength_10_abs_hips', 'w_pilates_10_core'] },
-        { id: 't_core_2', name: 'Pilates Power', desc: 'Mat-based pilates for a strong core.', days: 2, exercises: ['w_pilates_15_mat', 'w_balance_10_dynamic'] }
+        { id: 't_core_1', name: 'Core Crusher', desc: 'Intense focus on abs and lower back stability.', days: 3, exercises: ['gym_56', 'gym_980', 'gym_958'] },
+        { id: 't_core_2', name: 'Pilates Power', desc: 'Mat-based pilates for a strong core.', days: 2, exercises: ['gym_960', 'gym_976'] }
     ],
     'Upper Body': [
-        { id: 't_up_1', name: 'Arm Sculpt', desc: 'Tone arms and shoulders with light weights.', days: 2, exercises: ['w_strength_10_arms', 'w_strength_12_upper_body'] },
-        { id: 't_up_2', name: 'Band Upper Body', desc: 'Resistance band focus for upper body strength.', days: 3, exercises: ['w_band_10_pull_aparts', 'w_strength_15_upper_bands', 'w_stretch_05_standing'] }
+        { id: 't_up_1', name: 'Arm Sculpt', desc: 'Tone arms and shoulders with light weights.', days: 2, exercises: ['gym_31', 'gym_805'] },
+        { id: 't_up_2', name: 'Band Upper Body', desc: 'Resistance band focus for upper body strength.', days: 3, exercises: ['gym_820', 'gym_804', 'gym_822'] }
     ],
     'Lower Body': [
-        { id: 't_low_1', name: 'Leg Day Essentials', desc: 'Squats and lunges to build leg strength.', days: 2, exercises: ['w_bodyweight_10_squats', 'w_strength_15_lower_body_bw'] },
-        { id: 't_low_2', name: 'Glute Focus', desc: 'Targeted glute activation and strength.', days: 3, exercises: ['w_glute_08_bridges', 'w_strength_10_bands_lower', 'w_hip_10_openers'] }
+        { id: 't_low_1', name: 'Leg Day Essentials', desc: 'Squats and lunges to build leg strength.', days: 2, exercises: ['gym_12', 'gym_981'] },
+        { id: 't_low_2', name: 'Glute Focus', desc: 'Targeted glute activation and strength.', days: 3, exercises: ['gym_46', 'gym_802', 'gym_43'] }
     ],
     'Cardio': [
-        { id: 't_cardio_1', name: 'Cardio Blast', desc: 'High energy routine to burn calories.', days: 4, exercises: ['w_cardio_10_hiit_beginner', 'w_cardio_20_jumping_jacks', 'w_cardio_15_low_impact', 'w_walk_20_intervals'] },
-        { id: 't_cardio_2', name: 'Dance Party', desc: 'Fun dance-based cardio workouts.', days: 3, exercises: ['w_dance_15_cardio', 'w_cardio_10_dance', 'w_cardio_10_step_touch'] }
+        { id: 't_cardio_1', name: 'Cardio Blast', desc: 'High energy routine to burn calories.', days: 4, exercises: ['gym_908', 'gym_961', 'gym_962', 'gym_927'] },
+        { id: 't_cardio_2', name: 'Dance Party', desc: 'Fun dance-based cardio workouts.', days: 3, exercises: ['gym_907', 'gym_923', 'gym_927'] }
     ],
     'Flexibility': [
-        { id: 't_flex_1', name: 'Daily Stretch', desc: 'Improve mobility and reduce stiffness.', days: 7, exercises: ['w_stretch_05_standing', 'w_mobility_15_morning', 'w_stretch_05_sleep', 'w_yoga_10_gentle'] },
-        { id: 't_flex_2', name: 'Yoga Flow', desc: 'Vinyasa and Hatha flows for flexibility.', days: 3, exercises: ['w_yoga_15_flow', 'w_hatha_20_flow', 'w_yoga_25_restorative'] }
+        { id: 't_flex_1', name: 'Daily Stretch', desc: 'Improve mobility and reduce stiffness.', days: 7, exercises: ['gym_909', 'gym_912', 'gym_924', 'gym_992'] },
+        { id: 't_flex_2', name: 'Yoga Flow', desc: 'Vinyasa and Hatha flows for flexibility.', days: 3, exercises: ['gym_993', 'gym_959', 'gym_979'] }
     ]
 };
 
 // --- Sub-Components ---
 
 const MiniAudioPlayer: React.FC<{ workout: Workout, onClose: () => void }> = ({ workout, onClose }) => {
-    const [isPlaying, setIsPlaying] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(true);
     const [progress, setProgress] = useState(0);
     const [caption, setCaption] = useState("Coach: Ready to start? Let's warm up.");
     const [elapsed, setElapsed] = useState(0);
 
     useEffect(() => {
-        setIsPlaying(true);
-        const interval = setInterval(() => {
-            if (isPlaying) {
-                setElapsed(prev => prev + 1);
-                setProgress(prev => Math.min(100, prev + 0.1));
+        if (!isPlaying) return;
 
-                // Simulated script
-                if (elapsed === 5) setCaption("Coach: Keep a steady pace.");
-                if (elapsed === 15) setCaption("Coach: You're doing great! Check your posture.");
-                if (elapsed === 30) setCaption("Coach: We're approaching the first kilometer.");
-            }
+        const interval = setInterval(() => {
+            setElapsed(prev => {
+                const next = prev + 1;
+                // Simulated coaching script
+                if (next === 5) setCaption("Coach: Keep a steady pace.");
+                if (next === 15) setCaption("Coach: You're doing great! Check your posture.");
+                if (next === 30) setCaption("Coach: We're approaching the first kilometer.");
+                return next;
+            });
+            setProgress(prev => Math.min(100, prev + 0.1));
         }, 1000);
+
         return () => clearInterval(interval);
-    }, [isPlaying, elapsed]);
+    }, [isPlaying]);
 
     return (
         <div className="fixed bottom-24 left-4 right-4 bg-slate-900/90 backdrop-blur-xl border border-slate-700 p-4 rounded-2xl shadow-2xl z-50 animate-in slide-in-from-bottom-10 fade-in duration-300 flex items-center gap-4">
@@ -167,7 +169,11 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-                <button className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onClick(); }}
+                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors z-20"
+                    title="View workout"
+                >
                     <span className="material-symbols-outlined text-lg">add</span>
                 </button>
             </div>
@@ -185,7 +191,33 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onClick, onAudioClic
 
 const RemindersOverlay: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [enabled, setEnabled] = useState(true);
-    return <div className="fixed inset-0 bg-black/50 z-50" onClick={onClose}></div>;
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-card-dark w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold dark:text-white">Workout Reminders</h3>
+                    <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <span className="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-xl mb-4">
+                    <div>
+                        <p className="font-bold dark:text-white text-sm">Daily Reminders</p>
+                        <p className="text-xs text-slate-500">Get notified about your workout schedule</p>
+                    </div>
+                    <button
+                        onClick={() => setEnabled(!enabled)}
+                        className={`w-12 h-7 rounded-full transition-colors relative ${enabled ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    >
+                        <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${enabled ? 'translate-x-6' : 'translate-x-1'}`}></div>
+                    </button>
+                </div>
+                <p className="text-xs text-slate-400 text-center">
+                    {enabled ? 'You will receive reminders for scheduled workouts.' : 'Reminders are turned off.'}
+                </p>
+            </div>
+        </div>
+    );
 };
 
 const ExerciseScreen: React.FC = () => {
@@ -217,7 +249,11 @@ const ExerciseScreen: React.FC = () => {
             goal: w.goal || ['General Fitness'],
             image: w.image || w.image_url || '',
             steps: w.steps || (w.process ? [w.process] : ['Follow the video instructions.']),
-            videoUrl: w.videoUrl || w.youtube || ''
+            videoUrl: w.videoUrl || w.youtube || '',
+            all_images: w.all_images || [],
+            target_muscles: w.target_muscles || [],
+            secondary_muscles: w.secondary_muscles || [],
+            process: w.process || ''
         })) as Workout[];
     }, []);
 
@@ -256,6 +292,8 @@ const ExerciseScreen: React.FC = () => {
         });
         const [scratchSearch, setScratchSearch] = useState('');
         const [showPreview, setShowPreview] = useState(false);
+        const [scratchFilterCat, setScratchFilterCat] = useState('All');
+        const [detailExercise, setDetailExercise] = useState<Workout | null>(null);
 
         // Template State
         const [selectedCategory, setSelectedCategory] = useState('Full Body');
@@ -409,133 +447,504 @@ const ExerciseScreen: React.FC = () => {
             </div>
         );
 
+        const getImgUrl = (url: string, seed: string) => {
+            if (!url || url.startsWith('/images/')) return `https://picsum.photos/seed/${seed}/800/600`;
+            return url;
+        };
+
+        const SCRATCH_CATEGORIES = ['All', 'Chest', 'Back', 'Arms', 'Shoulders', 'Legs', 'Abs', 'Cardio'];
+
+        const scratchFiltered = normalizedWorkouts.filter(w => {
+            const matchesSearch = w.title.toLowerCase().includes(scratchSearch.toLowerCase());
+            const matchesCat = scratchFilterCat === 'All' || w.category === scratchFilterCat;
+            return matchesSearch && matchesCat;
+        });
+
+        const renderStepIndicator = () => (
+            <div className="px-6 pt-4 pb-2">
+                <div className="flex items-center justify-between relative">
+                    {/* Progress Line */}
+                    <div className="absolute top-4 left-[calc(16.67%)] right-[calc(16.67%)] h-0.5 bg-slate-200 dark:bg-slate-700">
+                        <div
+                            className="h-full bg-primary transition-all duration-500 ease-out"
+                            style={{ width: scratchStep === 1 ? '0%' : scratchStep === 2 ? '50%' : '100%' }}
+                        />
+                    </div>
+                    {[
+                        { num: 1, label: 'Details', icon: 'edit_note' },
+                        { num: 2, label: 'Exercises', icon: 'fitness_center' },
+                        { num: 3, label: 'Review', icon: 'checklist' }
+                    ].map(step => {
+                        const isActive = scratchStep === step.num;
+                        const isComplete = scratchStep > step.num;
+                        return (
+                            <div key={step.num} className="flex flex-col items-center gap-1 relative z-10 flex-1">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${isActive
+                                    ? 'bg-primary text-white scale-110 shadow-lg shadow-primary/30'
+                                    : isComplete
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
+                                    }`}>
+                                    {isComplete
+                                        ? <span className="material-symbols-outlined text-sm">check</span>
+                                        : <span className="material-symbols-outlined text-sm">{step.icon}</span>
+                                    }
+                                </div>
+                                <span className={`text-[10px] font-bold transition-colors ${isActive ? 'text-primary' : isComplete ? 'text-green-500' : 'text-slate-400'}`}>
+                                    {step.label}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+
         const renderScratch = () => (
             <div className="flex flex-col h-full">
+                {renderStepIndicator()}
+
+                {/* ─── STEP 1: Plan Details ─── */}
                 {scratchStep === 1 && (
-                    <div className="p-6 space-y-6">
-                        <h3 className="text-xl font-bold dark:text-white">Plan Details</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Plan Name</label>
-                                <input
-                                    type="text" value={scratchData.name} onChange={e => setScratchData({ ...scratchData, name: e.target.value })}
-                                    placeholder="e.g. Morning Cardio"
-                                    className="w-full mt-1 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase">Goal / Description</label>
-                                <input
-                                    type="text" value={scratchData.goal} onChange={e => setScratchData({ ...scratchData, goal: e.target.value })}
-                                    placeholder="e.g. Lose weight, Build muscle"
-                                    className="w-full mt-1 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                            <div>
-                                <div className="flex justify-between">
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Frequency</label>
-                                    <span className="text-sm font-bold text-primary">{scratchData.frequency} days/week</span>
+                    <div className="flex-1 overflow-y-auto px-6 pt-2 pb-6">
+                        <div className="mb-6">
+                            <h3 className="text-2xl font-bold dark:text-white">Plan Details</h3>
+                            <p className="text-sm text-slate-500 mt-1">Give your plan a name and set your preferences.</p>
+                        </div>
+
+                        <div className="space-y-5">
+                            {/* Plan Name */}
+                            <div className="bg-white dark:bg-card-dark rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-blue-500">badge</span>
+                                    </div>
+                                    <label className="text-sm font-bold dark:text-white">Plan Name</label>
                                 </div>
                                 <input
-                                    type="range" min="1" max="7" value={scratchData.frequency} onChange={e => setScratchData({ ...scratchData, frequency: parseInt(e.target.value) })}
-                                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary mt-2"
+                                    type="text" value={scratchData.name} onChange={e => setScratchData({ ...scratchData, name: e.target.value })}
+                                    placeholder="e.g. Morning Strength Routine"
+                                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm"
                                 />
                             </div>
+
+                            {/* Goal */}
+                            <div className="bg-white dark:bg-card-dark rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-purple-500">flag</span>
+                                    </div>
+                                    <label className="text-sm font-bold dark:text-white">Goal / Description</label>
+                                </div>
+                                <input
+                                    type="text" value={scratchData.goal} onChange={e => setScratchData({ ...scratchData, goal: e.target.value })}
+                                    placeholder="e.g. Build muscle, Lose weight"
+                                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 outline-none dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm"
+                                />
+                            </div>
+
+                            {/* Frequency */}
+                            <div className="bg-white dark:bg-card-dark rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-500/10 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-green-500">calendar_month</span>
+                                    </div>
+                                    <label className="text-sm font-bold dark:text-white">Training Frequency</label>
+                                </div>
+                                {/* Day selector buttons */}
+                                <div className="flex justify-between gap-1.5 mb-3">
+                                    {[1, 2, 3, 4, 5, 6, 7].map(d => (
+                                        <button
+                                            key={d}
+                                            onClick={() => setScratchData({ ...scratchData, frequency: d })}
+                                            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${d <= scratchData.frequency
+                                                ? 'bg-primary text-white shadow-sm'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                                }`}
+                                        >
+                                            {d}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-center text-sm text-primary font-bold">
+                                    {scratchData.frequency} {scratchData.frequency === 1 ? 'day' : 'days'} per week
+                                </p>
+                            </div>
                         </div>
-                        <button onClick={() => setScratchStep(2)} disabled={!scratchData.name} className="w-full py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 mt-4">
+
+                        <button
+                            onClick={() => setScratchStep(2)}
+                            disabled={!scratchData.name}
+                            className="w-full py-3.5 bg-primary text-white rounded-xl font-bold disabled:opacity-40 mt-6 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all hover:shadow-xl"
+                        >
                             Next: Add Exercises
+                            <span className="material-symbols-outlined text-lg">arrow_forward</span>
                         </button>
                     </div>
                 )}
 
+                {/* ─── STEP 2: Exercise Selection ─── */}
                 {scratchStep === 2 && (
-                    <div className="flex flex-col h-full">
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-col flex-1 overflow-hidden">
+                        {/* Search + Category Filters */}
+                        <div className="px-4 pt-3 pb-2 space-y-3 border-b border-slate-100 dark:border-slate-800">
                             <div className="relative">
-                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
                                 <input
                                     type="text" placeholder="Search exercises..." value={scratchSearch} onChange={e => setScratchSearch(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white text-sm focus:ring-2 focus:ring-primary/50"
                                 />
+                                {scratchSearch && (
+                                    <button onClick={() => setScratchSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <span className="material-symbols-outlined text-slate-400 text-lg">close</span>
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                                {SCRATCH_CATEGORIES.map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setScratchFilterCat(cat)}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${scratchFilterCat === cat
+                                            ? 'bg-primary text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {normalizedWorkouts.filter(w => w.title.toLowerCase().includes(scratchSearch.toLowerCase())).map(w => {
+
+                        {/* Exercise Cards */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+                            {scratchFiltered.length === 0 && (
+                                <div className="text-center py-12">
+                                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">search_off</span>
+                                    <p className="text-slate-400 text-sm">No exercises found.</p>
+                                </div>
+                            )}
+                            {scratchFiltered.map(w => {
                                 const isSelected = scratchData.exercises.includes(w.id);
                                 return (
-                                    <div key={w.id} onClick={() => toggleExercise(w.id)} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark'}`}>
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 ${isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 dark:border-slate-600'}`}>
-                                            {isSelected && <span className="material-symbols-outlined text-sm">check</span>}
+                                    <div
+                                        key={w.id}
+                                        onClick={() => toggleExercise(w.id)}
+                                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${isSelected
+                                            ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm'
+                                            : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark hover:border-slate-300 dark:hover:border-slate-600'
+                                            }`}
+                                    >
+                                        {/* Thumbnail */}
+                                        <div
+                                            className="w-14 h-14 rounded-lg bg-slate-200 dark:bg-slate-700 bg-cover bg-center flex-shrink-0 relative overflow-hidden"
+                                            style={{ backgroundImage: `url(${getImgUrl(w.image, w.id)})` }}
+                                        >
+                                            {isSelected && (
+                                                <div className="absolute inset-0 bg-primary/60 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-white text-lg">check</span>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-sm dark:text-white">{w.title}</h4>
-                                            <p className="text-xs text-slate-500">{w.category} • {w.duration_min} min</p>
+
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-sm dark:text-white truncate">{w.title}</h4>
+                                            <p className="text-xs text-slate-500 mt-0.5">{w.category} • {w.duration_min} min</p>
+                                            {w.target_muscles && w.target_muscles.length > 0 && (
+                                                <div className="flex gap-1 mt-1 flex-wrap">
+                                                    {w.target_muscles.slice(0, 2).map((m, i) => (
+                                                        <span key={i} className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded">
+                                                            {m}
+                                                        </span>
+                                                    ))}
+                                                    {w.target_muscles.length > 2 && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 text-slate-400">+{w.target_muscles.length - 2}</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Checkbox */}
+                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected
+                                            ? 'bg-primary border-primary text-white scale-110'
+                                            : 'border-slate-300 dark:border-slate-600'
+                                            }`}>
+                                            {isSelected && <span className="material-symbols-outlined text-sm">check</span>}
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
 
-                        {/* Live Preview / Action Bar */}
-                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-[60]">
+                        {/* Bottom Action Bar */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.1)] z-[60]">
                             <div
                                 className="flex justify-between items-center mb-3 cursor-pointer"
                                 onClick={() => setShowPreview(!showPreview)}
                             >
                                 <div>
-                                    <p className="text-xs text-slate-500 font-bold uppercase">{scratchData.name || 'Plan'}</p>
-                                    <p className="text-sm font-bold text-primary">{scratchData.exercises.length} exercises selected</p>
+                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{scratchData.name || 'Your Plan'}</p>
+                                    <p className="text-sm font-bold text-primary">{scratchData.exercises.length} exercise{scratchData.exercises.length !== 1 ? 's' : ''} selected</p>
                                 </div>
-                                <span className="material-symbols-outlined text-slate-400">{showPreview ? 'expand_more' : 'expand_less'}</span>
+                                <span className="material-symbols-outlined text-slate-400 transition-transform"
+                                    style={{ transform: showPreview ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                                >expand_less</span>
                             </div>
 
                             {showPreview && (
-                                <div className="mb-4 max-h-40 overflow-y-auto space-y-1 border-t border-slate-100 dark:border-slate-700 pt-2">
+                                <div className="mb-3 max-h-36 overflow-y-auto space-y-1.5 border-t border-slate-100 dark:border-slate-700 pt-2">
                                     {scratchData.exercises.map(id => {
                                         const w = getWorkoutById(id);
-                                        return w ? <div key={id} className="text-xs dark:text-white flex justify-between"><span>{w.title}</span><button onClick={(e) => { e.stopPropagation(); toggleExercise(id); }} className="text-red-500">×</button></div> : null;
+                                        return w ? (
+                                            <div key={id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-1.5">
+                                                <span className="text-xs dark:text-white font-medium truncate flex-1">{w.title}</span>
+                                                <button onClick={(e) => { e.stopPropagation(); toggleExercise(id); }} className="text-red-400 hover:text-red-500 ml-2">
+                                                    <span className="material-symbols-outlined text-sm">remove_circle</span>
+                                                </button>
+                                            </div>
+                                        ) : null;
                                     })}
-                                    {scratchData.exercises.length === 0 && <p className="text-xs text-slate-400 italic">No exercises added.</p>}
+                                    {scratchData.exercises.length === 0 && <p className="text-xs text-slate-400 italic text-center py-2">Tap exercises above to add them.</p>}
                                 </div>
                             )}
 
                             <div className="flex gap-2">
-                                <button onClick={() => setScratchStep(1)} className="px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl">Back</button>
-                                <button onClick={() => setScratchStep(3)} disabled={scratchData.exercises.length === 0} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl disabled:opacity-50">Review</button>
+                                <button onClick={() => setScratchStep(1)} className="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-colors hover:bg-slate-200 dark:hover:bg-slate-700">
+                                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                                </button>
+                                <button
+                                    onClick={() => setScratchStep(3)}
+                                    disabled={scratchData.exercises.length === 0}
+                                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                >
+                                    Review Plan
+                                    <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 )}
 
+                {/* ─── STEP 3: Review ─── */}
                 {scratchStep === 3 && (
-                    <div className="p-6 flex flex-col h-full">
-                        <h3 className="text-2xl font-bold dark:text-white mb-6">Review Plan</h3>
+                    <div className="flex flex-col flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4">
+                            <div className="mb-5">
+                                <h3 className="text-2xl font-bold dark:text-white">Review Your Plan</h3>
+                                <p className="text-sm text-slate-500 mt-1">Tap any exercise to see full details.</p>
+                            </div>
 
-                        <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6">
-                            <h4 className="font-bold text-lg dark:text-white">{scratchData.name}</h4>
-                            <p className="text-sm text-slate-500 mb-2">{scratchData.goal}</p>
-                            <div className="flex gap-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">calendar_month</span> {scratchData.frequency} Days/Wk</span>
-                                <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">fitness_center</span> {scratchData.exercises.length} Exercises</span>
+                            {/* Plan Summary Card */}
+                            <div className="bg-gradient-to-br from-primary/10 to-blue-500/5 dark:from-primary/20 dark:to-blue-500/10 p-5 rounded-2xl border border-primary/20 mb-5">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <h4 className="font-bold text-lg dark:text-white">{scratchData.name}</h4>
+                                        {scratchData.goal && <p className="text-sm text-slate-500 mt-0.5">{scratchData.goal}</p>}
+                                    </div>
+                                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-primary">sports_martial_arts</span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        <span className="material-symbols-outlined text-sm text-primary">calendar_month</span>
+                                        {scratchData.frequency} Days/Week
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        <span className="material-symbols-outlined text-sm text-primary">fitness_center</span>
+                                        {scratchData.exercises.length} Exercises
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        <span className="material-symbols-outlined text-sm text-primary">timer</span>
+                                        ~{scratchData.exercises.reduce((acc, id) => acc + (getWorkoutById(id)?.duration_min || 15), 0)} min
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Exercises List with Images */}
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Exercises Included</h4>
+                            <div className="space-y-3">
+                                {scratchData.exercises.map((id, i) => {
+                                    const w = getWorkoutById(id);
+                                    if (!w) return null;
+                                    return (
+                                        <div
+                                            key={id}
+                                            onClick={() => setDetailExercise(w)}
+                                            className="flex items-center gap-3 p-3 bg-white dark:bg-card-dark rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
+                                        >
+                                            {/* Numbering */}
+                                            <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{i + 1}</span>
+                                            </div>
+
+                                            {/* Image */}
+                                            <div
+                                                className="w-16 h-16 rounded-xl bg-slate-200 dark:bg-slate-700 bg-cover bg-center flex-shrink-0 shadow-sm"
+                                                style={{ backgroundImage: `url(${getImgUrl(w.image, w.id)})` }}
+                                            />
+
+                                            {/* Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-sm dark:text-white truncate group-hover:text-primary transition-colors">{w.title}</h4>
+                                                <p className="text-xs text-slate-500 mt-0.5">{w.category} • {w.duration_min} min</p>
+                                                {w.target_muscles && w.target_muscles.length > 0 && (
+                                                    <p className="text-[10px] text-slate-400 mt-1 truncate">
+                                                        {w.target_muscles.slice(0, 3).join(', ')}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Expand arrow */}
+                                            <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 group-hover:text-primary transition-colors flex-shrink-0">
+                                                chevron_right
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        <h4 className="text-sm font-bold text-slate-500 uppercase mb-3">Exercises Included</h4>
-                        <div className="flex-1 overflow-y-auto space-y-2 mb-6">
-                            {scratchData.exercises.map((id, i) => {
-                                const w = getWorkoutById(id);
-                                return w ? (
-                                    <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                        <span className="text-sm dark:text-white font-medium">{w.title}</span>
-                                        <span className="text-xs text-slate-400">{w.duration_min}m</span>
-                                    </div>
-                                ) : null;
-                            })}
+                        {/* Bottom Action Buttons */}
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-card-dark shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.1)]">
+                            <div className="flex gap-3">
+                                <button onClick={() => setScratchStep(2)} className="flex-1 py-3 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                    Edit
+                                </button>
+                                <button onClick={confirmScratchPlan} className="flex-[2] py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                    Confirm & Save
+                                </button>
+                            </div>
                         </div>
+                    </div>
+                )}
 
-                        <div className="flex gap-3 mt-auto">
-                            <button onClick={() => setScratchStep(2)} className="flex-1 py-3 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-bold rounded-xl">Edit</button>
-                            <button onClick={confirmScratchPlan} className="flex-[2] py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20">Confirm & Save</button>
+                {/* ─── Exercise Detail Modal ─── */}
+                {detailExercise && (
+                    <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center animate-in fade-in duration-200" onClick={() => setDetailExercise(null)}>
+                        <div className="bg-white dark:bg-card-dark w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-in slide-in-from-bottom-10 duration-300" onClick={e => e.stopPropagation()}>
+                            {/* Hero Image */}
+                            <div className="relative w-full h-48 bg-slate-200 dark:bg-slate-700 bg-cover bg-center flex-shrink-0"
+                                style={{ backgroundImage: `url(${getImgUrl(detailExercise.image, detailExercise.id)})` }}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                                <button onClick={() => setDetailExercise(null)} className="absolute top-3 right-3 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/60 transition-colors">
+                                    <span className="material-symbols-outlined text-lg">close</span>
+                                </button>
+                                <div className="absolute bottom-4 left-4 right-4">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-primary/80 text-white mb-2 inline-block">{detailExercise.category}</span>
+                                    <h3 className="text-xl font-bold text-white leading-tight">{detailExercise.title}</h3>
+                                </div>
+                            </div>
+
+                            {/* Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                                {/* Quick Stats */}
+                                <div className="flex gap-3">
+                                    <div className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                                        <span className="material-symbols-outlined text-primary text-lg">timer</span>
+                                        <p className="text-xs font-bold dark:text-white mt-1">{detailExercise.duration_min} min</p>
+                                        <p className="text-[10px] text-slate-400">Duration</p>
+                                    </div>
+                                    <div className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                                        <span className="material-symbols-outlined text-orange-500 text-lg">local_fire_department</span>
+                                        <p className="text-xs font-bold dark:text-white mt-1">{detailExercise.intensity}</p>
+                                        <p className="text-[10px] text-slate-400">Intensity</p>
+                                    </div>
+                                    <div className="flex-1 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                                        <span className="material-symbols-outlined text-blue-500 text-lg">fitness_center</span>
+                                        <p className="text-xs font-bold dark:text-white mt-1">{(detailExercise.equipment?.[0] || 'none') === 'none' ? 'Body' : 'Equip'}</p>
+                                        <p className="text-[10px] text-slate-400">Equipment</p>
+                                    </div>
+                                </div>
+
+                                {/* Target Muscles */}
+                                {detailExercise.target_muscles && detailExercise.target_muscles.length > 0 && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Target Muscles</h4>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {detailExercise.target_muscles.map((m, i) => (
+                                                <span key={i} className="text-xs px-2.5 py-1 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-full font-medium">{m}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {detailExercise.secondary_muscles && detailExercise.secondary_muscles.length > 0 && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Secondary Muscles</h4>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {detailExercise.secondary_muscles.map((m, i) => (
+                                                <span key={i} className="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full font-medium">{m}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Equipment */}
+                                {detailExercise.equipment && detailExercise.equipment.length > 0 && detailExercise.equipment[0] !== 'none' && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Equipment Needed</h4>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {detailExercise.equipment.map((e, i) => (
+                                                <span key={i} className="text-xs px-2.5 py-1 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full font-medium">{e.replace(/-/g, ' ')}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Instructions / Process */}
+                                {detailExercise.process && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Instructions</h4>
+                                        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: detailExercise.process }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* All Images Gallery */}
+                                {detailExercise.all_images && detailExercise.all_images.length > 1 && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Exercise Images</h4>
+                                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                            {detailExercise.all_images.map((img, i) => (
+                                                <div key={i} className="w-32 h-32 rounded-xl bg-slate-200 dark:bg-slate-700 bg-cover bg-center flex-shrink-0 shadow-sm"
+                                                    style={{ backgroundImage: `url(${img})` }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* YouTube Link */}
+                                {detailExercise.videoUrl && detailExercise.videoUrl.includes('youtube') && (
+                                    <a
+                                        href={detailExercise.videoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-500/10 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                                    >
+                                        <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                                            <span className="material-symbols-outlined text-white">play_arrow</span>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-red-600 dark:text-red-400">Watch on YouTube</p>
+                                            <p className="text-xs text-slate-500">See the exercise in action</p>
+                                        </div>
+                                    </a>
+                                )}
+                            </div>
+
+                            {/* Close Button */}
+                            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+                                <button onClick={() => setDetailExercise(null)} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -545,7 +954,18 @@ const ExerciseScreen: React.FC = () => {
         return (
             <div className="fixed top-0 bottom-0 left-1/2 w-full max-w-md -translate-x-1/2 z-[60] bg-background-light dark:bg-background-dark flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl">
                 <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-800">
-                    <button onClick={() => { if (path === 'menu') { setView('dashboard'); } else { setPath('menu'); setScratchStep(1); } }} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white transition-colors">
+                    <button onClick={() => {
+                        if (detailExercise) {
+                            setDetailExercise(null);
+                        } else if (path === 'menu') {
+                            setView('dashboard');
+                        } else if (path === 'scratch' && scratchStep > 1) {
+                            setScratchStep(scratchStep - 1);
+                        } else {
+                            setPath('menu');
+                            setScratchStep(1);
+                        }
+                    }} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white transition-colors">
                         <span className="material-symbols-outlined">{path === 'menu' ? 'close' : 'arrow_back'}</span>
                     </button>
                     <h2 className="flex-1 text-center font-bold text-lg dark:text-white">
@@ -798,10 +1218,12 @@ const ExerciseScreen: React.FC = () => {
                                         >
                                             <option value="All">All Categories</option>
                                             <option value="Cardio">Cardio</option>
-                                            <option value="Strength">Strength</option>
-                                            <option value="Flexibility">Flexibility</option>
-                                            <option value="Balance">Balance</option>
-                                            <option value="Recovery">Recovery</option>
+                                            <option value="Chest">Chest</option>
+                                            <option value="Back">Back</option>
+                                            <option value="Arms">Arms</option>
+                                            <option value="Shoulders">Shoulders</option>
+                                            <option value="Legs">Legs</option>
+                                            <option value="Abs">Abs</option>
                                         </select>
 
                                         <select
