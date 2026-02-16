@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Provider, Appointment } from '../types';
 import { doctorsData } from '../data/doctors';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 const MOCK_AVAILABILITY: Record<string, Record<string, string[]>> = {
   'p_101': {
@@ -400,6 +401,7 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
 
 const AppointmentScreen: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   // --- State ---
   const [view, setView] = useState<'list' | 'detail'>('list');
@@ -512,7 +514,7 @@ const AppointmentScreen: React.FC = () => {
               });
           } catch (err) {
               console.error("Insurance Scan Error", err);
-              alert("Could not scan card. Please enter details manually.");
+              showToast("Could not scan card. Please enter details manually.", 'error');
           } finally {
               setIsScanningInsurance(false);
           }
@@ -602,7 +604,7 @@ const AppointmentScreen: React.FC = () => {
   const renderSuccessModal = () => {
       if (!showSuccessModal || !latestBooking) return null;
 
-      const addToGoogleCalendar = () => {
+      const addToGoogleCalendar = async () => {
           const { date, time, doctorName, location } = latestBooking;
           const startTime = `${date.replace(/-/g, '')}T${time.replace(':', '')}00`;
           let h = parseInt(time.split(':')[0]);
@@ -614,7 +616,13 @@ const AppointmentScreen: React.FC = () => {
           const loc = encodeURIComponent(location);
 
           const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startTime}/${endTime}&details=${details}&location=${loc}`;
-          window.open(url, '_blank');
+          // Use Capacitor Browser plugin on Android, fallback for web
+          try {
+            const { Browser } = await import('@capacitor/browser');
+            await Browser.open({ url });
+          } catch {
+            window.open(url, '_system') || window.open(url, '_blank') || (window.location.href = url);
+          }
       };
 
       return (
@@ -688,7 +696,7 @@ const AppointmentScreen: React.FC = () => {
     const healthData = savedAssessment ? JSON.parse(savedAssessment) : null;
 
     return (
-        <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark pb-32 animate-in slide-in-from-right duration-300">
+        <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark pb-32 animate-in slide-in-from-right duration-300 overflow-x-hidden">
             <div className="flex items-center p-4 bg-white dark:bg-card-dark sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800 shadow-sm">
                 <button onClick={() => { setView('list'); setIntakeData(null); }} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white transition-colors">
                     <span className="material-symbols-outlined">arrow_back</span>
@@ -949,7 +957,7 @@ const AppointmentScreen: React.FC = () => {
   };
 
   const renderListView = () => (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24">
+    <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24 overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 bg-background-light dark:bg-background-dark sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center">

@@ -1,8 +1,8 @@
 /**
  * useHaptic Hook - Haptic Feedback for Mobile Devices
  *
- * Provides tactile feedback using the Vibration API for enhanced mobile UX.
- * Falls back silently on unsupported devices.
+ * Uses @capacitor/haptics for native Android haptic feedback when available.
+ * Falls back to the Web Vibration API, then silently fails on unsupported devices.
  *
  * Usage:
  * ```tsx
@@ -13,11 +13,9 @@
  *   // ... rest of your logic
  * };
  * ```
- *
- * @see https://developer.mozilla.org/en-US/docs/Web/API/Vibration_API
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 
 // ============================================================================
 // Types
@@ -48,20 +46,19 @@ export interface UseHapticReturn {
 }
 
 // ============================================================================
-// Vibration Patterns (in milliseconds)
+// Vibration Patterns (in milliseconds) — web fallback only
 // ============================================================================
 
 const HAPTIC_DURATIONS: Record<HapticStyle, number | number[]> = {
   light: 10,
   medium: 20,
   heavy: 30,
-  success: [10, 50, 20],      // Two quick taps
-  warning: [30, 50, 30],      // Two medium taps
-  error: [50, 30, 50, 30, 50], // Three strong taps
-  selection: 5,               // Very light tap
+  success: [10, 50, 20],
+  warning: [30, 50, 30],
+  error: [50, 30, 50, 30, 50],
+  selection: 5,
 };
 
-// Pre-defined patterns for common interactions
 const PATTERNS = {
   tap: [10],
   doubleTap: [10, 50, 10],
@@ -71,46 +68,118 @@ const PATTERNS = {
 };
 
 // ============================================================================
+// Capacitor Haptics bridge (lazy-loaded)
+// ============================================================================
+
+let capacitorHaptics: any = null;
+let capacitorHapticsLoaded = false;
+
+async function loadCapacitorHaptics() {
+  if (capacitorHapticsLoaded) return capacitorHaptics;
+  capacitorHapticsLoaded = true;
+  try {
+    const mod = await import('@capacitor/haptics');
+    capacitorHaptics = mod.Haptics;
+    return capacitorHaptics;
+  } catch {
+    capacitorHaptics = null;
+    return null;
+  }
+}
+
+/** Map our HapticStyle → Capacitor ImpactStyle / NotificationType */
+const CAPACITOR_IMPACT_MAP: Record<string, string> = {
+  light: 'Light',
+  medium: 'Medium',
+  heavy: 'Heavy',
+  selection: 'selection', // special case
+};
+
+const CAPACITOR_NOTIFICATION_MAP: Record<string, string> = {
+  success: 'Success',
+  warning: 'Warning',
+  error: 'Error',
+};
+
+async function triggerCapacitor(style: HapticStyle): Promise<boolean> {
+  const h = capacitorHaptics ?? (await loadCapacitorHaptics());
+  if (!h) return false;
+
+  try {
+    if (style === 'selection') {
+      await h.selectionStart();
+      await h.selectionChanged();
+      await h.selectionEnd();
+      return true;
+    }
+    const notification = CAPACITOR_NOTIFICATION_MAP[style];
+    if (notification) {
+      await h.notification({ type: notification });
+      return true;
+    }
+    const impact = CAPACITOR_IMPACT_MAP[style];
+    if (impact) {
+      await h.impact({ style: impact });
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================================
 // Hook Implementation
 // ============================================================================
 
 export const useHaptic = (options: HapticOptions = {}): UseHapticReturn => {
   const { enabled = true } = options;
+  const hapticModuleRef = useRef<boolean>(false);
 
-  // Check if Vibration API is supported
-  const isSupported = useMemo(() => {
-    return typeof navigator !== 'undefined' && 'vibrate' in navigator;
+  // Eagerly load Capacitor haptics on mount
+  useEffect(() => {
+    if (!hapticModuleRef.current) {
+      hapticModuleRef.current = true;
+      loadCapacitorHaptics();
+    }
   }, []);
 
-  // Main trigger function
+  const isSupported = useMemo(() => {
+    // Capacitor is always "supported" on Android; also check web vibration
+    return true;
+  }, []);
+
+  // Main trigger function — tries Capacitor first, then Web Vibration API
   const trigger = useCallback((style: HapticStyle = 'light') => {
-    if (!enabled || !isSupported) return;
+    if (!enabled) return;
 
-    try {
-      const duration = HAPTIC_DURATIONS[style];
-      if (Array.isArray(duration)) {
-        navigator.vibrate(duration);
-      } else {
-        navigator.vibrate(duration);
+    // Fire-and-forget: try Capacitor, fall back to web vibration
+    triggerCapacitor(style).then((handled) => {
+      if (handled) return;
+      // Web Vibration API fallback
+      try {
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          const duration = HAPTIC_DURATIONS[style];
+          navigator.vibrate(Array.isArray(duration) ? duration : duration);
+        }
+      } catch {
+        // Silently fail
       }
-    } catch (error) {
-      // Silently fail - haptics are non-critical
-      console.debug('Haptic feedback failed:', error);
-    }
-  }, [enabled, isSupported]);
+    });
+  }, [enabled]);
 
-  // Custom pattern function
+  // Custom pattern function — web vibration only (Capacitor doesn't support arbitrary patterns)
   const pattern = useCallback((durations: number[]) => {
-    if (!enabled || !isSupported) return;
-
+    if (!enabled) return;
     try {
-      navigator.vibrate(durations);
-    } catch (error) {
-      console.debug('Haptic pattern failed:', error);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(durations);
+      }
+    } catch {
+      // Silently fail
     }
-  }, [enabled, isSupported]);
+  }, [enabled]);
 
-  // Predefined pattern triggers
   const patterns = useMemo(() => ({
     tap: () => pattern(PATTERNS.tap),
     doubleTap: () => pattern(PATTERNS.doubleTap),
@@ -131,25 +200,12 @@ export const useHaptic = (options: HapticOptions = {}): UseHapticReturn => {
 // Utility Hook - useHapticButton
 // ============================================================================
 
-/**
- * Hook for adding haptic feedback to button interactions
- *
- * Usage:
- * ```tsx
- * const buttonProps = useHapticButton('medium');
- * return <button {...buttonProps}>Click me</button>;
- * ```
- */
 export const useHapticButton = (style: HapticStyle = 'light') => {
   const { trigger } = useHaptic();
 
   return useMemo(() => ({
-    onClick: (e: React.MouseEvent) => {
-      trigger(style);
-    },
-    onTouchStart: () => {
-      trigger('selection');
-    },
+    onClick: () => { trigger(style); },
+    onTouchStart: () => { trigger('selection'); },
   }), [trigger, style]);
 };
 

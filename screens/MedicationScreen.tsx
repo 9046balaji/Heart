@@ -6,6 +6,7 @@ import { ParsedMedication } from '../services/api.types';
 import { Medication } from '../types';
 import { useMedications } from '../hooks/useMedications';
 import ScreenHeader from '../components/ScreenHeader';
+import { useConfirm } from '../components/ConfirmDialog';
 
 /**
  * Convert service errors to user-friendly messages
@@ -23,6 +24,7 @@ function getUserFriendlyError(error: unknown): string {
 
 const MedicationScreen: React.FC = () => {
     const navigate = useNavigate();
+    const confirm = useConfirm();
     const { medications, loading: isLoading, addMedication, updateMedication, deleteMedication: removeMedication } = useMedications();
     const [showAddModal, setShowAddModal] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -109,7 +111,13 @@ const MedicationScreen: React.FC = () => {
     };
 
     const deleteMed = async (id: string) => {
-        if (confirm("Are you sure you want to delete this medication?")) {
+        const confirmed = await confirm({
+            title: "Delete Medication",
+            message: "Are you sure you want to delete this medication?",
+            confirmText: "Delete",
+            variant: "danger"
+        });
+        if (confirmed) {
             removeMedication(id);
         }
     };
@@ -167,7 +175,7 @@ const MedicationScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans">
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
             <ScreenHeader
                 title="Medicine Cabinet"
                 subtitle="Track & Manage Prescriptions"

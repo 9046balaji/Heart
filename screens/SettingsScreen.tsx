@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { pdfExportService } from '../services/pdfExport';
 import { calendarService, CalendarServiceError } from '../services/calendarService';
 import { notificationService, NotificationServiceError } from '../services/notificationService';
+import { useToast } from '../components/Toast';
 import type { CalendarProvider, WeeklySummaryPreferences, DeliveryChannel } from '../services/api.types';
 import { Modal } from '../components/Modal';
 
@@ -55,7 +56,33 @@ const DevicesModal = ({
     setIsScanning(true);
     setErrorMsg(null);
 
-    // Web Bluetooth API Logic
+    // Try Capacitor BLE plugin first (better Android native experience)
+    try {
+      const { BleClient } = await import('@capacitor-community/bluetooth-le');
+      await BleClient.initialize();
+
+      // Request permissions on Android
+      await BleClient.requestDevice({
+        services: ['0000180d-0000-1000-8000-00805f9b34fb'], // Heart Rate Service UUID
+      }).then((device) => {
+        const newDevice: Device = {
+          id: device.deviceId,
+          name: device.name || 'Heart Rate Monitor',
+          type: 'chest-strap',
+          lastSync: 'Now',
+          status: 'connected',
+          battery: 100
+        };
+        onConnect(newDevice);
+      });
+      setIsScanning(false);
+      return;
+    } catch (capError: any) {
+      // Capacitor BLE not available or failed, fall through to Web Bluetooth
+      console.log("Capacitor BLE unavailable, trying Web Bluetooth:", capError.message);
+    }
+
+    // Web Bluetooth API Logic (fallback)
     if ('bluetooth' in navigator) {
       try {
         // Request device with Heart Rate Service
@@ -651,6 +678,7 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
 const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   const navigate = useNavigate();
   const { t, language, setLanguage } = useLanguage();
+  const { showToast } = useToast();
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Initialize state from localStorage or defaults
@@ -748,7 +776,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   );
 
   return (
-    <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-sans pb-24">
+    <div className="relative flex h-auto min-h-screen w-full flex-col bg-background-light dark:bg-background-dark font-sans pb-24 overflow-x-hidden">
       {/* Top App Bar */}
       <div className="flex items-center p-4 pb-2 justify-between bg-background-light dark:bg-background-dark sticky top-0 z-10">
         <button
@@ -1009,7 +1037,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
                   exportDate: new Date(),
                 });
               } else {
-                alert('No chat history to export.');
+                showToast('No chat history to export.', 'info');
               }
             }}
             className="flex items-center gap-4 bg-background-light dark:bg-background-dark px-4 min-h-14 justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"

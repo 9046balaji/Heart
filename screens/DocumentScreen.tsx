@@ -5,6 +5,7 @@ import { useUserStore } from '../store/useUserStore';
 import { useAuth } from '../hooks/useAuth';
 import { DocumentDetails } from '../services/api.types';
 import ScreenHeader from '../components/ScreenHeader';
+import { useToast } from '../components/Toast';
 
 // Use the shared type from api.types
 type Document = DocumentDetails;
@@ -12,12 +13,26 @@ type Document = DocumentDetails;
 export default function DocumentScreen() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Filter documents by search query
+    const filteredDocuments = documents.filter(doc => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            doc.filename?.toLowerCase().includes(q) ||
+            doc.classification?.document_type?.toLowerCase().includes(q) ||
+            doc.classification?.category?.toLowerCase().includes(q) ||
+            doc.status?.toLowerCase().includes(q)
+        );
+    });
 
     useEffect(() => {
         loadDocuments();
@@ -47,7 +62,7 @@ export default function DocumentScreen() {
             setShowUploadModal(false);
         } catch (error) {
             console.error('Upload failed:', error);
-            alert('Failed to upload document');
+            showToast('Failed to upload document', 'error');
         } finally {
             setUploading(false);
         }
@@ -62,8 +77,46 @@ export default function DocumentScreen() {
         }
     };
 
+    const handleDownload = async (doc: Document) => {
+        try {
+            const response = await fetch(`/api/documents/${doc.document_id}/download`);
+            if (!response.ok) throw new Error('Download failed');
+            const blob = await response.blob();
+
+            // Try Capacitor Filesystem for native Android download
+            try {
+                const { Filesystem, Directory } = await import('@capacitor/filesystem');
+                const reader = new FileReader();
+                const base64Data = await new Promise<string>((resolve, reject) => {
+                    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                await Filesystem.writeFile({
+                    path: doc.filename || 'document',
+                    data: base64Data,
+                    directory: Directory.Documents,
+                });
+                showToast('Saved to Documents folder', 'success');
+            } catch {
+                // Fallback: browser download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = doc.filename || 'document';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Document downloaded', 'success');
+            }
+        } catch {
+            showToast('Failed to download document', 'error');
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans">
+        <div className="min-h-screen bg-slate-50 dark:bg-background-dark pb-24 font-sans overflow-x-hidden">
             <ScreenHeader
                 title="Medical Records"
                 subtitle="Secure Document Storage"
@@ -79,6 +132,8 @@ export default function DocumentScreen() {
                     <input
                         type="text"
                         placeholder="Search records..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 bg-white dark:bg-card-dark rounded-xl border-none shadow-sm focus:ring-2 focus:ring-primary/20 dark:text-white"
                     />
                 </div>
@@ -103,7 +158,12 @@ export default function DocumentScreen() {
                     </div>
                 ) : (
                     <div className="grid gap-4">
-                        {documents.map((doc) => (
+                        {filteredDocuments.length === 0 ? (
+                            <div className="text-center py-8">
+                                <span className="material-symbols-outlined text-3xl text-slate-300 mb-2">search_off</span>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm">No documents matching "{searchQuery}"</p>
+                            </div>
+                        ) : filteredDocuments.map((doc) => (
                             <div key={doc.document_id} className="bg-white dark:bg-card-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow group">
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${doc.classification?.document_type === 'Lab Report' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' :
                                     doc.classification?.document_type === 'Prescription' ? 'bg-green-50 text-green-600 dark:bg-green-900/20' :
@@ -129,7 +189,7 @@ export default function DocumentScreen() {
                                     )}
                                 </div>
 
-                                <button className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                <button onClick={() => handleDownload(doc)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors">
                                     <span className="material-symbols-outlined">download</span>
                                 </button>
                             </div>

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { badgesData } from '../data/gamification';
 import { FamilyMember } from '../types';
+import { useToast } from '../components/Toast';
 
 // --- Types ---
 interface UserProfile {
@@ -55,6 +56,7 @@ const PhotoEditModal = ({
   onSave: (photoUrl: string) => void,
   onClose: () => void
 }) => {
+  const { showToast } = useToast();
   const [mode, setMode] = useState<'menu' | 'camera'>('menu');
   const [stream, setStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -98,7 +100,7 @@ const PhotoEditModal = ({
       }, 100);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      alert("Could not access camera. Please check permissions.");
+      showToast("Could not access camera. Please check permissions.", 'error');
     }
   };
 
@@ -773,7 +775,7 @@ const ProfileScreen: React.FC = () => {
       </div>
 
       <div className="text-center py-4 px-4">
-        <a className="text-sm text-primary dark:text-primary/90 hover:underline" href="#">Privacy Policy</a>
+        <a className="text-sm text-primary dark:text-primary/90 hover:underline cursor-pointer" onClick={() => navigate('/consent')}>Privacy Policy</a>
       </div>
 
       {/* --- Modals --- */}

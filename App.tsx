@@ -3,6 +3,35 @@ import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import './styles/charts.css';
 
+// ============================================================================
+// Capacitor Platform Initialization
+// ============================================================================
+const initCapacitorPlugins = async () => {
+  try {
+    // Hide splash screen after app loads
+    const { SplashScreen } = await import('@capacitor/splash-screen');
+    await SplashScreen.hide({ fadeOutDuration: 300 });
+  } catch { /* not on native */ }
+
+  try {
+    // Configure status bar for dark theme
+    const { StatusBar, Style } = await import('@capacitor/status-bar');
+    await StatusBar.setStyle({ style: Style.Dark });
+    await StatusBar.setBackgroundColor({ color: '#111111' });
+  } catch { /* not on native */ }
+
+  try {
+    // Configure keyboard behavior
+    const { Keyboard } = await import('@capacitor/keyboard');
+    Keyboard.addListener('keyboardWillShow', () => {
+      document.body.classList.add('keyboard-visible');
+    });
+    Keyboard.addListener('keyboardWillHide', () => {
+      document.body.classList.remove('keyboard-visible');
+    });
+  } catch { /* not on native */ }
+};
+
 // Eagerly loaded screens (critical path - login/signup)
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
@@ -42,6 +71,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { ProviderProvider } from './contexts/ProviderContext';
 import { PageSkeleton, ChatListSkeleton } from './components/Skeleton';
 import { ConfirmDialogProvider } from './components/ConfirmDialog';
+import { ToastProvider } from './components/Toast';
 import { AuthProvider } from './hooks/useAuth';
 
 // Loading fallback components for different screen types
@@ -110,7 +140,7 @@ const AppContent: React.FC = () => {
       onTouchEnd={handleTouchEnd}
     >
       <ErrorBoundary>
-        <div className={`flex-1 ${location.pathname.startsWith('/chat') ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar pb-20'}`}>
+        <div className={`flex-1 ${location.pathname.startsWith('/chat') || ['/login', '/signup'].includes(location.pathname) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar pb-20'}`}>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginScreen />} />
@@ -259,14 +289,20 @@ const AppContent: React.FC = () => {
 
 
 const App: React.FC = () => {
+  useEffect(() => {
+    initCapacitorPlugins();
+  }, []);
+
   return (
     <AuthProvider>
       <LanguageProvider>
         <ProviderProvider>
           <ConfirmDialogProvider>
-            <HashRouter>
-              <AppContent />
-            </HashRouter>
+            <ToastProvider>
+              <HashRouter>
+                <AppContent />
+              </HashRouter>
+            </ToastProvider>
           </ConfirmDialogProvider>
         </ProviderProvider>
       </LanguageProvider>

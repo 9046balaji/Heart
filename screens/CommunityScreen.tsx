@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { communityFeed, challengesData, friendsData, communityGoals, CommunityPost, Friend, Challenge } from '../data/community';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useToast } from '../components/Toast';
 
 interface Comment {
   id: string;
@@ -33,6 +34,7 @@ const MOCK_CHATS: Record<string, ChatMessage[]> = {};
 
 const CommunityScreen: React.FC = () => {
   const { t } = useLanguage();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'Feed' | 'Challenges' | 'Friends'>('Feed');
 
   // Data State
@@ -153,14 +155,14 @@ const CommunityScreen: React.FC = () => {
       });
     } else {
       navigator.clipboard.writeText(link);
-      alert("Invite link copied to clipboard!");
+      showToast("Invite link copied to clipboard!", 'success');
     }
     setShowInviteModal(false);
   };
 
   const handleSendFriendRequest = () => {
     if (!friendSearch.trim()) return;
-    alert(`Friend request sent to ${friendSearch}!`);
+    showToast(`Friend request sent to ${friendSearch}!`, 'success');
     setFriendSearch('');
   };
 
@@ -466,7 +468,7 @@ const CommunityScreen: React.FC = () => {
   // --- Challenge Detail View ---
   if (selectedChallenge) {
       return (
-          <div className="pb-24 animate-in slide-in-from-right duration-300 relative min-h-screen bg-background-light dark:bg-background-dark">
+          <div className="pb-24 animate-in slide-in-from-right duration-300 relative min-h-screen bg-background-light dark:bg-background-dark overflow-x-hidden">
               {/* Header */}
               <div className="relative h-48 bg-cover bg-center" style={{backgroundImage: `url("${selectedChallenge.image}")`}}>
                   <div className="absolute inset-0 bg-black/50"></div>
@@ -653,7 +655,7 @@ const CommunityScreen: React.FC = () => {
   }
 
   return (
-    <div className="pb-24 animate-in fade-in slide-in-from-bottom-4 duration-300 relative min-h-screen">
+    <div className="pb-24 animate-in fade-in slide-in-from-bottom-4 duration-300 relative min-h-screen overflow-x-hidden">
         {/* Internal Tabs */}
         <div className="sticky top-[60px] z-10 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-sm">
             <div className="flex border-b border-slate-200 dark:border-white/10 px-4 justify-between">

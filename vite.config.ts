@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
         'fontfaceobserver': path.resolve(__dirname, 'mocks/fontfaceobserver.ts'),
         'expo-modules-core': path.resolve(__dirname, 'mocks/expo-modules-core.ts'),
         'expo-font': path.resolve(__dirname, 'mocks/expo-font.ts'),
+        'expo-image-picker': path.resolve(__dirname, 'mocks/expo-image-picker.ts'),
       },
       extensions: ['.web.js', '.web.jsx', '.web.ts', '.web.tsx', '.js', '.jsx', '.ts', '.tsx', '.json'],
     },

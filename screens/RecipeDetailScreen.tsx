@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import formattedRecipeData from '../data/formattedRecipes';
 import { Recipe, FlexibleRecipe } from '../types/recipeTypes';
 import { apiClient, APIError } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 // --- Helper: Parse time from string ---
 // Returns seconds if found, else 0
@@ -221,6 +222,7 @@ const CookingModeOverlay = ({
 const RecipeDetailScreen: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const { showToast } = useToast();
     const [activeTab, setActiveTab] = useState<'Ingredients' | 'Instructions'>('Ingredients');
     const [isFavorite, setIsFavorite] = useState(false);
     const [servings, setServings] = useState(1);
@@ -292,7 +294,7 @@ const RecipeDetailScreen: React.FC = () => {
             };
             const currentLog = JSON.parse(localStorage.getItem('daily_food_log') || '[]');
             localStorage.setItem('daily_food_log', JSON.stringify([logItem, ...currentLog]));
-            alert("Recipe completed and logged to your daily nutrition!");
+            showToast("Recipe completed and logged to your daily nutrition!", 'success');
             navigate('/nutrition');
         }
     };
@@ -375,7 +377,7 @@ const RecipeDetailScreen: React.FC = () => {
     if (!recipe) return <div className="p-8 text-center">Loading recipe...</div>;
 
     return (
-        <div className="min-h-screen bg-white dark:bg-background-dark pb-24 relative">
+        <div className="min-h-screen bg-white dark:bg-background-dark pb-24 relative overflow-x-hidden">
             {/* Hero Image */}
             <div className="w-full h-[40vh] relative">
                 <img src={getImageUrl(recipe.image)} alt={recipe.title} className="w-full h-full object-cover" />

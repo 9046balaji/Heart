@@ -164,7 +164,7 @@ export default function SmartWatchScreen() {
     );
 
     return (
-        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24 overflow-x-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 pb-12 rounded-b-[2.5rem] shadow-xl">
                 <div className="flex items-center justify-between mb-6">

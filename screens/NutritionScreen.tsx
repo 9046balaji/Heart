@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import recipeData from '../data/formattedRecipes';
 import { Recipe, FlexibleRecipe } from '../types/recipeTypes';
 import { apiClient, APIError } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 interface FoodLogItem {
     id: string;
@@ -21,6 +22,7 @@ const ShoppingListModal: React.FC<{
     list: { name: string, items: string[] }[],
     onClose: () => void
 }> = ({ list, onClose }) => {
+    const { showToast } = useToast();
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
     const toggleItem = (item: string) => {
@@ -82,7 +84,7 @@ const ShoppingListModal: React.FC<{
                             const text = list.map(c => `${c.name}:
 ${c.items.join('\n')}`).join('\n\n');
                             navigator.clipboard.writeText(text);
-                            alert("Copied to clipboard!");
+                            showToast("Copied to clipboard!", 'success');
                         }}
                         className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
                     >
@@ -157,6 +159,7 @@ const RecipeCard: React.FC<{ recipe: any }> = ({ recipe }) => {
 
 const NutritionScreen: React.FC = () => {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const [activeTab, setActiveTab] = useState('Meal Plans');
     const [searchQuery, setSearchQuery] = useState('');
     const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -330,9 +333,9 @@ const NutritionScreen: React.FC = () => {
         } catch (error) {
             console.error("AI Generation Error", error);
             if (error instanceof APIError) {
-                alert(`Error: ${error.message}`);
+                showToast(`Error: ${error.message}`, 'error');
             } else {
-                alert("Could not regenerate plan at this time.");
+                showToast("Could not regenerate plan at this time.", 'error');
             }
         } finally {
             setIsGenerating(false);
@@ -375,7 +378,7 @@ const NutritionScreen: React.FC = () => {
 
         } catch (error) {
             console.error("AI Chef Error", error);
-            alert("Chef is busy. Try again.");
+            showToast("Chef is busy. Try again.", 'error');
         } finally {
             setIsCreatingRecipe(false);
         }
@@ -400,7 +403,7 @@ const NutritionScreen: React.FC = () => {
 
         } catch (error) {
             console.error("Grocery List Error", error);
-            alert("Could not generate list.");
+            showToast("Could not generate list.", 'error');
         } finally {
             setIsGeneratingList(false);
         }
@@ -457,7 +460,7 @@ const NutritionScreen: React.FC = () => {
             });
         } catch (error) {
             console.error("Scan Error:", error);
-            alert("Could not analyze image. Please try again.");
+            showToast("Could not analyze image. Please try again.", 'error');
         } finally {
             setIsAnalyzing(false);
         }
@@ -516,14 +519,14 @@ const NutritionScreen: React.FC = () => {
 
         } catch (error) {
             console.error("Fridge Scan Error:", error);
-            alert("Could not analyze fridge image.");
+            showToast("Could not analyze fridge image.", 'error');
         } finally {
             setIsAnalyzing(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24 relative">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24 relative overflow-x-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-4 sticky top-0 bg-background-light dark:bg-background-dark z-10">
                 <button onClick={() => navigate('/dashboard')} className="p-2 -ml-2 rounded-full text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">

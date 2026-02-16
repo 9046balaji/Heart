@@ -22,6 +22,7 @@ const LoginScreen: React.FC = () => {
     const [otp, setOtp] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [forgotError, setForgotError] = useState('');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,9 +40,10 @@ const LoginScreen: React.FC = () => {
         }
     };
 
-    const handleGoogleLogin = () => {
-        // Simulate Google Login
-        navigate('/dashboard');
+    const handleGoogleLogin = async () => {
+        // TODO: Implement real Google OAuth via Firebase Auth
+        // For now, show user feedback instead of silently navigating
+        setError('Google Sign-In is not yet configured. Please use email and password.');
     };
 
     const openForgotModal = () => {
@@ -50,6 +52,7 @@ const LoginScreen: React.FC = () => {
         setOtp('');
         setNewPassword('');
         setConfirmPassword('');
+        setForgotError('');
         setShowForgotModal(true);
     };
 
@@ -68,20 +71,26 @@ const LoginScreen: React.FC = () => {
 
     const handleVerifyOtp = (e: React.FormEvent) => {
         e.preventDefault();
+        setForgotError('');
         // Simulate OTP verification
         if (otp.length === 6) {
             setForgotStep('reset');
         } else {
-            alert("Please enter a 6-digit code.");
+            setForgotError('Please enter a 6-digit code.');
         }
     };
 
     const handleResetSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (newPassword && newPassword === confirmPassword) {
-            setForgotStep('success');
+        setForgotError('');
+        if (!newPassword) {
+            setForgotError('Please enter a new password.');
+        } else if (newPassword.length < 8) {
+            setForgotError('Password must be at least 8 characters.');
+        } else if (newPassword !== confirmPassword) {
+            setForgotError('Passwords do not match.');
         } else {
-            alert("Passwords do not match.");
+            setForgotStep('success');
         }
     };
 
@@ -296,6 +305,12 @@ const LoginScreen: React.FC = () => {
                                         <span className="text-white font-medium">{maskedContact()}</span>
                                     </p>
 
+                                    {forgotError && (
+                                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm mb-4">
+                                            {forgotError}
+                                        </div>
+                                    )}
+
                                     <div className="space-y-6">
                                         <div className="flex justify-center">
                                             <input
@@ -338,6 +353,12 @@ const LoginScreen: React.FC = () => {
                                 <form onSubmit={handleResetSubmit}>
                                     <h3 className="text-xl font-bold text-white mb-2">Create New Password</h3>
                                     <p className="text-slate-400 text-sm mb-6">Enter your new password below.</p>
+
+                                    {forgotError && (
+                                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm mb-4">
+                                            {forgotError}
+                                        </div>
+                                    )}
 
                                     <div className="space-y-4">
                                         <div className="space-y-2">

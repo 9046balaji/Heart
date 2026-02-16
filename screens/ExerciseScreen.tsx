@@ -624,7 +624,7 @@ const ExerciseScreen: React.FC = () => {
     }, [searchQuery, filterCategory, sortBy]);
 
     return (
-        <div className="min-h-screen bg-background-light dark:bg-background-dark">
+        <div className="min-h-screen bg-background-light dark:bg-background-dark overflow-x-hidden">
             {/* Header with Tabs */}
             <div className="sticky top-0 bg-background-light dark:bg-background-dark z-10">
                 <div className="flex items-center justify-between p-4 pb-2 border-b border-slate-100 dark:border-slate-800/50">

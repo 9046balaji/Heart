@@ -13,6 +13,7 @@ import { useChatStore, ChatSession, chatActions } from '../store/useChatStore';
 import { useAuth } from '../hooks/useAuth';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { useProvider } from '../contexts/ProviderContext';
+import { useToast } from '../components/Toast';
 
 // --- Audio Helpers ---
 function base64ToUint8Array(base64: string) {
@@ -146,6 +147,7 @@ interface ExtendedMessage extends Message {
 const ChatScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { isOnline } = useOfflineStatus();
   const location = useLocation();
   const [input, setInput] = useState('');
@@ -270,7 +272,7 @@ const ChatScreen: React.FC = () => {
 
     // Check online status
     if (!isOnline) {
-      alert('You are currently offline. Please check your internet connection.');
+      showToast('You are currently offline. Please check your internet connection.', 'warning');
       return;
     }
 
@@ -287,7 +289,7 @@ const ChatScreen: React.FC = () => {
   const startRecording = async () => {
     // Check online status
     if (!isOnline) {
-      alert('Voice recording requires an internet connection for transcription.');
+      showToast('Voice recording requires an internet connection for transcription.', 'warning');
       return;
     }
 
@@ -313,7 +315,7 @@ const ChatScreen: React.FC = () => {
       setIsRecording(true);
     } catch (err) {
       console.error("Error accessing microphone:", err);
-      alert("Could not access microphone. Please check permissions.");
+      showToast("Could not access microphone. Please check permissions.", 'error');
     }
   };
 
@@ -334,11 +336,11 @@ const ChatScreen: React.FC = () => {
         setInput(response.text);
       } else {
         console.error("Transcription failed:", response.error);
-        alert("Failed to transcribe audio: " + response.error);
+        showToast("Failed to transcribe audio: " + response.error, 'error');
       }
     } catch (error) {
       console.error("Transcription error:", error);
-      alert("Failed to transcribe audio.");
+      showToast("Failed to transcribe audio.", 'error');
     }
   };
 

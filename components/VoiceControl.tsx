@@ -2,10 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
+import { useToast } from './Toast';
 
 const VoiceControl: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast: showNotification } = useToast();
 
   // Basic State
   const [isListening, setIsListening] = useState(false);
@@ -67,7 +69,7 @@ const VoiceControl: React.FC = () => {
             if (isHandsFree) {
                 setIsHandsFree(false);
                 setAiState('idle');
-                alert("Microphone permission denied. Please allow access in settings.");
+                    showNotification("Microphone permission denied. Please allow access in settings.", "error");
             }
             return;
         }
@@ -107,7 +109,7 @@ const VoiceControl: React.FC = () => {
 
   const startListening = () => {
       if (permissionError) {
-          alert("Microphone access is blocked.");
+          showNotification("Microphone access is blocked.", "error");
           return;
       }
       try {
@@ -127,7 +129,7 @@ const VoiceControl: React.FC = () => {
 
   const toggleListen = () => {
     if (!recognitionRef.current) {
-        alert("Voice control not supported in this browser.");
+        showNotification("Voice control not supported in this browser.", "warning");
         return;
     }
 
@@ -140,7 +142,7 @@ const VoiceControl: React.FC = () => {
 
   const toggleHandsFreeMode = () => {
       if (permissionError) {
-          alert("Cannot enter Hands-Free mode without microphone access.");
+          showNotification("Cannot enter Hands-Free mode without microphone access.", "error");
           return;
       }
       const newState = !isHandsFree;

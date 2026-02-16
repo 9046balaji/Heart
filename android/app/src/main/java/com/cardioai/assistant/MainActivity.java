@@ -1,4 +1,4 @@
-package com.example.app;
+package com.cardioai.assistant;
 
 import com.getcapacitor.BridgeActivity;
 

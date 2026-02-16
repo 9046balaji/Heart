@@ -13,6 +13,8 @@
 html {
     scroll-behavior: smooth;
     background-color: #101922;
+    /* Prevent horizontal overflow in Android WebView */
+    overflow-x: hidden;
 }
 
 /* Base body styles (Tailwind handles most of this) */
@@ -22,16 +24,26 @@ body {
     min-height: 100vh;
     background-color: #101922;
     color: #e0e0e0;
+    /* Prevent horizontal overflow in Android WebView */
+    overflow-x: hidden;
+    max-width: 100vw;
     /* Safe area insets for mobile notches and system UI */
     padding-top: max(env(safe-area-inset-top, 0), 0px);
     padding-bottom: max(env(safe-area-inset-bottom, 0), 0px);
     padding-left: max(env(safe-area-inset-left, 0), 0px);
     padding-right: max(env(safe-area-inset-right, 0), 0px);
+    /* Smooth touch scrolling for Android */
+    -webkit-overflow-scrolling: touch;
+    /* Disable text size adjustment on rotation */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 /* Ensure root takes full height */
 #root {
     min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
     background-color: #101922;
 }
 
@@ -75,4 +87,14 @@ body {
 .no-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+}
+
+/* Android keyboard handling — hide bottom nav when keyboard is open */
+body.keyboard-visible .bottom-nav-container {
+    display: none !important;
+}
+
+body.keyboard-visible {
+    /* Reduce bottom padding when keyboard is visible */
+    padding-bottom: 0 !important;
 }

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { workoutData } from '../data/workouts';
 import { apiClient, APIError } from '../services/apiClient';
 import { memoryService } from '../services/memoryService';
+import { useToast } from '../components/Toast';
 
 // --- Custom Video Player Component ---
 const CustomVideoPlayer = ({ src, poster, isExpanded, toggleExpand }: { src: string, poster?: string, isExpanded: boolean, toggleExpand: () => void }) => {
@@ -219,6 +220,7 @@ function createBlob(data: Float32Array): any {
 const WorkoutDetailScreen: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const { showToast } = useToast();
     const [isVideoExpanded, setIsVideoExpanded] = useState(false);
 
     // Timer State
@@ -404,10 +406,10 @@ const WorkoutDetailScreen: React.FC = () => {
 
         } catch (e) {
             console.error("Bluetooth connection failed", e);
-            alert("Could not connect to Heart Rate Monitor. Make sure it's paired and active.");
+            showToast("Could not connect to Heart Rate Monitor. Make sure it's paired and active.", 'error');
             // Simulator for Demo if bluetooth fails or not present
             if (!isBlueToothConnected) {
-                alert("Simulating Heart Rate Monitor for Demo.");
+                showToast("Simulating Heart Rate Monitor for Demo.", 'info');
                 setIsBlueToothConnected(true);
                 const interval = setInterval(() => {
                     setHeartRate(prev => {
@@ -443,12 +445,12 @@ const WorkoutDetailScreen: React.FC = () => {
 
         try {
             // For now, just show a simple message instead of complex real-time audio
-            alert("Live Coach feature coming soon! Your workout coach will guide you with voice commands.");
+            showToast("Live Coach feature coming soon! Your workout coach will guide you with voice commands.", 'info');
             setIsLiveCoachActive(false);
 
         } catch (error) {
             console.error("Live Coach Error:", error);
-            alert("Could not start Live Coach.");
+            showToast("Could not start Live Coach.", 'error');
             setIsLiveCoachActive(false);
         }
     };
@@ -511,21 +513,33 @@ const WorkoutDetailScreen: React.FC = () => {
 
     const handleShare = async () => {
         if (!workout) return;
-        const shareData = {
-            title: 'Cardio AI Workout',
-            text: `I just completed a ${workout.duration_min} min ${workout.title} with Cardio AI!`,
-            url: window.location.origin
-        };
+        const shareText = `I just completed a ${workout.duration_min} min ${workout.title} with Cardio AI!`;
 
         try {
-            if (navigator.share) {
-                await navigator.share(shareData);
-            } else {
-                await navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}`);
-                alert("Workout stats copied to clipboard!");
+            // Try Capacitor Share first (native Android share sheet)
+            const { Share } = await import('@capacitor/share');
+            await Share.share({
+                title: 'Cardio AI Workout',
+                text: shareText,
+                url: window.location.origin,
+                dialogTitle: 'Share your workout',
+            });
+        } catch {
+            // Fallback: Web Share API → clipboard
+            try {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: 'Cardio AI Workout',
+                        text: shareText,
+                        url: window.location.origin,
+                    });
+                } else if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(`Cardio AI Workout\n${shareText}`);
+                    showToast("Workout stats copied to clipboard!", 'success');
+                }
+            } catch (err) {
+                console.error("Share failed", err);
             }
-        } catch (err) {
-            console.error("Share failed", err);
         }
     };
 
@@ -553,7 +567,7 @@ const WorkoutDetailScreen: React.FC = () => {
 
         // Adaptive Logic Check (Client-side simulation)
         if (workout.intensity === 'medium' && rpe >= 9) {
-            alert("Noted! That seemed harder than expected. We'll adjust future recommendations to be slightly lighter.");
+            showToast("Noted! That seemed harder than expected. We'll adjust future recommendations to be slightly lighter.", 'info');
             localStorage.setItem('adaptive_adjustment', 'decrease_difficulty');
         }
 
@@ -609,7 +623,7 @@ const WorkoutDetailScreen: React.FC = () => {
     const isYouTube = videoSrc.includes('youtube.com/embed') || videoSrc.includes('youtube.com') || videoSrc.includes('youtu.be');
 
     return (
-        <div className="min-h-screen bg-white dark:bg-background-dark pb-24 relative">
+        <div className="min-h-screen bg-white dark:bg-background-dark pb-24 relative overflow-x-hidden">
             {/* Hero Image */}
             <div className="w-full h-[40vh] relative">
                 <img src={getImageUrl(workout.image, workout.id)} alt={workout.title} className="w-full h-full object-cover" />
