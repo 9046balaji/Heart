@@ -8,18 +8,19 @@ import {
     ScrollView,
     Image,
     ActivityIndicator,
-    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 type Tab = 'ecg' | 'food';
 
 export default function VisionScreen() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const [activeTab, setActiveTab] = useState<Tab>('ecg');
     const [loading, setLoading] = useState(false);
     const [image, setImage] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export default function VisionScreen() {
             setResult(response);
         } catch (error) {
             console.error('Analysis error:', error);
-            Alert.alert('Error', 'Failed to analyze image');
+            showToast('Failed to analyze image', 'error');
         } finally {
             setLoading(false);
         }

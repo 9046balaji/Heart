@@ -82,7 +82,15 @@ const IntakeModal = ({
                     <p className="text-slate-700 dark:text-slate-300 mb-6 font-medium">
                         Your symptoms suggest a potentially life-threatening condition. Do not book an appointment.
                     </p>
-                    <button onClick={() => window.location.href = 'tel:911'} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/40 flex items-center justify-center gap-2 mb-3">
+                    <button onClick={async () => {
+                        const telUrl = 'tel:911';
+                        try {
+                            const { Browser } = await import('@capacitor/browser');
+                            await Browser.open({ url: telUrl });
+                        } catch {
+                            window.location.href = telUrl;
+                        }
+                    }} className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/40 flex items-center justify-center gap-2 mb-3">
                         <span className="material-symbols-outlined">call</span> Call Emergency Services
                     </button>
                     <button onClick={onCancel} className="text-sm text-slate-500 underline">Cancel Booking</button>

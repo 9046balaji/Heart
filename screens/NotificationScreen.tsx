@@ -7,18 +7,19 @@ import {
     TouchableOpacity,
     Switch,
     ScrollView,
-    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 import { useAuth } from '../hooks/useAuth';
 
 export default function NotificationScreen() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [whatsappEnabled, setWhatsappEnabled] = useState(false);
     const [emailEnabled, setEmailEnabled] = useState(true);
     const [pushEnabled, setPushEnabled] = useState(true);
@@ -37,10 +38,10 @@ export default function NotificationScreen() {
                 await apiClient.registerDevice(user.id, 'mock_token', 'ios');
             }
 
-            Alert.alert('Success', 'Notification preferences saved');
+            showToast('Notification preferences saved', 'success');
         } catch (error) {
             console.error('Save error:', error);
-            Alert.alert('Error', 'Failed to save preferences');
+            showToast('Failed to save preferences', 'error');
         } finally {
             setLoading(false);
         }
@@ -125,9 +126,9 @@ export default function NotificationScreen() {
                                         title: 'Test Notification',
                                         body: 'This is a test push notification from Cardio AI.'
                                     });
-                                    Alert.alert('Success', 'Test notification sent!');
+                                    showToast('Test notification sent!', 'success');
                                 } catch (e) {
-                                    Alert.alert('Error', 'Failed to send test notification');
+                                    showToast('Failed to send test notification', 'error');
                                 }
                             }}
                         >

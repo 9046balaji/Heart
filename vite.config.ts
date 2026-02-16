@@ -85,9 +85,18 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         external: ['expo-image-manipulator'],
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-rn': ['react-native-web', '@expo/vector-icons'],
+            'data-recipes': ['./data/formattedRecipes.ts', './data/recipes.ts'],
+            'data-workouts': ['./data/workouts.ts'],
+            'data-misc': ['./data/community.ts', './data/doctors.ts', './data/gamification.ts', './data/stats.ts', './data/translations.ts'],
+          },
+        },
       },
-      // Inline CSS to avoid loading delays in mobile WebView
-      cssCodeSplit: false,
+      // CSS code splitting for optimal loading
+      cssCodeSplit: true,
       minify: 'terser',
       terserOptions: {
         compress: {

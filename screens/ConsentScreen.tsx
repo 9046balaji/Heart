@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export default function ConsentScreen() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
+    const confirm = useConfirm();
     const [loading, setLoading] = useState(true);
     const [consents, setConsents] = useState<any>({});
     const [error, setError] = useState<string | null>(null);
@@ -35,10 +39,10 @@ export default function ConsentScreen() {
             const updated = { ...consents, [consentType]: value };
             await apiClient.updateConsent('current_user', updated);
             setConsents(updated);
-            Alert.alert('Success', 'Consent preferences updated');
+            showToast('Consent preferences updated', 'success');
         } catch (err) {
             console.error('Failed to update consent:', err);
-            Alert.alert('Error', 'Failed to update consent. Please try again.');
+            showToast('Failed to update consent. Please try again.', 'error');
         }
     };
 
@@ -164,26 +168,22 @@ export default function ConsentScreen() {
 
                         <TouchableOpacity
                             style={styles.revokeButton}
-                            onPress={() => Alert.alert(
-                                'Revoke All Consents',
-                                'This will disable all optional features. Are you sure?',
-                                [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    {
-                                        text: 'Revoke',
-                                        style: 'destructive',
-                                        onPress: async () => {
-                                            // Revoke all non-required consents
-                                            const updated = { ...consents };
-                                            consentItems.filter(i => !i.required).forEach(i => {
-                                                updated[i.key] = false;
-                                            });
-                                            await apiClient.updateConsent('current_user', updated);
-                                            setConsents(updated);
-                                        }
-                                    }
-                                ]
-                            )}
+                            onPress={async () => {
+                                const confirmed = await confirm({
+                                    title: 'Revoke All Consents',
+                                    message: 'This will disable all optional features. Are you sure?',
+                                    confirmText: 'Revoke',
+                                    variant: 'danger',
+                                });
+                                if (confirmed) {
+                                    const updated = { ...consents };
+                                    consentItems.filter(i => !i.required).forEach(i => {
+                                        updated[i.key] = false;
+                                    });
+                                    await apiClient.updateConsent('current_user', updated);
+                                    setConsents(updated);
+                                }
+                            }}
                         >
                             <Ionicons name="close-circle" size={20} color="#EA4335" />
                             <Text style={styles.revokeText}>Revoke All Optional Consents</Text>

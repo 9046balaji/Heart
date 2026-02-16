@@ -1,0 +1,43 @@
+body {
+  font-family: 'Inter', sans-serif;
+}
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+/* Hide scrollbar for clean UI in horizontal lists */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print Styles for Export */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .no-print, nav, button, .fixed {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .bg-card-dark, .dark .bg-card-dark {
+    background-color: white !important;
+    border: 1px solid #ddd !important;
+    color: black !important;
+  }
+  .text-white, .dark .text-white {
+    color: black !important;
+  }
+  /* Expand charts for print if possible or hide */
+  .recharts-responsive-container {
+      height: 300px !important;
+  }
+}

@@ -8,15 +8,16 @@ import {
     TextInput,
     ScrollView,
     ActivityIndicator,
-    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
+import { useToast } from '../components/Toast';
 
 export default function KnowledgeGraphScreen() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any>(null);
@@ -39,7 +40,7 @@ export default function KnowledgeGraphScreen() {
             }
         } catch (error) {
             console.error('Search error:', error);
-            Alert.alert('Error', `Failed to ${mode === 'search' ? 'search' : 'query'} knowledge graph`);
+            showToast(`Failed to ${mode === 'search' ? 'search' : 'query'} knowledge graph`, 'error');
         } finally {
             setLoading(false);
         }

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../hooks/useAuth';
+import { apiClient } from '../services/apiClient';
 
 interface AgentSettings {
     model: 'gemini-pro' | 'gpt-4' | 'claude-3';
@@ -10,31 +12,86 @@ interface AgentSettings {
     temperature: number;
 }
 
+const DEFAULT_SETTINGS: AgentSettings = {
+    model: 'gemini-pro',
+    persona: 'medical',
+    responseLength: 'medium',
+    voice: 'female',
+    temperature: 0.7
+};
+
 const AgentSettingsScreen: React.FC = () => {
     const navigate = useNavigate();
     const { t } = useLanguage();
+    const { user } = useAuth();
 
+    const [loading, setLoading] = useState(true);
     const [settings, setSettings] = useState<AgentSettings>(() => {
         const saved = localStorage.getItem('agent_settings');
-        return saved ? JSON.parse(saved) : {
-            model: 'gemini-pro',
-            persona: 'medical',
-            responseLength: 'medium',
-            voice: 'female',
-            temperature: 0.7
-        };
+        return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
     });
 
     const [saved, setSaved] = useState(false);
 
+    // Load settings from backend on mount
+    useEffect(() => {
+        const loadSettings = async () => {
+            if (!user) {
+                setLoading(false);
+                return;
+            }
+            try {
+                const prefs = await apiClient.getPreferences(user.id);
+                if (prefs.agent_settings) {
+                    setSettings(prev => ({
+                        ...prev,
+                        ...prefs.agent_settings as any // Cast because of string literals vs string
+                    }));
+                }
+            } catch (error) {
+                console.error('Failed to load agent settings from backend', error);
+                // Fallback to local storage (already loaded in initial state) is fine
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadSettings();
+    }, [user]);
+
+    // Save to local storage whenever settings change (for offline/backup)
     useEffect(() => {
         localStorage.setItem('agent_settings', JSON.stringify(settings));
     }, [settings]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setSaved(true);
+        if (user) {
+            try {
+                await apiClient.updatePreferences(user.id, {
+                    agent_settings: settings
+                });
+            } catch (error) {
+                console.error('Failed to sync agent settings to backend', error);
+            }
+        }
         setTimeout(() => setSaved(false), 2000);
     };
+
+    const handleReset = () => {
+        if (window.confirm('Are you sure you want to reset all settings to default?')) {
+            setSettings(DEFAULT_SETTINGS);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1500);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+                <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></span>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background-light dark:bg-background-dark pb-24">
@@ -47,7 +104,12 @@ const AgentSettingsScreen: React.FC = () => {
                     <span className="material-symbols-outlined">arrow_back</span>
                 </button>
                 <h2 className="flex-1 text-center font-bold text-lg dark:text-white">Agent Settings</h2>
-                <div className="w-10"></div>
+                <button
+                    onClick={handleReset}
+                    className="p-2 -mr-2 text-xs font-bold text-slate-500 hover:text-red-500 transition-colors"
+                >
+                    RESET
+                </button>
             </div>
 
             <div className="p-4 space-y-6">
@@ -96,8 +158,8 @@ const AgentSettingsScreen: React.FC = () => {
                                     key={persona.id}
                                     onClick={() => setSettings(prev => ({ ...prev, persona: persona.id as any }))}
                                     className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${settings.persona === persona.id
-                                            ? 'border-primary bg-primary/5 text-primary'
-                                            : 'border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500'
+                                        ? 'border-primary bg-primary/5 text-primary'
+                                        : 'border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500'
                                         }`}
                                 >
                                     <span className="material-symbols-outlined mb-1">{persona.icon}</span>
@@ -182,8 +244,8 @@ const AgentSettingsScreen: React.FC = () => {
                                 <button
                                     onClick={() => setSettings(prev => ({ ...prev, voice: 'male' }))}
                                     className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${settings.voice === 'male'
-                                            ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
-                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                         }`}
                                 >
                                     Male
@@ -191,8 +253,8 @@ const AgentSettingsScreen: React.FC = () => {
                                 <button
                                     onClick={() => setSettings(prev => ({ ...prev, voice: 'female' }))}
                                     className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${settings.voice === 'female'
-                                            ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
-                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                         }`}
                                 >
                                     Female

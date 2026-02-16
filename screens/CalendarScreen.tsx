@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     ScrollView,
     ActivityIndicator,
-    Alert,
     FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,10 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../services/apiClient';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/Toast';
 
 export default function CalendarScreen() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [events, setEvents] = useState<any[]>([]);
     const [syncing, setSyncing] = useState(false);
@@ -36,7 +37,7 @@ export default function CalendarScreen() {
             setEvents(data);
         } catch (error) {
             console.error('Load events error:', error);
-            Alert.alert('Error', 'Failed to load calendar events');
+            showToast('Failed to load calendar events', 'error');
             setEvents([]);
         } finally {
             setLoading(false);
@@ -49,11 +50,11 @@ export default function CalendarScreen() {
         setSyncing(true);
         try {
             await apiClient.syncCalendar(user.id, { provider: 'google' });
-            Alert.alert('Success', 'Calendar synced successfully');
+            showToast('Calendar synced successfully', 'success');
             loadEvents();
         } catch (error) {
             console.error('Sync error:', error);
-            Alert.alert('Error', 'Failed to sync calendar');
+            showToast('Failed to sync calendar', 'error');
         } finally {
             setSyncing(false);
         }

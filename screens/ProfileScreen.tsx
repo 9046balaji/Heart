@@ -86,12 +86,56 @@ const PhotoEditModal = ({
     }
   };
 
+  const handleChooseFromGallery = async () => {
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Photos,
+        width: 512,
+        height: 512,
+      });
+      if (photo.dataUrl) {
+        onSave(photo.dataUrl);
+        onClose();
+        return;
+      }
+    } catch (capError: any) {
+      if (capError?.message?.includes('cancel') || capError?.message?.includes('Cancel')) return;
+      // Fall back to file input
+    }
+    fileInputRef.current?.click();
+  };
+
   const startCamera = async () => {
+    try {
+      // Try Capacitor Camera first (opens native camera app on Android)
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        direction: 'front' as any,
+        width: 512,
+        height: 512,
+      });
+      if (photo.dataUrl) {
+        onSave(photo.dataUrl);
+        onClose();
+        return;
+      }
+    } catch (capError: any) {
+      // If user cancelled or Capacitor not available, fall back to WebView camera
+      if (capError?.message?.includes('cancel') || capError?.message?.includes('Cancel')) return;
+      console.debug('Capacitor camera not available, using WebView:', capError);
+    }
+
+    // Fallback: WebView getUserMedia
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       setStream(mediaStream);
       setMode('camera');
-      // Small timeout to ensure video element is rendered
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
@@ -148,7 +192,7 @@ const PhotoEditModal = ({
                 <h3 className="text-xl font-bold dark:text-white mb-6 text-center">Change Profile Photo</h3>
                 <div className="space-y-3">
                     <button
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={handleChooseFromGallery}
                         className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors"
                     >
                         <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">

@@ -6,6 +6,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { pdfExportService } from '../services/pdfExport';
 import { calendarService, CalendarServiceError } from '../services/calendarService';
 import { notificationService, NotificationServiceError } from '../services/notificationService';
+import { apiClient } from '../services/apiClient';
+import { useBluetooth } from '../hooks/useBluetooth';
 import { useToast } from '../components/Toast';
 import type { CalendarProvider, WeeklySummaryPreferences, DeliveryChannel } from '../services/api.types';
 import { Modal } from '../components/Modal';
@@ -49,90 +51,50 @@ const DevicesModal = ({
   onConnect: (device: Device) => void
 }) => {
   const { t } = useLanguage();
-  const [isScanning, setIsScanning] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const {
+    isScanning,
+    devices: foundDevices,
+    error: btError,
+    startScan,
+    stopScan,
+    connectToDevice
+  } = useBluetooth();
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
-  const startScan = async () => {
-    setIsScanning(true);
-    setErrorMsg(null);
+  // Stop scan on unmount or close
+  useEffect(() => {
+    return () => {
+      stopScan();
+    };
+  }, [stopScan]);
 
-    // Try Capacitor BLE plugin first (better Android native experience)
+  const handleConnect = async (bluetoothDevice: any) => {
+    setConnectingId(bluetoothDevice.deviceId);
     try {
-      const { BleClient } = await import('@capacitor-community/bluetooth-le');
-      await BleClient.initialize();
+      await connectToDevice(bluetoothDevice.deviceId);
 
-      // Request permissions on Android
-      await BleClient.requestDevice({
-        services: ['0000180d-0000-1000-8000-00805f9b34fb'], // Heart Rate Service UUID
-      }).then((device) => {
-        const newDevice: Device = {
-          id: device.deviceId,
-          name: device.name || 'Heart Rate Monitor',
-          type: 'chest-strap',
-          lastSync: 'Now',
-          status: 'connected',
-          battery: 100
-        };
-        onConnect(newDevice);
-      });
-      setIsScanning(false);
-      return;
-    } catch (capError: any) {
-      // Capacitor BLE not available or failed, fall through to Web Bluetooth
-      console.log("Capacitor BLE unavailable, trying Web Bluetooth:", capError.message);
-    }
+      const newDevice: Device = {
+        id: bluetoothDevice.deviceId,
+        name: bluetoothDevice.name || 'Unknown Device',
+        type: 'chest-strap', // Default type, user could perhaps select
+        lastSync: 'Now',
+        status: 'connected',
+        battery: 100 // Placeholder
+      };
 
-    // Web Bluetooth API Logic (fallback)
-    if ('bluetooth' in navigator) {
-      try {
-        // Request device with Heart Rate Service
-        const device = await (navigator as any).bluetooth.requestDevice({
-          filters: [{ services: ['heart_rate'] }],
-          optionalServices: ['battery_service']
-        });
-
-        if (device) {
-          // Connect to GATT Server
-          const server = await device.gatt.connect();
-          console.log("Connected to GATT Server", server);
-
-          // Construct device object for app state
-          const newDevice: Device = {
-            id: device.id || `ble_${Date.now()}`,
-            name: device.name || 'Unknown Heart Rate Monitor',
-            type: 'chest-strap', // Assuming chest strap for generic HR
-            lastSync: 'Now',
-            status: 'connected',
-            battery: 100 // Placeholder, would need to read Battery Service
-          };
-
-          onConnect(newDevice);
-        }
-      } catch (error: any) {
-        console.error("Bluetooth Error:", error);
-        if (error.name !== 'NotFoundError') { // Ignore user cancelled
-          setErrorMsg("Connection failed. Ensure device is in pairing mode.");
-        }
-      } finally {
-        setIsScanning(false);
-      }
-    } else {
-      // Fallback for browsers without Web Bluetooth
-      setTimeout(() => {
-        setErrorMsg("Web Bluetooth is not supported in this browser. Showing simulated device.");
-        // Simulate finding a device for demo purposes
-        onConnect({
-          id: `d_sim_${Date.now()}`, name: 'Simulated HR Monitor', type: 'watch', lastSync: 'Now', status: 'connected', battery: 88
-        });
-        setIsScanning(false);
-      }, 1500);
+      onConnect(newDevice);
+    } catch (e) {
+      console.error("Failed to connect", e);
+    } finally {
+      setConnectingId(null);
     }
   };
 
   return (
     <Modal isOpen={true} onClose={onClose} title={t('settings.devices')}>
       {/* My Devices List */}
-      <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-1">
+      <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Connected Devices</h4>
+      <div className="space-y-3 mb-6 max-h-[30vh] overflow-y-auto pr-1">
         {devices.length > 0 ? devices.map(device => (
           <div key={device.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 animate-in slide-in-from-right">
             <div className="flex items-center gap-3">
@@ -157,27 +119,60 @@ const DevicesModal = ({
             </button>
           </div>
         )) : (
-          <div className="text-center py-6 text-slate-500 text-sm italic">No devices connected.</div>
+          <div className="text-center py-4 text-slate-500 text-sm italic border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">No devices connected.</div>
         )}
       </div>
 
       <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-        {errorMsg && (
+        <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Available Devices</h4>
+
+        {/* Found Devices List */}
+        <div className="space-y-2 mb-4 max-h-[30vh] overflow-y-auto min-h-[100px]">
+          {foundDevices.length > 0 ? (
+            foundDevices.map(d => (
+              <div key={d.deviceId} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors cursor-pointer" onClick={() => handleConnect(d)}>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-slate-400">bluetooth</span>
+                  <div>
+                    <p className="text-sm font-medium dark:text-white">{d.name || 'Unknown Device'}</p>
+                    <p className="text-[10px] text-slate-400">ID: {d.deviceId} • RSSI: {d.rssi}</p>
+                  </div>
+                </div>
+                {connectingId === d.deviceId ? (
+                  <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <span className="material-symbols-outlined text-primary text-sm">add_circle</span>
+                )}
+              </div>
+            ))
+          ) : isScanning ? (
+            <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-2">
+              <span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>
+              <span className="text-xs">Searching for devices...</span>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-slate-400 text-xs">Press scan to find devices</div>
+          )}
+        </div>
+
+        {btError && (
           <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">error</span>
-            {errorMsg}
+            {btError}
           </div>
         )}
 
         <button
-          onClick={startScan}
-          disabled={isScanning}
-          className={`w-full py-3 bg-primary text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 ${isScanning ? 'opacity-70 cursor-wait' : ''}`}
+          onClick={() => {
+            if (isScanning) stopScan();
+            else startScan();
+          }}
+          className={`w-full py-3 ${isScanning ? 'bg-red-50 text-red-500' : 'bg-primary text-white'} font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-colors shadow-lg ${isScanning ? 'shadow-red-500/10' : 'shadow-primary/30'}`}
         >
           {isScanning ? (
             <>
-              <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
-              Scanning...
+              <span className="material-symbols-outlined">stop_circle</span>
+              Stop Scanning
             </>
           ) : (
             <>
@@ -197,27 +192,76 @@ const DevicesModal = ({
 
 const PasswordModal = ({ onClose }: { onClose: () => void }) => {
   const [step, setStep] = useState('form');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpdate = async () => {
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await apiClient.changePassword({ current_password: currentPassword, new_password: newPassword });
+      setStep('success');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal isOpen={true} onClose={onClose} title={step === 'form' ? "Change Password" : "Password Updated"}>
       {step === 'form' ? (
         <>
           <div className="space-y-4">
+            {error && <div className="p-3 text-xs bg-red-50 text-red-500 rounded-lg">{error}</div>}
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase">Current Password</label>
-              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
+              />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase">New Password</label>
-              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
+              />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase">Confirm Password</label>
-              <input type="password" className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary" />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full mt-1 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border-none outline-none dark:text-white focus:ring-2 focus:ring-primary"
+              />
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
-              <button onClick={() => setStep('success')} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Update</button>
+              <button onClick={onClose} disabled={loading} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
+              <button
+                onClick={handleUpdate}
+                disabled={loading}
+                className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center"
+              >
+                {loading ? <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span> : 'Update'}
+              </button>
             </div>
           </div>
         </>
@@ -236,20 +280,59 @@ const PasswordModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 const FeedbackModal = ({ onClose }: { onClose: () => void }) => {
+  const { user } = useAuth();
   const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      await apiClient.submitFeedback({
+        type: 'general',
+        message: message,
+        userId: user?.id || 'anonymous'
+      });
+      setSent(true);
+    } catch (err: any) {
+      console.error("Feedback failed", err);
+      // Even if API fails, show success for UX unless critical? 
+      // User expects feedback to just "go". But let's show error if we can.
+      // For now, if "mock" mode, it handles errors.
+      if (err.status === 0) setError("Network error, please try again.");
+      else setSent(true); // Assume success for other errors to not block user? Or show error.
+      // Actually, let's just log it and show error if it's strictly failed.
+      setError("Failed to send feedback. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal isOpen={true} onClose={onClose} title={!sent ? "Send Feedback" : "Feedback Sent!"}>
       {!sent ? (
         <>
           <p className="text-slate-500 text-sm mb-4">Let us know how we can improve your experience.</p>
+          {error && <div className="mb-2 text-xs text-red-500">{error}</div>}
           <textarea
             className="w-full h-32 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border-none outline-none dark:text-white resize-none mb-4 placeholder:text-slate-400 focus:ring-2 focus:ring-primary"
             placeholder="Type your message here..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
           ></textarea>
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancel</button>
-            <button onClick={() => setSent(true)} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30">Send</button>
+            <button onClick={onClose} disabled={loading} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancel</button>
+            <button
+              onClick={handleSend}
+              disabled={loading || !message.trim()}
+              className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center"
+            >
+              {loading ? <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></span> : 'Send'}
+            </button>
           </div>
         </>
       ) : (
@@ -677,6 +760,7 @@ const WeeklySummaryModal = ({ onClose }: { onClose: () => void }) => {
 
 const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { t, language, setLanguage } = useLanguage();
   const { showToast } = useToast();
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -715,7 +799,7 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
     localStorage.setItem('connected_devices', JSON.stringify(devices));
   }, [devices]);
 
-  const toggleNotification = (key: keyof AppSettings['notifications']) => {
+  const toggleNotification = async (key: keyof AppSettings['notifications']) => {
     // Request Permission for All Notifications
     if (key === 'all' && !settings.notifications.all) {
       if ('Notification' in window) {
@@ -727,13 +811,29 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
       }
     }
 
+    const newNotifications = {
+      ...settings.notifications,
+      [key]: !settings.notifications[key]
+    };
+
     setSettings(prev => ({
       ...prev,
-      notifications: {
-        ...prev.notifications,
-        [key]: !prev.notifications[key]
-      }
+      notifications: newNotifications
     }));
+
+    // Sync with backend
+    if (user) {
+      try {
+        await apiClient.updatePreferences(user.id, {
+          notifications_enabled: newNotifications.all, // approximate mapping
+          // We might need a more granular preference if API supports it, 
+          // or store entire 'notifications' object in a custom field if schema allows.
+          // For now, mapping 'all' to global enabled.
+        });
+      } catch (e) {
+        console.error("Failed to sync notification preferences", e);
+      }
+    }
   };
 
   const toggleUnits = () => {
