@@ -1,28 +1,18 @@
-import React from 'react';
-import { View, ViewProps, StyleSheet } from 'react-native';
-
 /**
- * Web-compatible SafeAreaView component
- * On web, this is just a regular View since there are no safe areas to handle
+ * SafeAreaView Shim for Vite Web Build
+ * 
+ * Provides a web-compatible replacement for react-native-safe-area-context.
+ * Used as a Vite alias target in vite.config.ts.
  */
-export const SafeAreaView: React.FC<ViewProps & { className?: string }> = ({ style, className = '', ...props }) => {
-    return (
-        <View
-            style={[
-                {
-                    flex: 1,
-                    paddingTop: 'env(safe-area-inset-top, 0px)',
-                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                    paddingLeft: 'env(safe-area-inset-left, 0px)',
-                    paddingRight: 'env(safe-area-inset-right, 0px)'
-                } as any,
-                style
-            ]}
-            // @ts-ignore
-            className={`w-full h-full flex flex-col ${className}`}
-            {...props}
-        />
-    );
-};
+import React from 'react';
+import { View } from 'react-native';
+
+export const SafeAreaView = ({ children, style, ...props }: any) => (
+  <View style={style} {...props}>{children}</View>
+);
+
+export const SafeAreaProvider = ({ children }: any) => <>{children}</>;
+
+export const useSafeAreaInsets = () => ({ top: 0, bottom: 0, left: 0, right: 0 });
 
 export default SafeAreaView;

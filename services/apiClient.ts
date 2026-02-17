@@ -510,67 +510,6 @@ export const apiClient = {
   },
 
   /**
-   * Analyze recipe for nutritional insights
-   */
-  analyzeRecipe: async (params: {
-    recipe_name: string;
-    ingredients: string[];
-    servings?: number;
-    user_preferences?: string[];
-  }) => {
-    return apiCall<{
-      analysis: string;
-      recipe: string;
-      timestamp: string;
-      allergen_warnings?: string[];
-    }>('/api/analyze-recipe', {
-      method: 'POST',
-      body: params,
-    });
-  },
-
-  /**
-   * Analyze workout for performance insights
-   */
-  analyzeWorkout: async (params: {
-    workout_type: string;
-    duration_minutes: number;
-    intensity?: string;
-    heart_rate_data?: number[];
-    user_goals?: string[];
-  }) => {
-    return apiCall<{
-      analysis: string;
-      workout_type: string;
-      timestamp: string;
-    }>('/api/analyze-workout', {
-      method: 'POST',
-      body: params,
-    });
-  },
-
-  /**
-   * Generate personalized meal plan
-   */
-  generateMealPlan: async (params: {
-    dietary_preferences: string[];
-    calorie_target?: number;
-    days?: number;
-    allergies?: string[];
-  }) => {
-    return apiCall<{
-      meal_plan: string;
-      days: number;
-      timestamp: string;
-      allergies_considered?: string[];
-      provider?: string;
-    }>('/api/generate-meal-plan', {
-      method: 'POST',
-      body: params,
-    });
-  },
-
-  /**
    * Perform comprehensive health assessment
    */
   healthAssessment: async (params: {
@@ -874,54 +813,6 @@ export const apiClient = {
   },
 
   // ==========================================================================
-  // ANALYTICS API
-  // ==========================================================================
-
-  /**
-   * Get analytics summary for the application
-   */
-  getAnalyticsSummary: async (): Promise<AnalyticsSummary> => {
-    return apiCall<AnalyticsSummary>('/api/analytics/summary');
-  },
-
-  /**
-   * Get intent distribution analytics
-   */
-  getIntentAnalytics: async (): Promise<IntentAnalytics> => {
-    return apiCall<IntentAnalytics>('/api/analytics/intents');
-  },
-
-  /**
-   * Get sentiment distribution analytics
-   */
-  getSentimentAnalytics: async (): Promise<SentimentAnalytics> => {
-    return apiCall<SentimentAnalytics>('/api/analytics/sentiments');
-  },
-
-  /**
-   * Get entity extraction analytics
-   */
-  getEntityAnalytics: async (): Promise<EntityAnalytics> => {
-    return apiCall<EntityAnalytics>('/api/analytics/entities');
-  },
-
-  /**
-   * Get top intents by frequency
-   */
-  getTopIntents: async (limit?: number): Promise<TopIntentsResponse> => {
-    const params = limit ? `?limit=${limit}` : '';
-    return apiCall<TopIntentsResponse>(`/api/analytics/top-intents${params}`);
-  },
-
-  /**
-   * Get top entities by frequency
-   */
-  getTopEntities: async (limit?: number): Promise<TopEntitiesResponse> => {
-    const params = limit ? `?limit=${limit}` : '';
-    return apiCall<TopEntitiesResponse>(`/api/analytics/top-entities${params}`);
-  },
-
-  // ==========================================================================
   // MODEL MANAGEMENT API
   // ==========================================================================
 
@@ -1191,37 +1082,8 @@ export const apiClient = {
   },
 
   // ==========================================================================
-  // KNOWLEDGE GRAPH API
-  // ==========================================================================
-
-  searchGraph: async (query: string, nodeTypes?: string[]) => {
-    return apiCall<GraphSearchResponse>('/api/knowledge-graph/search', {
-      method: 'POST',
-      body: { query, node_types: nodeTypes },
-    });
-  },
-
-  createNode: async (node: any) => {
-    return apiCall<any>('/api/knowledge-graph/node', {
-      method: 'POST',
-      body: node,
-    });
-  },
-
-  ragQuery: async (query: string) => {
-    return apiCall<{ answer: string; context: any[] }>('/api/knowledge-graph/rag-query', {
-      method: 'POST',
-      body: { query },
-    });
-  },
-
-  // ==========================================================================
   // INTEGRATIONS API
   // ==========================================================================
-
-  getPatientTimeline: async (userId: string, days: number = 30) => {
-    return apiCall<TimelineEvent[]>(`/api/integrations/timeline/${userId}?days=${days}`);
-  },
 
   getWeeklySummary: async (userId: string) => {
     return apiCall<any>(`/api/integrations/weekly-summary/${userId}`);
@@ -1399,8 +1261,6 @@ export type HealthIntent =
   | 'appointment'
   | 'general_health'
   | 'vital_signs'
-  | 'diet_nutrition'
-  | 'exercise'
   | 'mental_health'
   | 'unknown';
 
@@ -1550,7 +1410,6 @@ export interface UserPreferences {
   health_goals?: {
     steps?: number;
     water_intake?: number;
-    exercise_minutes?: number;
   };
   privacy_settings?: {
     share_with_doctors?: boolean;
@@ -1566,7 +1425,6 @@ export interface UserPreferences {
     model?: string;
     persona?: string;
     response_length?: string;
-    voice?: string;
     temperature?: number;
   };
   created_at?: string;
@@ -1624,109 +1482,6 @@ export interface AuditLogEntry {
   ip_address?: string;
   user_agent?: string;
   details?: Record<string, unknown>;
-}
-
-export interface TimelineEvent {
-  id: string;
-  event_type: string;
-  timestamp: string;
-  title: string;
-  description: string;
-  source: string;
-  importance: string;
-  verified: boolean;
-  data: Record<string, any>;
-}
-
-// ============================================================================
-// ANALYTICS TYPES
-// ============================================================================
-
-/** Analytics summary response */
-export interface AnalyticsSummary {
-  total_requests: number;
-  total_users: number;
-  average_response_time_ms: number;
-  error_rate: number;
-  top_intents: Array<{ intent: string; count: number }>;
-  sentiment_distribution: {
-    positive: number;
-    negative: number;
-    neutral: number;
-  };
-  period: {
-    start: string;
-    end: string;
-  };
-}
-
-/** Intent analytics response */
-export interface IntentAnalytics {
-  total_classified: number;
-  intents: Array<{
-    intent: string;
-    count: number;
-    percentage: number;
-    average_confidence: number;
-  }>;
-  unclassified_count: number;
-  period: {
-    start: string;
-    end: string;
-  };
-}
-
-/** Sentiment analytics response */
-export interface SentimentAnalytics {
-  total_analyzed: number;
-  distribution: {
-    positive: { count: number; percentage: number };
-    negative: { count: number; percentage: number };
-    neutral: { count: number; percentage: number };
-  };
-  average_confidence: number;
-  trend: Array<{
-    date: string;
-    positive: number;
-    negative: number;
-    neutral: number;
-  }>;
-}
-
-/** Entity analytics response */
-export interface EntityAnalytics {
-  total_extracted: number;
-  entity_types: Array<{
-    type: string;
-    count: number;
-    percentage: number;
-    examples: string[];
-  }>;
-  extraction_rate: number;
-}
-
-/** Top intents response */
-export interface TopIntentsResponse {
-  intents: Array<{
-    intent: string;
-    count: number;
-    percentage: number;
-    trend: 'up' | 'down' | 'stable';
-  }>;
-  total_requests: number;
-  period: string;
-}
-
-/** Top entities response */
-export interface TopEntitiesResponse {
-  entities: Array<{
-    entity: string;
-    type: string;
-    count: number;
-    percentage: number;
-  }>;
-  total_entities: number;
-  period: string;
 }
 
 // ============================================================================
@@ -1833,18 +1588,6 @@ export interface ReminderResponse {
   appointment_id: string;
   scheduled_for: string;
   status: string;
-}
-
-// ============================================================================
-// KNOWLEDGE GRAPH TYPES
-// ============================================================================
-
-export interface GraphSearchResponse {
-  query: string;
-  nodes: any[];
-  relationships: any[];
-  paths: string[][];
-  total_results: number;
 }
 
 export { APIError };

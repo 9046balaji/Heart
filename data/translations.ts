@@ -3,10 +3,10 @@ export const translations = {
   en: {
     nav: {
       home: "Home",
-      exercise: "Exercise",
-      diet: "Diet",
       monitor: "Monitor",
-      book: "Book"
+      chat: "Chat",
+      book: "Book",
+      settings: "Settings"
     },
     dashboard: {
       greeting: "Good Morning",
@@ -72,10 +72,10 @@ export const translations = {
   es: {
     nav: {
       home: "Inicio",
-      exercise: "Ejercicios",
-      diet: "Dieta",
       monitor: "Monitor",
-      book: "Citas"
+      chat: "Chat",
+      book: "Citas",
+      settings: "Ajustes"
     },
     dashboard: {
       greeting: "Buenos Días",
@@ -141,10 +141,10 @@ export const translations = {
   fr: {
     nav: {
       home: "Accueil",
-      exercise: "Exercice",
-      diet: "Régime",
       monitor: "Suivi",
-      book: "Rendez-vous"
+      chat: "Chat",
+      book: "Rendez-vous",
+      settings: "Paramètres"
     },
     dashboard: {
       greeting: "Bonjour",
@@ -210,10 +210,10 @@ export const translations = {
   te: {
     nav: {
       home: "హోమ్",
-      exercise: "వ్యాయామం",
-      diet: "ఆహారం",
       monitor: "పర్యవేక్షణ",
-      book: "అపాయింట్‌మెంట్"
+      chat: "చాట్",
+      book: "అపాయింట్‌మెంట్",
+      settings: "సెట్టింగ్‌లు"
     },
     dashboard: {
       greeting: "శుభోదయం",

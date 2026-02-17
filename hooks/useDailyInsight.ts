@@ -98,7 +98,7 @@ const getDefaultInsight = (assessment: HealthAssessment | null): string => {
     return 'Your recent assessment indicates potential high risk factors. It is recommended to consult a specialist soon.';
   }
   if (assessment.risk === 'Moderate Risk') {
-    return 'Focusing on a low-sodium diet and increasing daily steps can help improve your score.';
+    return 'Focusing on a heart-healthy lifestyle and increasing daily steps can help improve your score.';
   }
-  return 'Great job! Your latest assessment shows low risk. Maintenance is key—keep up your current exercise routine.';
+  return 'Great job! Your latest assessment shows low risk. Maintenance is key—keep up your current healthy habits.';
 };

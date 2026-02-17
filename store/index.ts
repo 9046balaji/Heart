@@ -130,9 +130,6 @@ export {
   useMedicationRefills,
 } from './useMedicationsStore';
 
-// Legacy Health Store (for backward compatibility)
-export { useHealthStore, type HealthState, type User } from './useHealthStore';
-
 // ============================================================================
 // Combined Store Hook (for components that need multiple stores)
 // ============================================================================

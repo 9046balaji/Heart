@@ -12,7 +12,7 @@ const data = [
     { day: 'Mon', bpm: 68, note: 'Normal resting heart rate.' },
     { day: 'Tue', bpm: 72, note: 'Slightly elevated. Did you have coffee?' },
     { day: 'Wed', bpm: 70, note: 'Good stability.' },
-    { day: 'Thu', bpm: 65, note: 'Excellent recovery post-workout.' },
+    { day: 'Thu', bpm: 65, note: 'Excellent recovery rate observed.' },
     { day: 'Fri', bpm: 85, note: 'High activity detected (Cardio).' },
     { day: 'Sat', bpm: 75, note: 'Moderate active recovery.' },
     { day: 'Sun', bpm: 72, note: 'Baseline returned to normal.' },
@@ -187,8 +187,6 @@ const DashboardScreen: React.FC = () => {
 
     const [notifications, setNotifications] = useState<any[]>([
         { id: 1, title: 'Hydration Alert', message: 'Time to drink water!', time: '10m ago', icon: 'water_drop', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', path: '/dashboard' },
-        { id: 2, title: 'Daily Goal', message: 'You reached 5,000 steps.', time: '2h ago', icon: 'directions_walk', color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400', path: '/exercise' },
-        { id: 3, title: 'New Recipe', message: 'Try the new Salmon recipe.', time: '5h ago', icon: 'restaurant_menu', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', path: '/nutrition' },
     ]);
 
     useEffect(() => {
@@ -361,8 +359,8 @@ const DashboardScreen: React.FC = () => {
     const getDefaultInsight = (data: HealthAssessment | null) => {
         if (!data) return "Complete your assessment to receive personalized AI health insights about your heart health trends.";
         if (data.risk === 'High Risk') return "Your recent assessment indicates potential high risk factors. It is recommended to consult a specialist soon.";
-        if (data.risk === 'Moderate Risk') return "Focusing on a low-sodium diet and increasing daily steps can help improve your score.";
-        return "Great job! Your latest assessment shows low risk. Maintenance is key—keep up your current exercise routine.";
+        if (data.risk === 'Moderate Risk') return "Focusing on a heart-healthy lifestyle and increasing daily steps can help improve your score.";
+        return "Great job! Your latest assessment shows low risk. Maintenance is key—keep up your current healthy habits.";
     };
 
     const getAppointmentDateParts = (dateStr: string) => {
@@ -730,16 +728,6 @@ const DashboardScreen: React.FC = () => {
                         {t('dashboard.quick_actions')}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                        <Link to="/chat" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
-                            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
-                                <span className="material-symbols-outlined text-2xl">smart_toy</span>
-                            </div>
-                            <div className="text-center relative z-10">
-                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">{t('dashboard.chat_ai')}</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t('dashboard.ask_cardio')}</p>
-                            </div>
-                        </Link>
                         <Link to="/medications" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
                             <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">

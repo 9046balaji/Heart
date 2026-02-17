@@ -697,7 +697,7 @@ const ChatScreen: React.FC = () => {
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">{title}</span>
                       <div className="w-7 h-7 rounded-lg bg-slate-200/70 dark:bg-slate-700/50 flex items-center justify-center">
                         <span className="material-symbols-outlined text-slate-500 dark:text-slate-400 text-sm">
-                          {type === 'recipeCard' ? 'restaurant_menu' : 'show_chart'}
+                          show_chart
                         </span>
                       </div>
                     </div>
@@ -722,16 +722,6 @@ const ChatScreen: React.FC = () => {
                             {data.length > 0 && <span>{data[0].day}</span>}
                             {data.length > 0 && <span>{data[data.length - 1].day}</span>}
                           </div>
-                        </div>
-                      )}
-                      {type === 'recipeCard' && (
-                        <div className="flex flex-col gap-3">
-                          {data.image && <div className="w-full h-32 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${data.image}')` }} />}
-                          <div>
-                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">{data.title}</h4>
-                            <div className="flex gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1"><span>{data.calories} kcal</span> • <span>{data.time || '15 min'}</span></div>
-                          </div>
-                          <button onClick={() => navigate('/nutrition')} className="w-full py-2.5 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 hover:from-slate-300 hover:to-slate-400 dark:hover:from-slate-600 dark:hover:to-slate-500 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition-all duration-200 active:scale-[0.98]">View Recipe</button>
                         </div>
                       )}
                     </div>

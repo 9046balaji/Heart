@@ -109,21 +109,6 @@ export default function WeeklySummaryScreen() {
                             <StatCard icon="emoji_events" title="Goal Met" value={`${summary.health_stats?.steps_goal_met_days || 0} days`} color="green" />
                         </div>
 
-                        {/* Nutrition */}
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Nutrition</h2>
-                        <div className="space-y-2.5">
-                            <StatCard icon="restaurant" title="Daily Calories" value={Math.round(summary.nutrition?.avg_daily_calories || 0)} color="orange" />
-                            <StatCard icon="check_circle" title="Target Met" value={`${summary.nutrition?.days_target_met || 0} days`} subtitle={`${Math.round(summary.nutrition?.compliance_percent || 0)}% compliance`} color="green" />
-                        </div>
-
-                        {/* Exercise */}
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Exercise</h2>
-                        <div className="space-y-2.5">
-                            <StatCard icon="fitness_center" title="Workouts" value={summary.exercise?.workouts_completed || 0} color="purple" />
-                            <StatCard icon="timer" title="Active Minutes" value={summary.exercise?.total_active_minutes || 0} subtitle={`${Math.round(summary.exercise?.goal_completion_percent || 0)}% of goal`} color="indigo" />
-                            <StatCard icon="local_fire_department" title="Calories Burned" value={summary.exercise?.calories_burned || 0} color="red" />
-                        </div>
-
                         {/* Medications */}
                         <h2 className="text-lg font-bold text-slate-800 dark:text-white pt-2">Medications</h2>
                         <div className="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800">

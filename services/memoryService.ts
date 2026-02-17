@@ -107,7 +107,7 @@ export interface MemoryHealthStatus {
 
 export interface MemoryChunk {
   id: string;
-  source: 'medication' | 'workout' | 'nutrition' | 'assessment' | 'general';
+  source: 'medication' | 'assessment' | 'general';
   text: string;
   embedding?: number[];
   timestamp: number;
@@ -653,42 +653,6 @@ class EnhancedMemoryService {
         });
       } catch (e) {
         console.warn('Failed to parse assessment:', e);
-      }
-    }
-
-    // 3. Workouts
-    const workoutsRaw = localStorage.getItem('workout_history');
-    if (workoutsRaw) {
-      try {
-        const history = JSON.parse(workoutsRaw);
-        history.slice(-10).forEach((w: any) => {
-          newChunks.push({
-            id: `work_${w.id}_${w.date}`,
-            source: 'workout',
-            text: `Workout Log: Completed ${w.title} on ${new Date(w.date).toLocaleDateString()}. Duration: ${w.duration}s, Calories: ${w.calories}.`,
-            timestamp: new Date(w.date).getTime(),
-          });
-        });
-      } catch (e) {
-        console.warn('Failed to parse workouts:', e);
-      }
-    }
-
-    // 4. Nutrition
-    const foodRaw = localStorage.getItem('daily_food_log');
-    if (foodRaw) {
-      try {
-        const food = JSON.parse(foodRaw);
-        food.slice(-10).forEach((f: any) => {
-          newChunks.push({
-            id: `food_${f.id}`,
-            source: 'nutrition',
-            text: `Food Log: ${f.name}, ${f.calories}kcal, Sodium ${f.sodium}mg. Eaten at ${f.time}.`,
-            timestamp: Date.now(),
-          });
-        });
-      } catch (e) {
-        console.warn('Failed to parse food log:', e);
       }
     }
 

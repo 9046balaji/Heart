@@ -9,10 +9,10 @@ const BottomNav: React.FC = () => {
 
   const navItems = [
     { icon: 'home', label: t('nav.home'), path: '/dashboard' },
-    { icon: 'directions_run', label: t('nav.exercise'), path: '/exercise', filled: true },
-    { icon: 'restaurant', label: t('nav.diet'), path: '/nutrition' },
     { icon: 'monitor_heart', label: t('nav.monitor'), path: '/assessment' },
+    { icon: 'chat', label: t('nav.chat'), path: '/chat' },
     { icon: 'calendar_month', label: t('nav.book'), path: '/appointment' },
+    { icon: 'settings', label: t('nav.settings'), path: '/settings' },
   ];
 
   return (
@@ -31,8 +31,8 @@ const BottomNav: React.FC = () => {
                 }`}
             >
               <span
-                className={`material-symbols-outlined text-2xl ${isActive || item.filled ? 'filled' : ''}`}
-                style={item.filled && isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+                className={`material-symbols-outlined text-2xl ${isActive ? 'filled' : ''}`}
+                style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
               >
                 {item.icon}
               </span>

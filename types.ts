@@ -166,44 +166,6 @@ export interface Appointment {
   summary?: string; // AI generated summary
 }
 
-export type WorkoutCategory = 'Cardio' | 'Strength' | 'Flexibility' | 'Balance' | 'Recovery' | 'Aerobic' | 'HIIT' | 'Yoga Style' | 'Yoga Pose - Standing' | 'Yoga Pose - Seated' | 'Yoga Pose - Floor' | 'Yoga Pose - Inversion' | 'Yoga Pose - Core' | 'Yoga Pose - Rest';
-
-export interface Workout {
-  id: string;
-  title: string;
-  description: string;
-  category: WorkoutCategory;
-  duration_min: number;
-  intensity: string;
-  equipment: string[];
-  goal: string[];
-  accessibility: string[];
-  estimated_calories_per_min: number;
-  image: string;
-  steps: string[];
-  videoUrl?: string;
-  all_images?: string[];
-  target_muscles?: string[];
-  secondary_muscles?: string[];
-  process?: string;
-}
-
-export interface PlanDay {
-  day: string; // Mon, Tue, Wed, Thu, Fri, Sat, Sun
-  workoutId: string | 'rest';
-  completed: boolean;
-  duration?: number;
-}
-
-export interface ExercisePlan {
-  id: string;
-  name: string;
-  days: PlanDay[];
-  weeklyTargetMinutes: number;
-  createdAt: string;
-  goal?: string;
-}
-
 export interface Provider {
   id: string;
   name: string;

@@ -89,9 +89,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
             'vendor-rn': ['react-native-web', '@expo/vector-icons'],
-            'data-recipes': ['./data/formattedRecipes.ts', './data/recipes.ts'],
-            'data-workouts': ['./data/workouts.ts'],
-            'data-misc': ['./data/community.ts', './data/doctors.ts', './data/gamification.ts', './data/stats.ts', './data/translations.ts'],
+            'data-misc': ['./data/doctors.ts', './data/gamification.ts', './data/translations.ts'],
           },
         },
       },
