@@ -18,6 +18,8 @@ backend/uploads
 backend/photos
 backend/verify_visuals.py
 backend/verify_predictions.py
+backend/photos_final
+backend/verify_final_4000.py
 
 IMPLEMENTATION-STATUS.md
 
