@@ -608,6 +608,7 @@ export const apiClient = {
     model?: string;
     conversation_history?: Array<{ role: string; content: string }>;
     temperature?: number;
+    signal?: AbortSignal;
   }): AsyncGenerator<{ type: 'token' | 'done' | 'error'; data: string | any }> {
     // Check for offline status before making request
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -616,6 +617,7 @@ export const apiClient = {
     }
 
     const url = `${API_BASE_URL}/api/chat/stream`;
+    const { signal, ...body } = params;
 
     try {
       const response = await fetch(url, {
@@ -623,7 +625,8 @@ export const apiClient = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify(body),
+        signal,
       });
 
       if (!response.ok) {

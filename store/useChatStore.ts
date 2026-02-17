@@ -496,8 +496,32 @@ export const selectCurrentSession = (state: ChatState) =>
 // Actions (callable outside React)
 // ============================================================================
 
+export type SearchMode = 'default' | 'web_search' | 'deep_search' | 'memory';
+
+// Module-level AbortController for cancelling in-flight AI requests
+let currentAbortController: AbortController | null = null;
+
 export const chatActions = {
-  sendMessage: async (content: string, model?: ModelType) => {
+  /** Abort the current AI request if one is in progress */
+  stopGeneration: () => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
+    const store = useChatStore.getState();
+    // Mark any streaming message as finished
+    const streamingMsg = store.messages.find(m => m.isStreaming);
+    if (streamingMsg) {
+      store.updateMessage(streamingMsg.id, {
+        isStreaming: false,
+        content: streamingMsg.content || '*(Generation stopped)*',
+      });
+    }
+    store.setLoading(false);
+    store.setStreaming(false);
+  },
+
+  sendMessage: async (content: string, model?: ModelType, searchMode: SearchMode = 'default') => {
     const store = useChatStore.getState();
     const userId = localStorage.getItem('user_id');
     if (!userId) {
@@ -516,6 +540,10 @@ export const chatActions = {
     store.addMessage(userMessage);
     store.setLoading(true);
     store.setError(null);
+
+    // Create a new AbortController for this request
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
 
     try {
       const selectedModel = model || store.selectedModel;
@@ -537,8 +565,16 @@ export const chatActions = {
           .filter((m) => m.id !== 'welcome' && m.id !== assistantId)
           .map((m) => ({ role: m.role, content: m.content }));
 
+        const searchModePrompt = searchMode === 'web_search'
+          ? '\n[INSTRUCTION: Include relevant web search results and cite sources in your response.]'
+          : searchMode === 'deep_search'
+          ? '\n[INSTRUCTION: Provide a thorough, detailed, in-depth analysis with comprehensive explanations.]'
+          : searchMode === 'memory'
+          ? '\n[INSTRUCTION: Focus on referencing the patient\'s health history and previous conversations for context.]'
+          : '';
+
         const fullHistory = [
-          { role: 'system' as const, content: settings.systemPrompt },
+          { role: 'system' as const, content: settings.systemPrompt + searchModePrompt },
           ...conversationHistory,
           { role: 'user' as const, content },
         ];
@@ -547,10 +583,13 @@ export const chatActions = {
           message: content,
           conversation_history: fullHistory,
           temperature: settings.temperature,
+          signal,
         });
 
         let fullContent = '';
         for await (const chunk of generator) {
+          // Check if generation was stopped
+          if (signal.aborted) break;
           if (chunk.type === 'token') {
             fullContent += chunk.data;
             store.updateMessage(assistantId, { content: fullContent });
@@ -559,11 +598,15 @@ export const chatActions = {
           }
         }
 
-        store.updateMessage(assistantId, { isStreaming: false });
+        if (!signal.aborted) {
+          store.updateMessage(assistantId, { isStreaming: false });
+        }
       } else {
         const response = await memoryService.aiQuery(userId, sessionId, content, {
           aiProvider: 'gemini',
           patientName: 'User',
+          searchMode: searchMode !== 'default' ? searchMode : undefined,
+          signal,
         });
 
         if (response.success) {
@@ -582,6 +625,10 @@ export const chatActions = {
         }
       }
     } catch (error) {
+      // If aborted (user hit stop), don't show as error
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
       store.setError(error instanceof Error ? error.message : 'Failed to send message');
       const lastMsg = store.messages[store.messages.length - 1];
       if (lastMsg) {
@@ -592,6 +639,7 @@ export const chatActions = {
         });
       }
     } finally {
+      currentAbortController = null;
       store.setLoading(false);
       store.setStreaming(false);
     }

@@ -113,7 +113,6 @@ const AppContent: React.FC = () => {
     '/profile',
     '/settings',
     '/appointment',
-    '/chat',
     '/assessment'
   ].includes(location.pathname);
 
@@ -146,13 +145,13 @@ const AppContent: React.FC = () => {
 
   return (
     <div
-      className="flex flex-col min-h-screen max-w-md mx-auto relative bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden"
+      className={`flex flex-col max-w-md mx-auto relative bg-background-light dark:bg-background-dark shadow-2xl overflow-hidden ${location.pathname.startsWith('/chat') ? 'h-[100dvh]' : 'min-h-screen'}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       <ErrorBoundary>
-        <div className={`flex-1 ${location.pathname.startsWith('/chat') || ['/login', '/signup'].includes(location.pathname) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar pb-20'}`}>
+        <div className={`flex-1 min-h-0 ${location.pathname.startsWith('/chat') || ['/login', '/signup'].includes(location.pathname) ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar pb-20'}`}>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginScreen />} />

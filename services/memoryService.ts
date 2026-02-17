@@ -432,25 +432,33 @@ class EnhancedMemoryService {
       patientAge?: number;
       isEmergency?: boolean;
       aiProvider?: 'gemini' | 'ollama';
+      searchMode?: 'web_search' | 'deep_search' | 'memory';
+      signal?: AbortSignal;
     } = {}
   ): Promise<AIQueryResponse> {
     const params = new URLSearchParams();
     params.append('user_id', userId);
     params.append('session_id', sessionId);
 
+    const fetchOptions: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        patient_name: options.patientName,
+        patient_age: options.patientAge,
+        is_emergency: options.isEmergency ?? false,
+        ai_provider: options.aiProvider,
+        search_mode: options.searchMode,
+      }),
+    };
+    if (options.signal) {
+      fetchOptions.signal = options.signal;
+    }
+
     const response = await this.fetch(
       `${this.config.baseUrl}/ai/query?${params}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          patient_name: options.patientName,
-          patient_age: options.patientAge,
-          is_emergency: options.isEmergency ?? false,
-          ai_provider: options.aiProvider,
-        }),
-      }
+      fetchOptions
     );
 
     const data = await response.json();

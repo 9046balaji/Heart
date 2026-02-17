@@ -1,8 +1,0 @@
-{
-  "name": "Cardio AI Assistant",
-  "description": "A comprehensive heart health monitoring application featuring AI-powered assessments, nutrition guides, exercise plans, and direct appointment booking with specialists.",
-  "requestFramePermissions": [
-    "microphone",
-    "geolocation"
-  ]
-}
