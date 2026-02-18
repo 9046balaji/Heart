@@ -96,6 +96,9 @@ from .query import (
     MultimodalQueryService as QueryService,
 )
 
+# Zero-Shot Medical Classification
+from .zero_shot_classifier import ZeroShotMedicalClassifier
+
 # Utilities (from RAG-Anything)
 from .utils import (
     RobustJSONParser,
@@ -147,6 +150,8 @@ __all__ = [
     # Query Functionality
     "MultimodalQueryMixin",
     "QueryService",
+    # Zero-Shot Classification
+    "ZeroShotMedicalClassifier",
     # Utilities
     "RobustJSONParser",
     "validate_image_file",

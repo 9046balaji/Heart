@@ -45,13 +45,11 @@ from .rag_engines import HeartDiseaseRAG
 
 # Query optimization
 from .rag_query_optimizer import (
-    RAGQueryConfig,
-    EmbeddingCache,
-    RAGResultCache,
-    BatchEmbeddingProcessor,
-    OptimizedRAGQueries,
+    RAGTieredCache,
+    BatchEmbeddingManager,
+    OptimizedRAGQueryExecutor,
     RAGPerformanceMonitor,
-    create_optimized_rag_queries,
+    initialize_rag_optimizer,
 )
 
 # Multimodal processing (tables, images, equations)
@@ -84,13 +82,11 @@ __all__ = [
     "SyncConfig",
     "create_memori_rag_bridge",
     # Query Optimization
-    "RAGQueryConfig",
-    "EmbeddingCache",
-    "RAGResultCache",
-    "BatchEmbeddingProcessor",
-    "OptimizedRAGQueries",
+    "RAGTieredCache",
+    "BatchEmbeddingManager",
+    "OptimizedRAGQueryExecutor",
     "RAGPerformanceMonitor",
-    "create_optimized_rag_queries",
+    "initialize_rag_optimizer",
     # Multimodal Processing
     "MultimodalConfig",
     "MultimodalIngestionService",

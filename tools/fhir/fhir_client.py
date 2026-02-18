@@ -200,8 +200,11 @@ class FHIRClient:
         """Retrieve patient demographics."""
         cache_key = f"patient:{patient_id}"
         if self._is_cache_valid(cache_key):
-            data, _ = self._cache[cache_key]
-            return data
+            if self._use_ttl_cache:
+                return self._cache[cache_key]
+            else:
+                data, _ = self._cache[cache_key]
+                return data
 
         try:
             patient = await self._client.resources("Patient").search(_id=patient_id).first()
@@ -226,8 +229,11 @@ class FHIRClient:
         """Retrieve patient observations (vitals, labs)."""
         cache_key = f"observations:{patient_id}:{category}"
         if self._is_cache_valid(cache_key):
-            data, _ = self._cache[cache_key]
-            return data
+            if self._use_ttl_cache:
+                return self._cache[cache_key]
+            else:
+                data, _ = self._cache[cache_key]
+                return data
 
         try:
             search_params = {"patient": patient_id, "_count": limit, "_sort": "-date"}
@@ -262,8 +268,11 @@ class FHIRClient:
         """Retrieve patient conditions (diagnoses)."""
         cache_key = f"conditions:{patient_id}"
         if self._is_cache_valid(cache_key):
-            data, _ = self._cache[cache_key]
-            return data
+            if self._use_ttl_cache:
+                return self._cache[cache_key]
+            else:
+                data, _ = self._cache[cache_key]
+                return data
 
         try:
             conditions = await self._client.resources("Condition").search(
@@ -297,8 +306,11 @@ class FHIRClient:
         """Retrieve patient medications."""
         cache_key = f"medications:{patient_id}"
         if self._is_cache_valid(cache_key):
-            data, _ = self._cache[cache_key]
-            return data
+            if self._use_ttl_cache:
+                return self._cache[cache_key]
+            else:
+                data, _ = self._cache[cache_key]
+                return data
 
         try:
             meds = await self._client.resources("MedicationRequest").search(
@@ -332,8 +344,11 @@ class FHIRClient:
         """Retrieve patient allergies and intolerances."""
         cache_key = f"allergies:{patient_id}"
         if self._is_cache_valid(cache_key):
-            data, _ = self._cache[cache_key]
-            return data
+            if self._use_ttl_cache:
+                return self._cache[cache_key]
+            else:
+                data, _ = self._cache[cache_key]
+                return data
 
         try:
             allergies = await self._client.resources("AllergyIntolerance").search(

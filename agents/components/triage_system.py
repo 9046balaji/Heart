@@ -115,6 +115,7 @@ class TriageSystem:
         symptoms = symptoms or []
         history = history or []
         reasoning = []
+        resources = []
         
         # Step 1: ESI-1 (Immediate Life Saving Intervention)
         if self._check_immediate_threat(chief_complaint, symptoms, vitals):
