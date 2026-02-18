@@ -18,7 +18,6 @@ BASE_DIR (project root, typically where main.py is)
 │   ├── dictionaries/          (text-based dictionaries)
 │   │   └── common_drugs.txt
 │   └── fixtures/              (test fixtures, mock data)
-│       └── neo4j_mock_data.json
 ├── chroma_db/                 (Vector database)
 ├── models/                    (ONNX, PyTorch models)
 ├── logs/                      (Application logs)
@@ -163,10 +162,6 @@ class PathConfig:
         """Get path to drug dictionary text file."""
         return self.dictionaries_dir / "common_drugs.txt"
     
-    def get_mock_neo4j_data_file(self) -> Path:
-        """Get path to mock Neo4j data for testing."""
-        return self.fixtures_dir / "neo4j_mock_data.json"
-    
     def get_chroma_db_path(self) -> Path:
         """DEPRECATED: ChromaDB has been replaced by PostgreSQL/pgvector."""
         return self.chroma_db_dir
@@ -277,7 +272,6 @@ class PathConfig:
             "guidelines_file": str(self.get_guidelines_file()),
             "symptoms_file": str(self.get_symptoms_file()),
             "drug_dictionary_file": str(self.get_drug_dictionary_file()),
-            "mock_neo4j_data_file": str(self.get_mock_neo4j_data_file()),
         }
 
 

@@ -19,8 +19,8 @@ Usage:
 
     # Or use fallback_chain for multiple fallbacks:
     result = await fallback_chain(
-        primary=lambda: neo4j.query(drugs),
-        secondary=lambda: sqlite_fallback.query(drugs),
+        primary=lambda: postgres_db.query(drugs),
+        secondary=lambda: json_fallback.query(drugs),
         tertiary=lambda: [],
         service_name="drug_interactions"
     )
@@ -110,8 +110,8 @@ async def fallback_chain(
 
     Usage:
         result = await fallback_chain(
-            primary=lambda: neo4j_service.query(drugs),
-            secondary=lambda: sqlite_fallback.query(drugs),
+            primary=lambda: postgres_db.query(drugs),
+            secondary=lambda: json_fallback.query(drugs),
             tertiary=lambda: [],
             service_name="drug_interactions"
         )
@@ -161,12 +161,12 @@ class ServiceStatusTracker:
 
     Usage:
         tracker = ServiceStatusTracker()
-        tracker.record_success("neo4j")
-        tracker.record_failure("neo4j", "Connection refused")
+        tracker.record_success("postgres")
+        tracker.record_failure("postgres", "Connection refused")
 
-        status = tracker.get_status("neo4j")
+        status = tracker.get_status("postgres")
         if status["healthy"]:
-            # Use neo4j
+            # Use postgres
         else:
             # Use fallback
     """
@@ -262,7 +262,7 @@ class PartialResponseBuilder:
     Usage:
         builder = PartialResponseBuilder()
         builder.add_component("documents", documents, source="vector_store")
-        builder.add_component("interactions", interactions, source="neo4j")
+        builder.add_component("interactions", interactions, source="postgresql")
         builder.add_failed_component("memories", "redis unavailable")
 
         response = builder.build()

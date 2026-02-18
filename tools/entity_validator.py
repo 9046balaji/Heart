@@ -9,7 +9,7 @@ Prevents scenarios like:
   Query: get_drug_interactions(["CardioFix", "Aspirin"])
   
   Without validation:
-    - Tool queries Neo4j for non-existent "CardioFix"
+    - Tool queries database for non-existent "CardioFix"
     - Returns empty result, wasting cycles
     
     

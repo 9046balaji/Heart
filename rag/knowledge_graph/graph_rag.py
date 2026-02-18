@@ -1,15 +1,14 @@
 """
 Graph-Enhanced RAG Service.
 
-Combines traditional vector-based RAG with knowledge graph
-traversal for richer context and better reasoning.
+Provides entity extraction, context enrichment, and reasoning
+path construction for medical queries.
 
 Features:
-- Hybrid search: vector + graph
 - Entity extraction and linking
-- Context enrichment from graph
+- Context enrichment from medical knowledge
 - Reasoning path construction
-- Relevance scoring with graph signals
+- Relevance scoring
 """
 
 
@@ -17,13 +16,20 @@ import logging
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 
-from .neo4j_service import (
-    Neo4jService,
-    NodeLabel,
-)
 
 logger = logging.getLogger(__name__)
+
+
+class NodeLabel(Enum):
+    """Standard node labels for medical knowledge graph."""
+    SYMPTOM = "Symptom"
+    CONDITION = "Condition"
+    MEDICATION = "Medication"
+    TREATMENT = "Treatment"
+    RISK_FACTOR = "RiskFactor"
+    VITAL_SIGN = "VitalSign"
 
 
 @dataclass
@@ -97,11 +103,11 @@ class GraphRAGService:
     """
     Graph-enhanced RAG service.
 
-    Combines vector search with knowledge graph traversal
-    to provide richer, more contextual responses.
+    Provides entity extraction, context enrichment, and reasoning
+    path construction for medical queries.
 
     Example:
-        graph_rag = GraphRAGService(neo4j_service, embedding_service)
+        graph_rag = GraphRAGService(embedding_service)
         context = await graph_rag.get_enriched_context(
             query="What causes chest pain?",
             max_depth=2
@@ -156,7 +162,6 @@ class GraphRAGService:
 
     def __init__(
         self,
-        neo4j_service: Optional[Neo4jService] = None,
         embedding_service: Optional[Any] = None,
         max_context_entities: int = 5,
         max_graph_depth: int = 3,
@@ -165,12 +170,10 @@ class GraphRAGService:
         Initialize Graph RAG service.
 
         Args:
-            neo4j_service: Neo4j service for graph ops
             embedding_service: Service for text embeddings
             max_context_entities: Max entities in context
             max_graph_depth: Max traversal depth
         """
-        self.neo4j = neo4j_service or Neo4jService(mock_mode=True)
         self.embedding_service = embedding_service
         self.max_context_entities = max_context_entities
         self.max_graph_depth = max_graph_depth
@@ -180,143 +183,12 @@ class GraphRAGService:
         self._cache_max_size = 200
 
     async def initialize(self):
-        """Initialize services."""
-        await self.neo4j.connect()
+        """Initialize services (no-op, uses local data only)."""
+        pass
     
-    async def get_drug_interactions(
-        self,
-        drug_names: List[str],
-        max_hops: int = 2
-    ) -> List[Dict]:
-        """
-        Detect drug interactions including indirect (2-hop) interactions.
-        
-        This is the key GraphRAG feature - detects interactions like:
-        Drug A -> intermediary -> Drug B (indirect interaction)
-        
-        Args:
-            drug_names: List of drugs to check
-            max_hops: Max graph hops (1=direct, 2=indirect)
-        
-        Returns:
-            List of interaction dicts with severity and warnings
-        
-        Example:
-            interactions = await graph_rag.get_drug_interactions(
-                drug_names=["Lisinopril", "Warfarin"],
-                max_hops=2
-            )
-        """
-        interactions = []
-        
-        for i, drug1 in enumerate(drug_names):
-            for drug2 in drug_names[i+1:]:
-                # Check direct interactions (1-hop)
-                query = """
-                MATCH (d1:Drug {name: $drug1})-[r:INTERACTS_WITH]-(d2:Drug {name: $drug2})
-                RETURN r.severity as severity, r.description as description, 1 as hops
-                """
-                
-                result = await self.neo4j.query(query, {"drug1": drug1, "drug2": drug2})
-                
-                for record in result.records:
-                    interactions.append({
-                        "drug1": drug1,
-                        "drug2": drug2,
-                        "severity": record.get("severity", "unknown"),
-                        "description": record.get("description", ""),
-                        "hops": 1,
-                        "type": "direct"
-                    })
-                
-                # Check indirect interactions (2-hop) if enabled
-                if max_hops >= 2:
-                    query = """
-                    MATCH (d1:Drug {name: $drug1})-[r1:INTERACTS_WITH]-(intermediate:Drug)-[r2:INTERACTS_WITH]-(d2:Drug {name: $drug2})
-                    WHERE d1 <> d2 AND d1 <> intermediate AND d2 <> intermediate
-                    RETURN intermediate.name as via_drug, 
-                           r1.severity as severity1, r2.severity as severity2,
-                           r1.description as desc1, r2.description as desc2, 
-                           2 as hops
-                    LIMIT 5
-                    """
-                    
-                    result = await self.neo4j.query(query, {"drug1": drug1, "drug2": drug2})
-                    
-                    for record in result.records:
-                        via_drug = record.get("via_drug")
-                        severity = max(record.get("severity1", "low"), record.get("severity2", "low"))
-                        
-                        interactions.append({
-                            "drug1": drug1,
-                            "drug2": drug2,
-                            "via": via_drug,
-                            "severity": severity,
-                            "description": f"Indirect interaction via {via_drug}",
-                            "hops": 2,
-                            "type": "indirect"
-                        })
-        
-        logger.info(f"Found {len(interactions)} interactions for {len(drug_names)} drugs")
-        return interactions
-    
-    async def bulk_upsert_drugs(self, drugs: List[Dict]) -> int:
-        """
-        Bulk insert or update drug nodes.
-        
-        Args:
-            drugs: List of drug dicts with 'name', 'description', 'category'
-        
-        Returns:
-            Count of drugs upserted
-        """
-        count = 0
-        for drug in drugs:
-            query = """
-            MERGE (d:Drug {name: $name})
-            SET d.description = $description,
-                d.category = $category,
-                d.updated_at = datetime()
-            RETURN d
-            """
-            
-            await self.neo4j.query(query, drug)
-            count += 1
-        
-        logger.info(f"Upserted {count} drugs")
-        return count
-    
-    async def bulk_create_interactions(self, interactions: List[Dict]) -> int:
-        """
-        Bulk create drug interaction relationships.
-        
-        Args:
-            interactions: List of interaction dicts with 'drug1', 'drug2', 'severity', 'description'
-        
-        Returns:
-            Count of interactions created
-        """
-        count = 0
-        for interaction in interactions:
-            query = """
-            MATCH (d1:Drug {name: $drug1})
-            MATCH (d2:Drug {name: $drug2})
-            MERGE (d1)-[r:INTERACTS_WITH]-(d2)
-            SET r.severity = $severity,
-                r.description = $description,
-                r.updated_at = datetime()
-            RETURN r
-            """
-            
-            await self.neo4j.query(query, interaction)
-            count += 1
-        
-        logger.info(f"Created {count} drug interactions")
-        return count
-
     async def close(self):
-        """Clean up resources."""
-        await self.neo4j.close()
+        """Clean up resources (no-op, no external connections)."""
+        pass
 
     async def get_enriched_context(
         self,
@@ -453,7 +325,7 @@ class GraphRAGService:
         max_depth: int,
     ) -> List[GraphSearchResult]:
         """
-        Search for an entity in the graph.
+        Search for an entity using local medical knowledge.
 
         Args:
             entity_name: Entity to search
@@ -463,76 +335,8 @@ class GraphRAGService:
         Returns:
             List of search results
         """
-        results = []
-
-        # Search in Neo4j
-        query = """
-        MATCH (n)
-        WHERE toLower(n.name) CONTAINS toLower($name)
-        RETURN n, labels(n) as labels
-        LIMIT 5
-        """
-
-        query_result = await self.neo4j.query(query, {"name": entity_name})
-
-        for record in query_result.records:
-            node_props = record.get("n", {})
-            labels = record.get("labels", [])
-
-            # Get related entities
-            node_id = node_props.get("id")
-            related = []
-
-            if node_id:
-                neighbors = await self.neo4j.get_neighbors(
-                    node_id,
-                    depth=min(max_depth, 2),
-                )
-
-                for neighbor in neighbors[:5]:
-                    rel_type = "related to"
-                    rels = await self.neo4j.get_relationships(node_id)
-                    for rel in rels:
-                        if (
-                            rel.end_node_id == neighbor.id
-                            or rel.start_node_id == neighbor.id
-                        ):
-                            rel_type = rel.type
-                            break
-
-                    related.append(
-                        {
-                            "entity": neighbor.properties.get("name", "Unknown"),
-                            "type": (
-                                neighbor.labels[0] if neighbor.labels else "Unknown"
-                            ),
-                            "relationship": rel_type,
-                        }
-                    )
-
-            # Build reasoning path
-            reasoning = self._build_reasoning_path(
-                entity_name,
-                labels[0] if labels else "Entity",
-                related,
-            )
-
-            results.append(
-                GraphSearchResult(
-                    entity=node_props.get("name", entity_name),
-                    entity_type=labels[0] if labels else entity_type,
-                    relevance_score=0.8,  # Base score
-                    context=f"{entity_name} is a {labels[0] if labels else 'medical entity'}",
-                    related_entities=related,
-                    reasoning_path=reasoning,
-                )
-            )
-
-        # If no results, create from mock knowledge
-        if not results:
-            results = self._get_mock_results(entity_name, entity_type)
-
-        return results
+        # Use local mock/keyword-based knowledge
+        return self._get_mock_results(entity_name, entity_type)
 
     async def _semantic_graph_search(
         self,

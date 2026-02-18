@@ -494,7 +494,7 @@ async def lifespan(app: FastAPI):
             reranker = getattr(di_container, 'reranker', None)
             
             # Initialize interaction checker for drug safety
-            interaction_checker = GraphInteractionChecker(use_neo4j=True)
+            interaction_checker = GraphInteractionChecker()
             
             # Initialize MemoriRAGBridge for memory-aware retrieval (via DIContainer)
             try:
@@ -1149,7 +1149,6 @@ async def detailed_health_check():
     
     Returns status for all major dependencies:
     - PostgreSQL database
-    - Neo4j graph database
     - Redis cache
     - LLM Gateway
     - Vector Store
@@ -1177,22 +1176,6 @@ async def detailed_health_check():
     except Exception as e:
         checks["postgresql"] = {"status": "down", "error": str(e)}
         overall_healthy = False
-    
-    # Check Neo4j
-    start = time.time()
-    try:
-        if NLPState.neo4j_service and hasattr(NLPState.neo4j_service, 'is_connected'):
-            is_connected = NLPState.neo4j_service.is_connected()
-            checks["neo4j"] = {
-                "status": "up" if is_connected else "disconnected",
-                "latency_ms": round((time.time() - start) * 1000, 2)
-            }
-            if not is_connected:
-                overall_healthy = False
-        else:
-            checks["neo4j"] = {"status": "not_configured"}
-    except Exception as e:
-        checks["neo4j"] = {"status": "down", "error": str(e)}
     
     # Check Redis Cache
     start = time.time()

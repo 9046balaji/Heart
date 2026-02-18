@@ -76,15 +76,10 @@ MAX_SUPERVISOR_STEPS = int(os.getenv("MAX_SUPERVISOR_STEPS", "8"))
 try:
     from core.compliance.pii_scrubber_v2 import get_enhanced_pii_scrubber
     _pii_scrubber = get_enhanced_pii_scrubber()
-    logger.info("✅ PII Scrubber V2 loaded")
+    logger.info("✅ PII Scrubber loaded")
 except ImportError:
-    try:
-        from core.compliance.pii_scrubber import get_pii_scrubber
-        _pii_scrubber = get_pii_scrubber()
-        logger.warning("⚠️ Using legacy PII scrubber")
-    except ImportError:
-        _pii_scrubber = None
-        logger.error("❌ No PII scrubber available - HIPAA compliance risk!")
+    _pii_scrubber = None
+    logger.error("❌ No PII scrubber available - HIPAA compliance risk!")
 
 # --- Supervisor Response Schema (Pydantic for robust JSON parsing) ---
 class SupervisorResponse(BaseModel):
@@ -220,7 +215,7 @@ class LangGraphOrchestrator:
             enable_fusion_retrieval=True        # P3.2: Explicitly enable Fusion
         )
         
-        self.graph_checker = GraphInteractionChecker(use_neo4j=True)
+        self.graph_checker = GraphInteractionChecker()
         self.crag_fallback = CRAGFallback(
             vector_store=self.vector_store,     # Use resolved self.vector_store
             web_search_tool=verified_web_search

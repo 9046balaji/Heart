@@ -316,21 +316,20 @@ def get_service_breaker(
     Get or create a circuit breaker for a service.
     
     Usage:
-        breaker = get_service_breaker("neo4j")
-        result = await breaker.call(neo4j_query, args)
+        breaker = get_service_breaker("postgres")
+        result = await breaker.call(pg_query, args)
     
     Pre-configured services:
-        - "neo4j": 5 failures, 60s recovery
         - "llm": 3 failures, 30s recovery
         - "tavily": 5 failures, 120s recovery
         - "redis": 3 failures, 30s recovery
+        - "postgres": 5 failures, 60s recovery
     """
     if service_name in _SERVICE_BREAKERS:
         return _SERVICE_BREAKERS[service_name]
     
     # Default configurations for known services
     SERVICE_CONFIGS = {
-        "neo4j": {"failure_threshold": 5, "recovery_timeout_seconds": 60},
         "llm": {"failure_threshold": 3, "recovery_timeout_seconds": 30},
         "tavily": {"failure_threshold": 5, "recovery_timeout_seconds": 120},
         "redis": {"failure_threshold": 3, "recovery_timeout_seconds": 30},
@@ -361,9 +360,9 @@ def circuit_breaker(
     Decorator to apply circuit breaker to async functions.
     
     Usage:
-        @circuit_breaker("neo4j", fallback_result=[])
-        async def query_neo4j(query: str):
-            return await neo4j_client.run(query)
+        @circuit_breaker("postgres", fallback_result=[])
+        async def query_postgres(query: str):
+            return await pg_client.execute(query)
     
     Args:
         service_name: Name of the service (used for metrics/logging)

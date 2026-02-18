@@ -98,7 +98,6 @@ class ContextAssembler:
     def __init__(
         self,
         vector_store: Optional[Any] = None,
-        neo4j_service: Optional[Any] = None,
         memory_bridge: Optional[Any] = None,
         vector_weight: Optional[float] = None,
         graph_weight: Optional[float] = None,
@@ -113,7 +112,6 @@ class ContextAssembler:
         
         Args:
             vector_store: Vector store for semantic search
-            neo4j_service: Neo4j service for knowledge graph
             memory_bridge: Memory service for user context
             vector_weight: Weight for vector results (default: 0.5, from AppConfig)
             graph_weight: Weight for graph results (default: 0.35, from AppConfig)
@@ -124,7 +122,6 @@ class ContextAssembler:
             compression_ratio: Target compression ratio (0.5 = 50% of original)
         """
         self.vector_store = vector_store
-        self.neo4j_service = neo4j_service
         self.memory_bridge = memory_bridge
         
         # Load weights from config if not provided
@@ -186,7 +183,6 @@ class ContextAssembler:
         logger.info(
             f"ContextAssembler initialized: "
             f"vector={bool(vector_store)}, "
-            f"neo4j={bool(neo4j_service)}, "
             f"memory={bool(memory_bridge)}, "
             f"weights=(vector={self.vector_weight:.2f}, graph={self.graph_weight:.2f}, memory={self.memory_weight:.2f}), "
             f"cache_ttl={self.cache_ttl}s"
@@ -298,10 +294,8 @@ class ContextAssembler:
             else:
                 tasks.append(self._empty_search("vector"))
             
-            if self.neo4j_service:
-                tasks.append(self._graph_search(query, top_k))
-            else:
-                tasks.append(self._empty_search("graph"))
+            # Graph search slot (no backend configured)
+            tasks.append(self._empty_search("graph"))
             
             if self.memory_bridge and user_id:
                 tasks.append(self._memory_search(query, user_id, top_k))
@@ -412,22 +406,6 @@ class ContextAssembler:
             return results
         except Exception as e:
             logger.warning(f"Vector search failed: {e}")
-            return []
-    
-    async def _graph_search(self, query: str, top_k: int) -> List[Dict]:
-        """Search knowledge graph."""
-        try:
-            if hasattr(self.neo4j_service, 'search_graph'):
-                results = self.neo4j_service.search_graph(query, top_k=top_k)
-            elif hasattr(self.neo4j_service, 'search'):
-                results = self.neo4j_service.search(query, top_k=top_k)
-            else:
-                results = []
-            
-            logger.debug(f"Graph search returned {len(results)} results")
-            return results
-        except Exception as e:
-            logger.warning(f"Graph search failed: {e}")
             return []
     
     async def _memory_search(

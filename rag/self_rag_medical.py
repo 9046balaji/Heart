@@ -230,7 +230,6 @@ class MedicalSelfRAG:
         reranker=None, 
         guardrails=None, 
         token_budget_manager=None,
-        neo4j_service=None,
         memory_bridge=None,
         # P2/P3 Enhancement options
         enable_fusion_retrieval: bool = True,
@@ -243,7 +242,6 @@ class MedicalSelfRAG:
         self.reranker = reranker
         self.embedding_service = embedding_service
         self.guardrails = guardrails
-        self.neo4j_service = neo4j_service
         self.memory_bridge = memory_bridge
         
         # Token Budget Manager for context window management
@@ -253,7 +251,6 @@ class MedicalSelfRAG:
         # Context Assembler for parallel multi-source retrieval
         self.context_assembler = ContextAssembler(
             vector_store=vector_store,
-            neo4j_service=neo4j_service,
             memory_bridge=memory_bridge
         )
         logger.info("MedicalSelfRAG: ContextAssembler initialized for parallel retrieval")

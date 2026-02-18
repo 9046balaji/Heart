@@ -92,3 +92,6 @@ Docker
 dist/
 build/
 *.whl
+
+Chromadb
+backup

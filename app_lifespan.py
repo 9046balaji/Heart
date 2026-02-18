@@ -267,26 +267,6 @@ async def startup_event():
         # Initialize interaction checker's PostgreSQL fallback
         await container.initialize_interaction_checker()
         
-        # Update Neo4j schema with default values for missing properties
-        # This is idempotent and can run on every startup
-        try:
-            neo4j_service = container.neo4j_service
-            if neo4j_service and hasattr(neo4j_service, 'enabled') and neo4j_service.enabled:
-                logger.info("📦 Updating Neo4j schema with default property values...")
-                await neo4j_service.run_query("""
-                    MATCH ()-[r:INTERACTS_WITH]->()
-                    WHERE r.mechanism IS NULL
-                    SET r.mechanism = 'Not specified'
-                """)
-                await neo4j_service.run_query("""
-                    MATCH ()-[r:INTERACTS_WITH]->()
-                    WHERE r.management IS NULL
-                    SET r.management = 'Consult healthcare provider'
-                """)
-                logger.info("✅ Neo4j schema updated with default property values")
-        except Exception as e:
-            logger.warning(f"⚠️ Neo4j schema update skipped: {e}")
-        
         # Get MemoriRAGBridge from DIContainer (properly initialized)
         memori_bridge = container.memori_bridge
         if memori_bridge:

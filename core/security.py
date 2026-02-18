@@ -126,7 +126,7 @@ except ImportError:
         return InMemoryRateLimiter()
 
 # Import PII filter
-from .compliance.pii_scrubber import PIIScrubber
+from .compliance.pii_scrubber_v2 import EnhancedPIIScrubber as PIIScrubber
 
 logger = logging.getLogger(__name__)
 

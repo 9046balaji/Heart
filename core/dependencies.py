@@ -136,7 +136,6 @@ class DIContainer:
         self._loader = None
         self._embeddings = None
         self._vector_store = None
-        self._neo4j_service = None
         self._chunker = None
         self._drug_dict = None
         self._prompt_builder = None
@@ -217,19 +216,6 @@ class DIContainer:
         return self._vector_store
     
     @property
-    def neo4j_service(self):
-        """Get Neo4jService singleton."""
-        if self._neo4j_service is None:
-            try:
-                from rag.knowledge_graph.neo4j_service import Neo4jService
-                self._neo4j_service = Neo4jService()
-                logger_di.debug("Neo4jService instance created and cached")
-            except Exception as e:
-                logger_di.warning(f"Neo4jService initialization failed: {e}")
-                self._neo4j_service = None
-        return self._neo4j_service
-    
-    @property
     def chunker(self):
         """Get UnifiedMedicalChunker singleton."""
         if self._chunker is None:
@@ -267,9 +253,9 @@ class DIContainer:
         """Get PIIScrubber singleton."""
         if self._pii_scrubber is None:
             try:
-                from Security.building_a_hybrid_rule_based_and_machine_learning_framework_to_detect_and_defend_against_jailbreak_prompts_in_llm_systems import PIIScrubber  # type: ignore
-                self._pii_scrubber = PIIScrubber()
-                logger_di.debug("PIIScrubber instance created and cached")
+                from core.compliance.pii_scrubber_v2 import EnhancedPIIScrubber
+                self._pii_scrubber = EnhancedPIIScrubber()
+                logger_di.debug("EnhancedPIIScrubber instance created and cached")
             except (ImportError, ModuleNotFoundError) as e:
                 logger_di.warning(f"PIIScrubber module not found or initialization failed: {e}")
                 self._pii_scrubber = None
@@ -389,7 +375,6 @@ class DIContainer:
             try:
                 from rag.graph_interaction_checker import GraphInteractionChecker
                 self._interaction_checker = GraphInteractionChecker(
-                    neo4j_service=self.neo4j_service,
                     postgres_db=self.postgres_db  # Pass shared PostgreSQL pool
                 )
                 logger_di.debug("GraphInteractionChecker instance created and cached")
@@ -561,7 +546,6 @@ class DIContainer:
         self._loader = None
         self._embeddings = None
         self._vector_store = None
-        self._neo4j_service = None
         self._chunker = None
         self._drug_dict = None
         self._prompt_builder = None
@@ -592,7 +576,6 @@ class DIContainer:
             self._loader is not None,
             self._embeddings is not None,
             self._vector_store is not None,
-            self._neo4j_service is not None,
             self._chunker is not None,
             self._drug_dict is not None,
             self._prompt_builder is not None,

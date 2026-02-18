@@ -1,5 +1,5 @@
 """
-Graph Interaction Checker with PostgreSQL Fallback
+Graph Interaction Checker with PostgreSQL Backend
 
 Startup: <100ms (uses existing connection pool)
 Lookup: <20ms (indexed SQL) or <1μs (LRU cache)
@@ -21,13 +21,6 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import asyncio
 
-# Import Neo4j service interface if available
-try:
-    from rag.knowledge_graph.neo4j_service import Neo4jService
-    NEO4J_AVAILABLE = True
-except ImportError:
-    NEO4J_AVAILABLE = False
-
 # Import PostgreSQL database
 try:
     from core.database.postgres_db import PostgresDatabase
@@ -42,12 +35,11 @@ from rag.knowledge_graph.phonetic_matcher import PhoneticMatcher
 
 class GraphInteractionChecker:
     """
-    Drug interaction checker with PostgreSQL fallback.
+    Drug interaction checker with PostgreSQL backend.
     
-    Three-tier strategy:
-    1. Try Neo4j (primary graph database)
-    2. Fall back to PostgreSQL (fast, persistent, shared pool)
-    3. Explicit error if both unavailable
+    Strategy:
+    1. Query PostgreSQL (fast, persistent, shared pool)
+    2. Explicit error if unavailable
     """
     
     MIN_FALLBACK_EDGES = 100
@@ -57,27 +49,15 @@ class GraphInteractionChecker:
     _interaction_cache: Dict[Tuple[str, str], Optional[Dict]] = {}
     _CACHE_MAX_SIZE = 100
     
-    def __init__(self, use_neo4j: bool = True, interactions_file: Optional[str] = None, 
-                 neo4j_service: Optional[object] = None, postgres_db: Optional[object] = None):
+    def __init__(self, interactions_file: Optional[str] = None, 
+                 postgres_db: Optional[object] = None):
         """
-        Initialize with PostgreSQL fallback (shared connection pool).
+        Initialize with PostgreSQL backend (shared connection pool).
         
         Args:
-            use_neo4j: Whether to attempt Neo4j connections
             interactions_file: Path to interactions.json (for initial data population)
-            neo4j_service: Injected Neo4j service instance
             postgres_db: Injected PostgreSQL database instance (shared pool)
         """
-        self.use_neo4j = use_neo4j and NEO4J_AVAILABLE
-        self.neo4j_service = neo4j_service
-        
-        if self.use_neo4j and not self.neo4j_service:
-            try:
-                self.neo4j_service = Neo4jService()
-            except Exception as e:
-                logger.warning(f"Failed to initialize Neo4j: {e}. Falling back to PostgreSQL.")
-                self.use_neo4j = False
-
         self.interactions_file = interactions_file or self._find_interactions_file()
         
         # Use injected PostgreSQL or create new instance
@@ -90,17 +70,8 @@ class GraphInteractionChecker:
         
         logger.info(
             f"✅ GraphInteractionChecker initialized: "
-            f"Neo4j {'enabled' if self.use_neo4j else 'disabled'}, "
-            f"PostgreSQL fallback {'available' if POSTGRES_AVAILABLE else 'unavailable'}"
+            f"PostgreSQL backend {'available' if POSTGRES_AVAILABLE else 'unavailable'}"
         )
-        
-        # P1.3: Warm up Neo4j connection pool (fire-and-forget)
-        if self.use_neo4j and self.neo4j_service:
-            try:
-                asyncio.create_task(self._warmup_neo4j())
-            except RuntimeError:
-                # No event loop running, skip async warmup
-                logger.debug("P1.3: Skipping Neo4j warmup (no event loop)")
     
     async def initialize_fallback(self) -> None:
         """
@@ -116,26 +87,6 @@ class GraphInteractionChecker:
             logger.error(f"❌ PostgreSQL fallback init failed: {e}")
         finally:
             self._init_complete.set()
-    
-    async def _warmup_neo4j(self) -> None:
-        """P1.3: Warm up Neo4j connection pool with lightweight query.
-        
-        Reduces first-query latency by ~200-500ms.
-        """
-        try:
-            if hasattr(self.neo4j_service, 'query'):
-                await asyncio.wait_for(
-                    self.neo4j_service.query("RETURN 1"),
-                    timeout=2.0
-                )
-                logger.info("✅ P1.3: Neo4j connection pool warmed")
-            elif hasattr(self.neo4j_service, 'health_check'):
-                await self.neo4j_service.health_check()
-                logger.info("✅ P1.3: Neo4j health check passed")
-        except asyncio.TimeoutError:
-            logger.debug("P1.3: Neo4j warmup timed out (will connect on first query)")
-        except Exception as e:
-            logger.debug(f"P1.3: Neo4j warmup skipped: {e}")
     
     async def _init_fallback_db(self) -> None:
         """
@@ -263,7 +214,7 @@ class GraphInteractionChecker:
         
         # Wait for initialization to complete (with timeout)
         if not self._init_complete.wait(timeout=5.0):
-            logger.warning("PostgreSQL fallback init timeout (5s), using Neo4j only")
+            logger.warning("PostgreSQL init timeout (5s)")
             return None
         
         if self._init_error:
@@ -346,7 +297,7 @@ class GraphInteractionChecker:
         }
     
     async def _check_pair(self, drug_a: str, drug_b: str) -> Optional[Dict]:
-        """Check single pair (Neo4j first, then fallback)."""
+        """Check a single drug pair for interactions."""
         
         # NEW: Validate drug names aren't lookalikes (SAFETY CRITICAL)
         if self._are_lookalikes(drug_a, drug_b):
@@ -365,13 +316,7 @@ class GraphInteractionChecker:
                 "source": "safety_validation"
             }
 
-        if self.use_neo4j:
-            result = await self._check_neo4j(drug_a, drug_b)
-            if result:
-                result['source'] = 'neo4j'
-                return result
-        
-        # Fallback to PostgreSQL
+        # Query PostgreSQL
         return await self._check_local(drug_a, drug_b)
     
     def _are_lookalikes(self, drug_a: str, drug_b: str) -> bool:
@@ -416,20 +361,6 @@ class GraphInteractionChecker:
         
         return False
 
-    async def _check_neo4j(self, drug_a: str, drug_b: str) -> Optional[Dict]:
-        """Query Neo4j (returns None on failure)."""
-        if not self.neo4j_service:
-            return None
-        
-        try:
-            result = await self.neo4j_service.find_interaction(drug_a, drug_b)
-            if result:
-                return result
-        except Exception as e:
-            logger.warning(f"Neo4j unavailable, using PostgreSQL fallback: {e}")
-        
-        return None
-    
     async def _check_local(self, drug_a: str, drug_b: str) -> Optional[Dict]:
         """
         Check PostgreSQL fallback with caching.
