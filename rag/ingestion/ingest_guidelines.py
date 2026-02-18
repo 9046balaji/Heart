@@ -7,7 +7,7 @@ This script:
 3. Separates table data from text blocks to prevent corruption
 4. Applies Semantic Chunking to preserve medical concepts
 5. Builds RAPTOR trees for hierarchical retrieval
-6. Stores everything in PostgreSQL/pgvector with citation anchoring
+6. Stores everything in ChromaDB with citation anchoring
 
 Key Features:
 - Table Detection: Uses PyMuPDF's find_tables() to identify dosage/protocol tables
@@ -380,7 +380,7 @@ class MedicalGuidelineIngester:
     2. Extract layout chunks (LayoutChunk objects with metadata)
     3. Apply Semantic Chunking to preserve medical concepts
     4. Build RAPTOR Tree for hierarchical retrieval
-    5. Store in PostgreSQL/pgvector with citation anchoring and content type tracking
+    5. Store in ChromaDB with citation anchoring and content type tracking
     
     Key Improvement:
     - Tables are extracted separately using PyMuPDF's find_tables()

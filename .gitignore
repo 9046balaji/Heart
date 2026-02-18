@@ -60,7 +60,7 @@ food
 docs
 comprehensive_web_search
 alembic
-# chroma_db - REMOVED: Migrated to PostgreSQL/pgvector
+# chroma_db data is persisted in Chromadb/ directory
 data
 
 

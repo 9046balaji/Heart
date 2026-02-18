@@ -1,11 +1,9 @@
 """
 Vector Store Manager for HeartGuard Medical Knowledge Base
 
-Wraps PostgreSQL/pgvector and handles embedding generation using sentence-transformers.
+Wraps ChromaDB and handles embedding generation using sentence-transformers.
 This is the core semantic search layer.
 OPTIMIZED: GPU Pre-computation + Batch Insertion.
-
-Migration Note: Previously used ChromaDB, now uses PostgreSQL with pgvector extension.
 """
 
 import logging
@@ -17,24 +15,21 @@ from tqdm import tqdm  # Progress bar
 # Import the MedicalDocument schema
 from rag.data_sources.models import MedicalDocument
 
-# Import pgvector store
+# Import ChromaDB store
 try:
-    from rag.pgvector_store import PgVectorStore
-    PGVECTOR_AVAILABLE = True
+    from rag.chromadb_store import ChromaDBVectorStore
+    CHROMADB_AVAILABLE = True
 except ImportError:
-    PgVectorStore = None
-    PGVECTOR_AVAILABLE = False
+    ChromaDBVectorStore = None
+    CHROMADB_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 
 class VectorStoreManager:
     """
-    Manages the PostgreSQL pgvector store for medical documents.
+    Manages the ChromaDB vector store for medical documents.
     OPTIMIZED: GPU Pre-computation + Batch Insertion.
-    
-    Migration Note: Replaced ChromaDB with PostgreSQL/pgvector for better
-    integration with the HeartGuard PostgreSQL database.
     """
     
     _instance = None
@@ -49,8 +44,8 @@ class VectorStoreManager:
         Initialize the vector store manager.
         
         Args:
-            db_path: Deprecated - PostgreSQL uses DATABASE_URL environment variable
-            collection_name: Name of the collection/table to use
+            db_path: Optional path for ChromaDB persistence directory
+            collection_name: Name of the collection to use
         """
         # Fix: Proper Singleton check using instance attribute
         if hasattr(self, '_initialized') and self._initialized:
@@ -70,17 +65,17 @@ class VectorStoreManager:
         from sentence_transformers import SentenceTransformer
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=self.device)
         
-        # Initialize PostgreSQL pgvector store
-        if not PGVECTOR_AVAILABLE:
-            raise ImportError("PgVectorStore not available. Check rag/pgvector_store.py")
+        # Initialize ChromaDB vector store
+        if not CHROMADB_AVAILABLE:
+            raise ImportError("ChromaDBVectorStore not available. Check rag/chromadb_store.py")
         
-        self.store = PgVectorStore()
+        self.store = ChromaDBVectorStore(persist_directory=db_path)
         self._initialized = True
         
         # Get document count for logging
         stats = self.store.get_collection_stats()
         doc_count = stats.get(collection_name, 0)
-        logger.info(f"[OK] Vector Store Manager initialized with PostgreSQL (Collection: {collection_name}, Count: {doc_count})")
+        logger.info(f"[OK] Vector Store Manager initialized with ChromaDB (Collection: {collection_name}, Count: {doc_count})")
 
     @classmethod
     def get_instance(cls, **kwargs) -> "VectorStoreManager":
@@ -119,10 +114,10 @@ class VectorStoreManager:
         )
         
         # --- PHASE 2: DATABASE WRITE ---
-        print(f"   [Phase 2] Saving to PostgreSQL...")
+        print(f"   [Phase 2] Saving to ChromaDB...")
         
-        # Insert using PgVectorStore batch method
-        write_batch = 1000  # Smaller batches for PostgreSQL
+        # Insert using ChromaDBVectorStore batch method
+        write_batch = 1000  # Smaller batches for ChromaDB
         inserted = 0
         
         with tqdm(total=total, desc="Writing DB", unit="docs") as pbar:
@@ -173,7 +168,7 @@ class VectorStoreManager:
             return []
             
         try:
-            # Use PgVectorStore search
+            # Use ChromaDBVectorStore search
             results = self.store.search_medical_knowledge(
                 query=query,
                 top_k=top_k
@@ -203,7 +198,7 @@ class VectorStoreManager:
         """Get collection statistics."""
         stats = self.store.get_collection_stats()
         return {
-            "db_path": "PostgreSQL (via DATABASE_URL)",
+            "db_path": self.store.persist_directory,
             "collection_name": self.collection_name,
             "document_count": stats.get(self.collection_name, 0),
         }
@@ -211,8 +206,9 @@ class VectorStoreManager:
     def clear(self):
         """Clear all documents from the collection."""
         try:
-            # For PostgreSQL, we truncate the relevant table
-            self.store._execute_sql(f"TRUNCATE TABLE vector_{self.collection_name} RESTART IDENTITY CASCADE")
+            self.store.delete_collection(self.collection_name)
+            # Re-create the collection after deletion
+            self.store._get_collection(self.collection_name)
             logger.info(f"Cleared collection: {self.collection_name}")
         except Exception as e:
             logger.error(f"Failed to clear collection: {e}")

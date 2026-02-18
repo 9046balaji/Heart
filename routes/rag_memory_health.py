@@ -122,7 +122,7 @@ async def get_rag_health():
                 pass
             
             try:
-                from rag.pgvector_store import PgVectorStore
+                from rag.chromadb_store import ChromaDBVectorStore
                 vector_store_available = True
             except Exception:
                 pass

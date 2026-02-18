@@ -61,8 +61,7 @@ langdetect>=0.1.1
 # ============================================================
 # VECTOR STORE & RAG
 # ============================================================
-# chromadb>=0.4.0  # DEPRECATED: Migrated to PostgreSQL/pgvector
-pgvector>=0.2.0  # PostgreSQL vector extension for SQLAlchemy
+chromadb>=0.4.0
 onnxruntime>=1.16.0
 
 # ============================================================
@@ -229,10 +228,6 @@ isort>=5.13.2
 # ERROR: Memory exceeded during PubMed loading
 #   → Normal behavior - streaming handles this with checkpointing
 #   → Check: logs/pubmed_streaming.log for checkpoint status
-#
-# ERROR: "pgvector extension not available"
-#   → Install pgvector on PostgreSQL server: https://github.com/pgvector/pgvector
-#   → System falls back to TEXT type if pgvector not available
 #
 # ERROR: ImportError from relative imports (rag.*, tools.*)
 #   → Run setup script: python PROJECT_SETUP.md (contains validation_setup.py)

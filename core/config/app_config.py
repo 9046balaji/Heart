@@ -381,7 +381,7 @@ def get_app_config() -> AppConfig:
                         "max_context_tokens": int(os.environ.get("MAX_CONTEXT_TOKENS", "3000")),
                         "cache_enabled": os.environ.get("CACHE_ENABLED", "true").lower() == "true",
                         "paths": {
-                            # Vector storage now uses PostgreSQL/pgvector via DATABASE_URL
+                            # Vector storage uses ChromaDB (see rag/chromadb_store.py)
                             "knowledge_graph_dir": os.environ.get("KNOWLEDGE_GRAPH_DIR", "./kg_data"),
                         },
                     },

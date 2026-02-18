@@ -42,7 +42,7 @@ class HeartDiseasePredictor:
     Heart Disease Risk Predictor using RAG-augmented MedGemma.
     
     This predictor:
-    - Retrieves relevant heart disease guidelines from PostgreSQL/pgvector
+    - Retrieves relevant heart disease guidelines from ChromaDB vector store
     - Incorporates patient history from memory system
     - Generates grounded, explainable risk assessments
     - Validates responses to prevent hallucinations

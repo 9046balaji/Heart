@@ -1,7 +1,7 @@
 """
-Vector Store - PostgreSQL/pgvector-based Storage for RAG
+Vector Store - ChromaDB-based Storage for RAG
 
-This module provides persistent vector storage using PostgreSQL with pgvector,
+This module provides persistent vector storage using ChromaDB,
 enabling semantic search over medical knowledge and user memories.
 
 Performance Optimizations:
@@ -9,16 +9,11 @@ Performance Optimizations:
 - L2: Redis cache with 300s TTL (shared across workers)
 - Parallel retrieval support
 
-Migration Note: ChromaDB support has been removed. All vector storage
-now uses PostgreSQL/pgvector for better integration with the HeartGuard
-database infrastructure.
-
-
-Collections (as PostgreSQL tables):
-1. vector_user_memories - Per-user memory embeddings
-2. vector_medical_knowledge - RAG knowledge base (shared)
-3. vector_drug_interactions - Medication information (shared)
-4. vector_symptoms_conditions - Symptom-condition mapping
+Collections (ChromaDB collections):
+1. user_memories - Per-user memory embeddings
+2. medical_knowledge - RAG knowledge base (shared)
+3. drug_interactions - Medication information (shared)
+4. symptoms_conditions - Symptom-condition mapping
 """
 
 import logging
@@ -32,7 +27,7 @@ import threading
 import numpy as np
 
 if TYPE_CHECKING:
-    from .pgvector_store import PgVectorStore as PgVectorStoreType
+    from .chromadb_store import ChromaDBVectorStore as ChromaDBVectorStoreType
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +92,7 @@ class InMemoryVectorStore:
     Simple in-memory vector store fallback for development/testing.
     
     Note: Data is NOT persisted - lost on restart.
-    Use PgVectorStore for production.
+    Use ChromaDBVectorStore for production.
     """
     
     MEDICAL_COLLECTION = "medical_knowledge"
@@ -218,43 +213,43 @@ class InMemoryVectorStore:
 # FACTORY FUNCTION
 # =============================================================================
 
-# Try to import PgVectorStore for PostgreSQL-based storage
-PGVECTOR_STORE_AVAILABLE = False
-_PgVectorStoreClass = None
+# Try to import ChromaDBVectorStore for ChromaDB-based storage
+CHROMADB_STORE_AVAILABLE = False
+_ChromaDBVectorStoreClass = None
 
 try:
-    from .pgvector_store import PgVectorStore as _PgVectorStoreClass
-    PGVECTOR_STORE_AVAILABLE = True
+    from .chromadb_store import ChromaDBVectorStore as _ChromaDBVectorStoreClass
+    CHROMADB_STORE_AVAILABLE = True
 except ImportError:
     try:
-        from rag.pgvector_store import PgVectorStore as _PgVectorStoreClass
-        PGVECTOR_STORE_AVAILABLE = True
+        from rag.chromadb_store import ChromaDBVectorStore as _ChromaDBVectorStoreClass
+        CHROMADB_STORE_AVAILABLE = True
     except ImportError:
-        logger.warning("PgVectorStore not available")
+        logger.warning("ChromaDBVectorStore not available")
 
 
-def get_vector_store(**kwargs) -> Union["PgVectorStoreType", "InMemoryVectorStore"]:
+def get_vector_store(**kwargs) -> Union["ChromaDBVectorStoreType", "InMemoryVectorStore"]:
     """
     Factory function to get the appropriate vector store.
     
     Priority:
-    1. PgVectorStore (PostgreSQL/pgvector) - Production recommended
+    1. ChromaDBVectorStore (ChromaDB) - Production recommended
     2. InMemoryVectorStore - Development/testing fallback
     
     Args:
         **kwargs: Additional arguments for vector store initialization
         
     Returns:
-        PgVectorStore or InMemoryVectorStore instance
+        ChromaDBVectorStore or InMemoryVectorStore instance
     """
-    # Priority 1: PostgreSQL pgvector store (recommended for production)
-    if PGVECTOR_STORE_AVAILABLE and _PgVectorStoreClass is not None:
+    # Priority 1: ChromaDB store (recommended for production)
+    if CHROMADB_STORE_AVAILABLE and _ChromaDBVectorStoreClass is not None:
         try:
-            store = _PgVectorStoreClass(**kwargs)
-            logger.info("✅ Using PgVectorStore (PostgreSQL/pgvector)")
+            store = _ChromaDBVectorStoreClass(**kwargs)
+            logger.info("✅ Using ChromaDBVectorStore (ChromaDB)")
             return store
         except Exception as e:
-            logger.warning(f"Failed to initialize PgVectorStore: {e}")
+            logger.warning(f"Failed to initialize ChromaDBVectorStore: {e}")
             logger.info("Falling back to InMemoryVectorStore...")
     
     # Priority 2: In-memory fallback (development only)
@@ -264,7 +259,7 @@ def get_vector_store(**kwargs) -> Union["PgVectorStoreType", "InMemoryVectorStor
 
 # Backward compatibility alias — declared as a TypeAlias so Pylance
 # treats it as a type rather than a plain variable.
-VectorStore: TypeAlias = _PgVectorStoreClass if PGVECTOR_STORE_AVAILABLE else InMemoryVectorStore  # type: ignore[type-arg]
+VectorStore: TypeAlias = _ChromaDBVectorStoreClass if CHROMADB_STORE_AVAILABLE else InMemoryVectorStore  # type: ignore[type-arg]
 
 
 # =============================================================================

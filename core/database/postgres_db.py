@@ -1,6 +1,7 @@
 """
 PostgreSQL database connection module using asyncpg.
-Supports both traditional relational data and vector search capabilities (via pgvector).
+Supports traditional relational data storage.
+Vector search is handled by ChromaDB (see rag/chromadb_store.py).
 """
 
 import os
@@ -209,7 +210,7 @@ class PostgresDatabase:
         metadata: Dict = None,
     ) -> bool:
         try:
-            # Store embedding as JSON string or array if pgvector is not used, 
+            # Store embedding as JSON string or array (vector search handled by ChromaDB), 
             # but here we assume the schema uses TEXT or JSONB for embedding as per core_postgresql_schema.sql
             await self.execute_query(
                 "INSERT INTO medical_knowledge_base (content, content_type, embedding, metadata_json) VALUES (%s, %s, %s, %s)",
@@ -228,15 +229,16 @@ class PostgresDatabase:
         
         **SECURITY**: Application-level fallback is restricted to prevent DoS.
         
-        If pgvector is not installed:
-        - In development: Uses application-level similarity with a HARD LIMIT of 1000 rows
-        - In production: Fails fast (requires pgvector extension)
+        Note: Primary vector search is handled by ChromaDB (rag/chromadb_store.py).
+        This is a PostgreSQL-level fallback for the medical_knowledge_base table.
+        
+        In development: Uses application-level similarity with a HARD LIMIT of 1000 rows.
+        In production: Should use ChromaDB vector store instead.
         
         This prevents memory exhaustion from fetching entire knowledge bases into memory.
         """
         try:
-            # Check if pgvector extension is available (would use <=> operator)
-            # For now, we'll do application-level similarity with safety limits
+            # Application-level similarity (fallback only; use ChromaDB for production)
             
             is_production = os.getenv("APP_ENV", "development").lower() == "production"
             
@@ -254,12 +256,12 @@ class PostgresDatabase:
             
             results = await self.fetch_all(query, tuple(params))
             
-            # If we got no results or pgvector should be available, warn in production
+            # If we got no results in production, warn
             if not results and is_production:
                 logger.error(
                     "CRITICAL: Vector search returning no results in production. "
-                    "pgvector extension should be installed for production deployments. "
-                    "Install: CREATE EXTENSION IF NOT EXISTS vector;"
+                    "Consider using ChromaDB vector store (rag/chromadb_store.py) "
+                    "for production vector search."
                 )
                 return []
             

@@ -1,7 +1,7 @@
 """
 HeartDiseaseRAG Engine - Simplified RAG for Cardiovascular Knowledge
 
-This module connects the Router directly to the populated PostgreSQL/pgvector store
+This module connects the Router directly to the populated ChromaDB vector store
 containing 125,000+ medical textbook documents.
 """
 
@@ -30,9 +30,9 @@ class HeartDiseaseRAG:
         logger.info("Initializing RAG Engine...")
         try:
             # Connect directly to the Vector Store Manager
-            # This accesses the 125,000+ documents in PostgreSQL/pgvector
+            # This accesses the 125,000+ documents in ChromaDB
             self.vector_store = VectorStoreManager.get_instance()
-            logger.info(f"[SUCCESS] RAG Engine Connected to PostgreSQL/pgvector.")
+            logger.info(f"[SUCCESS] RAG Engine Connected to ChromaDB.")
         except Exception as e:
             logger.error(f"[ERROR] Failed to connect to Vector Store: {e}")
             self.vector_store = None

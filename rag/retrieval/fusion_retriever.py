@@ -28,10 +28,10 @@ import re
 from langchain_core.documents import Document
 
 if TYPE_CHECKING:
-    from rag.pgvector_store import PgVectorStore
+    from rag.chromadb_store import ChromaDBVectorStore
     from rag.vector_store import InMemoryVectorStore
 
-    VectorStore = PgVectorStore | InMemoryVectorStore
+    VectorStore = ChromaDBVectorStore | InMemoryVectorStore
 
 logger = logging.getLogger(__name__)
 
