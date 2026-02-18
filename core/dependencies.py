@@ -82,10 +82,8 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.config.rag_config import RAGConfig
-    from rag.knowledge_base.knowledge_loader import KnowledgeLoaderSingleton
-    from rag.embedding_service import EmbeddingService
-    from rag.vector_store import VectorStore
-    from rag.ingestion.unified_chunker import UnifiedMedicalChunker, DrugDictionary
+    from rag.embedding import RemoteEmbeddingService
+    from rag.store.vector_store import InMemoryVectorStore
 
 logger_di = logging.getLogger(__name__)
 
@@ -180,28 +178,28 @@ class DIContainer:
     
     @property
     def loader(self):
-        """Get KnowledgeLoaderSingleton."""
+        """KnowledgeLoader — ARCHIVED (ingestion mode only)."""
         if self._loader is None:
-            from rag.knowledge_base.knowledge_loader import KnowledgeLoaderSingleton
-            self._loader = KnowledgeLoaderSingleton.get_instance()
-            logger_di.debug("KnowledgeLoaderSingleton instance created and cached")
+            logger_di.warning(
+                "KnowledgeLoaderSingleton is archived (ingestion mode only). "
+                "Restore from _archive_ingestion/ if re-ingestion is needed."
+            )
         return self._loader
     
     @property
     def embeddings(self):
         """Get EmbeddingService singleton."""
         if self._embeddings is None:
-            from rag.embedding_service import EmbeddingService
-            backend = getattr(self.config, 'embedding_backend', 'onnx')
-            self._embeddings = EmbeddingService.get_instance(backend=backend)
-            logger_di.debug(f"EmbeddingService instance created ({backend}) and cached")
+            from rag.embedding.remote import RemoteEmbeddingService
+            self._embeddings = RemoteEmbeddingService.get_instance()
+            logger_di.debug("RemoteEmbeddingService instance created and cached")
         return self._embeddings
     
     @property
     def vector_store(self):
         """Get VectorStore singleton (with fallback to InMemoryVectorStore)."""
         if self._vector_store is None:
-            from rag.vector_store import get_vector_store
+            from rag.store.vector_store import get_vector_store
             embedding_model = getattr(self.config, 'embedding_model_name', "all-MiniLM-L6-v2")
             try:
                 self._vector_store = get_vector_store(
@@ -210,29 +208,29 @@ class DIContainer:
                 )
             except Exception as e:
                 logger_di.warning(f"VectorStore initialization failed: {e}, using InMemoryVectorStore")
-                from rag.vector_store import InMemoryVectorStore
+                from rag.store.vector_store import InMemoryVectorStore
                 self._vector_store = InMemoryVectorStore(embedding_model=embedding_model)
             logger_di.debug(f"VectorStore instance created ({type(self._vector_store).__name__}) and cached")
         return self._vector_store
     
     @property
     def chunker(self):
-        """Get UnifiedMedicalChunker singleton."""
+        """UnifiedMedicalChunker — ARCHIVED (ingestion mode only)."""
         if self._chunker is None:
-            from rag.ingestion.unified_chunker import UnifiedMedicalChunker
-            self._chunker = UnifiedMedicalChunker(
-                drug_file=None
+            logger_di.warning(
+                "UnifiedMedicalChunker is archived (ingestion mode only). "
+                "Restore from _archive_ingestion/ if re-ingestion is needed."
             )
-            logger_di.debug("UnifiedMedicalChunker instance created and cached")
         return self._chunker
     
     @property
     def drug_dict(self):
-        """Get DrugDictionary singleton."""
+        """DrugDictionary — ARCHIVED (ingestion mode only)."""
         if self._drug_dict is None:
-            from rag.ingestion.unified_chunker import DrugDictionary
-            self._drug_dict = DrugDictionary.get_instance(drug_file=None)
-            logger_di.debug("DrugDictionary instance created and cached")
+            logger_di.warning(
+                "DrugDictionary is archived (ingestion mode only). "
+                "Restore from _archive_ingestion/ if re-ingestion is needed."
+            )
         return self._drug_dict
     
     @property
@@ -306,7 +304,7 @@ class DIContainer:
         """Get MedicalReranker singleton (RAGFlow-enhanced production-ready reranker)."""
         if self._reranker is None:
             try:
-                from rag.reranker import MedicalReranker
+                from rag.retrieval.reranker import MedicalReranker
                 
                 # Initialize with production settings from RAG config
                 max_length = getattr(self.config, 'reranker_max_length', 512)
@@ -373,7 +371,7 @@ class DIContainer:
         """Get GraphInteractionChecker singleton."""
         if not hasattr(self, '_interaction_checker') or self._interaction_checker is None:
             try:
-                from rag.graph_interaction_checker import GraphInteractionChecker
+                from rag.knowledge_graph.interaction_checker import GraphInteractionChecker
                 self._interaction_checker = GraphInteractionChecker(
                     postgres_db=self.postgres_db  # Pass shared PostgreSQL pool
                 )
@@ -399,7 +397,7 @@ class DIContainer:
         if not hasattr(self, '_memori_bridge') or self._memori_bridge is None:
             try:
                 from memori.core.memory import Memori
-                from rag.memori_integration import MemoriRAGBridge
+                from rag.memory.memori_integration import MemoriRAGBridge
                 from core.config.app_config import get_app_config
                 
                 # Build PostgreSQL connection string from AppConfig
@@ -500,7 +498,7 @@ class DIContainer:
             store = DIContainer.get_instance().get_feedback_store()
             await store.record_feedback(...)
         """
-        from rag.feedback_store import FeedbackStore
+        from rag.store.feedback_store import FeedbackStore
         
         try:
             storage = self.storage

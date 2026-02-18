@@ -245,7 +245,7 @@ except ImportError:
 
 # Import MemoriRAGBridge for hybrid search (semantic + keyword)
 try:
-    from rag.memori_integration import MemoriRAGBridge, create_memori_rag_bridge
+    from rag.memory.memori_integration import MemoriRAGBridge, create_memori_rag_bridge
     MEMORI_RAG_BRIDGE_AVAILABLE = True
 except ImportError:
     MEMORI_RAG_BRIDGE_AVAILABLE = False

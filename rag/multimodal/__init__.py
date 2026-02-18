@@ -7,46 +7,8 @@ Provides multimodal document processing capabilities:
 - Context-aware content processing
 - Integration with existing RAG pipeline
 
-Architecture:
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                    Multimodal RAG Module                        │
-    ├─────────────────────────────────────────────────────────────────┤
-    │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-    │  │ TableProcessor  │  │ ImageProcessor  │  │ ContextExtractor│  │
-    │  │ (Lab results)   │  │ (ECG/Charts)    │  │ (Document ctx)  │  │
-    │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘  │
-    │           │                    │                    │           │
-    │           └────────────────────┼────────────────────┘           │
-    │                                ▼                                │
-    │              ┌─────────────────────────────────┐                │
-    │              │   MultimodalIngestionService    │                │
-    │              │   (Bridge to VectorStore)       │                │
-    │              └─────────────────────────────────┘                │
-    │                                │                                │
-    │     ┌──────────────────────────┼──────────────────────────┐     │
-    │     ▼                          ▼                          ▼     │
-    │  ┌────────────┐  ┌──────────────────────┐  ┌────────────────┐   │
-    │  │VLMEnhanced │  │MultimodalQueryService│  │ BatchParser    │   │
-    │  │ Retriever  │  │(Query with content)  │  │ (Parallel)     │   │
-    │  └────────────┘  └──────────────────────┘  └────────────────┘   │
-    │                                │                                │
-    │     ┌──────────────────────────┼──────────────────────────┐     │
-    │     ▼                          ▼                          ▼     │
-    │  ┌────────────┐  ┌──────────────────────┐  ┌────────────────┐   │
-    │  │MineruParser│  │   DoclingParser      │  │  BatchMixin    │   │
-    │  │ (PDF/OCR)  │  │   (Office docs)      │  │ (Folder proc)  │   │
-    │  └────────────┘  └──────────────────────┘  └────────────────┘   │
-    └─────────────────────────────────────────────────────────────────┘
-
-Features (adapted from RAG-Anything):
-- VLM-Enhanced Queries: Automatic image analysis with vision models
-- Multimodal Queries: Query with user-provided tables/equations
-- Direct Content Insertion: Insert pre-parsed content without parsing
-- Folder Processing: Batch ingest entire directories
-- Entity Extraction: Extract entities for knowledge graph
-- MinerU Parser: High-fidelity PDF parsing with OCR support
-- Docling Parser: Office document parsing (Word, PowerPoint, Excel)
-- Batch Processing: Parallel document processing with progress tracking
+NOTE: Ingestion services have been archived to _archive_ingestion/.
+This module now provides QUERY-TIME multimodal processing only.
 """
 
 from .config import MultimodalConfig, ContextConfig
@@ -61,17 +23,6 @@ from .processors import (
     DocStatus,
     ContentType,
     get_processor_for_type,
-)
-from .ingestion import (
-    MultimodalIngestionService,
-    MultimodalRetriever,
-    VLMEnhancedRetriever,
-    MultimodalQueryService,
-    DirectContentInserter,
-    FolderProcessor,
-    EntityExtractor,
-    IngestionResult,
-    ChunkData,
 )
 from .prompts import MEDICAL_PROMPTS
 
@@ -127,17 +78,6 @@ __all__ = [
     "DocStatus",
     "ContentType",
     "get_processor_for_type",
-    # Services
-    "MultimodalIngestionService",
-    "MultimodalRetriever",
-    "VLMEnhancedRetriever",
-    "MultimodalQueryService",
-    "DirectContentInserter",
-    "FolderProcessor",
-    "EntityExtractor",
-    # Data Classes
-    "IngestionResult",
-    "ChunkData",
     # Document Parsers
     "Parser",
     "MineruParser",

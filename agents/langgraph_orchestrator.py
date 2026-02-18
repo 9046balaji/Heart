@@ -58,9 +58,9 @@ from tools.agentic_tools import (
 )
 from agents.components.thinking import create_thinking_agent
 from agents.components.medical_planner import MedicalPlanner
-from rag.self_rag_medical import MedicalSelfRAG
-from rag.graph_interaction_checker import GraphInteractionChecker
-from rag.crag_fallback import CRAGFallback
+from rag.pipeline.self_rag_medical import MedicalSelfRAG
+from rag.knowledge_graph.interaction_checker import GraphInteractionChecker
+from rag.pipeline.crag_fallback import CRAGFallback
 from agents.heart_predictor import HeartDiseasePredictor
 from tools.fhir.fhir_agent_tool import get_fhir_tool
 from agents.components.workflow_automation import WorkflowRouter

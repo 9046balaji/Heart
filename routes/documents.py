@@ -90,8 +90,8 @@ def _get_ingestion_service():
     if _ingestion_service is None:
         try:
             from rag.multimodal import MultimodalIngestionService, MultimodalConfig
-            from rag.vector_store import get_vector_store
-            from rag.embedding_service import get_embedding_service
+            from rag.store.vector_store import get_vector_store
+            from rag.embedding import get_embedding_service
             from core.llm import get_llm_gateway
             
             vector_store = get_vector_store()
@@ -135,7 +135,7 @@ def _get_query_service():
     if _query_service is None:
         try:
             from rag.multimodal import MultimodalQueryService
-            from rag.vector_store import get_vector_store
+            from rag.store.vector_store import get_vector_store
             from core.llm import get_llm_gateway
             
             vector_store = get_vector_store()
@@ -426,7 +426,7 @@ async def query_documents(
         DocumentQueryResponse with matching results
     """
     try:
-        from rag.vector_store import get_vector_store
+        from rag.store.vector_store import get_vector_store
         
         vector_store = get_vector_store()
         
@@ -534,7 +534,7 @@ async def delete_document(
         Deletion confirmation
     """
     try:
-        from rag.vector_store import get_vector_store
+        from rag.store.vector_store import get_vector_store
         
         vector_store = get_vector_store()
         

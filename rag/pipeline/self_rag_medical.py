@@ -6,8 +6,8 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
-from rag.token_budget import TokenBudgetManager
-from rag.context_assembler import ContextAssembler, AssembledContext
+from rag.retrieval.token_budget import TokenBudgetManager
+from rag.retrieval.context_assembler import ContextAssembler, AssembledContext
 from core.safety.hallucination_grader import HallucinationGrader
 
 # P2/P3 Enhancements - Lazy imports for optional components
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def _get_explainable_retriever():
     """Lazy load ExplainableRetriever to avoid circular imports."""
     try:
-        from rag.explainable_retrieval import ExplainableRetriever, RetrievalExplanation
+        from rag.retrieval.explainable_retrieval import ExplainableRetriever, RetrievalExplanation
         return ExplainableRetriever, RetrievalExplanation
     except ImportError:
         logger.warning("ExplainableRetriever not available")
@@ -78,7 +78,7 @@ def _get_conflict_detector():
 def _get_raptor_retriever():
     """Lazy load RAPTOR hierarchical retriever."""
     try:
-        from rag.raptor_retrieval import RAPTORRetriever, RAPTORIndexManager
+        from rag.retrieval.raptor_retrieval import RAPTORRetriever, RAPTORIndexManager
         return RAPTORRetriever, RAPTORIndexManager
     except ImportError:
         logger.debug("RAPTOR retriever not available")

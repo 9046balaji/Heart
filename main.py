@@ -113,7 +113,7 @@ STRUCTURED_OUTPUTS_ENABLED = True  # Always available
 class NLPState:
     """
     Global state holder for NLP components.
-    Used by core.app_dependencies to provide dependencies to routes.
+    Used by core.dependencies to provide dependencies to routes.
     """
 
     intent_recognizer = None
@@ -208,8 +208,8 @@ class NLPService:
     def __init__(self, **kwargs):
         pass
 
-# Import embedding services for cache warming
-from rag.embedding_onnx import ONNXEmbeddingService
+# Import embedding service for cache warming
+from rag.embedding.remote import RemoteEmbeddingService
 
 # Import memory extraction components for agentic system
 try:
@@ -236,7 +236,7 @@ except ImportError:
     MEMORI_AVAILABLE = False
 
 # Import VectorStore for memory
-from rag.vector_store import VectorStore
+from rag.store.vector_store import InMemoryVectorStore as VectorStore
 
 # Import Memory components
 try:
@@ -357,7 +357,7 @@ async def lifespan(app: FastAPI):
         # Continue with main startup even if routes layer fails
     
     # 2. Original main.py startup logic
-    from config import startup_check
+    from core.config.legacy_settings import startup_check
     startup_check()  # Check on startup
     
     # Check if Alembic migrations are up to date (non-blocking)
@@ -475,7 +475,7 @@ async def lifespan(app: FastAPI):
         try:
             from core.llm.llm_gateway import get_llm_gateway
             from core.database.postgres_db import get_database
-            from rag.graph_interaction_checker import GraphInteractionChecker
+            from rag.knowledge_graph.interaction_checker import GraphInteractionChecker
             
             # Get instances
             postgres_db = await get_database()
@@ -596,7 +596,7 @@ async def lifespan(app: FastAPI):
                         "shortness of breath", "fatigue", "dizziness",
                         "aspirin", "medications", "diagnosis", "treatment"
                     ]
-                    embedding_service = ONNXEmbeddingService.get_instance(model_type="fast")
+                    embedding_service = RemoteEmbeddingService.get_instance()
                     warmed_count = embedding_service.warm_cache(common_medical_terms)
                     logger.info(f"✅ Background cache warming complete: {warmed_count} embeddings")
                 except Exception as e:

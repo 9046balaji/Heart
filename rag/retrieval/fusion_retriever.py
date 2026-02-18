@@ -28,8 +28,8 @@ import re
 from langchain_core.documents import Document
 
 if TYPE_CHECKING:
-    from rag.chromadb_store import ChromaDBVectorStore
-    from rag.vector_store import InMemoryVectorStore
+    from rag.store.chromadb_store import ChromaDBVectorStore
+    from rag.store.vector_store import InMemoryVectorStore
 
     VectorStore = ChromaDBVectorStore | InMemoryVectorStore
 

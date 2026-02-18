@@ -1,104 +1,37 @@
 """
-RAG (Retrieval-Augmented Generation) Module for Cardio AI Assistant
+RAG Package — Inference Mode
 
-This module provides semantic search and knowledge retrieval capabilities
-to enhance the LLM's responses with accurate medical information.
+Provides retrieval-augmented generation for the HeartGuard AI chatbot.
+All ingestion code has been moved to _archive_ingestion/.
 
-Components:
-- EmbeddingService: Generate vector embeddings (Factory for ONNX/PyTorch)
-- VectorStore: ChromaDB-based storage for embeddings and documents
-- UnifiedRAGOrchestrator: Unified RAG orchestrator (Vector + Graph)
-- MemoriRAGBridge: Connect RAG with existing Memori memory system
-
-Architecture:
-    ┌─────────────────────────────────────────────────────────┐
-    │                    RAG Module                           │
-    ├─────────────────────────────────────────────────────────┤
-    │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐   │
-    │  │ Embedding   │  │ VectorStore  │  │ Unified      │   │
-    │  │ Service     │──│  (ChromaDB)  │──│ RAG Orch.    │   │
-    │  └─────────────┘  └──────────────┘  └──────────────┘   │
-    │         │                                   │           │
-    │         │         ┌──────────────┐         │           │
-    │         └─────────│ MemoriRAG    │─────────┘           │
-    │                   │   Bridge     │                     │
-    │                   └──────────────┘                     │
-    └─────────────────────────────────────────────────────────┘
-
-Usage:
-    from rag import get_unified_orchestrator, MemoriRAGBridge
-
-    # Simple query
-    rag = get_unified_orchestrator()
-    response = await rag.query("What are symptoms of heart disease?")
-
-    # With Memori integration
-    bridge = MemoriRAGBridge(memori=memori_instance, vector_store=rag.vector_store)
-    results = await bridge.search("blood pressure history", user_id="user123")
+Subpackages:
+    embedding/       — Remote embedding service (MedCPT 768-dim)
+    store/           — ChromaDB vector store, feedback store
+    retrieval/       — Reranker, fusion retriever, context assembler, RAPTOR, explainability
+    pipeline/        — Self-RAG, CRAG, query optimizer
+    memory/          — Memori conversation memory integration
+    knowledge_graph/ — Medical ontology, drug interaction graph
+    nlp/             — Medical NLP utilities
+    multimodal/      — Image/multimodal query support
+    trust/           — Source validation, conflict detection
 """
 
-from .embedding_service import EmbeddingService, get_embedding_service
-from .vector_store import VectorStore
-from .context_assembler import ContextAssembler, AssembledContext, RetrievalResult
-from .memori_integration import MemoriRAGBridge, SyncConfig, create_memori_rag_bridge
-from .rag_engines import HeartDiseaseRAG
+# Core exports for convenience
+from .rag_engines import HeartDiseaseRAG, get_heart_disease_rag
 
-# Query optimization
-from .rag_query_optimizer import (
-    RAGTieredCache,
-    BatchEmbeddingManager,
-    OptimizedRAGQueryExecutor,
-    RAGPerformanceMonitor,
-    initialize_rag_optimizer,
-)
+# Embedding
+from .embedding import RemoteEmbeddingService, get_embedding_service
 
-# Multimodal processing (tables, images, equations)
-from .multimodal import (
-    MultimodalConfig,
-    MultimodalIngestionService,
-    MultimodalRetriever,
-    VLMEnhancedRetriever,
-    MultimodalQueryService,
-    DirectContentInserter,
-    FolderProcessor,
-    EntityExtractor,
-    TableProcessor,
-    ImageProcessor,
-    ContextExtractor,
-)
+# Store
+from .store import ChromaDBVectorStore
 
 __all__ = [
-    # Embedding
-    "EmbeddingService",
-    "get_embedding_service",
-    # Vector Store
-    "VectorStore",
-    # Context Assembly
-    "ContextAssembler",
-    "AssembledContext",
-    "RetrievalResult",
-    # Memori Integration
-    "MemoriRAGBridge",
-    "SyncConfig",
-    "create_memori_rag_bridge",
-    # Query Optimization
-    "RAGTieredCache",
-    "BatchEmbeddingManager",
-    "OptimizedRAGQueryExecutor",
-    "RAGPerformanceMonitor",
-    "initialize_rag_optimizer",
-    # Multimodal Processing
-    "MultimodalConfig",
-    "MultimodalIngestionService",
-    "MultimodalRetriever",
-    "VLMEnhancedRetriever",
-    "MultimodalQueryService",
-    "DirectContentInserter",
-    "FolderProcessor",
-    "EntityExtractor",
-    "TableProcessor",
-    "ImageProcessor",
-    "ContextExtractor",
-    # Specialized Engines
+    # Core
     "HeartDiseaseRAG",
+    "get_heart_disease_rag",
+    # Embedding
+    "RemoteEmbeddingService",
+    "get_embedding_service",
+    # Store
+    "ChromaDBVectorStore",
 ]

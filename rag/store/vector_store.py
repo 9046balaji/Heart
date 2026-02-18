@@ -67,24 +67,11 @@ def _get_sync_redis_client():
         _vector_redis_available = False
         return None
 
-
-# Import embedding services
+# Import embedding service (remote-only for inference mode)
 try:
-    from .embedding_service import EmbeddingService
+    from rag.embedding.remote import RemoteEmbeddingService
 except ImportError:
-    import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from rag.embedding_service import EmbeddingService
-
-try:
-    from .embedding_onnx import ONNXEmbeddingService
-    ONNX_AVAILABLE = True
-except ImportError:
-    try:
-        from rag.embedding_onnx import ONNXEmbeddingService
-        ONNX_AVAILABLE = True
-    except ImportError:
-        ONNX_AVAILABLE = False
+    RemoteEmbeddingService = None  # type: ignore[assignment,misc]
 
 
 class InMemoryVectorStore:
@@ -106,15 +93,11 @@ class InMemoryVectorStore:
         
         # Try to initialize embedding service
         self.embedding_service = None
-        try:
-            if ONNX_AVAILABLE:
-                self.embedding_service = ONNXEmbeddingService.get_instance(
-                    model_type="fast" if "mini" in embedding_model.lower() else "quality"
-                )
-            else:
-                self.embedding_service = EmbeddingService(model_name=embedding_model)
-        except Exception as e:
-            logger.warning(f"Failed to initialize embedding service: {e}")
+        if RemoteEmbeddingService is not None:
+            try:
+                self.embedding_service = RemoteEmbeddingService.get_instance()
+            except Exception as e:
+                logger.warning(f"Failed to initialize embedding service: {e}")
         
         logger.warning("⚠️ Using InMemoryVectorStore - data will NOT be persisted!")
         logger.info("✅ InMemoryVectorStore initialized")
@@ -222,7 +205,7 @@ try:
     CHROMADB_STORE_AVAILABLE = True
 except ImportError:
     try:
-        from rag.chromadb_store import ChromaDBVectorStore as _ChromaDBVectorStoreClass
+        from rag.store.chromadb_store import ChromaDBVectorStore as _ChromaDBVectorStoreClass
         CHROMADB_STORE_AVAILABLE = True
     except ImportError:
         logger.warning("ChromaDBVectorStore not available")

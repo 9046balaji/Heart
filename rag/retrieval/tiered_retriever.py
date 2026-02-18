@@ -24,7 +24,7 @@ from enum import Enum
 from dataclasses import dataclass
 import re
 
-from rag.data_sources.models import (
+from rag.retrieval.models import (
     MedicalDocument,
     SourceTier,
 )

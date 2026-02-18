@@ -95,3 +95,6 @@ build/
 
 Chromadb
 backup
+rag/_archive_ingestion
+rag.zip
+rag_backup_before_inference_mode.zip

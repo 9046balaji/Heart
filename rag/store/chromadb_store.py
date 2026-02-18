@@ -74,23 +74,11 @@ def _get_sync_redis_client():
         return None
 
 
-# Import embedding services
+# Import embedding service (remote-only for inference mode)
 try:
-    from .embedding_service import EmbeddingService
+    from rag.embedding.remote import RemoteEmbeddingService
 except ImportError:
-    import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from rag.embedding_service import EmbeddingService
-
-try:
-    from .embedding_onnx import ONNXEmbeddingService
-    ONNX_AVAILABLE = True
-except ImportError:
-    try:
-        from rag.embedding_onnx import ONNXEmbeddingService
-        ONNX_AVAILABLE = True
-    except ImportError:
-        ONNX_AVAILABLE = False
+    RemoteEmbeddingService = None  # type: ignore[assignment,misc]
 
 
 class ChromaDBVectorStore:
@@ -165,22 +153,14 @@ class ChromaDBVectorStore:
         # Initialize ChromaDB client with persistence
         self._client = chromadb.PersistentClient(path=self.persist_directory)
 
-        # Initialize embedding service
-        if ONNX_AVAILABLE:
+        # Initialize embedding service (optional — rag_engines.py provides its own)
+        self.embedding_service = None
+        if RemoteEmbeddingService is not None:
             try:
-                self.embedding_service = ONNXEmbeddingService.get_instance(
-                    model_type="fast" if "mini" in embedding_model.lower() else "quality"
-                )
-                logger.info("✅ Using ONNX-optimized embedding service")
+                self.embedding_service = RemoteEmbeddingService.get_instance()
+                logger.info("✅ Using RemoteEmbeddingService (MedCPT 768-dim)")
             except Exception as e:
-                logger.warning(f"ONNX failed, using standard: {e}")
-                self.embedding_service = EmbeddingService.get_instance(
-                    model_name=embedding_model
-                )
-        else:
-            self.embedding_service = EmbeddingService.get_instance(
-                model_name=embedding_model
-            )
+                logger.warning(f"Remote embedding unavailable: {e}")
 
         # Query result cache
         self._query_cache: OrderedDict[str, List[Dict]] = OrderedDict()

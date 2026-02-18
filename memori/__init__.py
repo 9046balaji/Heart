@@ -180,4 +180,41 @@ _all_components = [
 if _AGENTS_AVAILABLE:
     _all_components.extend(["MemoryAgent", "MemorySearchEngine"])
 
+# HeartGuard integration modules (lazy-loaded, used by main.py and routes/)
+try:
+    from .memory_manager import MemoryManager, PatientMemory, MemoryResult
+    _all_components.extend(["MemoryManager", "PatientMemory", "MemoryResult"])
+except ImportError:
+    pass
+
+try:
+    from .memory_middleware import CorrelationIDMiddleware, get_memory_context
+    _all_components.extend(["CorrelationIDMiddleware", "get_memory_context"])
+except ImportError:
+    pass
+
+try:
+    from .memory_observability import MemoriMetricsCollector, get_memori_health_check
+    _all_components.extend(["MemoriMetricsCollector", "get_memori_health_check"])
+except ImportError:
+    pass
+
+try:
+    from .memory_performance import MultiTierCache, BatchMemoryProcessor
+    _all_components.extend(["MultiTierCache", "BatchMemoryProcessor"])
+except ImportError:
+    pass
+
+try:
+    from .memory_aware_agents import (
+        MemoryAwareAgentOrchestrator,
+        MemoryEnhancedLangGraphAgent,
+    )
+    _all_components.extend([
+        "MemoryAwareAgentOrchestrator",
+        "MemoryEnhancedLangGraphAgent",
+    ])
+except ImportError:
+    pass
+
 __all__ = _all_components

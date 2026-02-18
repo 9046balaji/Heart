@@ -293,7 +293,7 @@ async def startup_event():
         # 3. Initialize feedback store
         logger.info("📦 Initializing feedback store...")
         from core.dependencies import DIContainer
-        from rag.feedback_store import FeedbackStore
+        from rag.store.feedback_store import FeedbackStore
         
         container = DIContainer.get_instance()
         

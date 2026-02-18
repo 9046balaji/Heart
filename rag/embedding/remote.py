@@ -18,7 +18,7 @@ import numpy as np
 from typing import List, Optional
 from collections import OrderedDict
 
-from rag.interfaces.embedding_base import BaseEmbeddingService
+from rag.embedding.base import BaseEmbeddingService
 
 logger = logging.getLogger(__name__)
 

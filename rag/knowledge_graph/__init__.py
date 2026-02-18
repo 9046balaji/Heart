@@ -21,4 +21,12 @@ __all__ = [
     "GraphRAGService",
     "GraphContext",
     "GraphSearchResult",
+    # Interaction Checker
+    "GraphInteractionChecker",
 ]
+
+# Lazy import for interaction checker
+try:
+    from .interaction_checker import GraphInteractionChecker
+except ImportError:
+    pass

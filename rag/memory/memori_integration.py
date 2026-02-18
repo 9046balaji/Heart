@@ -34,7 +34,7 @@ except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from rag.memori_interfaces import AbstractMemoriInterface, MemoriValidator
+    from rag.memory.memori_interfaces import AbstractMemoriInterface, MemoriValidator
 
 logger = logging.getLogger(__name__)
 
@@ -697,7 +697,7 @@ def create_memori_rag_bridge(
     """
     # Create VectorStore if not provided
     if vector_store is None and persist_directory:
-        from .vector_store import VectorStore
+        from rag.store.vector_store import InMemoryVectorStore as VectorStore
 
         vector_store = VectorStore(persist_directory=persist_directory)
 

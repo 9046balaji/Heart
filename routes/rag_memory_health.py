@@ -115,14 +115,14 @@ async def get_rag_health():
         else:
             # Try to import and check basic components
             try:
-                from rag import get_embedding_service
+                from rag.embedding import get_embedding_service
                 embedding_service = get_embedding_service()
                 embedding_service_available = embedding_service is not None
             except Exception:
                 pass
             
             try:
-                from rag.chromadb_store import ChromaDBVectorStore
+                from rag.store.chromadb_store import ChromaDBVectorStore
                 vector_store_available = True
             except Exception:
                 pass
