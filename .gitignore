@@ -11,3 +11,6 @@ dist/
 build/
 .pytest_cache/
 # ... etc
+# Prevent nested git repositories
+**/.git/
+.git/
