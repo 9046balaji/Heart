@@ -65,6 +65,11 @@ _job_store: Optional[Any] = None
 # Database Monitoring Services
 _db_monitoring: Optional[Dict[str, Any]] = None
 
+# Observability, Rate Limiting & Degradation Services
+_agent_tracer: Optional[Any] = None
+_redis_rate_limiter: Optional[Any] = None
+_service_tracker: Optional[Any] = None
+
 
 def get_orchestrator() -> Optional[Any]:
     """Get orchestrator instance (initialized during startup)."""
@@ -117,18 +122,29 @@ def get_job_store() -> Optional[Any]:
 
 def get_db_monitoring() -> Optional[Dict[str, Any]]:
     """Get database monitoring services (initialized during startup)."""
-    if _db_monitoring is None:
-        logger.warning("⚠️ Database monitoring not initialized")
     return _db_monitoring
 
 
-def get_db_health_status() -> Dict[str, Any]:
+def get_db_health_status() -> dict:
     """Get current database health status."""
-    if _db_monitoring and _db_monitoring.get("health_checker"):
-        health_checker = _db_monitoring["health_checker"]
-        if health_checker.last_health_check:
-            return health_checker.last_health_check
-    return {"status": "unknown", "error": "Health checker not initialized"}
+    if _db_monitoring and _db_monitoring.get('monitor'):
+        return _db_monitoring['monitor'].get_health_report()
+    return {"status": "unknown", "message": "Monitoring not initialized"}
+
+
+def get_agent_tracer():
+    """Get AgentTracer instance (initialized during startup)."""
+    return _agent_tracer
+
+
+def get_redis_rate_limiter():
+    """Get RedisRateLimiter instance (initialized during startup)."""
+    return _redis_rate_limiter
+
+
+def get_service_tracker():
+    """Get ServiceStatusTracker instance (initialized during startup)."""
+    return _service_tracker
 
 
 # ============================================================================
@@ -144,8 +160,39 @@ async def startup_event():
     runs this code, ensuring all services are available in every worker.
     """
     global _orchestrator, _feedback_store, _embedding_search_engine, _auth_db_service
+    global _agent_tracer, _redis_rate_limiter, _service_tracker
     
     logger.info("🚀 Starting up application services...")
+    
+    # --- Observability: AgentTracer ---
+    try:
+        from core.observability.tracing import AgentTracer
+        _agent_tracer = AgentTracer(backend="local", service_name="heartguard-ai")
+        logger.info("✅ AgentTracer initialized (local backend)")
+    except Exception as e:
+        logger.warning(f"⚠️  AgentTracer not initialized: {e}")
+    
+    # --- Graceful Degradation: ServiceStatusTracker ---
+    try:
+        from core.graceful_degradation import ServiceStatusTracker
+        _service_tracker = ServiceStatusTracker()
+        logger.info("✅ ServiceStatusTracker initialized")
+    except Exception as e:
+        logger.warning(f"⚠️  ServiceStatusTracker not initialized: {e}")
+    
+    # --- Distributed Rate Limiting: RedisRateLimiter ---
+    try:
+        from core.rate_limiter_redis import RedisRateLimiter
+        _redis_rate_limiter = RedisRateLimiter()
+        connected = await _redis_rate_limiter.connect()
+        if connected:
+            logger.info("✅ RedisRateLimiter connected")
+        else:
+            logger.warning("⚠️  RedisRateLimiter could not connect (falling back to in-memory)")
+            _redis_rate_limiter = None
+    except Exception as e:
+        logger.warning(f"⚠️  RedisRateLimiter not initialized: {e}")
+        _redis_rate_limiter = None
     
     try:
         # 0a. Run Alembic migrations (ensure database schema is up to date)
@@ -272,6 +319,21 @@ async def startup_event():
         if memori_bridge:
             logger.info("✅ MemoriRAGBridge loaded from DIContainer")
             container.register_service('memori_bridge', memori_bridge)
+            
+            # Start Background Sync
+            try:
+                await memori_bridge.start_background_sync()
+                logger.info("✅ MemoriRAGBridge background sync started")
+            except Exception as e:
+                logger.error(f"❌ Failed to start MemoriRAGBridge background sync: {e}")
+                
+            # Initialize Optimizers (trigger lazy load)
+            try:
+                _ = container.memory_optimizer
+                _ = container.rag_optimizer
+                logger.info("✅ Memory & RAG Optimizers initialized")
+            except Exception as e:
+                logger.warning(f"⚠️ Optimizer initialization failed: {e}")
         else:
             logger.warning("⚠️ MemoriRAGBridge not available - memory integration disabled")
         
@@ -449,6 +511,15 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Failed to initialize Job Store: {e}")
     
+    # Record service health in tracker
+    if _service_tracker:
+        if _orchestrator:
+            _service_tracker.record_success("orchestrator")
+        if _feedback_store:
+            _service_tracker.record_success("feedback_store")
+        if _redis_rate_limiter:
+            _service_tracker.record_success("redis")
+    
     logger.info("🎉 Application startup complete")
 
 
@@ -460,6 +531,7 @@ async def shutdown_event():
     """
     global _orchestrator, _feedback_store, _embedding_search_engine, _auth_db_service
     global _arq_pool, _websocket_manager, _job_store, _db_monitoring
+    global _agent_tracer, _redis_rate_limiter, _service_tracker
     
     logger.info("🛑 Shutting down application services...")
     
@@ -483,6 +555,23 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error cleaning up WebSocket manager: {e}")
     
+    try:
+        # Stop Memori Bridge Sync
+        # Get from container since it might not be in global scope if initialized properly via DI
+        from core.dependencies import DIContainer
+        container = DIContainer.get_instance()
+        memori_bridge = container.get_service('memori_bridge')
+        
+        if memori_bridge:
+            try:
+                if hasattr(memori_bridge, 'stop_background_sync'):
+                    await memori_bridge.stop_background_sync()
+                    logger.info("✅ MemoriRAGBridge background sync stopped")
+            except Exception as e:
+                logger.error(f"Error stopping MemoriRAGBridge sync: {e}")
+    except Exception as e:
+        logger.error(f"Error checking MemoriRAGBridge shutdown: {e}")
+
     try:
         # Clean up ARQ pool
         if _arq_pool:
@@ -520,6 +609,17 @@ async def shutdown_event():
         logger.error(f"Error cleaning up auth DB: {e}")
     
     # Note: Embedding engine doesn't need cleanup (models cached in memory)
+    
+    # Clean up Redis rate limiter
+    try:
+        if _redis_rate_limiter:
+            await _redis_rate_limiter.close()
+            logger.info("✅ RedisRateLimiter closed")
+    except Exception as e:
+        logger.error(f"Error closing RedisRateLimiter: {e}")
+    
+    _agent_tracer = None
+    _service_tracker = None
     
     logger.info("🎉 Application shutdown complete")
 

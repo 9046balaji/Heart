@@ -158,7 +158,6 @@ class LangGraphOrchestrator:
             self.db_manager or 
             self.container.get_service('db_manager') or
             getattr(self.container, 'postgres_db', None) or 
-            getattr(self.container, 'xampp_db', None) or 
             getattr(self.container, 'db', None)
         )
         
@@ -235,6 +234,14 @@ class LangGraphOrchestrator:
 
         self.crag_fallback.web_search = WebSearchWrapper()
         # --- Thinking Agent (P3.1) ---
+        
+        # Initialize MemoryTool if bridge is available
+        memory_tools = []
+        if self.memori_bridge and self.memori_bridge.memori:
+             from memori.tools.memory_tool import create_memory_search_tool
+             memory_search = create_memory_search_tool(self.memori_bridge.memori)
+             memory_tools.append(memory_search)
+             
         self.thinking_agent = create_thinking_agent(
             llm=self.llm,
             tools=[
@@ -244,7 +251,7 @@ class LangGraphOrchestrator:
                 calculator,
                 analyze_medical_image,
                 analyze_dicom_image
-            ]
+            ] + memory_tools
         )
         
         # --- Medical Planner (P3.3: Lazy Loading) ---
@@ -1113,6 +1120,8 @@ class LangGraphOrchestrator:
             Dict with 'response', 'metadata', etc.
         """
         import uuid
+        import time as _time
+        _start = _time.perf_counter()
         
         # Generate thread_id if checkpointing is enabled but no ID provided
         if self.checkpointer and not thread_id:
@@ -1143,6 +1152,49 @@ class LangGraphOrchestrator:
             # If no final response set, take the last message
             last_msg = final_state["messages"][-1]
             response = last_msg.content
+
+        # --- PERSISTENCE: Save Chat History to Postgres (UI) & Memori (Context) ---
+        # 1. Postgres (Chat History for UI)
+        if self.db_manager and hasattr(self.db_manager, 'store_chat_message'):
+            try:
+                # Store User Message
+                await self.db_manager.store_chat_message(
+                    session_id=thread_id or "default",
+                    message_type="human",
+                    content=query,
+                    metadata={"user_id": user_id, "source": "web_ui"}
+                )
+                
+                # Store AI Response
+                await self.db_manager.store_chat_message(
+                    session_id=thread_id or "default",
+                    message_type="ai",
+                    content=str(response),
+                    metadata={
+                        "user_id": user_id,
+                        "intent": final_state.get("intent"),
+                        "source": final_state.get("source"),
+                        "citations": final_state.get("citations"),
+                        "confidence": final_state.get("confidence")
+                    }
+                )
+                logger.debug(f"✅ Chat history persisted to DB for thread: {thread_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to persist chat history to DB: {e}")
+
+        # 2. Memori (Context Extraction & Long-term Memory)
+        if self.memori_bridge and self.memori_bridge.memori:
+             try:
+                 # Feed conversation to Memori for analysis
+                 # record_conversation is synchronous (schedules async task internally)
+                 self.memori_bridge.memori.record_conversation(
+                     user_input=query,
+                     ai_output=str(response),
+                     metadata={"source": "langgraph_orchestrator", "user_id": user_id}
+                 )
+                 logger.debug(f"🧠 Conversation recorded to Memori for analysis")
+             except Exception as e:
+                 logger.error(f"❌ Failed to record to Memori: {e}")
         
         # Determine if this is a utility response (calculator, etc.) that doesn't need PII scrubbing
         # Calculator outputs are pure numbers and shouldn't be modified
@@ -1169,6 +1221,27 @@ class LangGraphOrchestrator:
             except Exception as e:
                 logger.warning(f"Citation scrubbing failed: {e}")
         
+        _latency_ms = (_time.perf_counter() - _start) * 1000
+        
+        # Record agent execution in AgentTracer
+        try:
+            from app_lifespan import get_agent_tracer
+            tracer = get_agent_tracer()
+            if tracer:
+                from core.observability.tracing import SpanType
+                with tracer.trace_operation(
+                    f"orchestrator_execute:{intent}",
+                    operation_type=SpanType.AGENT_STEP,
+                    metadata={"user_id": user_id, "intent": intent, "source": source}
+                ) as span:
+                    span.add_event("execution_complete", {
+                        "latency_ms": round(_latency_ms, 1),
+                        "steps": len(final_state["messages"]),
+                        "source": source,
+                    })
+        except Exception:
+            pass  # Tracing must never break execution
+        
         return {
             "response": response,
             "intent": final_state.get("intent", "unknown"),
@@ -1179,7 +1252,8 @@ class LangGraphOrchestrator:
             "metadata": {
                 "steps": len(final_state["messages"]),
                 "source": final_state.get("source", "unknown"),  # Track response source
-                "checkpointed": self.checkpointer is not None
+                "checkpointed": self.checkpointer is not None,
+                "latency_ms": round(_latency_ms, 1),
             }
         }
     

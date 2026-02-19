@@ -15,7 +15,7 @@ Version: 2.0.0 (Enhanced with Memori Integration)
 """
 
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Request, status
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, status, Response
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -25,6 +25,11 @@ from core.security import get_current_user
 from core.user.user_preferences import (
     UserPreferencesManager,
     get_preferences_manager,
+)
+from memori.memory_observability import (
+    metrics_endpoint,
+    health_endpoint,
+    detailed_metrics_endpoint,
 )
 
 
@@ -96,6 +101,11 @@ class IntegratedHealthAIService:
             container = DIContainer.get_instance()
             self.memory_manager = container.memory_manager
             self.llm_gateway = container.llm_gateway
+            
+            # Get optimizers
+            self.rag_optimizer = getattr(container, 'rag_optimizer', None)
+            self.memory_optimizer = getattr(container, 'memory_optimizer', None)
+            
             self._initialized = True
         except Exception as e:
             logger.warning(f"IntegratedHealthAIService: Could not initialize from DIContainer: {e}")
@@ -132,7 +142,29 @@ class IntegratedHealthAIService:
             # Build context from memory if available
             context_used = []
             
-            if self.memory_manager and hasattr(self.memory_manager, 'search_memory'):
+            # 1. Try Optimized RAG Search first (Fastest + Cached)
+            if self.rag_optimizer:
+                try:
+                    rag_results = await self.rag_optimizer.search(
+                        query=query,
+                        top_k=3,
+                        use_cache=True
+                    )
+                    if rag_results:
+                        context_used.extend([
+                            {
+                                "type": "memory", 
+                                "source": "rag_optimized", 
+                                "data": r.get("content", "")[:300],
+                                "relevance": r.get("score", 0)
+                            }
+                            for r in rag_results
+                        ])
+                except Exception as e:
+                    logger.warning(f"Optimized RAG search failed: {e}")
+
+            # 2. Fallback/Augment with Memory Manager (if not enough results)
+            if len(context_used) < 3 and self.memory_manager and hasattr(self.memory_manager, 'search_memory'):
                 try:
                     memory_results = await self.memory_manager.search_memory(
                         patient_id=user_id,
@@ -140,10 +172,16 @@ class IntegratedHealthAIService:
                         limit=5
                     )
                     if memory_results:
-                        context_used = [
-                            {"type": "memory", "source": "memori", "data": str(r)[:200]}
-                            for r in memory_results[:3]
-                        ]
+                        # Deduplicate
+                        existing_content = {c.get("data") for c in context_used}
+                        for r in memory_results[:3]:
+                            content = str(r)[:200]
+                            if content not in existing_content:
+                                context_used.append({
+                                    "type": "memory", 
+                                    "source": "memori", 
+                                    "data": content
+                                })
                 except Exception as e:
                     logger.warning(f"Memory search failed: {e}")
             
@@ -1297,6 +1335,52 @@ async def semantic_memory_search(
             detail="Embedding search engine not initialized",
         )
 
+    # Optimized RAG Search (Preferred)
+    rag_optimizer = getattr(container, 'rag_optimizer', None) if "container" in locals() or "container" in globals() else None
+    
+    # Try to get container if not available
+    if not rag_optimizer:
+        try:
+            from core.dependencies import DIContainer
+            container = DIContainer.get_instance()
+            rag_optimizer = getattr(container, 'rag_optimizer', None)
+        except Exception:
+            pass
+
+    if rag_optimizer:
+        try:
+            rag_results = await rag_optimizer.search(
+                query=validated_query,
+                top_k=request_body.limit,
+                use_cache=True,
+                filters={"similarity_threshold": request_body.similarity_threshold}
+            )
+            
+            results = [
+                SemanticSearchResult(
+                    memory_id=r.get("id", f"rag_{i}"),
+                    content=r.get("content", ""),
+                    memory_type=r.get("metadata", {}).get("type", "rag_memory"),
+                    similarity_score=r.get("score", 0.0),
+                    timestamp=r.get("metadata", {}).get("timestamp", datetime.utcnow().isoformat()),
+                    metadata=r.get("metadata", {}),
+                )
+                for i, r in enumerate(rag_results)
+                if r.get("score", 0) >= request_body.similarity_threshold
+            ]
+            
+            elapsed_ms = (time.time() - start_time) * 1000
+            
+            return SemanticSearchResponse(
+                query=validated_query,
+                results=results,
+                total_found=len(results),
+                search_time_ms=round(elapsed_ms, 2),
+                embedding_model="optimized-rag-model",
+            )
+        except Exception as e:
+            logger.warning(f"Optimized RAG semantic search failed, falling back: {e}")
+
     try:
         # Use MemoryManager for search if available
         if MEMORY_MANAGER_AVAILABLE:
@@ -1518,6 +1602,29 @@ async def manage_conscious_memory(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Conscious memory operation failed: {str(e)}",
         )
+
+
+
+# ============================================================================
+# NEW: Observability Endpoints
+# ============================================================================
+
+@router.get("/metrics/prometheus", response_class=Response)
+async def get_prometheus_metrics():
+    """Get metrics in Prometheus text format."""
+    return Response(content=await metrics_endpoint(), media_type="text/plain")
+
+
+@router.get("/health/detailed", response_model=Dict[str, Any])
+async def get_detailed_health():
+    """Get comprehensive health check for Memori."""
+    return await health_endpoint()
+
+
+@router.get("/metrics/detailed", response_model=Dict[str, Any])
+async def get_detailed_metrics_json():
+    """Get detailed metrics in JSON format."""
+    return await detailed_metrics_endpoint()
 
 
 # ============================================================================

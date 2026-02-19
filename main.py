@@ -241,15 +241,22 @@ from rag.store.vector_store import InMemoryVectorStore as VectorStore
 # Import Memory components
 try:
     from memori.memory_manager import MemoryManager, PatientMemory, MemoryResult
-    from memori.memory_observability import MemoriMetricsCollector, get_memori_health_check, metrics_endpoint
+    from memori.memory_observability import (
+        MemoriMetricsCollector, 
+        get_memori_health_check, 
+        metrics_endpoint,
+        MemoriMonitoringMiddleware,
+        detailed_metrics_endpoint
+    )
     from memori.memory_middleware import CorrelationIDMiddleware, get_memory_context
     from memori.memory_aware_agents import (
         MemoryAwareIntentRecognizer,
         MemoryAwareSentimentAnalyzer,
         ContextRetriever,
         ConversationContext,
+        MultiTierCache,
+        BatchMemoryProcessor
     )
-    from memori.memory_performance import MultiTierCache, BatchMemoryProcessor
     MEMORI_MANAGER_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Memori manager imports failed: {e}")
@@ -780,6 +787,13 @@ if MEMORI_MANAGER_AVAILABLE:
     except Exception as e:
         logger.warning(f"Failed to add CorrelationIDMiddleware: {e}")
 
+    try:
+        from memori.memory_observability import MemoriMonitoringMiddleware
+        app.add_middleware(MemoriMonitoringMiddleware)
+        logger.info("✅ MemoriMonitoringMiddleware added for performance tracking")
+    except Exception as e:
+        logger.warning(f"Failed to add MemoriMonitoringMiddleware: {e}")
+
 # Add Request Timeout Middleware with path-specific timeouts
 # This prevents runaway requests from consuming resources indefinitely
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "60"))
@@ -965,6 +979,22 @@ async def health_check(request: Request):
             health_data["memory"] = {"status": "error", "error": str(e)}
     
     return health_data
+
+
+@app.get("/metrics", tags=["Monitoring"])
+async def prometheus_metrics():
+    """Export Prometheus-format metrics for scraping by monitoring systems."""
+    from fastapi.responses import PlainTextResponse
+    try:
+        from core.monitoring.prometheus_metrics import get_metrics
+        metrics = get_metrics()
+        return PlainTextResponse(
+            content=metrics.export_prometheus(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+    except Exception as e:
+        logger.warning(f"Metrics export failed: {e}")
+        return PlainTextResponse(content="# metrics unavailable\n", status_code=503)
 
 
 @app.get("/health/routes", tags=["Health", "Diagnostics"])

@@ -6,6 +6,7 @@ Service fails fast on missing required dependencies.
 import os
 import sys
 from loguru import logger
+from core.graceful_degradation import with_fallback
 
 REQUIRED_DEPENDENCIES = [
     ("fastapi", "FastAPI web framework"),
@@ -200,16 +201,27 @@ class DIContainer:
         """Get VectorStore singleton (with fallback to InMemoryVectorStore)."""
         if self._vector_store is None:
             from rag.store.vector_store import get_vector_store
-            embedding_model = getattr(self.config, 'embedding_model_name', "all-MiniLM-L6-v2")
-            try:
-                self._vector_store = get_vector_store(
+            
+            # graceful fallback if vector store fails
+            @with_fallback(default=None)
+            def _init_store():
+                embedding_model = getattr(self.config, 'embedding_model_name', "all-MiniLM-L6-v2")
+                return get_vector_store(
                     config=self.config,
                     embedding_model=embedding_model
                 )
+            
+            try:
+                self._vector_store = _init_store()
+                if self._vector_store is None:
+                     # If fallback triggered or init returned None
+                     from rag.store.vector_store import InMemoryVectorStore
+                     self._vector_store = InMemoryVectorStore()
+                     logger_di.warning("VectorStore init failed (fallback triggered), using InMemoryVectorStore")
             except Exception as e:
                 logger_di.warning(f"VectorStore initialization failed: {e}, using InMemoryVectorStore")
                 from rag.store.vector_store import InMemoryVectorStore
-                self._vector_store = InMemoryVectorStore(embedding_model=embedding_model)
+                self._vector_store = InMemoryVectorStore()
             logger_di.debug(f"VectorStore instance created ({type(self._vector_store).__name__}) and cached")
         return self._vector_store
     
@@ -461,7 +473,7 @@ class DIContainer:
         """
         try:
             from tools.text_to_sql_tool import TextToSQLTool
-            from core.database.xampp_db import get_database
+            from core.database.postgres_db import get_database
             import asyncio
             
             # Safe async initialization
@@ -472,9 +484,11 @@ class DIContainer:
             # Connection pool warmup: Execute lightweight query to establish connections
             # This reduces first-query latency by ~200-500ms
             try:
-                if hasattr(db, 'execute_select'):
+                if hasattr(db, 'execute_query'):
+                    # PostgresDatabase uses execute_query, check if it works for warmup
+                    # It expects a query string.
                     await asyncio.wait_for(
-                        db.execute_select("SELECT 1", {}),
+                        db.execute_query("SELECT 1"),
                         timeout=5.0
                     )
                     logger_di.info("✅ Database connection pool warmed up")
@@ -512,13 +526,25 @@ class DIContainer:
     @property
     def postgres_db(self):
         """Get PostgreSQL database instance (from service cache)."""
-        return self.get_service('db_manager')
+        from core.circuit_breaker import get_service_breaker
+        
+        # logical service name 'postgres'
+        breaker = get_service_breaker("postgres")
+        
+        def _get_db():
+            return self.get_service('db_manager')
+
+        # Use breaker to protect access
+        try:
+             # Circuit breaker.call() expects a callable
+             return breaker.call(_get_db)
+        except Exception as e:
+             logger_di.error(f"PostgreSQL circuit breaker open or call failed: {e}")
+             # Return None or a dummy to allow partial degradation? 
+             # For now returning None, caller must handle.
+             return None
     
-    @property
-    def xampp_db(self):
-        """Get XAMPP database instance (alias for postgres_db for compatibility)."""
-        return self.get_service('db_manager')
-    
+
     @property
     def db(self):
         """Get database instance (generic alias for postgres_db)."""
@@ -536,6 +562,63 @@ class DIContainer:
     # ========== FACTORY METHODS ==========
     
 
+    
+    @property
+    def memory_optimizer(self):
+        """Get the memory query optimizer instance."""
+        if not hasattr(self, '_memory_optimizer') or self._memory_optimizer is None:
+            try:
+                db_manager = self.get_service('db_manager')
+                # Need initialized DB with pool
+                if db_manager and hasattr(db_manager, 'pool') and db_manager.pool:
+                    with self._lock:
+                        if not hasattr(self, '_memory_optimizer') or self._memory_optimizer is None:
+                            from memori.memory_query_optimizer import OptimizedMemoryQueries, MemoryOptimizationConfig
+                            
+                            # Create default config
+                            config = MemoryOptimizationConfig()
+                            
+                            self._memory_optimizer = OptimizedMemoryQueries(
+                                config=config,
+                                db_pool=db_manager.pool,
+                                redis_client=self.redis_client
+                            )
+                            logger_di.info("✅ Memory optimizer initialized")
+                else:
+                    logger_di.warning("⚠️ Cannot initialize memory optimizer: DB pool not available")
+                    return None
+            except ImportError as e:
+                logger_di.warning(f"⚠️ Memory optimizer import failed: {e}")
+                return None
+            except Exception as e:
+                logger_di.error(f"❌ Memory optimizer initialization failed: {e}")
+                return None
+                
+        return self._memory_optimizer
+
+    @property
+    def rag_optimizer(self):
+        """Get the RAG query optimizer instance."""
+        if not hasattr(self, '_rag_optimizer') or self._rag_optimizer is None:
+            try:
+                with self._lock:
+                    if not hasattr(self, '_rag_optimizer') or self._rag_optimizer is None:
+                        from rag.pipeline.query_optimizer import OptimizedRAGQueryExecutor
+                        
+                        self._rag_optimizer = OptimizedRAGQueryExecutor(
+                            vector_store=self.vector_store,
+                            embedding_service=self.embedding_service,
+                            redis_client=self.redis_client
+                        )
+                        logger_di.info("✅ RAG optimizer initialized")
+            except ImportError as e:
+                logger_di.warning(f"⚠️ RAG optimizer import failed: {e}")
+                return None
+            except Exception as e:
+                logger_di.error(f"❌ RAG optimizer initialization failed: {e}")
+                return None
+                
+        return self._rag_optimizer
     
     def reset(self) -> None:
         """Reset all cached services (for testing only)."""

@@ -161,8 +161,16 @@ class HeartDiseaseRAG:
             }
 
         try:
+            from core.monitoring.prometheus_metrics import get_metrics
+            import time
+            start_time = time.perf_counter()
+            
             # Search the actual trained collection (medical_text_768)
             results = self._search_text_collection(query, top_k=top_k)
+            
+            # Record metrics
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            get_metrics().record_vector_search(duration_ms, len(results) if results else 0)
 
             if not results:
                 return {

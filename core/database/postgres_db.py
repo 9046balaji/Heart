@@ -211,9 +211,9 @@ class PostgresDatabase:
     ) -> bool:
         try:
             # Store embedding as JSON string or array (vector search handled by ChromaDB), 
-            # but here we assume the schema uses TEXT or JSONB for embedding as per core_postgresql_schema.sql
+            # here we use JSONB for embedding as per schema
             await self.execute_query(
-                "INSERT INTO medical_knowledge_base (content, content_type, embedding, metadata_json) VALUES (%s, %s, %s, %s)",
+                "INSERT INTO medical_knowledge_base (content, content_type, embedding, metadata) VALUES ($1, $2, $3, $4)",
                 (content, content_type, json.dumps(embedding), json.dumps(metadata or {}))
             )
             return True
@@ -245,10 +245,10 @@ class PostgresDatabase:
             # Build query with strict LIMIT to prevent DoS
             SAFE_LIMIT = 1000  # Max rows to fetch for application-level similarity
             
-            query = f"SELECT id, content, content_type, metadata_json, embedding FROM medical_knowledge_base "
+            query = f"SELECT id, content, content_type, metadata, embedding FROM medical_knowledge_base "
             params = []
             if content_type:
-                query += "WHERE content_type = %s "
+                query += "WHERE content_type = $1 "
                 params.append(content_type)
             
             # Add HARD LIMIT to prevent full table scan
@@ -284,7 +284,7 @@ class PostgresDatabase:
                         "id": row['id'],
                         "content": row['content'],
                         "content_type": row['content_type'],
-                        "metadata": row['metadata_json'],
+                        "metadata": row['metadata'] if isinstance(row['metadata'], dict) else json.loads(row['metadata'] or '{}'),
                         "similarity": float(similarity)
                     })
                 except Exception as e:
@@ -299,6 +299,232 @@ class PostgresDatabase:
             return []
 
 
+    async def store_chat_message(
+        self, session_id: str, message_type: str, content: str, metadata: Dict = None
+    ) -> bool:
+        """Store chat message in the database."""
+        if not self.pool:
+            return False
+
+        try:
+            # Ensure session exists first
+            await self.execute_query(
+                """
+                INSERT INTO chat_sessions (session_id, user_id)
+                VALUES ($1, $2)
+                ON CONFLICT (session_id) DO NOTHING
+                """,
+                (session_id, "user123"), # Default to user123 if not provided
+            )
+            
+            await self.execute_query(
+                """
+                INSERT INTO chat_messages (session_id, message_type, content, metadata)
+                VALUES ($1, $2, $3, $4)
+                """,
+                (session_id, message_type, content, json.dumps(metadata or {})),
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to store chat message: {e}")
+            return False
+
+    async def get_chat_history(
+        self, session_id: str, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Retrieve chat history for a session."""
+        if not self.pool:
+            return []
+
+        try:
+            results = await self.fetch_all(
+                """
+                SELECT message_type, content, metadata, timestamp
+                FROM chat_messages
+                WHERE session_id = $1
+                ORDER BY timestamp ASC
+                LIMIT $2
+                """,
+                (session_id, limit),
+            )
+            
+            return [
+                {
+                    "message_type": row["message_type"],
+                    "content": row["content"],
+                    "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+                    "timestamp": row["timestamp"],
+                }
+                for row in results
+            ]
+        except Exception as e:
+            logger.error(f"Failed to retrieve chat history: {e}")
+            return []
+
+    async def get_pool_status(self) -> dict:
+        """Get pool connection statistics."""
+        if not self.pool:
+            return {"error": "Database not initialized"}
+        
+        return {
+            "min_size": self.pool._min_size,
+            "max_size": self.pool._max_size,
+            "current_size": len(self.pool._holders),
+            "free": self.pool._queue.qsize(), # Approx
+        }
+
+    async def close(self):
+        """Close the connection pool."""
+        if self.pool:
+            await self.pool.close()
+            self.initialized = False
+            logger.info("PostgreSQL pool closed")
+
+    async def _ensure_schema(self):
+        """Ensure all required tables exist."""
+        if not self.pool:
+            return
+
+        # Define tables to create
+        tables_sql = [
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) UNIQUE NOT NULL,
+                name VARCHAR(255),
+                email VARCHAR(255),
+                date_of_birth DATE,
+                gender VARCHAR(20),
+                weight_kg FLOAT,
+                height_cm FLOAT,
+                known_conditions JSONB,
+                medications JSONB,
+                allergies JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS patient_records (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                record_type VARCHAR(100),
+                data JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS vitals (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                device_id VARCHAR(255),
+                metric_type VARCHAR(50),
+                value FLOAT,
+                unit VARCHAR(20),
+                recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS health_alerts (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                alert_type VARCHAR(50),
+                severity VARCHAR(20),
+                message TEXT,
+                is_resolved BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP NULL
+            )
+            """,
+             """
+            CREATE TABLE IF NOT EXISTS medical_knowledge_base (
+                id SERIAL PRIMARY KEY,
+                content TEXT,
+                content_type VARCHAR(100),
+                embedding JSONB, 
+                metadata JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) UNIQUE NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                message_type VARCHAR(50) NOT NULL,
+                content TEXT,
+                metadata JSONB,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS notification_failures (
+                id SERIAL PRIMARY KEY,
+                notification_type VARCHAR(50) NOT NULL,
+                recipient VARCHAR(255) NOT NULL,
+                subject VARCHAR(500),
+                content TEXT,
+                original_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                retry_count INT DEFAULT 0,
+                max_retries INT DEFAULT 5,
+                next_retry_at TIMESTAMP,
+                last_error TEXT,
+                status VARCHAR(50) DEFAULT 'pending',
+                user_id VARCHAR(255),
+                metadata JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        ]
+        
+        try:
+            async with self.pool.acquire() as conn:
+                # 1. Run migrations for legacy schema compatibility
+                # Check for metadata_json in chat_messages and rename to metadata
+                try:
+                    chat_cols = await conn.fetch("SELECT column_name FROM information_schema.columns WHERE table_name = 'chat_messages'")
+                    chat_col_names = [r['column_name'] for r in chat_cols]
+                    
+                    if 'metadata_json' in chat_col_names and 'metadata' not in chat_col_names:
+                        logger.info("Migrating chat_messages: metadata_json -> metadata")
+                        await conn.execute("ALTER TABLE chat_messages RENAME COLUMN metadata_json TO metadata")
+                except Exception as e:
+                    logger.warning(f"Migration check for chat_messages failed: {e}")
+
+                # Check for metadata_json in medical_knowledge_base and rename to metadata
+                try:
+                    kb_cols = await conn.fetch("SELECT column_name FROM information_schema.columns WHERE table_name = 'medical_knowledge_base'")
+                    kb_col_names = [r['column_name'] for r in kb_cols]
+                    
+                    if 'metadata_json' in kb_col_names and 'metadata' not in kb_col_names:
+                        logger.info("Migrating medical_knowledge_base: metadata_json -> metadata")
+                        await conn.execute("ALTER TABLE medical_knowledge_base RENAME COLUMN metadata_json TO metadata")
+                except Exception as e:
+                    logger.warning(f"Migration check for medical_knowledge_base failed: {e}")
+
+                # 2. Create tables if not exist
+                for sql in tables_sql:
+                    await conn.execute(sql)
+                
+                # Seed default user if not exists
+                await conn.execute("""
+                    INSERT INTO users (user_id, name, email, date_of_birth, gender, weight_kg, height_cm)
+                    VALUES ('user123', 'John Doe', 'john@example.com', '1980-01-01', 'Male', 80.0, 180.0)
+                    ON CONFLICT (user_id) DO NOTHING
+                """)
+                
+            logger.info("Schema ensured (tables created/migrated)")
+        except Exception as e:
+            logger.error(f"Failed to ensure schema: {e}")
+
 # ============================================================================
 # SINGLETON INSTANCE & FACTORY FUNCTION
 # ============================================================================
@@ -312,5 +538,6 @@ async def get_database() -> PostgresDatabase:
     if _postgres_instance is None:
         _postgres_instance = PostgresDatabase()
         await _postgres_instance.initialize()
+        await _postgres_instance._ensure_schema()
     
     return _postgres_instance

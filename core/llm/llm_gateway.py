@@ -35,6 +35,7 @@ from typing import Optional, AsyncGenerator, Dict, Any
 
 # Import PromptRegistry for centralized prompt management
 from core.prompts.registry import get_prompt
+from core.circuit_breaker import circuit_breaker
 
 # LangChain components for MedGemma (OpenAI-compatible API)
 try:
@@ -263,17 +264,38 @@ class LLMGateway:
                 f"PII detected in prompt (user: {user_id}) - processing locally via MedGemma (HIPAA-compliant)"
             )
         
+        import time as _time
+        _start = _time.perf_counter()
+        
         try:
             raw_response = await self._execute_generation(prompt, content_type)
         except Exception as e:
             logger.error(f"MedGemma generation failed: {e}")
             raise
+        
+        _latency_ms = (_time.perf_counter() - _start) * 1000
+        
+        # Record in AgentTracer for observability
+        try:
+            from app_lifespan import get_agent_tracer
+            tracer = get_agent_tracer()
+            if tracer:
+                tracer.record_llm_call(
+                    model=self.model_name,
+                    prompt=prompt[:200],
+                    response=raw_response[:200],
+                    tokens_used=len(raw_response.split()),
+                    latency_ms=_latency_ms,
+                )
+        except Exception:
+            pass  # Tracing must never break generation
 
         # Apply Guardrails ✅
         return self.guardrails.process_output(
             raw_response, {"type": content_type, "user_id": user_id}
         )
 
+    @circuit_breaker(service_name="llm", fallback_result="I'm sorry, the AI service is currently unavailable. Please try again later.")
     async def _execute_generation(self, prompt: str, content_type: str) -> str:
         """Execute generation with MedGemma."""
         model = self._get_model()
