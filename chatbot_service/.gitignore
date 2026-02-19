@@ -17,6 +17,14 @@ create_table.py
 
 
 
+heart_disease_prediction/verify_visuals.py
+heart_disease_prediction/photos
+heart_disease_prediction/photos_final
+heart_disease_prediction/Models
+heart_disease_prediction/test
+
+
+
 
 
 test_api_v2
