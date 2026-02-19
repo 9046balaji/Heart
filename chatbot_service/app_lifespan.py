@@ -161,6 +161,7 @@ async def startup_event():
     """
     global _orchestrator, _feedback_store, _embedding_search_engine, _auth_db_service
     global _agent_tracer, _redis_rate_limiter, _service_tracker
+    global _arq_pool, _websocket_manager, _job_store, _db_monitoring
     
     logger.info("🚀 Starting up application services...")
     
@@ -193,11 +194,23 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️  RedisRateLimiter not initialized: {e}")
         _redis_rate_limiter = None
+
+    # --- Register Redis client in DIContainer for optimizers ---
+    try:
+        import redis
+        _redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+        _redis_client.ping()
+        from core.dependencies import DIContainer
+        DIContainer.get_instance().register_service('redis_client', _redis_client)
+        logger.info("✅ Redis client registered in DIContainer")
+    except Exception as e:
+        logger.warning(f"⚠️ Redis client not registered in DIContainer: {e}")
     
     try:
         # 0a. Run Alembic migrations (ensure database schema is up to date)
         logger.info("📦 Checking database migrations...")
         import subprocess
+        import sys
         import os
         
         # Get the project root directory
@@ -205,7 +218,7 @@ async def startup_event():
         
         try:
             result = subprocess.run(
-                ["alembic", "upgrade", "head"],
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
                 cwd=project_root,
                 capture_output=True,
                 text=True,
@@ -383,8 +396,9 @@ async def startup_event():
         try:
             from memori.agents.retrieval_agent import EmbeddingSearchEngine
             
+            use_local = os.environ.get("USE_REMOTE_EMBEDDINGS", "true").lower() != "true"
             _embedding_search_engine = EmbeddingSearchEngine(
-                use_local=True,  # Use sentence-transformers locally
+                use_local=use_local,  # Respect USE_REMOTE_EMBEDDINGS env var
                 similarity_threshold=0.5,
             )
             logger.info("✅ Embedding search engine initialized")

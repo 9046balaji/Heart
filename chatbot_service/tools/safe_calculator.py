@@ -81,7 +81,7 @@ class SafeCalculator:
     }
     
     # Limits for safety
-    MAX_RESULT = 1e15  # Prevent overflow attacks
+    MAX_RESULT = 1e18  # Prevent overflow attacks
     MAX_POWER = 100    # Prevent 10**1000 type attacks
     MAX_RECURSION_DEPTH = 100  # Prevent stack overflow from deeply nested expressions
     MAX_NODES = 1000  # Prevent AST with too many operations
@@ -116,6 +116,9 @@ class SafeCalculator:
         # Reset recursion tracking
         self._recursion_depth = 0
         self._node_count = 0
+        
+        # Strip whitespace to prevent ast.parse indentation errors
+        expression = expression.strip()
         
         try:
             tree = ast.parse(expression, mode='eval')

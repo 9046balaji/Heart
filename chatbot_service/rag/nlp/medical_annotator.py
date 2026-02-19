@@ -10,10 +10,16 @@ Functionality:
 """
 
 
-from spacy.tokens import Doc, Span, Token
-from spacy.language import Language
 import logging
 from typing import Dict, List, Optional
+
+try:
+    from spacy.tokens import Doc, Span, Token
+    from spacy.language import Language
+    SPACY_AVAILABLE = True
+except Exception:
+    Doc = Span = Token = Language = None  # type: ignore
+    SPACY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +45,7 @@ SYMPTOM_SYSTEMS = {
     "fever": "systemic",
 }
 
-@Language.component("medical_annotator")
-def medical_annotator(doc: Doc) -> Doc:
+def medical_annotator(doc):
     """
     Annotate entities with medical metadata.
     
@@ -95,3 +100,11 @@ def _get_symptom_system(text: str) -> Optional[str]:
             return system
             
     return None
+
+
+# Register spaCy component only when spaCy is available
+if SPACY_AVAILABLE:
+    try:
+        Language.component("medical_annotator", func=medical_annotator)
+    except Exception:
+        pass  # Already registered or other issue

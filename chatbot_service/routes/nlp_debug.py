@@ -9,8 +9,14 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Dict, Any
-import spacy
-from spacy import displacy
+try:
+    import spacy
+    from spacy import displacy
+    SPACY_AVAILABLE = True
+except Exception as e:
+    spacy = None  # type: ignore
+    displacy = None  # type: ignore
+    SPACY_AVAILABLE = False
 import logging
 
 from core.services.spacy_service import get_spacy_service

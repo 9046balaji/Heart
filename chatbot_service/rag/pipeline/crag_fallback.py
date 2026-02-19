@@ -1,5 +1,6 @@
 """CRAG Fallback - Phase 2.2 Implementation"""
 
+import asyncio
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -20,8 +21,8 @@ class CRAGFallback:
         """Initialize CRAG fallback."""
         self.vector_store = vector_store
         self.web_search = web_search_tool
-        self.lower = lower_threshold
-        self.upper = upper_threshold
+        self.lower_threshold = lower_threshold
+        self.upper_threshold = upper_threshold
     
     async def retrieve_with_fallback(
         self,
@@ -35,7 +36,12 @@ class CRAGFallback:
             (documents, retrieval_method)
         """
         # Step 1: Try local vector store
-        local_docs = self.vector_store.search_medical_knowledge(query, top_k=k)
+        result = self.vector_store.search(query, top_k=k)
+        # Handle both sync and async search methods
+        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+            local_docs = await result
+        else:
+            local_docs = result
         
         # Calculate average confidence
         avg_confidence = sum(
@@ -45,11 +51,11 @@ class CRAGFallback:
         logger.info(f"Local retrieval confidence: {avg_confidence:.2f}")
         
         # Step 2: Decision based on confidence
-        if avg_confidence >= self.upper:
+        if avg_confidence >= self.upper_threshold:
             logger.info("Using local retrieval (high confidence)")
             return local_docs, "local"
         
-        elif avg_confidence < self.lower:
+        elif avg_confidence < self.lower_threshold:
             logger.info("Using web search (low local confidence)")
             web_docs = await self.web_search.search(query, num_results=k)
             return web_docs, "web"

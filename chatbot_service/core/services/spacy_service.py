@@ -14,7 +14,7 @@ import logging
 
 try:
     from spacy.tokens import Doc
-except ImportError:
+except Exception:
     Doc = None  # type: ignore
 
 logger = logging.getLogger(__name__)

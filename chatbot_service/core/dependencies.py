@@ -526,29 +526,33 @@ class DIContainer:
     @property
     def postgres_db(self):
         """Get PostgreSQL database instance (from service cache)."""
-        from core.circuit_breaker import get_service_breaker
-        
-        # logical service name 'postgres'
-        breaker = get_service_breaker("postgres")
-        
-        def _get_db():
-            return self.get_service('db_manager')
-
-        # Use breaker to protect access
+        # Return db_manager directly — circuit breaker.call() is async
+        # and cannot be used in a synchronous property getter.
         try:
-             # Circuit breaker.call() expects a callable
-             return breaker.call(_get_db)
+            return self.get_service('db_manager')
         except Exception as e:
-             logger_di.error(f"PostgreSQL circuit breaker open or call failed: {e}")
-             # Return None or a dummy to allow partial degradation? 
-             # For now returning None, caller must handle.
-             return None
+            logger_di.error(f"PostgreSQL access failed: {e}")
+            return None
     
 
     @property
     def db(self):
         """Get database instance (generic alias for postgres_db)."""
         return self.get_service('db_manager')
+
+    @property
+    def redis_client(self):
+        """Get Redis client instance (if registered during startup)."""
+        try:
+            client = self.get_service('redis_client')
+            return client
+        except Exception:
+            return None
+
+    @property
+    def embedding_service(self):
+        """Get embedding service (alias for embeddings property)."""
+        return self.embeddings
     
     # Backward compatibility class method
     @classmethod

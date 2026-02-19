@@ -217,8 +217,8 @@ class Settings(BaseSettings):
     MEMORI_REQUEST_TIMEOUT: int = 30  # Timeout for memory operations (seconds)
 
     # Embedding Search Settings (EmbeddingSearchEngine)
-    MEMORI_EMBEDDING_USE_LOCAL: bool = True  # Use sentence-transformers locally
-    MEMORI_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # Local embedding model
+    MEMORI_EMBEDDING_USE_LOCAL: bool = False  # Use remote Colab embeddings
+    MEMORI_EMBEDDING_MODEL: str = "MedCPT-Query-Encoder"  # Remote embedding model
     MEMORI_EMBEDDING_SIMILARITY_THRESHOLD: float = 0.5  # Minimum similarity score
     MEMORI_EMBEDDING_CACHE_SIZE: int = 10000  # Embedding vector cache size
 

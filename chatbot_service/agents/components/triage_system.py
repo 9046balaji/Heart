@@ -41,9 +41,10 @@ class VitalSigns:
     def has_critical_values(self) -> bool:
         """Check for critical vital signs (Adult)."""
         if self.heart_rate and (self.heart_rate > 120 or self.heart_rate < 50): return True
-        if self.systolic_bp and (self.systolic_bp < 90 or self.systolic_bp > 200): return True
+        if self.systolic_bp and (self.systolic_bp < 90 or self.systolic_bp >= 200): return True
         if self.spo2 and self.spo2 < 90: return True
         if self.respiratory_rate and (self.respiratory_rate > 30 or self.respiratory_rate < 10): return True
+        if self.temperature and (self.temperature >= 40.0 or self.temperature <= 34.0): return True
         return False
 
 
@@ -98,7 +99,7 @@ class TriageSystem:
     """
     
     IMMEDIATE_KEYWORDS = ["arrest", "unresponsive", "apneic", "pulseless", "intubated", "overdose"]
-    HIGH_RISK_KEYWORDS = ["chest pain", "stroke", "confusion", "lethargy", "disoriented", "severe pain", "suicidal"]
+    HIGH_RISK_KEYWORDS = ["chest pain", "stroke", "confusion", "lethargy", "disoriented", "severe pain", "suicidal", "worst headache"]
 
     async def assess(
         self,

@@ -70,7 +70,7 @@ class RAGSettings:
                 drug_top_k=int(os.getenv("RAG_DRUG_TOP_K", "3")),
                 graph_depth=int(os.getenv("RAG_GRAPH_DEPTH", "2")),
                 min_relevance_score=float(os.getenv("RAG_MIN_RELEVANCE", "0.3")),
-                embedding_model_name=os.getenv("RAG_EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+                embedding_model_name=os.getenv("RAG_EMBEDDING_MODEL", "MedCPT-Query-Encoder"),
                 llm_model_name=os.getenv("RAG_LLM_MODEL", "gemma3:1b"),
                 rerank_enabled=os.getenv("RAG_RERANK_ENABLED", "true").lower() == "true",
                 cache_enabled=os.getenv("RAG_CACHE_ENABLED", "true").lower() == "true",

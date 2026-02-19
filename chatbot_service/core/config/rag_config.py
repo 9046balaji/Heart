@@ -59,7 +59,7 @@ class RAGConfig(BaseModel):
     
     # Model settings
     embedding_model_name: str = Field(
-        default="all-MiniLM-L6-v2",
+        default="MedCPT-Query-Encoder",
         description="Name of the embedding model to use"
     )
     llm_model_name: str = Field(

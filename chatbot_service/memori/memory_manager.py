@@ -226,8 +226,9 @@ class LRUMemoryCache:
         evicted_item = None
         with self._lock:
             if key in self.cache:
-                # Already exists, move to end
+                # Already exists, move to end and update value
                 self.cache.move_to_end(key)
+                self.cache[key] = value
             else:
                 # New entry
                 if len(self.cache) >= self.maxsize:
@@ -847,11 +848,11 @@ class MemoryManager:
                     logger.warning(f"⚠️ Failed to create local LLM client: {e}, falling back to default Memori config")
                     local_llm_client = None
                 
-                # Configure local embeddings (all-MiniLM-L6-v2)
+                # Configure remote embeddings (MedCPT via Colab)
                 embedding_config = {
-                    "provider": "local",
-                    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
-                    "dimension": 384,
+                    "provider": "remote",
+                    "model_name": "MedCPT-Query-Encoder",
+                    "dimension": 768,
                 }
                 
                 # Build Memori initialization kwargs

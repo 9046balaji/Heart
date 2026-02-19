@@ -12,9 +12,16 @@ from typing import List, Dict, Any, Union
 import json
 import os
 import logging
-from spacy.matcher import PhraseMatcher
-from spacy.language import Language
-from spacy.tokens import Doc
+
+try:
+    from spacy.matcher import PhraseMatcher
+    from spacy.language import Language
+    from spacy.tokens import Doc
+    SPACY_AVAILABLE = True
+except Exception:
+    PhraseMatcher = Language = Doc = None  # type: ignore
+    SPACY_AVAILABLE = False
+    logging.warning("spaCy not available in medical_phrase_matcher")
 
 logger = logging.getLogger(__name__)
 

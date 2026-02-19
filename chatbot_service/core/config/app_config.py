@@ -113,15 +113,15 @@ class RAGConfig(BaseModel):
     
     # Embedding settings
     embedding_model_name: str = Field(
-        default="all-MiniLM-L6-v2",
+        default="MedCPT-Query-Encoder",
         description="Embedding model to use"
     )
     embedding_backend: Literal["onnx", "pytorch", "huggingface", "remote"] = Field(
-        default="onnx",
+        default="remote",
         description="Embedding backend for performance tuning"
     )
     use_remote_embeddings: bool = Field(
-        default=False,
+        default=True,
         description=(
             "When True the factory will prefer the remote (Colab/ngrok) "
             "backend if COLAB_API_URL is set and reachable, before falling "
@@ -364,8 +364,9 @@ def get_app_config() -> AppConfig:
                     },
                     "rag": {
                         "enabled": os.environ.get("RAG_ENABLED", "true").lower() == "true",
-                        "embedding_model_name": os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
-                        "embedding_backend": os.environ.get("EMBEDDING_BACKEND", "onnx"),
+                        "embedding_model_name": os.environ.get("EMBEDDING_MODEL", "MedCPT-Query-Encoder"),
+                        "embedding_backend": os.environ.get("EMBEDDING_BACKEND", "remote"),
+                        "use_remote_embeddings": os.environ.get("USE_REMOTE_EMBEDDINGS", "true").lower() == "true",
                         "max_chunk_length": int(os.environ.get("MAX_CHUNK_LENGTH", "512")),
                         "chunk_overlap": int(os.environ.get("CHUNK_OVERLAP", "50")),
                         "top_k_results": int(os.environ.get("TOP_K_RESULTS", "5")),

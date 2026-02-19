@@ -158,6 +158,20 @@ class ConversationManager:
         session = self.get_or_create_session(session_id)
         session.add_message("assistant", content, metadata)
 
+        # Limit history to prevent memory bloat
+        if len(session.messages) > self.max_history_per_session:
+            # Keep system messages and recent messages
+            system_messages = [msg for msg in session.messages if msg.role == "system"]
+            other_messages = [msg for msg in session.messages if msg.role != "system"]
+
+            # Keep recent non-system messages
+            recent_messages = other_messages[
+                -(self.max_history_per_session - len(system_messages)) :
+            ]
+            session.messages = system_messages + recent_messages
+
+            logger.debug(f"Trimmed conversation history for session {session_id}")
+
     def inject_context_with_history(
         self,
         session_id: str,

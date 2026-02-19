@@ -294,6 +294,11 @@ Analyze the following patient case using ONLY the provided medical guidelines.
         """Extract risk level from response."""
         response_lower = response.lower()
         
+        # Try to find explicit "Risk Level:" pattern first (most reliable)
+        match = re.search(r"risk level[:\s]*(low|moderate|high|critical)", response_lower)
+        if match:
+            return match.group(1).capitalize()
+        
         if "critical" in response_lower or "emergency" in response_lower:
             return "Critical"
         elif "high risk" in response_lower or "high-risk" in response_lower:
@@ -302,11 +307,6 @@ Analyze the following patient case using ONLY the provided medical guidelines.
             return "Moderate"
         elif "low risk" in response_lower or "low-risk" in response_lower:
             return "Low"
-        
-        # Try to find "Risk Level:" pattern
-        match = re.search(r"risk level[:\s]*(low|moderate|high|critical)", response_lower)
-        if match:
-            return match.group(1).capitalize()
         
         return "Undetermined"
     

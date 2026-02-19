@@ -21,7 +21,7 @@ try:
     from presidio_anonymizer import AnonymizerEngine
     from presidio_anonymizer.entities import OperatorConfig
     PRESIDIO_AVAILABLE = True
-except ImportError:
+except Exception:
     PRESIDIO_AVAILABLE = False
     logging.warning("Presidio not installed. Using regex-only fallback.")
     # Define dummy OperatorConfig to avoid NameError
@@ -32,8 +32,9 @@ except ImportError:
 try:
     import spacy
     SPACY_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception) as e:
     SPACY_AVAILABLE = False
+    logging.warning(f"spaCy not available: {e}. Using regex-only PII detection.")
 
 logger = logging.getLogger(__name__)
 

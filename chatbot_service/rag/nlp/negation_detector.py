@@ -14,10 +14,16 @@ Reference: spacy-guide1.md (Dependency Parsing)
 """
 
 
-from spacy.tokens import Doc, Span, Token
-from spacy.language import Language
 from typing import Set
 import logging
+
+try:
+    from spacy.tokens import Doc, Span, Token
+    from spacy.language import Language
+    SPACY_AVAILABLE = True
+except Exception:
+    Doc = Span = Token = Language = None  # type: ignore
+    SPACY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,7 @@ NEGATION_DEPS: Set[str] = {"neg", "det"}
 NEGATION_REVERSERS: Set[str] = {"but", "however", "except", "unless"}
 
 
-@Language.component("negation_detector")
-def negation_detector(doc: Doc) -> Doc:
+def negation_detector(doc):
     """
     Detect negated entities using dependency parsing.
     
@@ -204,3 +209,11 @@ class NegExDetector:
                 return True, trigger
         
         return False, None
+
+
+# Register spaCy component only when spaCy is available
+if SPACY_AVAILABLE:
+    try:
+        Language.component("negation_detector", func=negation_detector)
+    except Exception:
+        pass  # Already registered or other issue

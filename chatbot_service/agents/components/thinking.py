@@ -53,7 +53,7 @@ class ThinkingBlock:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "content": self.content,
-            "type": self.reasoning_type.value,
+            "reasoning_type": self.reasoning_type.value,
             "insights": self.key_insights,
             "timestamp": self.timestamp.isoformat()
         }

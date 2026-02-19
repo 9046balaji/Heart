@@ -12,9 +12,18 @@ Key features:
 
 import re
 from typing import List
-import spacy
-from spacy.tokenizer import Tokenizer
-from spacy.util import compile_infix_regex, compile_prefix_regex, compile_suffix_regex
+try:
+    import spacy
+    from spacy.tokenizer import Tokenizer
+    from spacy.util import compile_infix_regex, compile_prefix_regex, compile_suffix_regex
+    SPACY_AVAILABLE = True
+except Exception as e:
+    spacy = None  # type: ignore
+    Tokenizer = None  # type: ignore
+    compile_infix_regex = compile_prefix_regex = compile_suffix_regex = None  # type: ignore
+    SPACY_AVAILABLE = False
+    import logging as _logging
+    _logging.warning(f"spaCy not available in tokenizer: {e}")
 
 def create_medical_tokenizer(nlp: spacy.Language) -> Tokenizer:
     """

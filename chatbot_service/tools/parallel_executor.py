@@ -61,7 +61,7 @@ class ExecutionResult:
     def all_successful(self) -> bool:
         """Check if all calls succeeded."""
         return all(
-            getattr(r, 'success', True)
+            r.get('success', True) if isinstance(r, dict) else getattr(r, 'success', True)
             for r in self.results.values()
         )
 

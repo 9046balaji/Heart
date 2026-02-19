@@ -11,9 +11,18 @@ Reference: spacy_guide2.md, spacy_guide3.md
 """
 
 
-import spacy
-from spacy.language import Language
-from spacy.tokens import Doc, Span, Token
+try:
+    import spacy
+    from spacy.language import Language
+    from spacy.tokens import Doc, Span, Token
+    SPACY_AVAILABLE = True
+except Exception as e:
+    spacy = None  # type: ignore
+    Language = None  # type: ignore
+    Doc = Span = Token = None  # type: ignore
+    SPACY_AVAILABLE = False
+    import logging as _logging
+    _logging.warning(f"spaCy not available in NLP factory: {e}")
 import json
 import os
 import logging

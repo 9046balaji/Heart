@@ -14,7 +14,7 @@ Features:
 
 import logging
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 
@@ -50,9 +50,9 @@ class ValidationResult:
     confidence: float  # 0-1
     issues: List[str]  # Any problems found
     recommendations: List[str]  # What to do about issues
-    conflicting_sources: List[str]  # Other sources that conflict
-    last_updated: Optional[datetime]
-    needs_human_review: bool
+    conflicting_sources: List[str] = field(default_factory=list)  # Other sources that conflict
+    last_updated: Optional[datetime] = None
+    needs_human_review: bool = False
 
 
 @dataclass
@@ -60,14 +60,14 @@ class SourceMetadata:
     """Metadata about a source document."""
     document_id: str
     title: str
-    publication_date: Optional[datetime]
-    source_type: str  # journal, guideline, textbook, etc
-    authors: List[str]
-    credibility_level: SourceCredibility
-    medical_domains: List[str]  # cardiology, oncology, etc
-    is_peer_reviewed: bool
-    citation_count: Optional[int]
-    last_updated: Optional[datetime]
+    publication_date: Optional[datetime] = None
+    source_type: str = "unknown"  # journal, guideline, textbook, etc
+    authors: List[str] = field(default_factory=list)
+    credibility_level: SourceCredibility = SourceCredibility.UNVALIDATED
+    medical_domains: List[str] = field(default_factory=list)  # cardiology, oncology, etc
+    is_peer_reviewed: bool = False
+    citation_count: Optional[int] = None
+    last_updated: Optional[datetime] = None
 
 
 class MedicalSourceValidator:
@@ -131,6 +131,11 @@ class MedicalSourceValidator:
         recommendations = []
         conflicting = conflicting_sources or []
         
+        # Convert SourceMetadata dataclass to dict if needed
+        if metadata is not None and hasattr(metadata, '__dataclass_fields__'):
+            from dataclasses import asdict
+            metadata = asdict(metadata)
+        
         # 1. Check source credibility
         credibility_score = self._assess_credibility(metadata or {}, content)
         
@@ -171,7 +176,7 @@ class MedicalSourceValidator:
                 ValidationLevel.OUTDATED,
                 ValidationLevel.UNVALIDATED
             ]
-            or credibility_score < 0.4
+            or credibility_score < 2.0
             or confidence < 0.6
         )
         
@@ -189,36 +194,52 @@ class MedicalSourceValidator:
     
     def _assess_credibility(self, metadata: Dict, content: str) -> float:
         """
-        Assess source credibility on scale 0-1.
+        Assess source credibility on scale 0-5.
         
         Checks:
+        - Credibility level from metadata
         - Known trusted organizations
         - Peer-reviewed status
         - Citation history
         - Author credentials
         """
-        score = 0.5  # Default baseline
+        score = 1.0  # Default baseline for unknown sources
+        
+        # Use credibility_level from metadata if available
+        cred_level = metadata.get("credibility_level")
+        if cred_level is not None:
+            if isinstance(cred_level, SourceCredibility):
+                score = float(cred_level.value)
+            elif isinstance(cred_level, (int, float)):
+                score = float(cred_level)
         
         # Check for trusted organizations
         for org_code, (org_name, org_score) in self.TRUSTED_ORGANIZATIONS.items():
             if org_code in content.upper() or org_name.upper() in content.upper():
-                score = max(score, org_score / 5.0)
+                score = max(score, float(org_score))
         
         # Check peer-reviewed status
         if metadata.get("is_peer_reviewed"):
-            score += 0.2
+            score += 0.5
+        
+        # Check citation count
+        citation_count = metadata.get("citation_count")
+        if citation_count and citation_count > 100:
+            score += 0.3
+        elif citation_count and citation_count > 50:
+            score += 0.1
         
         # Check publication date (newer = more credible, up to a point)
         pub_date = metadata.get("publication_date")
         if pub_date:
             age_days = (datetime.now() - pub_date).days
             if age_days < 365:  # Within 1 year
-                score += 0.1
+                score += 0.2
             elif age_days < 365 * 5:  # Within 5 years
-                score += 0.05
+                score += 0.1
         
-        # Cap at 1.0
-        return min(score, 1.0)
+        # Cap at 5.0
+        return min(score, 5.0)
     
     def _check_recency(
         self, metadata: Dict, content: str

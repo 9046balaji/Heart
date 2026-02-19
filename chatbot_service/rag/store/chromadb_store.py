@@ -122,13 +122,13 @@ class ChromaDBVectorStore:
     SYMPTOMS_COLLECTION = "symptoms_conditions"
     MEMORIES_COLLECTION = "user_memories"
 
-    # Embedding dimension (all-MiniLM-L6-v2)
-    EMBEDDING_DIMENSION = 384
+    # Embedding dimension (MedCPT 768-dim via remote Colab)
+    EMBEDDING_DIMENSION = 768
 
     def __init__(
         self,
         persist_directory: str = None,
-        embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_model: str = "MedCPT-Query-Encoder",
         config=None,  # Accept but ignore config for compatibility
         **kwargs,  # Accept any extra kwargs for flexibility
     ):
@@ -138,7 +138,7 @@ class ChromaDBVectorStore:
         Args:
             persist_directory: Path to ChromaDB persistence directory.
                              If None, uses CHROMADB_DIR env or ./Chromadb
-            embedding_model: Model name for embeddings (default: all-MiniLM-L6-v2)
+            embedding_model: Model name for embeddings (default: MedCPT-Query-Encoder)
             config: Optional AppConfig (accepted for compatibility, not used)
             **kwargs: Additional arguments (ignored)
         """
@@ -308,6 +308,30 @@ class ChromaDBVectorStore:
         return await loop.run_in_executor(
             None, self.add_medical_document, doc_id, content, metadata
         )
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        limit: int = None,
+        collection_name: str = None,
+        **kwargs,
+    ) -> List[Dict]:
+        """
+        Generic search method for vector store compatibility.
+        
+        Delegates to the appropriate collection-specific search method.
+        """
+        k = limit or top_k
+        if collection_name == "drug_interactions":
+            return self.search_drug_interactions(query, k)
+        elif collection_name == "symptoms_conditions":
+            return self.search_symptoms(query, k)
+        elif collection_name == "user_memories":
+            user_id = kwargs.get("user_id", "default")
+            return self.search_user_memories(query, user_id, k)
+        else:
+            return self.search_medical_knowledge(query, k)
 
     def search_medical_knowledge(
         self,

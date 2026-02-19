@@ -6,11 +6,16 @@ Handles abbreviations (Dr., mg., etc.) and vital signs (120/80) that confuse sta
 """
 
 
-from spacy.language import Language
-from spacy.tokens import Doc
+try:
+    from spacy.language import Language
+    from spacy.tokens import Doc
+    SPACY_AVAILABLE = True
+except Exception:
+    Language = Doc = None  # type: ignore
+    SPACY_AVAILABLE = False
 
-@Language.component("medical_sentencizer")
-def medical_sentencizer(doc: Doc) -> Doc:
+
+def medical_sentencizer(doc):
     """Custom sentencizer that handles medical abbreviations."""
     
     # Medical abbreviations that shouldn't end sentences
@@ -40,3 +45,11 @@ def medical_sentencizer(doc: Doc) -> Doc:
                 doc[token.i + 1].is_sent_start = False
                 
     return doc
+
+
+# Register spaCy component only when spaCy is available
+if SPACY_AVAILABLE:
+    try:
+        Language.component("medical_sentencizer", func=medical_sentencizer)
+    except Exception:
+        pass  # Already registered or other issue

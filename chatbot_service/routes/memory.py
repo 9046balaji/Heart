@@ -1416,7 +1416,7 @@ async def semantic_memory_search(
             results=results,
             total_found=len(results),
             search_time_ms=round(elapsed_ms, 2),
-            embedding_model="all-MiniLM-L6-v2" if search_engine.use_local else "openai",
+            embedding_model="MedCPT-Query-Encoder" if search_engine.use_local else "openai",
         )
 
     except Exception as e:

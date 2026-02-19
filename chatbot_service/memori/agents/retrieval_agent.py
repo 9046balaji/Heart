@@ -26,6 +26,14 @@ except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
 
+# Optional remote embedding service
+try:
+    from rag.embedding.remote import RemoteEmbeddingService
+    REMOTE_EMBEDDING_AVAILABLE = True
+except ImportError:
+    REMOTE_EMBEDDING_AVAILABLE = False
+    RemoteEmbeddingService = None
+
 if TYPE_CHECKING:
     from ..core.providers import ProviderConfig
 
@@ -52,7 +60,7 @@ class EmbeddingSearchEngine:
     """
     
     # Default embedding model
-    DEFAULT_LOCAL_MODEL = "all-MiniLM-L6-v2"  # Fast, 384 dimensions
+    DEFAULT_LOCAL_MODEL = "MedCPT-Query-Encoder"  # Remote MedCPT, 768 dimensions
     DEFAULT_OPENAI_MODEL = "text-embedding-3-small"  # 1536 dimensions
     
     def __init__(
@@ -68,7 +76,7 @@ class EmbeddingSearchEngine:
         
         Args:
             use_local: Use local sentence-transformers model
-            local_model: Local model name (default: all-MiniLM-L6-v2)
+            local_model: Local model name (default: MedCPT-Query-Encoder)
             openai_client: OpenAI client for API embeddings
             openai_model: OpenAI embedding model name
             similarity_threshold: Minimum similarity score (0-1)
@@ -76,6 +84,7 @@ class EmbeddingSearchEngine:
         self.use_local = use_local and SENTENCE_TRANSFORMERS_AVAILABLE
         self.similarity_threshold = similarity_threshold
         self.local_model = None
+        self.remote_service = None
         self.openai_client = openai_client
         self.openai_model = openai_model or self.DEFAULT_OPENAI_MODEL
         
@@ -84,7 +93,15 @@ class EmbeddingSearchEngine:
         self._cache_lock = threading.Lock()
         self._max_cache_size = 10000
         
-        # Initialize local model if available
+        # Try remote embedding service first (if not using local)
+        if not self.use_local and REMOTE_EMBEDDING_AVAILABLE:
+            try:
+                self.remote_service = RemoteEmbeddingService.get_instance()
+                logger.info("EmbeddingSearchEngine: Using RemoteEmbeddingService (MedCPT)")
+            except Exception as e:
+                logger.warning(f"Remote embedding service unavailable: {e}")
+        
+        # Initialize local model if available and requested
         if self.use_local:
             try:
                 model_name = local_model or self.DEFAULT_LOCAL_MODEL
@@ -94,10 +111,10 @@ class EmbeddingSearchEngine:
                 logger.warning(f"Failed to load local embedding model: {e}")
                 self.use_local = False
         
-        if not self.use_local and not self.openai_client:
+        if not self.use_local and not self.remote_service and not self.openai_client:
             logger.warning(
                 "EmbeddingSearchEngine: No embedding method available. "
-                "Install sentence-transformers or provide OpenAI client."
+                "Set COLAB_API_URL for remote embeddings, install sentence-transformers, or provide OpenAI client."
             )
     
     def _hash_text(self, text: str) -> str:
@@ -132,6 +149,24 @@ class EmbeddingSearchEngine:
                 embedding = self.local_model.encode(text, convert_to_numpy=True)
             except Exception as e:
                 logger.warning(f"Local embedding failed: {e}")
+        
+        # Try remote embedding service
+        if embedding is None and self.remote_service:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        embedding_list = pool.submit(
+                            asyncio.run, self.remote_service.embed_text(text)
+                        ).result(timeout=30)
+                else:
+                    embedding_list = loop.run_until_complete(self.remote_service.embed_text(text))
+                if embedding_list:
+                    embedding = np.array(embedding_list)
+            except Exception as e:
+                logger.warning(f"Remote embedding failed: {e}")
         
         # Fall back to OpenAI
         if embedding is None and self.openai_client:

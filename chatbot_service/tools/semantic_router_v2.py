@@ -99,6 +99,9 @@ class SemanticRouterV2:
         # Severe pain (English)
         (r"\b(severe\s+pain|unbearable\s+pain|excruciating)\b", 0.85, "Severe pain reported"),
         
+        # Unconscious/collapsed (English)
+        (r"\b(unconscious|collapsed|unresponsive|not\s+responding)\b", 0.90, "Unconscious/collapsed detected"),
+        
         # ─── SPANISH (ES) EMERGENCIES ───
         (r"\b(dolor\s+(de\s+)?pecho|opresión\s+(en\s+el\s+)?pecho|presión\s+(en\s+el\s+)?pecho)\b", 0.95, "ES: Dolor de pecho detectado"),
         (r"\b(no\s+puedo\s+respirar|dificultad\s+(para\s+)?respirar|falta\s+de\s+aire|ahogamiento)\b", 0.95, "ES: Dificultad respiratoria detectada"),
@@ -200,7 +203,8 @@ class SemanticRouterV2:
         
         # Cardiovascular symptom patterns  
         (r"\b(angina|palpitation|arrhythmia|heart\s+flutter|irregular\s+heartbeat)\b", 0.85, "Cardiac symptom"),
-        (r"\b(myocardial|infarction|cardiomyopathy|heart\s+failure|coronary)\b", 0.85, "Cardiac condition"),
+        (r"\b(myocardial|infarction|cardiomyopathy|heart\s+failure)\b", 0.85, "Cardiac condition"),
+        (r"\b(coronary)\b.*\b(risk|assess|predict|evaluat|check)\b", 0.85, "Coronary risk assessment"),
         
         # Risk factor queries
         (r"\b(cardiovascular\s+risk|cardiac\s+risk|cholesterol.*heart|ldl.*risk)\b", 0.85, "CV risk factors"),
@@ -517,6 +521,7 @@ class SemanticRouterV2:
             IntentCategory.DIFFERENTIAL_DIAGNOSIS, # 2.5 Clinical reasoning
             IntentCategory.VITALS_QUERY,   # 3. Data queries
             IntentCategory.DRUG_INTERACTION, # 4. Specific medical checks
+            IntentCategory.RESEARCH,       # 4.5 Research queries
             IntentCategory.MEDICAL_QA,     # 5. Knowledge last
         ]:
             result = self._match_patterns(query_lower, intent_category)

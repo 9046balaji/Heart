@@ -86,7 +86,7 @@ class InMemoryVectorStore:
     DRUG_COLLECTION = "drug_interactions"
     SYMPTOMS_COLLECTION = "symptoms_conditions"
     
-    def __init__(self, embedding_model: str = "all-MiniLM-L6-v2", **kwargs):
+    def __init__(self, embedding_model: str = "MedCPT-Query-Encoder", **kwargs):
         """Initialize in-memory vector store."""
         self._collections: Dict[str, Dict[str, Any]] = {}
         self._embedding_model = embedding_model
