@@ -14,3 +14,4 @@ build/
 # Prevent nested git repositories
 **/.git/
 .git/
+frontend/.env.local
