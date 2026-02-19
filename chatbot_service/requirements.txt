@@ -1,0 +1,253 @@
+# ============================================================
+# HeartGuard Medical RAG System - Complete Requirements
+# ============================================================
+# Comprehensive dependency list for MedRAG + OpenFDA integration
+# Python Version: 3.9+
+# Last updated: January 3, 2026
+# Generated from: rag/, tools/, core/ module analysis
+# ============================================================
+# INSTALLATION: pip install -r requirements.txt
+# TROUBLESHOOTING: https://github.com/heartguard/docs/SETUP.md
+# ============================================================
+
+# ============================================================
+# CORE FRAMEWORK
+# ============================================================
+fastapi>=0.104.1
+uvicorn>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+starlette>=0.27.0
+email-validator
+
+
+# ============================================================
+# LLM & AI - MEDGEMMA-ONLY ARCHITECTURE
+# ============================================================
+# LangChain ecosystem (for orchestration and MedGemma integration)
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0  # Required for MedGemma's OpenAI-compatible API
+langgraph>=0.2.0
+
+# DEPRECATED PROVIDERS (Removed in MedGemma-only architecture)
+# langchain-google-genai>=2.0.0  # REMOVED - Google Gemini
+# langchain-ollama>=0.2.0  # REMOVED - Ollama (using MedGemma via OpenAI API)
+
+# LLM clients - REMOVED (MedGemma uses OpenAI-compatible API)
+# ollama>=0.1.38  # REMOVED
+# openai>=1.0.0  # langchain-openai handles this
+# anthropic>=0.18.0  # REMOVED - Claude not used
+# litellm>=1.35.0  # REMOVED - Multi-provider abstraction not needed
+# google-generativeai>=0.6.0  # REMOVED - Google Gemini
+
+# Observability
+langfuse>=2.0.0
+
+# ============================================================
+# NLP & EMBEDDINGS
+# ============================================================
+sentence-transformers>=2.2.0
+transformers>=4.35.2
+torch>=2.1.1
+tiktoken>=0.5.0
+tokenizers>=0.15.0
+spacy[transformers]>=3.0.0
+# Multilingual support
+langdetect>=0.1.1
+# ============================================================
+# VECTOR STORE & RAG
+# ============================================================
+chromadb>=0.4.0
+onnxruntime>=1.16.0
+
+# ============================================================
+# DATABASE
+# ============================================================
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# aiosqlite>=0.19.0 (Removed - Moving to Postgres)
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+# pymysql>=1.1.0 (Removed - Moving to Postgres)
+# aiomysql>=0.2.0 (Removed - Moving to Postgres)
+
+
+# ============================================================
+# SECURITY & AUTH
+# ============================================================
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+argon2-cffi>=23.1.0
+cryptography>=41.0.0
+
+# ============================================================
+# CACHING & PERFORMANCE
+# ============================================================
+redis>=5.0.0
+lz4>=4.3.2
+
+# ============================================================
+# SCALABILITY - ASYNC WORKER PATTERN (2025 Standard)
+# ============================================================
+# ARQ - Native asyncio task queue (replaces Celery for async workloads)
+arq>=0.25.0
+
+# LangGraph Redis Checkpointing - Zero data loss, automatic crash recovery
+langgraph-checkpoint-redis>=0.3.2
+
+# ============================================================
+# HTTP & NETWORKING
+# ============================================================
+aiohttp>=3.9.1
+httpx>=0.25.0
+requests>=2.31.0
+
+# ============================================================
+# DATA PROCESSING
+# ============================================================
+numpy>=1.26.2
+pandas>=2.1.3
+scikit-learn>=1.3.2
+datasets>=2.16.0  # HuggingFace datasets for PubMed and Textbooks loaders
+
+# ============================================================
+# SYSTEM MONITORING (for memory safety in MedRAG)
+# ============================================================
+psutil>=5.9.6
+py-cpuinfo>=9.0.0
+
+# ============================================================
+# UTILITIES & LOGGING
+# ============================================================
+tenacity>=8.2.3
+tqdm>=4.66.0
+loguru>=0.7.0
+python-dateutil>=2.8.0
+click>=8.1.7
+
+# ============================================================
+# WEB SEARCH & CRAWLING
+# ============================================================
+crawl4ai>=0.2.0
+tavily-python>=0.3.0
+ddgs>=1.4.0
+# duckduckgo_search has been renamed to ddgs
+
+# ============================================================
+# PDF & DOCUMENT PROCESSING
+# ============================================================
+PyMuPDF>=1.23.0
+Pillow>=10.2.0
+
+# ============================================================
+# MEDICAL NLP (Optional but recommended)
+# ============================================================
+metaphone>=0.6
+nltk>=3.8.1
+
+# ============================================================
+# PII DETECTION (Optional but recommended for compliance)
+# ============================================================
+presidio-analyzer>=2.2.0
+presidio-anonymizer>=2.2.0
+
+# ============================================================
+# TESTING & QA
+# ============================================================
+pytest>=7.4.3
+pytest-asyncio>=0.23.2
+pytest-cov>=4.1.0
+responses>=0.24.1
+
+# ============================================================
+# CODE QUALITY & DEVELOPMENT
+# ============================================================
+pylint>=3.0.3
+flake8>=6.1.0
+mypy>=1.7.1
+black>=23.12.1
+isort>=5.13.2
+
+# ============================================================
+# VERSION-SPECIFIC NOTES
+# ============================================================
+# TORCH DEPENDENCIES: Must match torchvision and transformers versions
+# If you have CUDA 12.1, install: pip install torch --index-url https://download.pytorch.org/whl/cu121
+# For CPU only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# GPU ACCELERATION (optional):
+# - Uncomment below if you have NVIDIA CUDA GPU
+# - Requires: CUDA 12.1, cuDNN 8.9
+# - torch[cuda]=2.1.2
+# - faiss-gpu>=1.7.4
+
+# MEMORY CONSTRAINTS:
+# - Minimum: 16GB RAM for all data sources loaded
+# - Recommended: 32GB+ RAM for production
+# - Disk: 250GB+ for StatPearls + PubMed cache
+
+# ============================================================
+# INSTALLATION INSTRUCTIONS
+# ============================================================
+# 1. Create virtual environment:
+#    python -m venv venv
+#
+# 2. Activate virtual environment:
+#    Windows:  venv\Scripts\activate
+#    Linux/Mac: source venv/bin/activate
+#
+# 3. Upgrade pip:
+#    pip install --upgrade pip setuptools wheel
+#
+# 4. Install dependencies:
+#    pip install -r requirements.txt
+#
+# 5. Verify installation:
+#    python -c "import torch, transformers, psycopg2; print('✓ All imports OK')"
+#
+# For conda users:
+#    conda create -n medrag python=3.11
+#    conda activate medrag
+#    pip install -r requirements.txt
+
+# ============================================================
+# TROUBLESHOOTING
+# ============================================================
+# ERROR: "Failed building wheel for torch"
+#   → Visit: https://pytorch.org/get-started/locally/
+#   → Select your CUDA version and OS
+#
+# ERROR: "No module named 'torch'"
+#   → Run: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# ERROR: Memory exceeded during PubMed loading
+#   → Normal behavior - streaming handles this with checkpointing
+#   → Check: logs/pubmed_streaming.log for checkpoint status
+#
+# ERROR: ImportError from relative imports (rag.*, tools.*)
+#   → Run setup script: python PROJECT_SETUP.md (contains validation_setup.py)
+#   → Check: __init__.py files exist in all package directories
+# TESTING (Dev only)
+# ============================================================
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# ============================================================
+# MEDGEMMA INTEGRATION
+# ============================================================
+fhirpy>=1.4.0
+fhir.resources>=7.0.0
+pydicom>=2.4.0
+dicomweb-client>=0.59.0
+
+# ============================================================
+# SECURITY & CACHING
+# ============================================================
+sqlparse>=0.4.0  # SQL parsing for injection prevention and validation
+cachetools>=5.3.0  # TTL cache for preventing memory leaks in FHIR client
+
