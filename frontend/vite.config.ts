@@ -54,6 +54,7 @@ export default defineConfig(({ mode }) => {
         'expo-modules-core': path.resolve(__dirname, 'mocks/expo-modules-core.ts'),
         'expo-font': path.resolve(__dirname, 'mocks/expo-font.ts'),
         'expo-image-picker': path.resolve(__dirname, 'mocks/expo-image-picker.ts'),
+        '@capacitor/filesystem': path.resolve(__dirname, 'mocks/capacitor-filesystem.ts'),
       },
       extensions: ['.web.js', '.web.jsx', '.web.ts', '.web.tsx', '.js', '.jsx', '.ts', '.tsx', '.json'],
     },
@@ -80,6 +81,7 @@ export default defineConfig(({ mode }) => {
         'expo-modules-core',
         'expo-linear-gradient',
         'expo-image-manipulator',
+        '@capacitor/filesystem',
       ],
     },
     build: {
