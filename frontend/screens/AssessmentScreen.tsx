@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/apiClient';
-import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse } from '../services/api.types';
+import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, TestResultDetail } from '../services/api.types';
 import ScreenHeader from '../components/ScreenHeader';
 
 const AssessmentScreen: React.FC = () => {
@@ -508,9 +508,10 @@ const AssessmentScreen: React.FC = () => {
                                 <span className="material-symbols-outlined">close</span>
                             </button>
 
+                            {/* Header Section */}
                             <div className={`p-8 text-center relative overflow-hidden ${result.prediction === 1
-                                ? 'bg-red-50/50 dark:bg-red-950/10'
-                                : 'bg-green-50/50 dark:bg-green-950/10'
+                                ? 'bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/10'
+                                : 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/10'
                                 }`}>
 
                                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10 pointer-events-none">
@@ -518,73 +519,214 @@ const AssessmentScreen: React.FC = () => {
                                     <span className="material-symbols-outlined absolute bottom-4 right-4 text-6xl">monitor_heart</span>
                                 </div>
 
-                                <div className={`inline-flex p-4 rounded-full mb-6 shadow-lg relative z-10 ${result.prediction === 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                <div className={`inline-flex p-4 rounded-full mb-4 shadow-lg relative z-10 ${result.prediction === 1 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
                                     }`}>
                                     <span className="material-symbols-outlined text-4xl">
                                         {result.prediction === 1 ? 'warning' : 'verified'}
                                     </span>
                                 </div>
 
-                                <h2 className={`text-3xl font-black mb-2 relative z-10 ${result.prediction === 1 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
+                                <h2 className={`text-2xl font-black mb-1 relative z-10 ${result.prediction === 1 ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'
                                     }`}>
-                                    {result.prediction === 1 ? 'High Probability' : 'Low Probability'}
+                                    {result.prediction === 1 ? 'Elevated Risk Detected' : 'Low Risk Detected'}
                                 </h2>
 
-                                <p className="text-slate-600 dark:text-slate-300 text-lg mb-8 max-w-lg mx-auto leading-relaxed relative z-10">
+                                {result.risk_level && (
+                                    <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-3 ${
+                                        result.risk_level === 'Critical' ? 'bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-200' :
+                                        result.risk_level === 'High' ? 'bg-orange-200 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200' :
+                                        result.risk_level === 'Moderate' ? 'bg-amber-200 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' :
+                                        'bg-green-200 text-green-800 dark:bg-green-900/50 dark:text-green-200'
+                                    }`}>
+                                        {result.risk_level} Risk
+                                    </span>
+                                )}
+
+                                <p className="text-slate-600 dark:text-slate-300 text-sm mb-6 max-w-lg mx-auto leading-relaxed relative z-10">
                                     {result.message}
                                 </p>
 
-                                <div className="grid grid-cols-1 gap-4 max-w-sm mx-auto mb-6 relative z-10">
-                                    {/* Probability Bar */}
-                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-5 rounded-2xl border border-white/50 dark:border-white/10 shadow-sm">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="text-xs uppercase tracking-wide font-bold text-slate-500">Probability</p>
-                                            <p className={`text-lg font-black ${result.prediction === 1 ? 'text-red-600' : 'text-green-600'}`}>
-                                                {(result.probability * 100).toFixed(1)}%
-                                            </p>
-                                        </div>
-                                        <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                {/* Metrics Grid */}
+                                <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto relative z-10">
+                                    {/* Probability */}
+                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10 shadow-sm">
+                                        <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400 mb-1">Probability</p>
+                                        <p className={`text-2xl font-black ${result.prediction === 1 ? 'text-red-600' : 'text-green-600'}`}>
+                                            {(result.probability * 100).toFixed(1)}%
+                                        </p>
+                                        <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-2">
                                             <div
-                                                className={`h-full rounded-full transition-all duration-1000 ease-out ${result.prediction === 1 ? 'bg-red-500' : 'bg-green-500'}`}
+                                                className={`h-full rounded-full transition-all duration-1000 ease-out ${result.prediction === 1 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-emerald-400 to-green-500'}`}
                                                 style={{ width: `${result.probability * 100}%` }}
                                             ></div>
                                         </div>
                                     </div>
 
-                                    {/* Risk Level */}
-                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10 flex items-center justify-between shadow-sm">
-                                        <p className="text-xs uppercase tracking-wide font-bold text-slate-500">Risk Level</p>
-                                        <span className={`px-4 py-1.5 rounded-full text-sm font-bold shadow-sm ${result.risk_level === 'High'
-                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200'
-                                            : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200'
-                                            }`}>
-                                            {result.risk_level}
-                                        </span>
+                                    {/* Confidence */}
+                                    <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm p-4 rounded-2xl border border-white/50 dark:border-white/10 shadow-sm">
+                                        <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400 mb-1">Confidence</p>
+                                        <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                                            {result.confidence ? `${(result.confidence * 100).toFixed(0)}%` : 'N/A'}
+                                        </p>
+                                        {result.quality_score !== undefined && (
+                                            <p className="text-[10px] text-slate-400 mt-1">Quality: {(result.quality_score * 100).toFixed(0)}%</p>
+                                        )}
                                     </div>
                                 </div>
+                            </div>
 
-                                {result.prediction === 1 && (
-                                    <div className="bg-red-100/50 dark:bg-red-900/30 p-4 rounded-xl border border-red-200 dark:border-red-800 mx-auto max-w-lg text-left flex items-start gap-3 relative z-10">
+                            {/* Clinical Interpretation */}
+                            {result.clinical_interpretation && (
+                                <div className="px-6 pt-5">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-outlined text-indigo-500 text-lg">neurology</span>
+                                        <h3 className="font-bold text-sm text-slate-800 dark:text-white">AI Clinical Interpretation</h3>
+                                        {result.is_grounded && (
+                                            <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] font-bold rounded-full">Grounded</span>
+                                        )}
+                                    </div>
+                                    <div className="bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-900/30">
+                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                                            {result.clinical_interpretation}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Triage & Actions */}
+                            {result.triage_level && (
+                                <div className="px-6 pt-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-outlined text-amber-500 text-lg">emergency</span>
+                                        <h3 className="font-bold text-sm text-slate-800 dark:text-white">Triage Assessment</h3>
+                                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                            result.triage_level === 'Emergency' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
+                                            result.triage_level === 'Urgent' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' :
+                                            'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                        }`}>{result.triage_level}</span>
+                                    </div>
+                                    {result.triage_actions && result.triage_actions.length > 0 && (
+                                        <div className="space-y-2">
+                                            {result.triage_actions.map((action, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 bg-amber-50/50 dark:bg-amber-950/10 rounded-lg p-3 border border-amber-100 dark:border-amber-900/20">
+                                                    <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">arrow_forward</span>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300">{action}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Test Results Breakdown */}
+                            {result.test_results && result.test_results.length > 0 && (
+                                <div className="px-6 pt-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="material-symbols-outlined text-blue-500 text-lg">lab_panel</span>
+                                        <h3 className="font-bold text-sm text-slate-800 dark:text-white">Detailed Test Results</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {result.test_results.map((test: TestResultDetail, idx: number) => (
+                                            <div key={idx} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">{test.test_name}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                                            test.status === 'Normal' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
+                                                            test.status === 'Borderline' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                                            test.status === 'Critical' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
+                                                            'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                                        }`}>{test.status}</span>
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                                            test.risk_contribution === 'Low' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300' :
+                                                            test.risk_contribution === 'Moderate' ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                                                            'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+                                                        }`}>{test.risk_contribution} Risk</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400">
+                                                    <span>Value: <strong className="text-slate-700 dark:text-slate-200">{test.value}</strong></span>
+                                                    <span>Normal: {test.normal_range}</span>
+                                                </div>
+                                                {test.explanation && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{test.explanation}</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Guidelines */}
+                            {result.guidelines_cited && result.guidelines_cited.length > 0 && (
+                                <div className="px-6 pt-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-outlined text-slate-400 text-sm">menu_book</span>
+                                        <h4 className="font-bold text-[11px] text-slate-500 uppercase tracking-wide">Guidelines Referenced</h4>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {result.guidelines_cited.map((g, idx) => (
+                                            <span key={idx} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-400 rounded-md">
+                                                {g}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Required Warning */}
+                            {(result.prediction === 1 || result.needs_medical_attention) && (
+                                <div className="px-6 pt-4">
+                                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800 flex items-start gap-3">
                                         <span className="material-symbols-outlined text-red-600 mt-0.5">medical_services</span>
                                         <div>
-                                            <p className="font-bold text-red-800 dark:text-red-300 text-sm">Action Required</p>
-                                            <p className="text-red-700 dark:text-red-400 text-sm">
-                                                Please consult a cardiologist for better evaluation. This is an AI estimation, not a diagnosis.
+                                            <p className="font-bold text-red-800 dark:text-red-300 text-sm">Medical Attention Recommended</p>
+                                            <p className="text-red-700 dark:text-red-400 text-xs mt-0.5">
+                                                Please consult a cardiologist for thorough evaluation. This AI analysis is for informational purposes only.
                                             </p>
                                         </div>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
 
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 text-center">
-                                <button
-                                    onClick={() => setResult(null)}
-                                    className="w-full py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
-                                >
-                                    Done
-                                </button>
-                                <p className="text-[10px] text-slate-400 mt-3 px-4">
-                                    *This AI model has an accuracy of ~85% based on the Statlog Heart Data Set. It should not replace professional medical advice.
+                            {/* Processing Info & Footer */}
+                            <div className="p-6 mt-2">
+                                <div className="flex items-center justify-between mb-4">
+                                    {result.processing_time_ms && (
+                                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-xs">timer</span>
+                                            {result.processing_time_ms.toFixed(0)}ms
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            // Save last assessment in HealthAssessment format for dashboard
+                                            const riskLabel = result.risk_level === 'high' ? 'High Risk'
+                                                : result.risk_level === 'moderate' ? 'Moderate Risk' : 'Low Risk';
+                                            const scoreVal = result.probability != null
+                                                ? Math.round((1 - result.probability) * 100)
+                                                : (result.risk_level === 'high' ? 30 : result.risk_level === 'moderate' ? 60 : 85);
+                                            localStorage.setItem('last_assessment', JSON.stringify({
+                                                date: new Date().toISOString(),
+                                                score: scoreVal,
+                                                risk: riskLabel,
+                                                details: result.clinical_interpretation || result.message || 'Assessment completed.',
+                                                vitals: {
+                                                    systolic: Number(formData.resting_bp_s) || 120,
+                                                    cholesterol: Number(formData.cholesterol) || 200,
+                                                },
+                                            }));
+                                            setResult(null);
+                                            navigate('/dashboard');
+                                        }}
+                                        className="flex-1 ml-4 py-3 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">check</span>
+                                        Save & Close
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-slate-400 text-center px-4 leading-relaxed">
+                                    *This AI model uses clinical data and machine learning to estimate risk. It should not replace professional medical advice, diagnosis, or treatment.
                                 </p>
                             </div>
                         </div>

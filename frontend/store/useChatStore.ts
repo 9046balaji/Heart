@@ -531,11 +531,12 @@ export const chatActions = {
 
     const sessionId = store.currentSessionId || store.createSession();
 
-    const userMessage: Message = {
+    const userMessage: Message & { searchMode?: SearchMode } = {
       id: generateId(),
       role: 'user',
       content,
       timestamp: new Date().toISOString(),
+      ...(searchMode !== 'default' && { searchMode }),
     };
     store.addMessage(userMessage);
     store.setLoading(true);

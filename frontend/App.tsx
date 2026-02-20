@@ -113,7 +113,13 @@ const AppContent: React.FC = () => {
     '/profile',
     '/settings',
     '/appointment',
-    '/assessment'
+    '/assessment',
+    '/medications',
+    '/documents',
+    '/notifications',
+    '/smartwatch',
+    '/calendar',
+    '/weekly-summary',
   ].includes(location.pathname);
 
   // Update HTML class for dark mode and native status bar

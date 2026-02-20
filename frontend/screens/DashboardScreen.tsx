@@ -728,6 +728,26 @@ const DashboardScreen: React.FC = () => {
                         {t('dashboard.quick_actions')}
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
+                        <Link to="/assessment" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-red-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">health_metrics</span>
+                            </div>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">Heart Check</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">AI risk assessment</p>
+                            </div>
+                        </Link>
+                        <Link to="/chat" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                                <span className="material-symbols-outlined text-2xl">smart_toy</span>
+                            </div>
+                            <div className="text-center relative z-10">
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">AI Chat</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Talk to CardioAI</p>
+                            </div>
+                        </Link>
                         <Link to="/medications" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
                             <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
@@ -748,7 +768,6 @@ const DashboardScreen: React.FC = () => {
                                 <p className="text-[10px] text-slate-500 dark:text-slate-400">Medical records</p>
                             </div>
                         </Link>
-
                     </div>
                 </div>
             )}

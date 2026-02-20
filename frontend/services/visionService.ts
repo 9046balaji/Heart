@@ -1,7 +1,7 @@
 /**
  * Vision Service
  *
- * Handles AI vision analysis including ECG, food recognition, and document analysis.
+ * Handles AI vision analysis including ECG and document analysis.
  * Follows modular service architecture per integration requirements.
  *
  * Healthcare-grade error handling:
@@ -13,8 +13,6 @@
 
 import {
     ECGAnalysisResponse,
-    FoodAnalysisResponse,
-    MealLogResponse,
     VisionAnalysisRequest,
     VisionAnalysisResponse,
     VisionImageType,
@@ -300,97 +298,6 @@ export async function analyzeECGBase64(
 }
 
 /**
- * Recognize food items in an image
- *
- * @param file - Food/meal image file
- * @param estimatePortions - Whether to estimate portion sizes
- * @param dietaryGoals - Optional user dietary goals for recommendations
- * @returns Food analysis with items, calories, and macros
- */
-export async function recognizeFood(
-    file: File,
-    estimatePortions: boolean = true,
-    dietaryGoals?: string
-): Promise<FoodAnalysisResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('estimate_portions', String(estimatePortions));
-    if (dietaryGoals) {
-        formData.append('dietary_goals', dietaryGoals);
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/vision/food/recognize`, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw { status: response.status, detail: errorData.detail };
-        }
-
-        return await response.json();
-    } catch (error) {
-        clearTimeout(timeoutId);
-        handleError(error, 'recognizeFood');
-    }
-}
-
-/**
- * Log a meal with image analysis
- *
- * @param userId - User identifier
- * @param file - Meal image file
- * @param mealType - Type of meal (breakfast, lunch, dinner, snack)
- * @param notes - Optional notes about the meal
- * @returns Meal log with nutritional information
- */
-export async function logMeal(
-    userId: string,
-    file: File,
-    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' = 'snack',
-    notes?: string
-): Promise<MealLogResponse> {
-    const formData = new FormData();
-    formData.append('user_id', userId);
-    formData.append('file', file);
-    formData.append('meal_type', mealType);
-    if (notes) {
-        formData.append('notes', notes);
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/vision/food/log`, {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw { status: response.status, detail: errorData.detail };
-        }
-
-        return await response.json();
-    } catch (error) {
-        clearTimeout(timeoutId);
-        handleError(error, 'logMeal');
-    }
-}
-
-/**
  * Generic vision analysis endpoint
  * Automatically detects image type if not specified
  *
@@ -470,10 +377,6 @@ export const visionService = {
     // ECG Analysis
     analyzeECG,
     analyzeECGBase64,
-
-    // Food Recognition
-    recognizeFood,
-    logMeal,
 
     // Generic Vision
     analyzeVision,

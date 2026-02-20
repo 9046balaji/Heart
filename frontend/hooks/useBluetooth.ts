@@ -46,6 +46,11 @@ export interface SmartwatchData {
   sensorLocation: string | null;
   manufacturerName: string | null;
   modelNumber: string | null;
+  bloodPressureSystolic: number | null;
+  bloodPressureDiastolic: number | null;
+  bloodPressureTimestamp: string | null;
+  temperature: number | null;
+  temperatureTimestamp: string | null;
 }
 
 export interface UseBluetoothReturn {
@@ -63,6 +68,11 @@ export interface UseBluetoothReturn {
   readBatteryLevel: (deviceId: string) => Promise<number | null>;
   startHeartRateNotifications: (deviceId: string) => Promise<void>;
   stopHeartRateNotifications: (deviceId: string) => Promise<void>;
+  startBloodPressureNotifications: (deviceId: string) => Promise<void>;
+  stopBloodPressureNotifications: (deviceId: string) => Promise<void>;
+  readTemperature: (deviceId: string) => Promise<number | null>;
+  startAllMonitoring: (deviceId: string) => Promise<void>;
+  stopAllMonitoring: (deviceId: string) => Promise<void>;
 }
 
 // ============================================================================
@@ -92,6 +102,37 @@ function parseSensorLocation(value: number): string {
   return locations[value] || 'Unknown';
 }
 
+/**
+ * Parse Blood Pressure Measurement characteristic (0x2A35)
+ */
+function parseBloodPressure(value: DataView): { systolic: number; diastolic: number } {
+  const flags = value.getUint8(0);
+  const isKPa = (flags & 0x01) !== 0;
+  // IEEE 11073 SFLOAT format - simplified reading
+  const systolic = value.getFloat32 ? value.getUint16(1, true) / (isKPa ? 10 : 1) : value.getUint16(1, true);
+  const diastolic = value.getFloat32 ? value.getUint16(3, true) / (isKPa ? 10 : 1) : value.getUint16(3, true);
+  return {
+    systolic: Math.round(systolic),
+    diastolic: Math.round(diastolic),
+  };
+}
+
+/**
+ * Parse Temperature Measurement characteristic (0x2A1C)
+ */
+function parseTemperature(value: DataView): number {
+  const flags = value.getUint8(0);
+  const isFahrenheit = (flags & 0x01) !== 0;
+  // IEEE 11073 FLOAT - simplified: mantissa (3 bytes) + exponent (1 byte)
+  const mantissa = value.getUint16(1, true) | (value.getUint8(3) << 16);
+  const exponent = value.getInt8(4);
+  let temp = mantissa * Math.pow(10, exponent);
+  if (isFahrenheit) {
+    temp = (temp - 32) * 5 / 9; // Convert to Celsius
+  }
+  return Math.round(temp * 10) / 10;
+}
+
 // ============================================================================
 // Hook
 // ============================================================================
@@ -110,6 +151,11 @@ export const useBluetooth = (): UseBluetoothReturn => {
     sensorLocation: null,
     manufacturerName: null,
     modelNumber: null,
+    bloodPressureSystolic: null,
+    bloodPressureDiastolic: null,
+    bloodPressureTimestamp: null,
+    temperature: null,
+    temperatureTimestamp: null,
   });
 
   const isScanningRef = useRef(false);
@@ -287,6 +333,11 @@ export const useBluetooth = (): UseBluetoothReturn => {
         sensorLocation: null,
         manufacturerName: null,
         modelNumber: null,
+        bloodPressureSystolic: null,
+        bloodPressureDiastolic: null,
+        bloodPressureTimestamp: null,
+        temperature: null,
+        temperatureTimestamp: null,
       });
       console.log(`✓ Disconnected from device: ${deviceId}`);
     } catch (err) {
@@ -387,6 +438,80 @@ export const useBluetooth = (): UseBluetoothReturn => {
     }
   }, []);
 
+  const startBloodPressureNotifications = useCallback(async (deviceId: string) => {
+    try {
+      await BleClient.startNotifications(
+        deviceId,
+        BLE_SERVICES.BLOOD_PRESSURE,
+        BLE_CHARACTERISTICS.BLOOD_PRESSURE_MEASUREMENT,
+        (value) => {
+          const bp = parseBloodPressure(value);
+          const timestamp = new Date().toISOString();
+          setSmartwatchData(prev => ({
+            ...prev,
+            bloodPressureSystolic: bp.systolic,
+            bloodPressureDiastolic: bp.diastolic,
+            bloodPressureTimestamp: timestamp,
+          }));
+          console.log(`🩸 Blood Pressure: ${bp.systolic}/${bp.diastolic} mmHg`);
+        }
+      );
+      console.log('✓ Blood pressure notifications started');
+    } catch (err) {
+      console.warn('Blood pressure service not available on this device');
+    }
+  }, []);
+
+  const stopBloodPressureNotifications = useCallback(async (deviceId: string) => {
+    try {
+      await BleClient.stopNotifications(
+        deviceId,
+        BLE_SERVICES.BLOOD_PRESSURE,
+        BLE_CHARACTERISTICS.BLOOD_PRESSURE_MEASUREMENT
+      );
+      console.log('✓ Blood pressure notifications stopped');
+    } catch (err) {
+      // May not have been started
+    }
+  }, []);
+
+  const readTemperature = useCallback(async (deviceId: string): Promise<number | null> => {
+    try {
+      const result = await BleClient.read(
+        deviceId,
+        BLE_SERVICES.HEALTH_THERMOMETER,
+        BLE_CHARACTERISTICS.TEMPERATURE_MEASUREMENT
+      );
+      const temp = parseTemperature(new DataView(result.buffer));
+      const timestamp = new Date().toISOString();
+      setSmartwatchData(prev => ({
+        ...prev,
+        temperature: temp,
+        temperatureTimestamp: timestamp,
+      }));
+      console.log(`🌡️ Temperature: ${temp}°C`);
+      return temp;
+    } catch (err) {
+      console.warn('Temperature service not available on this device');
+      return null;
+    }
+  }, []);
+
+  const startAllMonitoring = useCallback(async (deviceId: string) => {
+    console.log('🚀 Starting all vital monitoring...');
+    await startHeartRateNotifications(deviceId);
+    await startBloodPressureNotifications(deviceId);
+    await readBatteryLevel(deviceId);
+    await readTemperature(deviceId);
+    console.log('✓ All monitoring started');
+  }, [startHeartRateNotifications, startBloodPressureNotifications, readBatteryLevel, readTemperature]);
+
+  const stopAllMonitoring = useCallback(async (deviceId: string) => {
+    await stopHeartRateNotifications(deviceId);
+    await stopBloodPressureNotifications(deviceId);
+    console.log('✓ All monitoring stopped');
+  }, [stopHeartRateNotifications, stopBloodPressureNotifications]);
+
   return {
     isInitialized,
     isScanning,
@@ -402,5 +527,10 @@ export const useBluetooth = (): UseBluetoothReturn => {
     readBatteryLevel,
     startHeartRateNotifications,
     stopHeartRateNotifications,
+    startBloodPressureNotifications,
+    stopBloodPressureNotifications,
+    readTemperature,
+    startAllMonitoring,
+    stopAllMonitoring,
   };
 };

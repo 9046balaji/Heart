@@ -14,7 +14,7 @@ const API_BASE_URL = (import.meta as any).env.VITE_NLP_SERVICE_URL && (import.me
 
 import { handleError, retryWithBackoff, ErrorType } from '../utils/errorHandling';
 import { authService } from './authService';
-import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, DocumentDetails, AudioTranscriptionResponse, TextToSpeechResponse } from './api.types';
+import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, TestResultDetail, DocumentDetails, AudioTranscriptionResponse, TextToSpeechResponse } from './api.types';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -348,7 +348,7 @@ export const apiClient = {
    * Predict Heart Disease Risk
    */
   predictHeartDisease: async (data: HeartDiseasePredictionRequest) => {
-    return apiCall<HeartDiseasePredictionResponse>('/api/predict-heart-disease', {
+    return apiCall<HeartDiseasePredictionResponse>('/heart/predict', {
       method: 'POST',
       body: data
     });
@@ -503,7 +503,7 @@ export const apiClient = {
       disclaimer?: string;
       context_used?: string[];
       provider?: string;
-    }>('/api/generate-insight', {
+    }>('/heart/insight', {
       method: 'POST',
       body: params,
     });
@@ -523,7 +523,7 @@ export const apiClient = {
       assessment: string;
       user: string;
       timestamp: string;
-    }>('/api/health-assessment', {
+    }>('/heart/insight', {
       method: 'POST',
       body: params,
     });
@@ -541,7 +541,7 @@ export const apiClient = {
       insights: string;
       medication_count: number;
       timestamp: string;
-    }>('/api/medication-insights', {
+    }>('/heart/insight', {
       method: 'POST',
       body: params,
     });
@@ -554,7 +554,7 @@ export const apiClient = {
     return apiCall<{
       status: string;
       service: string;
-    }>('/api/health');
+    }>('/health');
   },
 
   /**
@@ -573,7 +573,7 @@ export const apiClient = {
       entities: any[];
       suggested_response?: string;
       requires_escalation?: boolean;
-    }>('/api/nlp/process', {
+    }>('/nlp/process', {
       method: 'POST',
       body: params,
     });
@@ -583,7 +583,7 @@ export const apiClient = {
    * Transcribe audio using the backend
    */
   transcribeAudio: async (base64Audio: string) => {
-    return apiCall<AudioTranscriptionResponse>('/api/speech/transcribe', {
+    return apiCall<AudioTranscriptionResponse>('/speech/transcribe', {
       method: 'POST',
       body: { audio: base64Audio },
     });
@@ -593,7 +593,7 @@ export const apiClient = {
    * Synthesize speech using the backend
    */
   synthesizeSpeech: async (text: string) => {
-    return apiCall<TextToSpeechResponse>('/api/speech/synthesize', {
+    return apiCall<TextToSpeechResponse>('/speech/synthesize', {
       method: 'POST',
       body: { text },
     });
@@ -616,56 +616,72 @@ export const apiClient = {
       return;
     }
 
-    const url = `${API_BASE_URL}/api/chat/stream`;
-    const { signal, ...body } = params;
+    const url = `${API_BASE_URL}/chat/message`;
+    const { signal, ...rest } = params;
+
+    // Build auth headers
+    const authHeaders: Record<string, string> = {};
+    const authHeader = authService.getAuthHeader();
+    if (authHeader) {
+      authHeaders['Authorization'] = authHeader;
+    }
+
+    // Map to the backend ChatRequest schema
+    const userId = localStorage.getItem('user_id') || 'anonymous';
+    const body = {
+      user_id: userId,
+      message: rest.message,
+      sync: true, // Use sync mode for direct response
+      thinking: false,
+      web_search: false,
+      deep_search: false,
+    };
 
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
         },
         body: JSON.stringify(body),
         signal,
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
+      const data = await response.json();
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-
-            if (data.startsWith('[DONE]')) {
-              const metadata = JSON.parse(data.slice(6));
-              yield { type: 'done', data: metadata };
-            } else if (data.startsWith('[ERROR]')) {
-              const error = JSON.parse(data.slice(7));
-              yield { type: 'error', data: error };
-            } else {
-              yield { type: 'token', data: data };
-            }
-          }
+      // Simulate streaming by yielding the full response
+      // The backend /chat/message sync mode returns ChatResponse
+      if (data.response) {
+        // Yield response in chunks for smooth streaming effect
+        const words = data.response.split(' ');
+        let accumulated = '';
+        for (let i = 0; i < words.length; i++) {
+          accumulated += (i > 0 ? ' ' : '') + words[i];
+          yield { type: 'token', data: words[i] + (i < words.length - 1 ? ' ' : '') };
+          // Small delay for streaming effect
+          await new Promise(r => setTimeout(r, 15));
         }
+        yield {
+          type: 'done',
+          data: {
+            sources: data.sources || [],
+            metadata: data.metadata || {},
+            session_id: data.session_id,
+          }
+        };
+      } else if (data.error || !data.success) {
+        yield { type: 'error', data: { error: data.error || 'No response received' } };
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
       yield { type: 'error', data: { error: error instanceof Error ? error.message : 'Unknown error' } };
     }
   },
@@ -679,7 +695,7 @@ export const apiClient = {
    * Check if structured outputs feature is available
    */
   getStructuredOutputsStatus: async () => {
-    return apiCall<StructuredOutputsStatus>('/api/structured-outputs/status');
+    return apiCall<StructuredOutputsStatus>('/structured-outputs/status');
   },
 
   /**
@@ -690,7 +706,7 @@ export const apiClient = {
       schema_name: string;
       json_schema: Record<string, any>;
       description: string;
-    }>(`/api/structured-outputs/schema/${schemaName}`);
+    }>(`/structured-outputs/schema/${schemaName}`);
   },
 
   /**
@@ -699,7 +715,7 @@ export const apiClient = {
    */
   structuredHealthAnalysis: async (params: StructuredHealthAnalysisRequest) => {
     return apiCall<StructuredResponse<CardioHealthAnalysis>>(
-      '/api/structured-outputs/health-analysis',
+      '/structured-outputs/health-analysis',
       {
         method: 'POST',
         body: params,
@@ -713,7 +729,7 @@ export const apiClient = {
    */
   structuredIntentAnalysis: async (params: { message: string }) => {
     return apiCall<StructuredResponse<SimpleIntentAnalysis>>(
-      '/api/structured-outputs/intent',
+      '/structured-outputs/intent',
       {
         method: 'POST',
         body: params,
@@ -726,7 +742,7 @@ export const apiClient = {
    */
   structuredConversation: async (params: StructuredConversationRequest) => {
     return apiCall<StructuredResponse<ConversationResponse>>(
-      '/api/structured-outputs/conversation',
+      '/structured-outputs/conversation',
       {
         method: 'POST',
         body: params,
@@ -742,21 +758,21 @@ export const apiClient = {
    * Get all user preferences
    */
   getPreferences: async (userId: string): Promise<UserPreferences> => {
-    return apiCall<UserPreferences>(`/api/memory/preferences/${userId}`);
+    return apiCall<UserPreferences>(`/memory/preferences/${userId}`);
   },
 
   /**
    * Get a specific user preference
    */
   getPreference: async (userId: string, key: string): Promise<{ key: string; value: unknown }> => {
-    return apiCall<{ key: string; value: unknown }>(`/api/memory/preferences/${userId}/${key}`);
+    return apiCall<{ key: string; value: unknown }>(`/memory/preferences/${userId}/${key}`);
   },
 
   /**
    * Update user preferences
    */
   updatePreferences: async (userId: string, preferences: Partial<UserPreferences>): Promise<void> => {
-    return apiCall<void>(`/api/memory/preferences/${userId}`, {
+    return apiCall<void>(`/memory/preferences/${userId}`, {
       method: 'PUT',
       body: preferences,
     });
@@ -766,7 +782,7 @@ export const apiClient = {
    * Bulk update user preferences
    */
   bulkUpdatePreferences: async (userId: string, preferences: Record<string, unknown>): Promise<void> => {
-    return apiCall<void>(`/api/memory/preferences/${userId}/bulk`, {
+    return apiCall<void>(`/memory/preferences/${userId}/bulk`, {
       method: 'PUT',
       body: { preferences },
     });
@@ -776,7 +792,7 @@ export const apiClient = {
    * Delete a specific user preference
    */
   deletePreference: async (userId: string, key: string): Promise<void> => {
-    return apiCall<void>(`/api/memory/preferences/${userId}/${key}`, {
+    return apiCall<void>(`/memory/preferences/${userId}/${key}`, {
       method: 'DELETE',
     });
   },
@@ -790,7 +806,7 @@ export const apiClient = {
    * Returns all stored data associated with the user
    */
   exportUserData: async (userId: string): Promise<GDPRExportData> => {
-    return apiCall<GDPRExportData>(`/api/memory/gdpr/export/${userId}`, {
+    return apiCall<GDPRExportData>(`/memory/gdpr/export/${userId}`, {
       method: 'POST',
       timeout: 60000, // Longer timeout for data export
     });
@@ -801,7 +817,7 @@ export const apiClient = {
    * This is irreversible - use with caution
    */
   deleteUserData: async (userId: string): Promise<GDPRDeleteResponse> => {
-    return apiCall<GDPRDeleteResponse>(`/api/memory/gdpr/delete/${userId}`, {
+    return apiCall<GDPRDeleteResponse>(`/memory/gdpr/delete/${userId}`, {
       method: 'DELETE',
       timeout: 60000, // Longer timeout for data deletion
     });
@@ -812,7 +828,7 @@ export const apiClient = {
    */
   getAuditLog: async (userId: string, limit?: number): Promise<AuditLogEntry[]> => {
     const params = limit ? `?limit=${limit}` : '';
-    return apiCall<AuditLogEntry[]>(`/api/memory/audit/${userId}${params}`);
+    return apiCall<AuditLogEntry[]>(`/memory/audit/${userId}${params}`);
   },
 
   // ==========================================================================
@@ -823,21 +839,21 @@ export const apiClient = {
    * Get all model versions
    */
   getModelVersions: async (): Promise<ModelVersionsResponse> => {
-    return apiCall<ModelVersionsResponse>('/api/models/versions');
+    return apiCall<ModelVersionsResponse>('/models/versions');
   },
 
   /**
    * Get version history for a specific model
    */
   getModelHistory: async (modelName: string): Promise<ModelHistoryResponse> => {
-    return apiCall<ModelHistoryResponse>(`/api/models/history/${modelName}`);
+    return apiCall<ModelHistoryResponse>(`/models/history/${modelName}`);
   },
 
   /**
    * List all available models
    */
   listModels: async (): Promise<ModelsListResponse> => {
-    return apiCall<ModelsListResponse>('/api/models/list');
+    return apiCall<ModelsListResponse>('/models/list');
   },
 
   // ==========================================================================
@@ -847,24 +863,24 @@ export const apiClient = {
   uploadDocument: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiCall<DocumentUploadResponse>('/api/documents/upload', {
+    return apiCall<DocumentUploadResponse>('/documents/upload', {
       method: 'POST',
       body: formData,
     });
   },
 
   processDocument: async (documentId: string) => {
-    return apiCall<DocumentProcessingResult>(`/api/documents/process/${documentId}`, {
+    return apiCall<DocumentProcessingResult>(`/documents/process/${documentId}`, {
       method: 'POST',
     });
   },
 
   getDocument: async (documentId: string) => {
-    return apiCall<DocumentResponse>(`/api/documents/${documentId}`);
+    return apiCall<DocumentResponse>(`/documents/${documentId}`);
   },
 
   getDocuments: async () => {
-    return apiCall<DocumentDetails[]>('/api/documents');
+    return apiCall<DocumentDetails[]>('/documents');
   },
 
   // ==========================================================================
@@ -875,29 +891,7 @@ export const apiClient = {
     const formData = new FormData();
     formData.append('file', file);
     if (context) formData.append('patient_context', context);
-    return apiCall<ECGAnalysisResponse>('/api/vision/ecg/analyze', {
-      method: 'POST',
-      body: formData,
-    });
-  },
-
-  recognizeFood: async (file: File, estimatePortions: boolean = true) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('estimate_portions', String(estimatePortions));
-    return apiCall<FoodAnalysisResponse>('/api/vision/food/recognize', {
-      method: 'POST',
-      body: formData,
-    });
-  },
-
-  logMeal: async (userId: string, file: File, mealType: string, notes?: string) => {
-    const formData = new FormData();
-    formData.append('user_id', userId);
-    formData.append('file', file);
-    formData.append('meal_type', mealType);
-    if (notes) formData.append('notes', notes);
-    return apiCall<any>('/api/vision/food/log-meal', {
+    return apiCall<ECGAnalysisResponse>('/vision/ecg/analyze', {
       method: 'POST',
       body: formData,
     });
@@ -908,14 +902,14 @@ export const apiClient = {
   // ==========================================================================
 
   storeCalendarCredentials: async (userId: string, credentials: any) => {
-    return apiCall<any>(`/api/calendar/${userId}/credentials`, {
+    return apiCall<any>(`/calendar/${userId}/credentials`, {
       method: 'POST',
       body: credentials,
     });
   },
 
   syncCalendar: async (userId: string, options: any) => {
-    return apiCall<SyncResponse>(`/api/calendar/${userId}/sync`, {
+    return apiCall<SyncResponse>(`/calendar/${userId}/sync`, {
       method: 'POST',
       body: options,
     });
@@ -925,11 +919,11 @@ export const apiClient = {
     const params = new URLSearchParams();
     if (start) params.append('start_date', start);
     if (end) params.append('end_date', end);
-    return apiCall<CalendarEventResponse[]>(`/api/calendar/${userId}/events?${params.toString()}`);
+    return apiCall<CalendarEventResponse[]>(`/calendar/${userId}/events?${params.toString()}`);
   },
 
   scheduleReminder: async (userId: string, reminder: any) => {
-    return apiCall<ReminderResponse>(`/api/calendar/${userId}/reminder`, {
+    return apiCall<ReminderResponse>(`/calendar/${userId}/reminder`, {
       method: 'POST',
       body: reminder,
     });
@@ -940,21 +934,21 @@ export const apiClient = {
   // ==========================================================================
 
   sendWhatsApp: async (request: any) => {
-    return apiCall<any>('/api/notifications/whatsapp', {
+    return apiCall<any>('/notifications/whatsapp', {
       method: 'POST',
       body: request,
     });
   },
 
   sendEmail: async (request: any) => {
-    return apiCall<any>('/api/notifications/email', {
+    return apiCall<any>('/notifications/email', {
       method: 'POST',
       body: request,
     });
   },
 
   registerDevice: async (userId: string, token: string, platform: string) => {
-    return apiCall<any>('/api/notifications/register-device', {
+    return apiCall<any>('/notifications/register-device', {
       method: 'POST',
       body: { user_id: userId, device_token: token, platform },
     });
@@ -966,7 +960,7 @@ export const apiClient = {
     body: string;
     data?: any;
   }) => {
-    return apiCall<any>('/api/notifications/push', {
+    return apiCall<any>('/notifications/push', {
       method: 'POST',
       body: request,
     });
@@ -977,25 +971,25 @@ export const apiClient = {
   // ==========================================================================
 
   registerSmartwatch: async (device: any) => {
-    return apiCall<any>('/api/smartwatch/register', {
+    return apiCall<any>('/smartwatch/register', {
       method: 'POST',
       body: device,
     });
   },
 
   ingestVitals: async (payload: any) => {
-    return apiCall<any>('/api/smartwatch/vitals/ingest', {
+    return apiCall<any>('/smartwatch/vitals/ingest', {
       method: 'POST',
       body: payload,
     });
   },
 
   getAggregatedVitals: async (deviceId: string, metric: string, interval: string) => {
-    return apiCall<any>(`/api/smartwatch/vitals/${deviceId}/aggregated?metric_type=${metric}&interval=${interval}`);
+    return apiCall<any>(`/smartwatch/vitals/${deviceId}/aggregated?metric_type=${metric}&interval=${interval}`);
   },
 
   analyzeHealth: async (data: any) => {
-    return apiCall<any>('/api/smartwatch/analyze', {
+    return apiCall<any>('/smartwatch/analyze', {
       method: 'POST',
       body: data,
     });
@@ -1018,7 +1012,7 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
-    }>>(`/api/users/${userId}/medications`);
+    }>>(`/users/${userId}/medications`);
   },
 
   /**
@@ -1042,7 +1036,7 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
-    }>(`/api/users/${userId}/medications`, {
+    }>(`/users/${userId}/medications`, {
       method: 'POST',
       body: medication,
     });
@@ -1069,7 +1063,7 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
-    }>(`/api/users/${userId}/medications/${medicationId}`, {
+    }>(`/users/${userId}/medications/${medicationId}`, {
       method: 'PUT',
       body: medication,
     });
@@ -1079,7 +1073,7 @@ export const apiClient = {
    * Delete a medication
    */
   deleteMedication: async (userId: string, medicationId: string) => {
-    return apiCall<{ message: string }>(`/api/users/${userId}/medications/${medicationId}`, {
+    return apiCall<{ message: string }>(`/users/${userId}/medications/${medicationId}`, {
       method: 'DELETE',
     });
   },
@@ -1089,18 +1083,18 @@ export const apiClient = {
   // ==========================================================================
 
   getWeeklySummary: async (userId: string) => {
-    return apiCall<any>(`/api/integrations/weekly-summary/${userId}`);
+    return apiCall<any>(`/integrations/weekly-summary/${userId}`);
   },
 
   predictFromDocument: async (documentId: string, userId: string, patientProfile: any = {}) => {
-    return apiCall<any>('/api/integrations/predict-from-document', {
+    return apiCall<any>('/integrations/predict-from-document', {
       method: 'POST',
       body: { document_id: documentId, user_id: userId, patient_profile: patientProfile },
     });
   },
 
   triggerWeeklySummary: async (userId: string) => {
-    return apiCall<any>('/api/weekly-summary/trigger', {
+    return apiCall<any>('/weekly-summary/trigger', {
       method: 'POST',
       body: { user_id: userId },
     });
@@ -1111,21 +1105,21 @@ export const apiClient = {
   // ==========================================================================
 
   extractMedicalEntities: async (text: string) => {
-    return apiCall<any>('/api/medical-ai/extract-entities', {
+    return apiCall<any>('/medical-ai/extract-entities', {
       method: 'POST',
       body: { text },
     });
   },
 
   getPatientSummary: async (userId: string) => {
-    return apiCall<any>('/api/medical-ai/patient-summary', {
+    return apiCall<any>('/medical-ai/patient-summary', {
       method: 'POST',
       body: { user_id: userId },
     });
   },
 
   expandTerminology: async (term: string) => {
-    return apiCall<any>('/api/medical-ai/terminology', {
+    return apiCall<any>('/medical-ai/terminology', {
       method: 'POST',
       body: { term },
     });
@@ -1136,28 +1130,28 @@ export const apiClient = {
   // ==========================================================================
 
   recordBloodPressure: async (systolic: number, diastolic: number, userId: string) => {
-    return apiCall<any>('/api/tools/blood-pressure', {
+    return apiCall<any>('/tools/blood-pressure', {
       method: 'POST',
       body: { systolic, diastolic, user_id: userId, timestamp: new Date().toISOString() },
     });
   },
 
   recordHeartRate: async (bpm: number, userId: string) => {
-    return apiCall<any>('/api/tools/heart-rate', {
+    return apiCall<any>('/tools/heart-rate', {
       method: 'POST',
       body: { bpm, user_id: userId, timestamp: new Date().toISOString() },
     });
   },
 
   checkDrugInteractions: async (medications: string[]) => {
-    return apiCall<any>('/api/tools/drug-interactions', {
+    return apiCall<any>('/tools/drug-interactions', {
       method: 'POST',
       body: { medications },
     });
   },
 
   symptomTriage: async (symptoms: string[], userId: string) => {
-    return apiCall<any>('/api/tools/symptom-triage', {
+    return apiCall<any>('/tools/symptom-triage', {
       method: 'POST',
       body: { symptoms, user_id: userId },
     });
@@ -1168,22 +1162,22 @@ export const apiClient = {
   // ==========================================================================
 
   getDisclaimer: async (type: string) => {
-    return apiCall<any>(`/api/compliance/disclaimer/${type}`);
+    return apiCall<any>(`/compliance/disclaimer/${type}`);
   },
 
   encryptPHI: async (data: any) => {
-    return apiCall<any>('/api/compliance/encrypt-phi', {
+    return apiCall<any>('/compliance/encrypt-phi', {
       method: 'POST',
       body: { data },
     });
   },
 
   getVerificationQueue: async () => {
-    return apiCall<any>('/api/compliance/verification/pending');
+    return apiCall<any>('/compliance/verification/pending');
   },
 
   submitVerification: async (itemId: string, verified: boolean, notes?: string) => {
-    return apiCall<any>('/api/compliance/verification/submit', {
+    return apiCall<any>('/compliance/verification/submit', {
       method: 'POST',
       body: { item_id: itemId, verified, notes },
     });
@@ -1194,18 +1188,18 @@ export const apiClient = {
   // ==========================================================================
 
   getConsent: async (userId: string) => {
-    return apiCall<any>(`/api/consent/${userId}`);
+    return apiCall<any>(`/consent/${userId}`);
   },
 
   updateConsent: async (userId: string, consents: any) => {
-    return apiCall<any>(`/api/consent/${userId}`, {
+    return apiCall<any>(`/consent/${userId}`, {
       method: 'PUT',
       body: consents,
     });
   },
 
   revokeConsent: async (userId: string, consentType: string) => {
-    return apiCall<any>(`/api/consent/${userId}/${consentType}`, {
+    return apiCall<any>(`/consent/${userId}/${consentType}`, {
       method: 'DELETE',
     });
   },
@@ -1218,7 +1212,7 @@ export const apiClient = {
    * Submit user feedback
    */
   submitFeedback: async (data: { type: string; message: string; rating?: number; userId: string }) => {
-    return apiCall<{ message: string }>('/api/feedback', {
+    return apiCall<{ message: string }>('/feedback', {
       method: 'POST',
       body: data,
     });
@@ -1235,7 +1229,7 @@ export const apiClient = {
   // ==========================================================================
 
   evaluateRAG: async (queries: string[], groundTruth?: any[]) => {
-    return apiCall<any>('/api/evaluation/rag', {
+    return apiCall<any>('/evaluation/rag', {
       method: 'POST',
       body: { queries, ground_truth: groundTruth },
     });
@@ -1557,14 +1551,6 @@ export interface ECGAnalysisResponse {
   abnormalities: string[];
   recommendations: string[];
   confidence: number;
-}
-
-export interface FoodAnalysisResponse {
-  food_items: any[];
-  total_calories?: number;
-  macros: Record<string, number>;
-  health_score?: number;
-  recommendations: string[];
 }
 
 // ============================================================================

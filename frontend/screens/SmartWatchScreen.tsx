@@ -33,41 +33,58 @@ export default function SmartWatchScreen() {
         isConnected: bleConnected,
         connectedDeviceId,
         smartwatchData,
-        startHeartRateNotifications,
-        stopHeartRateNotifications,
+        startAllMonitoring,
+        stopAllMonitoring,
+        readTemperature,
     } = useBluetooth();
 
-    // When BLE is connected and providing heart rate, use it
+    // When BLE is connected, start all monitoring
     useEffect(() => {
         if (bleConnected && connectedDeviceId) {
             setDeviceStatus('Connected (BLE)');
             setIsLive(true);
-            // Start receiving real BLE heart rate notifications
-            startHeartRateNotifications(connectedDeviceId).catch(console.error);
+            startAllMonitoring(connectedDeviceId).catch(console.error);
+
+            // Poll temperature every 30 seconds (thermometer may not support notifications)
+            const tempInterval = setInterval(() => {
+                if (connectedDeviceId) {
+                    readTemperature(connectedDeviceId).catch(() => {});
+                }
+            }, 30000);
 
             return () => {
-                stopHeartRateNotifications(connectedDeviceId).catch(console.error);
+                stopAllMonitoring(connectedDeviceId).catch(console.error);
+                clearInterval(tempInterval);
             };
         }
     }, [bleConnected, connectedDeviceId]);
 
     // Update vitals and chart from BLE smartwatch data
     useEffect(() => {
-        if (bleConnected && smartwatchData.heartRate) {
+        if (bleConnected) {
             setVitals((prev: any) => ({
                 ...prev,
-                heart_rate: smartwatchData.heartRate,
+                ...(smartwatchData.heartRate != null && { heart_rate: smartwatchData.heartRate }),
+                ...(smartwatchData.bloodPressureSystolic != null && {
+                    blood_pressure: `${smartwatchData.bloodPressureSystolic}/${smartwatchData.bloodPressureDiastolic}`,
+                    bp_systolic: smartwatchData.bloodPressureSystolic,
+                    bp_diastolic: smartwatchData.bloodPressureDiastolic,
+                }),
+                ...(smartwatchData.temperature != null && { temperature: smartwatchData.temperature }),
+                ...(smartwatchData.batteryLevel != null && { battery: smartwatchData.batteryLevel }),
             }));
 
-            setHeartRateHistory(prev => {
-                const newPoint = {
-                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                    value: smartwatchData.heartRate!,
-                };
-                return [...prev, newPoint].slice(-20);
-            });
+            if (smartwatchData.heartRate) {
+                setHeartRateHistory(prev => {
+                    const newPoint = {
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                        value: smartwatchData.heartRate!,
+                    };
+                    return [...prev, newPoint].slice(-30);
+                });
+            }
         }
-    }, [bleConnected, smartwatchData.heartRate, smartwatchData.heartRateTimestamp]);
+    }, [bleConnected, smartwatchData.heartRate, smartwatchData.heartRateTimestamp, smartwatchData.bloodPressureTimestamp, smartwatchData.temperatureTimestamp]);
 
     useEffect(() => {
         const init = async () => {
@@ -258,11 +275,14 @@ export default function SmartWatchScreen() {
                     </div>
                 ) : vitals ? (
                     <div className="grid grid-cols-2 gap-3">
-                        {renderVitalCard('monitor_heart', 'Heart Rate', vitals.heart_rate, 'BPM', 'text-pink-500', 'bg-pink-50 dark:bg-pink-900/20')}
-                        {renderVitalCard('directions_walk', 'Steps', vitals.steps?.toLocaleString(), 'steps', 'text-blue-500', 'bg-blue-50 dark:bg-blue-900/20')}
-                        {renderVitalCard('local_fire_department', 'Calories', vitals.calories, 'kcal', 'text-orange-500', 'bg-orange-50 dark:bg-orange-900/20')}
-                        {renderVitalCard('bedtime', 'Sleep', vitals.sleep, '', 'text-purple-500', 'bg-purple-50 dark:bg-purple-900/20')}
-                        {renderVitalCard('water_drop', 'SpO2', vitals.spo2, '%', 'text-cyan-500', 'bg-cyan-50 dark:bg-cyan-900/20')}
+                        {renderVitalCard('monitor_heart', 'Heart Rate', vitals.heart_rate || '--', 'BPM', 'text-pink-500', 'bg-pink-50 dark:bg-pink-900/20')}
+                        {renderVitalCard('bloodtype', 'Blood Pressure', vitals.blood_pressure || '--/--', 'mmHg', 'text-red-500', 'bg-red-50 dark:bg-red-900/20')}
+                        {renderVitalCard('water_drop', 'SpO2', vitals.spo2 || '--', '%', 'text-cyan-500', 'bg-cyan-50 dark:bg-cyan-900/20')}
+                        {renderVitalCard('thermostat', 'Temperature', vitals.temperature || '--', '°C', 'text-amber-500', 'bg-amber-50 dark:bg-amber-900/20')}
+                        {renderVitalCard('directions_walk', 'Steps', vitals.steps?.toLocaleString() || '0', 'steps', 'text-blue-500', 'bg-blue-50 dark:bg-blue-900/20')}
+                        {renderVitalCard('local_fire_department', 'Calories', vitals.calories || '0', 'kcal', 'text-orange-500', 'bg-orange-50 dark:bg-orange-900/20')}
+                        {renderVitalCard('bedtime', 'Sleep', vitals.sleep || '--', '', 'text-purple-500', 'bg-purple-50 dark:bg-purple-900/20')}
+                        {renderVitalCard('battery_full', 'Watch Battery', smartwatchData.batteryLevel ?? '--', '%', 'text-green-500', 'bg-green-50 dark:bg-green-900/20')}
                     </div>
                 ) : (
                     <div className="text-center py-10 text-slate-500">No data available</div>
@@ -275,7 +295,7 @@ export default function SmartWatchScreen() {
                             <span className="material-symbols-outlined text-pink-500">ecg_heart</span>
                             Live Heart Rate
                         </h3>
-                        <span className="text-xs text-slate-400">Last 20 seconds</span>
+                        <span className="text-xs text-slate-400">Last 30 readings</span>
                     </div>
 
                     <div className="h-64 w-full">

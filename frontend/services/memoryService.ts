@@ -124,8 +124,15 @@ interface MemoryServiceConfig {
   cacheExpiryMs: number;
 }
 
+// Build base URL for memory service - must match backend route prefix
+const MEMORY_BASE_URL = (() => {
+  const nlpUrl = (import.meta as any).env?.VITE_NLP_SERVICE_URL;
+  const base = nlpUrl && nlpUrl !== '/' ? nlpUrl : 'http://localhost:5001';
+  return `${base}/memory`;
+})();
+
 const DEFAULT_CONFIG: MemoryServiceConfig = {
-  baseUrl: '/api/memory',
+  baseUrl: MEMORY_BASE_URL,
   timeout: 30000,
   enableLocalCache: true,
   cacheExpiryMs: 5 * 60 * 1000, // 5 minutes

@@ -53,6 +53,20 @@ function formatTime(ts: string) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const searchModeLabel: Record<SearchMode, { icon: string; label: string; color: string }> = {
+  default: { icon: '', label: '', color: '' },
+  web_search: { icon: 'travel_explore', label: 'Web Search', color: 'text-blue-500 bg-blue-500/10 border-blue-200/40 dark:border-blue-500/20' },
+  deep_search: { icon: 'psychology', label: 'Deep Analysis', color: 'text-purple-500 bg-purple-500/10 border-purple-200/40 dark:border-purple-500/20' },
+  memory: { icon: 'history', label: 'Memory', color: 'text-amber-500 bg-amber-500/10 border-amber-200/40 dark:border-amber-500/20' },
+};
+
 const ChatScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -159,6 +173,7 @@ const ChatScreen: React.FC = () => {
     const currentSearchMode = searchMode;
     setInput('');
     setAttachment(null);
+    setSearchMode('default'); // Reset after send (Gemini-style)
     if (fileInputRef.current) fileInputRef.current.value = '';
     await chatActions.sendMessage(text, selectedModel, currentSearchMode);
   };
@@ -587,7 +602,7 @@ const ChatScreen: React.FC = () => {
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-xl shadow-red-500/20 mb-6 animate-breathe">
               <span className="material-symbols-outlined text-white text-4xl">cardiology</span>
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">How can I help you today?</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">{getGreeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
             <p className="text-sm text-slate-400 dark:text-slate-500 text-center max-w-[280px] mb-8 leading-relaxed">
               Ask me about heart health, log your vitals, or get personalized guidance.
             </p>
@@ -595,7 +610,7 @@ const ChatScreen: React.FC = () => {
               {[
                 { icon: 'monitor_heart', label: 'Log Blood Pressure', prompt: 'Log my blood pressure as 120 over 80 and heart rate 72', gradient: 'from-red-500/10 to-red-600/5 dark:from-red-500/20 dark:to-red-600/10', iconColor: 'text-red-500', border: 'border-red-200/60 dark:border-red-500/20' },
                 { icon: 'show_chart', label: 'View HR Trend', prompt: 'Show my heart rate trend for this week', gradient: 'from-blue-500/10 to-blue-600/5 dark:from-blue-500/20 dark:to-blue-600/10', iconColor: 'text-blue-500', border: 'border-blue-200/60 dark:border-blue-500/20' },
-                { icon: 'restaurant', label: 'Heart-Healthy Meal', prompt: 'Suggest a heart-healthy meal plan for today', gradient: 'from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10', iconColor: 'text-emerald-500', border: 'border-emerald-200/60 dark:border-emerald-500/20' },
+                { icon: 'ecg_heart', label: 'Risk Assessment', prompt: 'Can you assess my cardiovascular risk based on my recent vitals?', gradient: 'from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/20 dark:to-emerald-600/10', iconColor: 'text-emerald-500', border: 'border-emerald-200/60 dark:border-emerald-500/20' },
                 { icon: 'medication', label: 'Medication Info', prompt: 'What are the side effects of Metoprolol?', gradient: 'from-purple-500/10 to-purple-600/5 dark:from-purple-500/20 dark:to-purple-600/10', iconColor: 'text-purple-500', border: 'border-purple-200/60 dark:border-purple-500/20' },
               ].map((item, i) => (
                 <button key={i} onClick={() => handleSend(item.prompt)}
@@ -704,7 +719,7 @@ const ChatScreen: React.FC = () => {
                   exit={{ opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 350, mass: 0.8 }}
                   className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex gap-2.5 max-w-[88%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex gap-2.5 ${isUser ? 'max-w-[88%] flex-row-reverse' : 'max-w-full w-full flex-row'}`}>
                     {!isUser && (
                       <div className="shrink-0 mt-0.5">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-sm">
@@ -713,10 +728,10 @@ const ChatScreen: React.FC = () => {
                       </div>
                     )}
                     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                      <div className={`group relative px-4 py-3 text-sm leading-relaxed transition-all ${
+                      <div className={`group relative text-sm leading-relaxed transition-all ${
                         isUser
-                          ? 'bg-gradient-to-br from-red-500 to-red-600 text-white rounded-2xl rounded-br-md shadow-sm shadow-red-500/15'
-                          : 'bg-white dark:bg-[#1a2737] text-slate-800 dark:text-slate-100 rounded-2xl rounded-bl-md border border-slate-200/80 dark:border-slate-700/40 shadow-sm'
+                          ? 'px-4 py-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-2xl rounded-br-md shadow-sm shadow-red-500/15'
+                          : 'py-1 text-slate-800 dark:text-slate-100'
                       }`}>
                         {msg.image && (
                           <div className="mb-2.5 rounded-xl overflow-hidden">
@@ -748,6 +763,14 @@ const ChatScreen: React.FC = () => {
                             <span className="material-symbols-outlined text-[9px]">history</span> Memory
                           </span>
                         )}
+                        {isUser && (msg as any).searchMode && (msg as any).searchMode !== 'default' && (() => {
+                          const sm = searchModeLabel[(msg as any).searchMode as SearchMode];
+                          return (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-medium border ${sm.color}`}>
+                              <span className="material-symbols-outlined text-[9px]">{sm.icon}</span> {sm.label}
+                            </span>
+                          );
+                        })()}
                         {msg.metadata?.model && !isUser && (
                           <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-full">
                             {String(msg.metadata.model)}
@@ -803,7 +826,9 @@ const ChatScreen: React.FC = () => {
                         <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full typing-dot" />
                         <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full typing-dot" />
                       </div>
-                      <span className="text-[11px] text-slate-400 ml-1 font-medium">Thinking...</span>
+                      <span className="text-[11px] text-slate-400 ml-1 font-medium">
+                        {searchMode === 'web_search' ? 'Searching the web...' : searchMode === 'deep_search' ? 'Analyzing in depth...' : searchMode === 'memory' ? 'Checking your history...' : 'Thinking...'}
+                      </span>
                     </div>
                   </div>
                   <button onClick={() => chatActions.stopGeneration()}

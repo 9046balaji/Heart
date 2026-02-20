@@ -85,50 +85,7 @@ export interface ECGAnalysisResponse {
     disclaimer: string;
 }
 
-export interface FoodItem {
-    name: string;
-    calories: number;
-    confidence: number;
-    portion_size?: string;
-    serving_unit?: string;
-}
-
-export interface MacroNutrients {
-    protein: number;
-    carbs: number;
-    fat: number;
-    fiber?: number;
-    sodium?: number;
-}
-
-export interface FoodAnalysisResponse {
-    food_items: FoodItem[];
-    total_calories?: number;
-    macros: MacroNutrients;
-    health_score?: number;
-    recommendations: string[];
-    confidence: number;
-    analysis_time_ms: number;
-}
-
-export interface MealLogResponse {
-    status: 'logged';
-    meal_log: {
-        user_id: string;
-        meal_type: string;
-        logged_at: string;
-        food_items: FoodItem[];
-        total_calories?: number;
-        macros: MacroNutrients;
-        notes?: string;
-        analysis_confidence: number;
-    };
-    health_score?: number;
-    recommendations: string[];
-    processing_time_ms: number;
-}
-
-export type VisionImageType = 'ecg' | 'food' | 'document' | 'auto';
+export type VisionImageType = 'ecg' | 'document' | 'auto';
 
 export interface VisionAnalysisRequest {
     image_base64: string;
@@ -275,11 +232,31 @@ export interface HeartDiseasePredictionRequest {
     st_slope: number;
 }
 
+export interface TestResultDetail {
+    test_name: string;
+    value: string;
+    normal_range: string;
+    status: 'Normal' | 'Abnormal' | 'Borderline' | 'Critical';
+    risk_contribution: 'Low' | 'Moderate' | 'High';
+    explanation: string;
+}
+
 export interface HeartDiseasePredictionResponse {
     prediction: number;
     probability: number;
     risk_level: string;
+    confidence: number;
     message: string;
+    test_results?: TestResultDetail[];
+    clinical_interpretation?: string;
+    triage_level?: string;
+    triage_actions?: string[];
+    guidelines_cited?: string[];
+    is_grounded?: boolean;
+    quality_score?: number;
+    needs_medical_attention: boolean;
+    processing_time_ms?: number;
+    metadata?: Record<string, any>;
 }
 
 // ============================================================================
