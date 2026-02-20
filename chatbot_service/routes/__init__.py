@@ -1,20 +1,19 @@
 """
 Routes module for Cardio AI NLP Service.
 
-Provides REST API endpoints for:
-- Authentication (auth_routes)
-- Memory management (memory)
-- Orchestrated chat with LangGraph (orchestrated_chat)
-- Document upload and multimodal processing (documents)
+Organized into 3 sub-packages:
+- core/     - Authentication, Chat, Memory, Documents, Users, Feedback, SSE, WebSocket, Speech
+- health/   - Heart Prediction, Smartwatch, Vision (ECG), Medical AI, Tools, Calendar, Notifications
+- admin/    - Database Health, RAG Health, NLP Debug, Job Management, Models, Evaluation
 """
 
 from fastapi import APIRouter
 
-# Import individual routers
-from .auth_routes import router as auth_router
-from .memory import router as memory_router
-from .orchestrated_chat import router as orchestrated_chat_router
-from .documents import router as document_router
+# Import individual routers from sub-packages
+from .core.auth_routes import router as auth_router
+from .core.memory import router as memory_router
+from .core.orchestrated_chat import router as orchestrated_chat_router
+from .core.documents import router as document_router
 
 # Create a placeholder router for backward compatibility
 router = APIRouter()

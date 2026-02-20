@@ -31,6 +31,7 @@ class HeartRiskResult:
     confidence: float = 0.0
     response: str = ""
     reasoning: str = ""
+    contributing_factors: str = ""
     citations: List[str] = field(default_factory=list)
     is_grounded: bool = False
     needs_medical_attention: bool = False
@@ -231,6 +232,9 @@ class HeartDiseasePredictor:
         risk_level = self._extract_risk_level(response)
         needs_attention = risk_level in ["High", "Critical", "Emergency"]
         
+        # Extract contributing factors explanation
+        contributing_factors = self._extract_contributing_factors(response)
+        
         # Calculate processing time
         processing_time = (datetime.now() - start_time).total_seconds()
         
@@ -239,6 +243,7 @@ class HeartDiseasePredictor:
             confidence=max(retrieval_result.scores) if retrieval_result.scores else 0.5,
             response=response,
             reasoning=self._get_reasoning_section(response),
+            contributing_factors=contributing_factors,
             citations=citations,
             is_grounded=is_grounded,
             needs_medical_attention=needs_attention,
@@ -274,6 +279,8 @@ Analyze the following patient case using ONLY the provided medical guidelines.
 3. Cite specific guidelines that support your assessment
 4. Classify risk as: Low, Moderate, High, or Critical
 5. If symptoms suggest emergency (STEMI, cardiogenic shock), clearly state this
+6. For EACH patient result, lab value, symptom, and risk factor present in the case, explain WHY it contributes to or protects against heart disease risk
+7. Connect each contributing factor to its clinical significance using the guidelines
 
 ### Response Format:
 **Risk Level:** [Low/Moderate/High/Critical]
@@ -281,11 +288,18 @@ Analyze the following patient case using ONLY the provided medical guidelines.
 **Assessment:**
 [Your medical assessment]
 
+**Contributing Factors Analysis:**
+For each result/value/symptom found in the patient case, explain its role:
+- [Result/Value/Symptom 1]: Why this contributes to heart disease risk and what it indicates
+- [Result/Value/Symptom 2]: Why this contributes to heart disease risk and what it indicates
+- [Continue for all relevant factors...]
+Include both risk-increasing AND protective factors if present.
+
 **Reasoning:**
-[Step-by-step reasoning citing guidelines]
+[Step-by-step reasoning citing guidelines, synthesizing how the contributing factors combine to determine the overall risk level]
 
 **Recommendations:**
-[Any recommended actions or follow-up]
+[Any recommended actions or follow-up based on the identified contributing factors]
 
 ⚠️ **Disclaimer:** This is an AI-assisted analysis. Always consult a qualified healthcare provider for medical decisions.
 """
@@ -309,6 +323,35 @@ Analyze the following patient case using ONLY the provided medical guidelines.
             return "Low"
         
         return "Undetermined"
+    
+    def _extract_contributing_factors(self, response: str) -> str:
+        """Extract contributing factors analysis from response."""
+        patterns = [
+            r"\*\*Contributing Factors Analysis:\*\*\s*(.*?)(?=\*\*Reasoning|\*\*Recommendations|$)",
+            r"Contributing Factors Analysis:\s*(.*?)(?=Reasoning:|Recommendations:|$)",
+            r"\*\*Contributing Factors:\*\*\s*(.*?)(?=\*\*|$)",
+            r"Contributing Factors:\s*(.*?)(?=\n\n\*\*|$)",
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        
+        # Fallback: try to extract bullet points that discuss individual factors
+        factor_lines = []
+        in_factors = False
+        for line in response.split('\n'):
+            if 'contributing factor' in line.lower() or 'why' in line.lower() and 'risk' in line.lower():
+                in_factors = True
+                continue
+            if in_factors:
+                if line.strip().startswith('-') or line.strip().startswith('•'):
+                    factor_lines.append(line.strip())
+                elif line.strip().startswith('**') and factor_lines:
+                    break
+        
+        return '\n'.join(factor_lines) if factor_lines else ""
     
     def _get_reasoning_section(self, response: str) -> str:
         """Extract reasoning section from response."""

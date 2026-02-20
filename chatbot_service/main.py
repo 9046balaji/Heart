@@ -619,6 +619,16 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error during startup: {e}")
         # Don't raise exception to allow service to start in degraded mode
 
+    # ========== INITIALIZE HEART DISEASE PREDICTION SERVICE ==========
+    try:
+        from routes.health.heart_prediction import initialize_heart_prediction
+        logger.info("Initializing Heart Disease Prediction Service...")
+        initialize_heart_prediction()
+        logger.info("✅ Heart Disease Prediction Service ready (ML + MedGemma interpretation)")
+    except Exception as e:
+        logger.error(f"⚠️  Heart Disease Prediction Service failed to initialize: {e}")
+        logger.warning("   Heart prediction endpoints will return 503")
+
     yield
 
     # ============================================================================
@@ -635,7 +645,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"⚠️  Routes layer shutdown failed (non-critical): {e}")
     
-    # 2. Original main.py shutdown logic
+    # 2. Shutdown Heart Disease Prediction Service
+    try:
+        from routes.health.heart_prediction import shutdown_heart_prediction
+        shutdown_heart_prediction()
+        logger.info("✅ Heart Disease Prediction Service shutdown complete")
+    except Exception as e:
+        logger.error(f"Error shutting down heart prediction: {e}")
+
+    # 3. Original main.py shutdown logic
     # Shutdown Memory Manager
     try:
         if MEMORI_MANAGER_AVAILABLE and memory_manager:
@@ -870,45 +888,101 @@ except Exception as e:
 
 logger.info("📂 Loading routers...")
 
-# Core Routes - Authentication
-safe_include_router(app, "routes.auth_routes", "router", prefix="/auth", tags=["Auth"])
+# ============================================================================
+# CORE ROUTES - Essential application functionality
+# ============================================================================
 
-# Core Routes - Phase 1: Orchestrated Chat (Main conversational endpoint)
-safe_include_router(app, "routes.orchestrated_chat", "router", prefix="/chat", tags=["Orchestrated Chat"])
+# Authentication
+safe_include_router(app, "routes.core.auth_routes", "router", prefix="/auth", tags=["Auth"])
 
-# Core Routes - Feedback collection for model improvement
-safe_include_router(app, "routes.feedback", "router", prefix="/feedback", tags=["Feedback"])
+# Orchestrated Chat (Main conversational endpoint)
+safe_include_router(app, "routes.core.orchestrated_chat", "router", prefix="/chat", tags=["Orchestrated Chat"])
 
-# Core Routes - Memory management
+# Feedback collection for model improvement
+safe_include_router(app, "routes.core.feedback", "router", prefix="/feedback", tags=["Feedback"])
+
+# Memory management
 if MEMORY_ENABLED:
-    safe_include_router(app, "routes.memory", "router", prefix="/memory", tags=["Memory"])
+    safe_include_router(app, "routes.core.memory", "router", prefix="/memory", tags=["Memory"])
 
-# Document upload routes (Phase 2.4: Multimodal)
-safe_include_router(app, "routes.documents", "router", prefix="/documents", tags=["Document Management"])
+# Document upload (Multimodal)
+safe_include_router(app, "routes.core.documents", "router", prefix="/documents", tags=["Document Management"])
 
-# NLP Debug Routes (Phase 3: Visualization & Troubleshooting)
-safe_include_router(app, "routes.nlp_debug", "router", prefix="/nlp", tags=["NLP Debug"])
+# SSE Routes - Server-Sent Events for real-time updates
+safe_include_router(app, "routes.core.sse_routes", "router", prefix="/sse", tags=["Server-Sent Events"])
+
+# Users - medication CRUD management
+safe_include_router(app, "routes.core.users", "router", prefix="/users", tags=["Users"])
+
+# Speech - audio transcription and synthesis
+safe_include_router(app, "routes.core.speech", "router", prefix="/speech", tags=["Speech"])
 
 # ============================================================================
-# SCALABILITY ROUTES (Async Job Pattern)
+# HEALTH ROUTES - Medical and health-related features
 # ============================================================================
+
+# Heart Disease Prediction (ML Stacking Ensemble + MedGemma Interpretation)
+safe_include_router(app, "routes.health.heart_prediction", "router", prefix="/heart", tags=["Heart Disease Prediction"])
+
+# Smartwatch - wearable device vitals ingestion and analysis
+safe_include_router(app, "routes.health.smartwatch", "router", prefix="/smartwatch", tags=["Smartwatch"])
+
+# Vision - medical image analysis (ECG)
+safe_include_router(app, "routes.health.vision", "router", prefix="/vision", tags=["Vision"])
+
+# Medical AI - NLP entity extraction, patient summaries, terminology
+safe_include_router(app, "routes.health.medical_ai", "router", prefix="/medical-ai", tags=["Medical AI"])
+
+# Tools - clinical tools (vitals, drug interactions, symptom triage)
+safe_include_router(app, "routes.health.tools", "router", prefix="/tools", tags=["Tools"])
+
+# Structured Outputs - schema-driven LLM responses
+safe_include_router(app, "routes.health.structured_outputs", "router", prefix="/structured-outputs", tags=["Structured Outputs"])
+
+# Weekly Summary - health summary generation trigger
+safe_include_router(app, "routes.health.weekly_summary", "router", prefix="/weekly-summary", tags=["Weekly Summary"])
+
+# Calendar - appointment management and reminders
+safe_include_router(app, "routes.health.calendar", "router", prefix="/calendar", tags=["Calendar"])
+
+# Notifications - multi-channel notifications (WhatsApp, Email, Push)
+safe_include_router(app, "routes.health.notifications", "router", prefix="/notifications", tags=["Notifications"])
+
+# Compliance - HIPAA disclaimers, PHI encryption, verification
+safe_include_router(app, "routes.health.compliance", "router", prefix="/compliance", tags=["Compliance"])
+
+# Consent - user consent management
+safe_include_router(app, "routes.health.consent", "router", prefix="/consent", tags=["Consent"])
+
+# ============================================================================
+# ADMIN ROUTES - System administration and monitoring
+# ============================================================================
+
+# NLP Debug Routes (Visualization & Troubleshooting)
+safe_include_router(app, "routes.admin.nlp_debug", "router", prefix="/nlp", tags=["NLP Debug"])
 
 # Job Management API - status queries, cancellation, retry, dead letter queue
-safe_include_router(app, "routes.job_management", "router", prefix="/api/v2", tags=["Job Management"])
-
-# SSE Routes - Server-Sent Events for real-time updates (HTTP fallback)
-safe_include_router(app, "routes.sse_routes", "router", prefix="/sse", tags=["Server-Sent Events"])
+safe_include_router(app, "routes.admin.job_management", "router", prefix="/api/v2", tags=["Job Management"])
 
 # Database Health & Monitoring Routes
-safe_include_router(app, "routes.db_health", "router", prefix="/db", tags=["Database Health"])
+safe_include_router(app, "routes.admin.db_health", "router", prefix="/db", tags=["Database Health"])
 
 # RAG & Memory Health Routes
-safe_include_router(app, "routes.rag_memory_health", "router", prefix="/rag-memory", tags=["RAG Memory Health"])
+safe_include_router(app, "routes.admin.rag_memory_health", "router", prefix="/rag-memory", tags=["RAG Memory Health"])
+
+# Models Management - ML model version tracking and discovery
+safe_include_router(app, "routes.admin.models_management", "router", prefix="/models", tags=["Models Management"])
+
+# Evaluation - RAG pipeline quality evaluation
+safe_include_router(app, "routes.admin.evaluation", "router", prefix="/evaluation", tags=["Evaluation"])
+
+# Integrations - cross-service integration endpoints
+safe_include_router(app, "routes.admin.integrations", "router", prefix="/integrations", tags=["Integrations"])
 
 # WebSocket Routes - Real-time updates via WebSocket
 # Note: WebSocket routes are typically registered directly, not via include_router
 try:
-    from routes.websocket_routes import router as websocket_router
+    from routes.core.websocket_routes import router as websocket_router
     app.include_router(websocket_router)
     logger.info("✅ WebSocket routes loaded")
 except Exception as e:

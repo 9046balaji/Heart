@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 
-from routes.file_security import validate_upload
+from routes.core.file_security import validate_upload
 from core.security import get_current_user
 
 logger = logging.getLogger(__name__)

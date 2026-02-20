@@ -29,7 +29,7 @@ from core.services.job_store import get_job_store, JobStatus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/sse", tags=["Server-Sent Events"])
+router = APIRouter(tags=["Server-Sent Events"])
 
 
 # ============================================================================

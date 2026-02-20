@@ -287,7 +287,7 @@ async def startup_event():
     try:
         # 1. Initialize authentication database service
         logger.info("📦 Initializing authentication database...")
-        from routes.auth_db_service import init_auth_db_service
+        from routes.core.auth_db_service import init_auth_db_service
         from core.dependencies import DIContainer
         
         container = DIContainer.get_instance()
@@ -468,7 +468,7 @@ async def startup_event():
         
         # Wire up ARQ pool to orchestrated chat routes
         try:
-            from routes.orchestrated_chat import set_arq_pool
+            from routes.core.orchestrated_chat import set_arq_pool
             set_arq_pool(_arq_pool)
             logger.info("✅ ARQ pool wired to orchestrated chat routes")
         except ImportError as e:

@@ -12,7 +12,7 @@ from core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     decode_token
 )
-from routes.auth_db_service import get_auth_db_service, AuthDatabaseService
+from routes.core.auth_db_service import get_auth_db_service, AuthDatabaseService
 
 router = APIRouter(tags=["Authentication"])
 logger = logging.getLogger(__name__)

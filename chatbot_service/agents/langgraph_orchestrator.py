@@ -969,11 +969,19 @@ class LangGraphOrchestrator:
             grounded_indicator = "✅ Evidence-based" if result.is_grounded else "⚠️ Review recommended"
             attention_indicator = "🚨 **SEEK IMMEDIATE MEDICAL ATTENTION**" if result.needs_medical_attention else ""
             
+            # Include contributing factors explanation if available
+            factors_section = ""
+            if result.contributing_factors:
+                factors_section = f"""
+**Why These Results May Indicate Heart Disease:**
+{result.contributing_factors}
+"""
+            
             response = f"""
 **Heart Disease Risk Assessment**
 
 {result.response}
-
+{factors_section}
 ---
 *Risk Level: {result.risk_level} | Confidence: {result.confidence:.0%}*
 *{grounded_indicator}*

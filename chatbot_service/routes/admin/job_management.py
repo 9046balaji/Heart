@@ -18,6 +18,7 @@ Usage:
 """
 
 
+import os
 import logging
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query, status
@@ -379,10 +380,15 @@ async def retry_job(
         metadata={"manual_retry": True}
     )
     
-    # Queue for processing via ARQ
+    # Queue for processing via ARQ (if available)
     try:
         from arq import create_pool
-        from workers.arq_settings import redis_settings
+        from arq.connections import RedisSettings
+        
+        redis_settings = RedisSettings(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", "6379")),
+        )
         
         pool = await create_pool(redis_settings)
         await pool.enqueue_job(
