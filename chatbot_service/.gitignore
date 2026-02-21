@@ -15,7 +15,8 @@ init_postgres_db.py
 create_table.py
 
 
-
+db-audit
+migrations
 
 heart_disease_prediction/verify_visuals.py
 heart_disease_prediction/photos

@@ -914,6 +914,12 @@ safe_include_router(app, "routes.core.sse_routes", "router", prefix="/sse", tags
 # Users - medication CRUD management
 safe_include_router(app, "routes.core.users", "router", prefix="/users", tags=["Users"])
 
+# Profile - user profile, emergency contacts, conditions, allergies, family
+safe_include_router(app, "routes.core.profile", "router", prefix="/profile", tags=["Profile"])
+
+# Settings - app settings, notification preferences, connected devices
+safe_include_router(app, "routes.core.settings", "router", prefix="/settings", tags=["Settings"])
+
 # Speech - audio transcription and synthesis
 safe_include_router(app, "routes.core.speech", "router", prefix="/speech", tags=["Speech"])
 
@@ -944,6 +950,9 @@ safe_include_router(app, "routes.health.weekly_summary", "router", prefix="/week
 
 # Calendar - appointment management and reminders
 safe_include_router(app, "routes.health.calendar", "router", prefix="/calendar", tags=["Calendar"])
+
+# Appointments - full appointment booking system (providers, booking, insurance, triage)
+safe_include_router(app, "routes.health.appointments", "router", prefix="/appointments", tags=["Appointments"])
 
 # Notifications - multi-channel notifications (WhatsApp, Email, Push)
 safe_include_router(app, "routes.health.notifications", "router", prefix="/notifications", tags=["Notifications"])

@@ -15,3 +15,5 @@ build/
 **/.git/
 .git/
 frontend/.env.local
+
+db-audit

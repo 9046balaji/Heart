@@ -342,7 +342,7 @@ Include both risk-increasing AND protective factors if present.
         factor_lines = []
         in_factors = False
         for line in response.split('\n'):
-            if 'contributing factor' in line.lower() or 'why' in line.lower() and 'risk' in line.lower():
+            if 'contributing factor' in line.lower() or ('why' in line.lower() and 'risk' in line.lower()):
                 in_factors = True
                 continue
             if in_factors:
