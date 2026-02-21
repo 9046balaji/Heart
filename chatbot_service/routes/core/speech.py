@@ -9,6 +9,7 @@ Endpoints:
 
 import logging
 import time
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -84,18 +85,34 @@ async def transcribe_audio(request: TranscribeRequest):
     if _stt_available:
         try:
             import base64 as b64
-            audio_bytes = b64.b64decode(request.audio)
+            import binascii
+            try:
+                audio_bytes = b64.b64decode(request.audio)
+            except (binascii.Error, ValueError):
+                raise HTTPException(status_code=400, detail="Invalid base64 audio data")
+            
+            # Detect MIME type from magic bytes
+            mime_type = "audio/wav"  # default
+            if audio_bytes[:4] == b'OggS':
+                mime_type = "audio/ogg"
+            elif audio_bytes[:4] == b'fLaC':
+                mime_type = "audio/flac"
+            elif audio_bytes[:3] == b'ID3' or (len(audio_bytes) > 1 and audio_bytes[0:2] == b'\xff\xfb'):
+                mime_type = "audio/mpeg"
+            elif audio_bytes[:4] == b'RIFF':
+                mime_type = "audio/wav"
+            
             # Use Gemini for audio transcription if available
             model = genai.GenerativeModel("gemini-2.0-flash")
             response = model.generate_content([
                 "Transcribe the following audio accurately. Return only the transcription text.",
-                {"mime_type": "audio/wav", "data": audio_bytes},
+                {"mime_type": mime_type, "data": audio_bytes},
             ])
             elapsed = round((time.time() - start) * 1000, 1)
             return TranscribeResponse(
                 text=response.text.strip(),
                 language="en",
-                confidence=0.9,
+                confidence=None,  # Don't hardcode confidence
                 duration_ms=elapsed,
             )
         except Exception as e:
@@ -126,16 +143,21 @@ async def synthesize_speech(request: SynthesizeRequest):
     if _tts_available:
         try:
             import base64 as b64
-            tts = gTTS(text=request.text, lang="en", slow=False)
-            buf = io.BytesIO()
-            tts.write_to_fp(buf)
-            buf.seek(0)
-            audio_b64 = b64.b64encode(buf.read()).decode("utf-8")
+            # Map speed to gTTS slow parameter
+            slow = request.speed is not None and request.speed < 0.75
+            # gTTS doesn't support voice selection directly, but we use the lang
+            loop = asyncio.get_event_loop()
+            def _generate_tts():
+                tts_obj = gTTS(text=request.text, lang="en", slow=slow)
+                buf = io.BytesIO()
+                tts_obj.write_to_fp(buf)
+                buf.seek(0)
+                return b64.b64encode(buf.read()).decode("utf-8")
+            audio_b64 = await loop.run_in_executor(None, _generate_tts)
             elapsed = round((time.time() - start) * 1000, 1)
             return SynthesizeResponse(audio=audio_b64, format="mp3", duration_ms=elapsed)
         except Exception as e:
             logger.warning(f"gTTS failed: {e}")
 
-    # Fallback: return empty audio
-    elapsed = round((time.time() - start) * 1000, 1)
-    return SynthesizeResponse(audio="", format="wav", duration_ms=elapsed)
+    # Fallback: return error instead of empty audio
+    raise HTTPException(status_code=503, detail="Text-to-speech service not available")

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 import logging
+import re
 
 from core.security import (
     SecurityManager,
@@ -36,6 +37,19 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'\d', v):
+            raise ValueError('Password must contain at least one digit')
+        return v
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -99,7 +113,7 @@ async def register(user: UserCreate, db: 'AuthDatabaseService' = Depends(get_aut
             expires_delta=access_token_expires
         )
         
-        logger.info(f"✅ User registered: {user.email} (ID: {user_id})")
+        logger.info(f"✅ User registered (ID: {user_id})")
         
         return {
             "access_token": access_token,
@@ -163,7 +177,7 @@ async def login(user_credentials: UserLogin, db: 'AuthDatabaseService' = Depends
         expires_delta=access_token_expires
     )
     
-    logger.info(f"✅ User logged in: {user['email']}")
+    logger.info(f"✅ User logged in (ID: {user['id']})")
     
     return {
         "access_token": access_token,
@@ -251,6 +265,17 @@ async def refresh_token(
                 detail="Invalid token"
             )
         
+        # Enforce maximum refresh window (e.g., 7 days from original issuance)
+        issued_at = payload.get("iat")
+        if issued_at:
+            max_refresh_window = timedelta(days=7)
+            token_age = datetime.now(timezone.utc) - datetime.fromtimestamp(issued_at, tz=timezone.utc)
+            if token_age > max_refresh_window:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token too old to refresh. Please login again."
+                )
+
         user_email = payload.get("sub")
         user_id = payload.get("user_id")
         
@@ -275,7 +300,7 @@ async def refresh_token(
             expires_delta=access_token_expires
         )
         
-        logger.info(f"✅ Token refreshed: {user_email}")
+        logger.info("✅ Token refreshed")
         
         return {
             "access_token": new_access_token,
@@ -327,18 +352,18 @@ async def logout(
         payload = decode_token(token, verify_exp=False)
         
         # Calculate expiry timestamp from 'exp' claim
-        exp_timestamp = datetime.fromtimestamp(payload.get("exp", 0))
+        exp_timestamp = datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
         
         # Add token to revocation list in Redis
         await db.add_to_token_blocklist(token, exp_timestamp)
         
         user_email = current_user.get("sub", "unknown")
-        logger.info(f"✅ User logged out: {user_email} (token revoked)")
+        logger.info("✅ User logged out (token revoked)")
         
         return {
             "message": "Successfully logged out",
             "token_revoked": True,
-            "revocation_time": datetime.utcnow().isoformat()
+            "revocation_time": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:

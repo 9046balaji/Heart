@@ -162,7 +162,7 @@ async def job_event_generator(
                     **job.progress
                 }, event_id=str(event_counter))
                 event_counter += 1
-                last_progress = job.progress
+                last_progress = dict(job.progress)  # Deep copy to avoid identity comparison
             
             # Check for completion
             if job.status == JobStatus.COMPLETED.value:
@@ -285,6 +285,13 @@ async def user_event_generator(
                         event_counter += 1
                     
                     known_jobs[job_key] = current_state
+            
+            # Clean up completed/failed jobs from known_jobs to prevent unbounded growth
+            completed_statuses = {JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}
+            active_job_ids = {job.id for job in jobs}
+            stale_keys = [k for k in known_jobs if k not in active_job_ids or known_jobs[k].get("status") in completed_statuses]
+            for k in stale_keys:
+                del known_jobs[k]
             
             # Heartbeat
             yield format_sse_comment(f"heartbeat {datetime.utcnow().isoformat()}")

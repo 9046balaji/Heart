@@ -94,7 +94,7 @@ async def submit_feedback(
             query=request.query,
             response=request.response,
             citations=request.citations,
-            user_id=request.user_id,
+            user_id=str(current_user.get('user_id', request.user_id)),
             comment=request.comment
         )
         
@@ -115,11 +115,13 @@ async def submit_feedback(
                 detail="Failed to record feedback"
             )
             
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Feedback submission error: {e}")
+        logger.error(f"Feedback submission error: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error recording feedback: {str(e)}"
+            detail="Error recording feedback"
         )
 
 
@@ -161,11 +163,13 @@ async def get_feedback_stats(
         
         return FeedbackStats(**stats)
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting feedback stats: {e}")
+        logger.error(f"Error getting feedback stats: {type(e).__name__}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error retrieving stats: {str(e)}"
+            detail="Error retrieving stats"
         )
 
 

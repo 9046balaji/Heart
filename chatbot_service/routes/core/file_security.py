@@ -15,6 +15,8 @@ not just file extensions.
 import logging
 from typing import Tuple, Optional
 from pathlib import Path
+import asyncio
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ except ImportError:
 MAGIC_BYTES = {
     b'\x25\x50\x44\x46': ('application/pdf', '.pdf'),  # %PDF
     b'\xD0\xCF\x11\xE0': ('application/msword', '.doc'),  # MS Office OLE2
-    b'\x50\x4B\x03\x04': ('application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'),  # ZIP (docx, xlsx)
+    b'\x50\x4B\x03\x04': ('application/zip', '.zip'),  # ZIP container (docx, xlsx, etc. - needs further analysis)
     b'\xFF\xD8\xFF': ('image/jpeg', '.jpg'),  # JPEG
     b'\x89\x50\x4E\x47': ('image/png', '.png'),  # PNG
     b'\x47\x49\x46': ('image/gif', '.gif'),  # GIF
@@ -43,7 +45,7 @@ ALLOWED_DOCUMENT_MIMES = {
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-word.document.macroEnabled.12',
+    'application/zip',  # ZIP container detected by magic bytes (further validated by extension)
     'text/plain',
     'text/markdown',
     'text/x-markdown',
@@ -95,19 +97,20 @@ async def validate_file_mime_type(
     # Detect MIME type
     mime_type = None
     
-    # Approach 1: Use python-magic (most accurate)
+    # Approach 1: Use python-magic (most accurate) - run in thread to avoid blocking
     if MAGIC_AVAILABLE:
         try:
-            mime_type = magic.from_file(file_path, mime=True)
+            loop = asyncio.get_event_loop()
+            mime_type = await loop.run_in_executor(None, lambda: magic.from_file(file_path, mime=True))
             logger.debug(f"Magic detected: {filename} -> {mime_type}")
         except Exception as e:
             logger.warning(f"Magic detection failed: {e}, falling back to magic bytes")
     
-    # Approach 2: Read first 1KB and compare magic bytes
+    # Approach 2: Read first 1KB and compare magic bytes (async)
     if not mime_type:
         try:
-            with open(file_path, 'rb') as f:
-                file_header = f.read(1024)  # Read first 1KB
+            loop = asyncio.get_event_loop()
+            file_header = await loop.run_in_executor(None, lambda: open(file_path, 'rb').read(1024))
             
             # Check against known magic bytes
             for magic_sig, (detected_mime, detected_ext) in MAGIC_BYTES.items():
@@ -159,7 +162,8 @@ async def check_file_size(file_path: str, max_size_bytes: int = MAX_FILE_SIZE_BY
         Tuple of (is_valid: bool, error_message: Optional[str])
     """
     try:
-        file_size = Path(file_path).stat().st_size
+        loop = asyncio.get_event_loop()
+        file_size = await loop.run_in_executor(None, lambda: os.path.getsize(file_path))
         
         if file_size > max_size_bytes:
             max_mb = max_size_bytes / (1024 * 1024)

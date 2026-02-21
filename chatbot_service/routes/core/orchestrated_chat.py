@@ -110,8 +110,16 @@ class ChatRequest(BaseModel):
     def validate_webhook_url(cls, v):
         """Validate webhook URL if provided."""
         if v is not None:
-            if not v.startswith(('http://', 'https://')):
-                raise ValueError("webhook_url must be a valid HTTP/HTTPS URL")
+            if not v.startswith('https://'):
+                raise ValueError("webhook_url must be a valid HTTPS URL")
+            # Block internal/private IP targets
+            from urllib.parse import urlparse
+            host = urlparse(v).hostname or ''
+            blocked_prefixes = ['localhost', '127.', '0.0.0.0', '::1', '169.254.', '10.', '192.168.']
+            blocked_ranges = ['172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.']
+            all_blocked = blocked_prefixes + blocked_ranges
+            if any(host.startswith(b) or host == b for b in all_blocked):
+                raise ValueError("webhook_url cannot target internal/private addresses")
         return v
 
 
@@ -186,7 +194,7 @@ async def orchestrated_chat(
     """
     # 1. Security: Validate User ID matches Authenticated User
     if str(request.user_id) != str(current_user.get("user_id")):
-        logger.warning(f"Auth mismatch: Request user {request.user_id} != Token user {current_user.get('user_id')}")
+        logger.warning("Auth mismatch: Request user does not match token user")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You can only post messages for your own user ID."
@@ -212,7 +220,7 @@ async def _process_sync_chat(request: ChatRequest, session_id: str) -> ChatRespo
     orchestrator = get_orchestrator()
     
     try:
-        logger.info(f"[SYNC] Processing message for user {request.user_id}: {request.message[:50]}...")
+        logger.info("[SYNC] Processing message")
         
         result = await orchestrator.execute(
             query=request.message,
@@ -280,7 +288,7 @@ async def _enqueue_chat_job(
             user_id=str(request.user_id),
             query=request.message,
             session_id=session_id,
-            priority=request.priority or "normal",
+            priority=request.priority if request.priority is not None else "normal",
             metadata={
                 "job_type": "chat",
                 "thinking": request.thinking,
@@ -307,7 +315,7 @@ async def _enqueue_chat_job(
             _job_id=job_id  # Use our job_id as ARQ's job ID for tracking
         )
         
-        logger.info(f"[ASYNC] Job {job_id} enqueued for user {request.user_id}")
+        logger.info(f"[ASYNC] Job {job_id} enqueued")
         
         # 3. Build response URLs
         base_url = str(fastapi_request.base_url).rstrip('/')
@@ -372,7 +380,7 @@ async def deep_research(
         job = await job_store.create_job(
             user_id=str(request.user_id),
             query=request.query,
-            priority=request.priority or "normal",
+            priority=request.priority if request.priority is not None else "normal",
             metadata={
                 "job_type": "deep_research",
                 "webhook_url": request.webhook_url,
@@ -390,7 +398,7 @@ async def deep_research(
             _job_id=job_id
         )
         
-        logger.info(f"[ASYNC] Research job {job_id} enqueued for user {request.user_id}")
+        logger.info(f"[ASYNC] Research job {job_id} enqueued")
         
         # 3. Build response URLs
         base_url = str(fastapi_request.base_url).rstrip('/')
@@ -446,7 +454,9 @@ async def health_check():
     }
 
 @router.post("/reset")
-async def reset_orchestrator_endpoint():
+async def reset_orchestrator_endpoint(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """Reset the orchestrator to force re-initialization with updated code."""
     reset_orchestrator()
     return {"status": "reset", "message": "Orchestrator will re-initialize on next request"}

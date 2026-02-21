@@ -20,8 +20,9 @@ Features:
 
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -108,22 +109,23 @@ class AuthDatabaseService:
         Raises:
             ValueError: If email already registered
         """
-        # Check if user already exists
-        if await self.user_exists(email):
-            raise ValueError(f"Email {email} already registered")
-        
+        # Use INSERT ... ON CONFLICT to avoid TOCTOU race
         try:
             async with self.db.get_connection() as conn:
                 user_id = await conn.fetchval(
                     """
                     INSERT INTO auth_users (email, name, hashed_password)
                     VALUES ($1, $2, $3)
+                    ON CONFLICT (email) DO NOTHING
                     RETURNING id
                     """,
                     email, name, hashed_password
                 )
             
-            logger.info(f"✅ User registered: {email} (ID: {user_id})")
+            if user_id is None:
+                raise ValueError("Email already registered")
+            
+            logger.info(f"✅ User registered (ID: {user_id})")
             return {"user_id": user_id, "email": email}
             
         except Exception as e:
@@ -215,7 +217,7 @@ class AuthDatabaseService:
                 )
             
             if attempt_count and attempt_count >= 3:
-                logger.warning(f"🚨 Account locked: {email} ({attempt_count} failed attempts)")
+                logger.warning(f"🚨 Account locked after {attempt_count} failed attempts")
                 # Optional: Trigger email alert to user
             
             return attempt_count or 0
@@ -247,26 +249,31 @@ class AuthDatabaseService:
             # Locked if 3+ attempts AND last attempt within 15 minutes
             if attempt_count >= 3 and last_failed:
                 lockout_duration = timedelta(minutes=15)
-                if datetime.utcnow() - last_failed < lockout_duration:
+                if datetime.now(timezone.utc) - last_failed.replace(tzinfo=timezone.utc) < lockout_duration:
                     return True
-                else:
-                    # Unlock after 15 minutes
-                    async with self.db.get_connection() as conn:
-                        await conn.execute(
-                            """
-                            UPDATE auth_users 
-                            SET login_attempt_count = 0, last_failed_attempt = NULL
-                            WHERE email = $1
-                            """,
-                            email
-                        )
-                    return False
+                # Lockout expired, but don't reset counters here (separate concern)
+                return False
             
             return False
             
         except Exception as e:
             logger.error(f"Error checking account lockout: {e}")
             return False
+    
+    async def reset_lockout(self, email: str) -> None:
+        """Reset login attempt counters after lockout expires."""
+        try:
+            async with self.db.get_connection() as conn:
+                await conn.execute(
+                    """
+                    UPDATE auth_users 
+                    SET login_attempt_count = 0, last_failed_attempt = NULL
+                    WHERE email = $1
+                    """,
+                    email
+                )
+        except Exception as e:
+            logger.error(f"Error resetting lockout: {e}")
     
     
     async def add_to_token_blocklist(
@@ -290,15 +297,17 @@ class AuthDatabaseService:
         
         try:
             # Calculate TTL (time until expiry)
-            ttl_seconds = (expiry_timestamp - datetime.utcnow()).total_seconds()
+            ttl_seconds = (expiry_timestamp - datetime.now(timezone.utc)).total_seconds()
             
             if ttl_seconds > 0:
+                # Use SHA-256 hash of token instead of truncation to avoid collisions
+                token_hash = hashlib.sha256(token.encode()).hexdigest()
                 await self.redis.setex(
-                    f"revoked_token:{token[:20]}",  # Prefix + first 20 chars
+                    f"revoked_token:{token_hash}",
                     int(ttl_seconds),
                     "1"
                 )
-                logger.info(f"✅ Token added to blocklist (TTL: {ttl_seconds}s)")
+                logger.info(f"✅ Token added to blocklist (TTL: {int(ttl_seconds)}s)")
         except Exception as e:
             logger.error(f"Error adding to token blocklist: {e}")
     
@@ -309,7 +318,8 @@ class AuthDatabaseService:
             return False
         
         try:
-            exists = await self.redis.exists(f"revoked_token:{token[:20]}")
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            exists = await self.redis.exists(f"revoked_token:{token_hash}")
             return exists > 0
         except Exception as e:
             logger.error(f"Error checking token revocation: {e}")

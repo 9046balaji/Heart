@@ -59,11 +59,7 @@ async def authenticate_websocket(
             logger.warning(f"WebSocket auth failed: {e}")
             return None
     
-    # For development/testing, extract user_id from query params
-    user_id = websocket.query_params.get("user_id")
-    if user_id:
-        return {"user_id": user_id, "token_valid": False}
-    
+    # Development fallback removed for security - require token auth
     return None
 
 
@@ -97,6 +93,7 @@ async def websocket_job_updates(
     # Authenticate
     user_info = await authenticate_websocket(websocket, token)
     if not user_info:
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     
@@ -107,10 +104,12 @@ async def websocket_job_updates(
     job = await job_store.get_job(job_id)
     
     if not job:
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Job not found")
         return
     
     if str(job.user_id) != str(user_id):
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Access denied")
         return
     
@@ -137,7 +136,7 @@ async def websocket_job_updates(
                 "type": "result",
                 "job_id": job_id,
                 "status": "completed",
-                **result
+                **(result or {})
             })
         elif job.status == JobStatus.FAILED.value:
             await connection.send_json({
@@ -216,6 +215,7 @@ async def websocket_multi_job_updates(
     # Authenticate
     user_info = await authenticate_websocket(websocket, token)
     if not user_info:
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     
@@ -315,11 +315,13 @@ async def websocket_user_updates(
     # Authenticate
     user_info = await authenticate_websocket(websocket, token)
     if not user_info:
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     
     # Verify user_id matches authenticated user
     if str(user_info["user_id"]) != str(user_id):
+        await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Access denied")
         return
     
