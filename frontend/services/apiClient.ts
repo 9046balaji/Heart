@@ -163,14 +163,16 @@ async function apiCall<T>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+
     const response = await fetch(url, {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...authHeaders,
         ...headers,
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
       signal: controller.signal,
     });
 
@@ -627,7 +629,7 @@ export const apiClient = {
     }
 
     // Map to the backend ChatRequest schema
-    const userId = localStorage.getItem('user_id') || 'anonymous';
+    const userId = authService.getUserId?.() || localStorage.getItem('user_id') || 'anonymous';
     const body = {
       user_id: userId,
       message: rest.message,
@@ -1012,6 +1014,10 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
+      quantity?: number;
+      instructions?: string;
+      times: string[];
+      takenToday: boolean[];
     }>>(`/users/${userId}/medications`);
   },
 
@@ -1026,6 +1032,10 @@ export const apiClient = {
     startDate?: string;
     endDate?: string;
     notes?: string;
+    quantity?: number;
+    instructions?: string;
+    times?: string[];
+    takenToday?: boolean[];
   }) => {
     return apiCall<{
       id: string;
@@ -1036,6 +1046,10 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
+      quantity?: number;
+      instructions?: string;
+      times: string[];
+      takenToday: boolean[];
     }>(`/users/${userId}/medications`, {
       method: 'POST',
       body: medication,
@@ -1053,6 +1067,10 @@ export const apiClient = {
     startDate?: string;
     endDate?: string;
     notes?: string;
+    quantity?: number;
+    instructions?: string;
+    times?: string[];
+    takenToday?: boolean[];
   }>) => {
     return apiCall<{
       id: string;
@@ -1063,6 +1081,10 @@ export const apiClient = {
       startDate?: string;
       endDate?: string;
       notes?: string;
+      quantity?: number;
+      instructions?: string;
+      times: string[];
+      takenToday: boolean[];
     }>(`/users/${userId}/medications/${medicationId}`, {
       method: 'PUT',
       body: medication,
@@ -1074,6 +1096,198 @@ export const apiClient = {
    */
   deleteMedication: async (userId: string, medicationId: string) => {
     return apiCall<{ message: string }>(`/users/${userId}/medications/${medicationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ==========================================================================
+  // PROFILE API
+  // ==========================================================================
+
+  /**
+   * Get user profile
+   */
+  getProfile: async (userId: string) => {
+    return apiCall<{
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+      dob: string;
+      gender: string;
+      conditions: string[];
+      allergies: string[];
+      medications: string[];
+      emergencyContact: { name: string; relation: string; phone: string };
+      avatar: string;
+    }>(`/profile/${userId}`);
+  },
+
+  /**
+   * Update user profile
+   */
+  updateProfile: async (userId: string, profile: Partial<{
+    name: string;
+    email: string;
+    phone: string;
+    dob: string;
+    gender: string;
+  }>) => {
+    return apiCall<any>(`/profile/${userId}`, {
+      method: 'PUT',
+      body: profile,
+    });
+  },
+
+  /**
+   * Update user avatar
+   */
+  updateAvatar: async (userId: string, avatar: string) => {
+    return apiCall<{ message: string; avatar: string }>(`/profile/${userId}/avatar`, {
+      method: 'PUT',
+      body: { avatar },
+    });
+  },
+
+  /**
+   * Update emergency contact
+   */
+  updateEmergencyContact: async (userId: string, contact: { name: string; relation: string; phone: string }) => {
+    return apiCall<{ name: string; relation: string; phone: string }>(`/profile/${userId}/emergency-contact`, {
+      method: 'PUT',
+      body: contact,
+    });
+  },
+
+  /**
+   * Add a medical condition
+   */
+  addCondition: async (userId: string, value: string) => {
+    return apiCall<{ conditions: string[] }>(`/profile/${userId}/conditions`, {
+      method: 'POST',
+      body: { value },
+    });
+  },
+
+  /**
+   * Remove a medical condition
+   */
+  removeCondition: async (userId: string, condition: string) => {
+    return apiCall<{ conditions: string[] }>(`/profile/${userId}/conditions/${encodeURIComponent(condition)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Add an allergy
+   */
+  addAllergy: async (userId: string, value: string) => {
+    return apiCall<{ allergies: string[] }>(`/profile/${userId}/allergies`, {
+      method: 'POST',
+      body: { value },
+    });
+  },
+
+  /**
+   * Remove an allergy
+   */
+  removeAllergy: async (userId: string, allergy: string) => {
+    return apiCall<{ allergies: string[] }>(`/profile/${userId}/allergies/${encodeURIComponent(allergy)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get family members
+   */
+  getFamilyMembers: async (userId: string) => {
+    return apiCall<Array<{
+      id: string;
+      name: string;
+      relation: string;
+      avatar: string;
+      accessLevel: string;
+      status: string;
+      lastActive: string;
+    }>>(`/profile/${userId}/family`);
+  },
+
+  /**
+   * Add a family member
+   */
+  addFamilyMember: async (userId: string, member: { name: string; relation: string; avatar?: string; accessLevel?: string; status?: string }) => {
+    return apiCall<any>(`/profile/${userId}/family`, {
+      method: 'POST',
+      body: member,
+    });
+  },
+
+  /**
+   * Remove a family member
+   */
+  removeFamilyMember: async (userId: string, memberId: string) => {
+    return apiCall<{ message: string }>(`/profile/${userId}/family/${memberId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // ==========================================================================
+  // APP SETTINGS API
+  // ==========================================================================
+
+  /**
+   * Get app settings for a user
+   */
+  getAppSettings: async (userId: string) => {
+    return apiCall<{
+      user_id: string;
+      notifications: { all: boolean; meds: boolean; insights: boolean };
+      preferences: { units: string; language: string; theme: string };
+    }>(`/settings/${userId}`);
+  },
+
+  /**
+   * Update app settings
+   */
+  updateAppSettings: async (userId: string, settings: {
+    notifications?: { all: boolean; meds: boolean; insights: boolean };
+    preferences?: { units: string; language: string; theme: string };
+  }) => {
+    return apiCall<any>(`/settings/${userId}`, {
+      method: 'PUT',
+      body: settings,
+    });
+  },
+
+  /**
+   * Get connected devices
+   */
+  getDevices: async (userId: string) => {
+    return apiCall<Array<{
+      id: string;
+      name: string;
+      type: string;
+      lastSync: string;
+      status: string;
+      battery: number;
+    }>>(`/settings/${userId}/devices`);
+  },
+
+  /**
+   * Add a connected device
+   */
+  addDevice: async (userId: string, device: { id: string; name: string; type: string; status?: string; battery?: number }) => {
+    return apiCall<any>(`/settings/${userId}/devices`, {
+      method: 'POST',
+      body: device,
+    });
+  },
+
+  /**
+   * Remove a connected device
+   */
+  removeDevice: async (userId: string, deviceId: string) => {
+    return apiCall<{ message: string }>(`/settings/${userId}/devices/${deviceId}`, {
       method: 'DELETE',
     });
   },
@@ -1238,6 +1452,181 @@ export const apiClient = {
   getWebSocketUrl: (endpoint: string) => {
     const wsBase = API_BASE_URL.replace('http', 'ws');
     return `${wsBase}${endpoint}`;
+  },
+
+  // ==========================================================================
+  // APPOINTMENTS API
+  // ==========================================================================
+
+  /**
+   * Get providers with optional filters
+   */
+  getProviders: async (params?: {
+    specialty?: string;
+    search?: string;
+    telehealth?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.specialty && params.specialty !== 'All') query.set('specialty', params.specialty);
+    if (params?.search) query.set('search', params.search);
+    if (params?.telehealth !== undefined) query.set('telehealth', String(params.telehealth));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return apiCall<any[]>(`/appointments/providers${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Get provider specialties list
+   */
+  getSpecialties: async () => {
+    return apiCall<{ specialties: string[] }>('/appointments/providers/specialties', { method: 'GET' });
+  },
+
+  /**
+   * Get a single provider by ID
+   */
+  getProvider: async (providerId: string) => {
+    return apiCall<any>(`/appointments/providers/${providerId}`, { method: 'GET' });
+  },
+
+  /**
+   * Get available time slots for a provider on a date
+   */
+  getProviderAvailability: async (providerId: string, date: string) => {
+    return apiCall<{ provider_id: string; date: string; slots: string[] }>(
+      `/appointments/providers/${providerId}/availability?date=${date}`,
+      { method: 'GET' }
+    );
+  },
+
+  /**
+   * Get all appointments for a user
+   */
+  getUserAppointments: async (userId: string, params?: {
+    status?: string;
+    upcoming?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.upcoming) query.set('upcoming', 'true');
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return apiCall<any[]>(`/appointments/${userId}${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Get a single appointment
+   */
+  getAppointment: async (userId: string, appointmentId: string) => {
+    return apiCall<any>(`/appointments/${userId}/${appointmentId}`, { method: 'GET' });
+  },
+
+  /**
+   * Book a new appointment
+   */
+  createAppointment: async (userId: string, data: {
+    provider_id: string;
+    date: string;
+    time: string;
+    appointment_type: string;
+    reason?: string;
+    intake_summary?: string;
+    shared_chart_data?: Record<string, any>;
+    insurance_provider?: string;
+    insurance_member_id?: string;
+    insurance_group_id?: string;
+    duration_minutes?: number;
+    estimated_cost?: number;
+  }) => {
+    return apiCall<any>(`/appointments/${userId}`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  /**
+   * Update an appointment
+   */
+  updateAppointment: async (userId: string, appointmentId: string, data: {
+    appointment_type?: string;
+    reason?: string;
+    intake_summary?: string;
+    consultation_summary?: string;
+    insurance_provider?: string;
+    insurance_member_id?: string;
+    insurance_group_id?: string;
+    status?: string;
+    actual_cost?: number;
+    virtual_link?: string;
+    location?: string;
+  }) => {
+    return apiCall<any>(`/appointments/${userId}/${appointmentId}`, {
+      method: 'PUT',
+      body: data,
+    });
+  },
+
+  /**
+   * Cancel an appointment
+   */
+  cancelAppointment: async (userId: string, appointmentId: string, reason?: string) => {
+    return apiCall<any>(`/appointments/${userId}/${appointmentId}/cancel`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  /**
+   * Mark an appointment as completed
+   */
+  completeAppointment: async (userId: string, appointmentId: string, summary?: string) => {
+    return apiCall<any>(`/appointments/${userId}/${appointmentId}/complete`, {
+      method: 'POST',
+      body: { consultation_summary: summary },
+    });
+  },
+
+  /**
+   * Get user insurance info
+   */
+  getUserInsurance: async (userId: string) => {
+    return apiCall<any[]>(`/appointments/${userId}/insurance`, { method: 'GET' });
+  },
+
+  /**
+   * Save insurance info
+   */
+  saveInsurance: async (userId: string, data: {
+    insurance_provider: string;
+    member_id: string;
+    group_id?: string;
+    plan_type?: string;
+  }) => {
+    return apiCall<any>(`/appointments/${userId}/insurance`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  /**
+   * AI intake / symptom triage
+   */
+  analyzeIntake: async (symptoms: string, userName?: string) => {
+    return apiCall<{
+      urgency: 'emergency' | 'urgent' | 'routine';
+      reason: string;
+      summary: string;
+      recommendation: string;
+    }>('/appointments/intake/analyze', {
+      method: 'POST',
+      body: { symptoms, user_name: userName || 'Patient' },
+    });
   },
 };
 

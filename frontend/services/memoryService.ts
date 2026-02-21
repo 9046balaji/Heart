@@ -126,8 +126,8 @@ interface MemoryServiceConfig {
 
 // Build base URL for memory service - must match backend route prefix
 const MEMORY_BASE_URL = (() => {
-  const nlpUrl = (import.meta as any).env?.VITE_NLP_SERVICE_URL;
-  const base = nlpUrl && nlpUrl !== '/' ? nlpUrl : 'http://localhost:5001';
+  const nlpUrl = import.meta.env?.VITE_NLP_SERVICE_URL;
+  const base = nlpUrl && nlpUrl !== '/' ? nlpUrl.replace(/\/+$/, '') : 'http://localhost:5001';
   return `${base}/memory`;
 })();
 
