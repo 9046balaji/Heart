@@ -18,6 +18,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from core.database.postgres_db import get_database
+
 logger = logging.getLogger("tools")
 
 router = APIRouter()
@@ -43,13 +45,6 @@ try:
     logger.info("TriageSystem loaded for /tools/symptom-triage")
 except Exception as e:
     logger.info(f"TriageSystem not available: {e}")
-
-
-# ---------------------------------------------------------------------------
-# In-memory vitals store
-# ---------------------------------------------------------------------------
-
-_vitals_log: List[Dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------
@@ -108,17 +103,23 @@ class SymptomTriageResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 def interpret_bp(systolic: int, diastolic: int) -> str:
+    # Check crisis first (highest priority)
+    if systolic >= 180 or diastolic >= 120:
+        return "Hypertensive crisis! Seek immediate medical attention."
+    # Check low BP
     if systolic < 90 or diastolic < 60:
         return "Low blood pressure (hypotension). Monitor for dizziness or fainting."
-    if systolic < 120 and diastolic < 80:
-        return "Normal blood pressure. Excellent!"
-    if systolic < 130 and diastolic < 80:
-        return "Elevated blood pressure. Adopt heart-healthy habits."
-    if systolic < 140 or diastolic < 90:
-        return "High blood pressure Stage 1. Lifestyle changes recommended; consult your doctor."
-    if systolic < 180 and diastolic < 120:
+    # Stage 2: >= 140 OR >= 90
+    if systolic >= 140 or diastolic >= 90:
         return "High blood pressure Stage 2. Medication likely needed. See your doctor."
-    return "Hypertensive crisis! Seek immediate medical attention."
+    # Stage 1: 130-139 OR 80-89
+    if systolic >= 130 or diastolic >= 80:
+        return "High blood pressure Stage 1. Lifestyle changes recommended; consult your doctor."
+    # Elevated: 120-129 AND < 80
+    if systolic >= 120:
+        return "Elevated blood pressure. Adopt heart-healthy habits."
+    # Normal: < 120 AND < 80
+    return "Normal blood pressure. Excellent!"
 
 
 def interpret_hr(bpm: int) -> str:
@@ -203,15 +204,26 @@ async def record_blood_pressure(request: BloodPressureRequest):
     ts = request.timestamp or datetime.utcnow().isoformat() + "Z"
     interpretation = interpret_bp(request.systolic, request.diastolic)
 
-    entry = {
-        "id": record_id,
-        "user_id": request.user_id,
-        "metric": "blood_pressure",
-        "systolic": request.systolic,
-        "diastolic": request.diastolic,
-        "timestamp": ts,
-    }
-    _vitals_log.append(entry)
+    # Persist to database
+    try:
+        db = await get_database()
+        await db.store_vitals(
+            user_id=request.user_id,
+            device_id="manual_entry",
+            metric_type="blood_pressure",
+            value=float(request.systolic),
+            unit="mmHg",
+        )
+        # Also store diastolic as a separate reading
+        await db.store_vitals(
+            user_id=request.user_id,
+            device_id="manual_entry",
+            metric_type="blood_pressure_diastolic",
+            value=float(request.diastolic),
+            unit="mmHg",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist blood pressure to DB: {e}")
 
     return VitalRecordResponse(
         id=record_id,
@@ -230,14 +242,18 @@ async def record_heart_rate(request: HeartRateRequest):
     ts = request.timestamp or datetime.utcnow().isoformat() + "Z"
     interpretation = interpret_hr(request.bpm)
 
-    entry = {
-        "id": record_id,
-        "user_id": request.user_id,
-        "metric": "heart_rate",
-        "bpm": request.bpm,
-        "timestamp": ts,
-    }
-    _vitals_log.append(entry)
+    # Persist to database
+    try:
+        db = await get_database()
+        await db.store_vitals(
+            user_id=request.user_id,
+            device_id="manual_entry",
+            metric_type="heart_rate",
+            value=float(request.bpm),
+            unit="bpm",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to persist heart rate to DB: {e}")
 
     return VitalRecordResponse(
         id=record_id,

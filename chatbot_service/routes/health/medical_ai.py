@@ -228,14 +228,40 @@ async def extract_entities(request: EntityExtractionRequest):
 async def get_patient_summary(request: PatientSummaryRequest):
     """Generate a patient summary from stored health data."""
     from datetime import datetime
+    from core.database.postgres_db import get_database
 
-    # In production, this would query the database for the user's health records
+    db = await get_database()
+
+    # Query real data from DB
+    conditions = await db.get_user_conditions(request.user_id)
+    medications = await db.get_user_medications_list(request.user_id)
+
+    # Build risk factors from recent vitals
+    risk_factors = []
+    vitals_summary = await db.get_weekly_vitals_summary(request.user_id)
+    if vitals_summary:
+        avg_hr = vitals_summary.get("avg_heart_rate")
+        if avg_hr and avg_hr > 100:
+            risk_factors.append("Elevated resting heart rate")
+        avg_sys = vitals_summary.get("avg_systolic")
+        if avg_sys and avg_sys >= 130:
+            risk_factors.append("Elevated blood pressure")
+
+    summary_parts = []
+    if conditions:
+        summary_parts.append(f"Known conditions: {', '.join(conditions)}.")
+    if medications:
+        summary_parts.append(f"Current medications: {', '.join(medications)}.")
+    if risk_factors:
+        summary_parts.append(f"Risk factors: {', '.join(risk_factors)}.")
+    summary_text = " ".join(summary_parts) if summary_parts else "No health records found for this patient."
+
     return PatientSummaryResponse(
         user_id=request.user_id,
-        summary="Patient health profile based on available records.",
-        conditions=[],
-        medications=[],
-        risk_factors=[],
+        summary=summary_text,
+        conditions=conditions,
+        medications=medications,
+        risk_factors=risk_factors,
         last_updated=datetime.utcnow().isoformat() + "Z",
     )
 

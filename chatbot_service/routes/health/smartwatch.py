@@ -2,6 +2,7 @@
 Smartwatch Routes
 =================
 Wearable device integration for vitals ingestion and health analysis.
+Persisted to PostgreSQL (user_devices, vitals, device_timeseries tables).
 Endpoints:
     POST /smartwatch/register
     POST /smartwatch/vitals/ingest
@@ -13,22 +14,15 @@ import logging
 import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
-from collections import defaultdict
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from core.database.postgres_db import get_database
+
 logger = logging.getLogger("smartwatch")
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# In-memory stores
-# ---------------------------------------------------------------------------
-
-_devices: Dict[str, Dict] = {}  # device_id -> device info
-_vitals_store: Dict[str, List[Dict]] = defaultdict(list)  # device_id -> [vitals]
 
 
 # ---------------------------------------------------------------------------
@@ -83,16 +77,16 @@ class HealthAnalysisResponse(BaseModel):
 async def register_device(device: DeviceRegistration):
     """Register a new smartwatch/wearable device."""
     device_id = str(uuid.uuid4())
-    _devices[device_id] = {
-        "device_id": device_id,
-        "user_id": device.user_id,
-        "device_type": device.device_type,
-        "device_name": device.device_name or device.device_type,
-        "firmware_version": device.firmware_version,
-        "registered_at": datetime.utcnow().isoformat() + "Z",
-        "status": "active",
-    }
-    logger.info(f"Smartwatch registered: {device_id} ({device.device_type}) for user {device.user_id}")
+    db = await get_database()
+    await db.register_device(
+        device_id=device_id,
+        user_id=device.user_id,
+        device_type=device.device_type,
+        device_name=device.device_name or device.device_type,
+        firmware_version=device.firmware_version,
+    )
+    masked_user = f"***{device.user_id[-4:]}" if len(device.user_id) > 4 else "****"
+    logger.info(f"Smartwatch registered: {device_id} ({device.device_type}) for user {masked_user}")
     return {
         "device_id": device_id,
         "status": "registered",
@@ -106,18 +100,27 @@ async def ingest_vitals(payload: VitalsPayload):
     if not payload.metrics:
         raise HTTPException(status_code=400, detail="No metrics provided")
 
+    db = await get_database()
     count = 0
     for metric in payload.metrics:
-        entry = {
-            "device_id": payload.device_id,
-            "user_id": payload.user_id,
-            "metric_type": metric.get("metric_type", "unknown"),
-            "value": metric.get("value"),
-            "unit": metric.get("unit", ""),
-            "timestamp": metric.get("timestamp", datetime.utcnow().isoformat() + "Z"),
-            "ingested_at": datetime.utcnow().isoformat() + "Z",
-        }
-        _vitals_store[payload.device_id].append(entry)
+        metric_type = metric.get("metric_type", "unknown")
+        value = metric.get("value")
+        if value is None:
+            continue
+        try:
+            value_float = float(value)
+        except (ValueError, TypeError):
+            continue
+        unit = metric.get("unit", "")
+        timestamp = metric.get("timestamp")
+        await db.store_device_timeseries(
+            device_id=payload.device_id,
+            user_id=payload.user_id,
+            metric_type=metric_type,
+            value=value_float,
+            unit=unit,
+            timestamp=timestamp,
+        )
         count += 1
 
     logger.info(f"Ingested {count} vitals from device {payload.device_id}")
@@ -131,10 +134,13 @@ async def get_aggregated_vitals(
     interval: str = Query("1h", description="Aggregation interval: 1h, 6h, 24h, 7d"),
 ):
     """Get aggregated vitals for a device and metric type."""
-    records = _vitals_store.get(device_id, [])
-    filtered = [r for r in records if r.get("metric_type") == metric_type]
+    interval_map = {"1h": 1, "6h": 6, "24h": 24, "7d": 168}
+    hours = interval_map.get(interval, 24)
 
-    if not filtered:
+    db = await get_database()
+    records = await db.get_device_timeseries(device_id, metric_type, hours)
+
+    if not records:
         return AggregatedVitals(
             device_id=device_id,
             metric_type=metric_type,
@@ -142,8 +148,16 @@ async def get_aggregated_vitals(
             data_points=0,
         )
 
-    values = [float(r["value"]) for r in filtered if r.get("value") is not None]
-    unit = filtered[0].get("unit", "")
+    values = []
+    unit = ""
+    for r in records:
+        if r.get("value") is not None:
+            try:
+                values.append(float(r["value"]))
+            except (ValueError, TypeError):
+                pass
+        if not unit and r.get("unit"):
+            unit = r["unit"]
 
     return AggregatedVitals(
         device_id=device_id,
@@ -174,8 +188,12 @@ async def analyze_health(request: HealthAnalysisRequest):
             elif hr < 50:
                 risk_indicators.append({"metric": "heart_rate", "value": hr, "status": "low", "severity": "moderate"})
                 recommendations.append("Your heart rate is below normal. If you're not an athlete, consult your doctor.")
+            elif 50 <= hr < 60:
+                recommendations.append(f"Heart rate of {hr} BPM is on the lower end of normal. Fine if you're athletic.")
             elif 60 <= hr <= 80:
                 recommendations.append(f"Heart rate of {hr} BPM is in the healthy range.")
+            elif 80 < hr <= 100:
+                recommendations.append(f"Heart rate of {hr} BPM is in the normal range but slightly elevated.")
 
         spo2 = request.metrics.get("spo2")
         if spo2 is not None:
@@ -234,9 +252,10 @@ async def analyze_health(request: HealthAnalysisRequest):
     if not recommendations:
         recommendations.append("Your vitals look normal. Keep up the healthy lifestyle!")
 
+    masked_user = f"***{request.user_id[-4:]}" if len(request.user_id) > 4 else "****"
     return HealthAnalysisResponse(
         user_id=request.user_id,
-        summary=f"Analyzed {len(request.metrics or {})} metrics for user {request.user_id}",
+        summary=f"Analyzed {len(request.metrics or {})} metrics",
         risk_indicators=risk_indicators,
         recommendations=recommendations,
         analyzed_at=datetime.utcnow().isoformat() + "Z",

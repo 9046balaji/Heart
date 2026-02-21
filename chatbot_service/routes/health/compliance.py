@@ -15,8 +15,11 @@ import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+
+from core.dependencies import get_current_user
+from core.database.postgres_db import get_database
 
 logger = logging.getLogger("compliance")
 
@@ -38,15 +41,8 @@ try:
         logger.info("EncryptionService loaded for PHI encryption")
     else:
         logger.info("ENCRYPTION_MASTER_KEY not set or too short; PHI encryption unavailable")
-except Exception as e:
-    logger.info(f"EncryptionService not available: {e}")
-
-
-# ---------------------------------------------------------------------------
-# In-memory verification queue
-# ---------------------------------------------------------------------------
-
-_verification_queue: List[Dict[str, Any]] = []
+except Exception:
+    logger.info("EncryptionService not available")
 
 
 # ---------------------------------------------------------------------------
@@ -158,52 +154,52 @@ async def encrypt_phi(request: EncryptPHIRequest):
     if request.data is None:
         raise HTTPException(status_code=400, detail="Data is required")
 
-    if _encryption_service:
-        try:
-            import json
-            data_str = json.dumps(request.data) if not isinstance(request.data, str) else request.data
-            encrypted = _encryption_service.encrypt(data_str)
-            return EncryptPHIResponse(
-                encrypted=encrypted,
-                algorithm=_encryption_service.algorithm,
-                timestamp=datetime.utcnow().isoformat() + "Z",
-            )
-        except Exception as e:
-            logger.error(f"PHI encryption failed: {e}")
-            raise HTTPException(status_code=500, detail="Encryption failed")
-    else:
-        # Fallback: base64 encoding (NOT real encryption — for development only)
-        import base64
+    if not _encryption_service:
+        raise HTTPException(status_code=503, detail="PHI encryption service unavailable")
+    try:
         import json
         data_str = json.dumps(request.data) if not isinstance(request.data, str) else request.data
-        encoded = base64.b64encode(data_str.encode()).decode()
+        encrypted = _encryption_service.encrypt(data_str)
         return EncryptPHIResponse(
-            encrypted=encoded,
-            algorithm="base64-dev-only",
+            encrypted=encrypted,
+            algorithm=_encryption_service.algorithm,
             timestamp=datetime.utcnow().isoformat() + "Z",
         )
+    except Exception:
+        logger.error("PHI encryption failed")
+        raise HTTPException(status_code=500, detail="Encryption failed")
 
 
 @router.get("/verification/pending", response_model=List[VerificationItem])
-async def get_pending_verifications():
+async def get_pending_verifications(current_user: dict = Depends(get_current_user)):
     """Get pending content verification items."""
-    return [VerificationItem(**item) for item in _verification_queue if item.get("status") == "pending"]
+    db = await get_database()
+    rows = await db.get_pending_verifications()
+    return [
+        VerificationItem(
+            id=row["item_id"],
+            content=row["content"],
+            content_type=row["content_type"],
+            submitted_by=row.get("submitted_by"),
+            submitted_at=row["created_at"].isoformat() + "Z" if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            status=row["status"],
+        )
+        for row in rows
+    ]
 
 
 @router.post("/verification/submit", response_model=VerificationSubmitResponse)
-async def submit_verification(request: VerificationSubmitRequest):
+async def submit_verification(request: VerificationSubmitRequest, current_user: dict = Depends(get_current_user)):
     """Submit a verification decision for a content item."""
-    # Find the item in queue
-    for item in _verification_queue:
-        if item["id"] == request.item_id:
-            item["status"] = "verified" if request.verified else "rejected"
-            item["reviewed_at"] = datetime.utcnow().isoformat() + "Z"
-            item["reviewer_notes"] = request.notes
-            return VerificationSubmitResponse(
-                item_id=request.item_id,
-                verified=request.verified,
-                reviewed_at=item["reviewed_at"],
-                reviewer_notes=request.notes,
-            )
+    db = await get_database()
+    updated = await db.submit_verification_decision(request.item_id, request.verified, request.notes)
 
-    raise HTTPException(status_code=404, detail=f"Verification item {request.item_id} not found")
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Verification item {request.item_id} not found")
+
+    return VerificationSubmitResponse(
+        item_id=request.item_id,
+        verified=request.verified,
+        reviewed_at=datetime.utcnow().isoformat() + "Z",
+        reviewer_notes=request.notes,
+    )

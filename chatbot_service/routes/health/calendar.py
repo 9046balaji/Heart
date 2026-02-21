@@ -17,22 +17,11 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from core.database.postgres_db import get_database
+
 logger = logging.getLogger("calendar")
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# In-memory store (production would use database)
-# ---------------------------------------------------------------------------
-
-_calendar_store: dict = {}  # user_id -> {credentials, events, reminders}
-
-
-def _get_user_store(user_id: str) -> dict:
-    if user_id not in _calendar_store:
-        _calendar_store[user_id] = {"credentials": None, "events": [], "reminders": []}
-    return _calendar_store[user_id]
 
 
 # ---------------------------------------------------------------------------
@@ -86,8 +75,12 @@ class ReminderResponse(BaseModel):
 @router.post("/{user_id}/credentials")
 async def store_credentials(user_id: str, credentials: CalendarCredentials):
     """Store calendar integration credentials for a user."""
-    store = _get_user_store(user_id)
-    store["credentials"] = credentials.dict()
+    db = await get_database()
+    await db.save_calendar_credentials(
+        user_id, credentials.provider,
+        access_token=credentials.access_token,
+        refresh_token=credentials.refresh_token,
+    )
     logger.info(f"Calendar credentials stored for user {user_id} (provider: {credentials.provider})")
     return {"message": "Credentials stored successfully", "provider": credentials.provider}
 
@@ -95,7 +88,10 @@ async def store_credentials(user_id: str, credentials: CalendarCredentials):
 @router.post("/{user_id}/sync", response_model=SyncResponse)
 async def sync_calendar(user_id: str, options: SyncOptions):
     """Sync calendar events from the configured provider."""
-    store = _get_user_store(user_id)
+    db = await get_database()
+
+    # Clear old synced events before re-syncing
+    await db.delete_calendar_events(user_id)
 
     # Generate sample health-related events if no real integration
     now = datetime.utcnow()
@@ -117,7 +113,18 @@ async def sync_calendar(user_id: str, options: SyncOptions):
             description="Follow-up appointment for heart health",
         ),
     ]
-    store["events"] = [e.dict() for e in sample_events]
+
+    # Persist each event to DB
+    for evt in sample_events:
+        await db.save_calendar_event(
+            user_id=user_id,
+            event_id=evt.id,
+            title=evt.title,
+            start_time=evt.start_time,
+            end_time=evt.end_time,
+            location=evt.location,
+            description=evt.description,
+        )
 
     return SyncResponse(
         events_synced=len(sample_events),
@@ -133,41 +140,37 @@ async def get_events(
     end_date: Optional[str] = Query(None),
 ):
     """Get calendar events for a user, optionally filtered by date range."""
-    store = _get_user_store(user_id)
-    events = store.get("events", [])
-
-    # Filter by date range if provided
-    if start_date or end_date:
-        filtered = []
-        for evt in events:
-            evt_start = evt.get("start_time", "")
-            if start_date and evt_start < start_date:
-                continue
-            if end_date and evt_start > end_date:
-                continue
-            filtered.append(evt)
-        events = filtered
-
-    return [CalendarEvent(**e) if isinstance(e, dict) else e for e in events]
+    db = await get_database()
+    rows = await db.get_calendar_events(user_id, start_date=start_date, end_date=end_date)
+    return [
+        CalendarEvent(
+            id=row["event_id"],
+            title=row["title"],
+            start_time=row["start_time"],
+            end_time=row["end_time"],
+            location=row.get("location"),
+            description=row.get("description"),
+        )
+        for row in rows
+    ]
 
 
 @router.post("/{user_id}/reminder", response_model=ReminderResponse)
 async def schedule_reminder(user_id: str, reminder: ReminderRequest):
     """Schedule a health-related reminder."""
-    store = _get_user_store(user_id)
+    db = await get_database()
     reminder_id = str(uuid.uuid4())
     appointment_id = str(uuid.uuid4())
 
-    entry = {
-        "id": reminder_id,
-        "appointment_id": appointment_id,
-        "title": reminder.title,
-        "scheduled_for": reminder.scheduled_for,
-        "description": reminder.description,
-        "reminder_minutes_before": reminder.reminder_minutes_before,
-        "status": "scheduled",
-    }
-    store["reminders"].append(entry)
+    await db.save_calendar_reminder(
+        reminder_id=reminder_id,
+        user_id=user_id,
+        appointment_id=appointment_id,
+        title=reminder.title,
+        scheduled_for=reminder.scheduled_for,
+        description=reminder.description,
+        reminder_minutes_before=reminder.reminder_minutes_before,
+    )
     logger.info(f"Reminder scheduled for user {user_id}: {reminder.title}")
 
     return ReminderResponse(

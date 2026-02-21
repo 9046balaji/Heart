@@ -16,6 +16,7 @@ Endpoints:
 import os
 import sys
 import time
+import uuid
 import logging
 import warnings
 from typing import Optional, Dict, Any, List
@@ -883,6 +884,24 @@ async def predict_heart_disease(
             "medgemma_interpreted": True,
             "pipeline_version": "2.1.0",
         }
+
+        # Persist prediction to database
+        if user_id:
+            try:
+                from core.database.postgres_db import get_database
+                db = await get_database()
+                await db.store_prediction(
+                    user_id=user_id,
+                    prediction_id=str(uuid.uuid4()),
+                    input_data=input_data.dict(),
+                    prediction=prediction,
+                    probability=round(probability, 4),
+                    risk_level=risk.value,
+                    confidence=round(abs(probability - 0.5) * 2, 4),
+                    clinical_interpretation=response_data.get("clinical_interpretation", ""),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to store prediction history: {e}")
 
         return PredictionResponse(**response_data)
 

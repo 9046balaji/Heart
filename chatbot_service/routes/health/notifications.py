@@ -17,16 +17,13 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from core.database.postgres_db import get_database
+
 logger = logging.getLogger("notifications")
 
 router = APIRouter()
 
-
-# ---------------------------------------------------------------------------
-# In-memory device registry
-# ---------------------------------------------------------------------------
-
-_device_registry: Dict[str, List[Dict]] = {}  # user_id -> [devices]
+MAX_DEVICES_PER_USER = 10
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +74,9 @@ async def send_whatsapp(request: WhatsAppRequest):
     notification_id = str(uuid.uuid4())
 
     # In production, integrate with Twilio WhatsApp API
-    logger.info(f"WhatsApp notification queued to {request.to}: {request.message[:50]}...")
+    # Mask phone number in logs
+    masked_phone = f"***{request.to[-4:]}" if len(request.to) > 4 else "****"
+    logger.info(f"WhatsApp notification queued to {masked_phone}")
 
     return NotificationResponse(
         id=notification_id,
@@ -94,7 +93,10 @@ async def send_email(request: EmailRequest):
     notification_id = str(uuid.uuid4())
 
     # In production, integrate with SMTP / SendGrid / SES
-    logger.info(f"Email notification queued to {request.to}: {request.subject}")
+    # Mask email in logs
+    at_idx = request.to.find("@")
+    masked_email = f"***{request.to[at_idx:]}" if at_idx > 0 else "***@***"
+    logger.info(f"Email notification queued to {masked_email}: {request.subject}")
 
     return NotificationResponse(
         id=notification_id,
@@ -111,19 +113,17 @@ async def register_device(request: DeviceRegistration):
     if request.platform not in ("ios", "android", "web"):
         raise HTTPException(status_code=400, detail="Platform must be ios, android, or web")
 
-    if request.user_id not in _device_registry:
-        _device_registry[request.user_id] = []
+    db = await get_database()
 
-    # Check for duplicate token
-    existing_tokens = [d["device_token"] for d in _device_registry[request.user_id]]
-    if request.device_token not in existing_tokens:
-        _device_registry[request.user_id].append({
-            "device_token": request.device_token,
-            "platform": request.platform,
-            "registered_at": datetime.utcnow().isoformat() + "Z",
-        })
+    # Limit devices per user
+    count = await db.count_user_push_devices(request.user_id)
+    if count >= MAX_DEVICES_PER_USER:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_DEVICES_PER_USER} devices per user")
 
-    logger.info(f"Device registered for user {request.user_id}: {request.platform}")
+    await db.register_push_device(request.user_id, request.device_token, request.platform)
+
+    masked_user = f"***{request.user_id[-4:]}" if len(request.user_id) > 4 else "****"
+    logger.info(f"Device registered for user {masked_user}: {request.platform}")
     return {"message": "Device registered successfully", "platform": request.platform}
 
 
@@ -132,12 +132,14 @@ async def send_push(request: PushRequest):
     """Send a push notification to registered devices."""
     notification_id = str(uuid.uuid4())
 
-    devices = _device_registry.get(request.user_id, [])
+    db = await get_database()
+    devices = await db.get_user_push_devices(request.user_id)
+    masked_user = f"***{request.user_id[-4:]}" if len(request.user_id) > 4 else "****"
     if not devices:
-        logger.warning(f"No devices registered for user {request.user_id}")
+        logger.warning(f"No devices registered for user {masked_user}")
 
     # In production, integrate with FCM / APNs
-    logger.info(f"Push notification queued for user {request.user_id}: {request.title}")
+    logger.info(f"Push notification queued for user {masked_user}")
 
     return NotificationResponse(
         id=notification_id,

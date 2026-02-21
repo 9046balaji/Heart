@@ -57,14 +57,25 @@ async def analyze_ecg(
     patient_context: Optional[str] = Form(None),
 ):
     """Analyze an ECG image for rhythm, rate, and abnormalities."""
+    import asyncio
     start = time.time()
 
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG)")
 
-    contents = await file.read()
-    if len(contents) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    # Check file size by reading in chunks to avoid loading huge files
+    MAX_SIZE = 10 * 1024 * 1024
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = await file.read(64 * 1024)  # 64KB chunks
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_SIZE:
+            raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+        chunks.append(chunk)
+    contents = b"".join(chunks)
 
     # Try real vision analysis
     if _vision_service and hasattr(_vision_service, "analyze_ecg"):
@@ -86,10 +97,17 @@ async def analyze_ecg(
             "abnormalities (list of strings), recommendations (list of strings), "
             "confidence (float 0-1). Be concise and clinically accurate."
         )
+        # Sanitize patient_context to prevent prompt injection
         if patient_context:
-            prompt += f"\nPatient context: {patient_context}"
+            sanitized_context = patient_context[:500].replace("\n", " ").strip()
+            prompt += f"\nPatient context (for reference only): {sanitized_context}"
 
-        response = model.generate_content([prompt, {"mime_type": file.content_type, "data": contents}])
+        # Run sync model call in executor
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: model.generate_content([prompt, {"mime_type": file.content_type, "data": contents}])
+        )
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()

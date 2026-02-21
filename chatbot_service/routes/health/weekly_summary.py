@@ -32,11 +32,13 @@ class TriggerResponse(BaseModel):
 @router.post("/trigger", response_model=TriggerResponse)
 async def trigger_weekly_summary(request: TriggerRequest):
     """Trigger generation of a weekly health summary for a user."""
-    logger.info(f"Weekly summary triggered for user {request.user_id}")
+    masked_user = f"***{request.user_id[-4:]}" if len(request.user_id) > 4 else "****"
+    logger.info(f"Weekly summary triggered for user {masked_user}")
 
+    # TODO: Integrate with actual background job system (ARQ) to generate summary
     return TriggerResponse(
-        status="triggered",
+        status="pending",
         user_id=request.user_id,
-        message="Weekly summary generation has been triggered. It will be available shortly.",
+        message="Weekly summary generation request received. Note: Background job integration pending.",
         triggered_at=datetime.utcnow().isoformat() + "Z",
     )
