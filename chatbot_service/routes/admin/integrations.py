@@ -58,32 +58,72 @@ class DocumentPrediction(BaseModel):
 @router.get("/weekly-summary/{user_id}", response_model=WeeklySummary)
 async def get_weekly_summary(user_id: str):
     """Get the weekly health summary for a user."""
+    from core.database.postgres_db import get_database
+
     now = datetime.utcnow()
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    db = await get_database()
+
+    # Query real data from database
+    vitals = await db.get_weekly_vitals_summary(user_id)
+    medications = await db.get_user_medications_list(user_id)
+    appt_count = await db.get_recent_appointments_count(user_id)
+
+    # Build highlights from real data
+    highlights = []
+    vitals_summary_data = {}
+
+    if vitals:
+        avg_hr = vitals.get("avg_heart_rate")
+        if avg_hr:
+            vitals_summary_data["avg_heart_rate"] = round(avg_hr, 1)
+            status = "normal" if 60 <= avg_hr <= 100 else "elevated"
+            highlights.append(f"Average resting heart rate: {round(avg_hr)} bpm ({status})")
+        avg_sys = vitals.get("avg_systolic")
+        if avg_sys:
+            vitals_summary_data["avg_systolic"] = round(avg_sys, 1)
+            status = "stable" if avg_sys < 130 else "elevated"
+            highlights.append(f"Blood pressure readings {status}")
+        reading_count = vitals.get("reading_count", 0)
+        vitals_summary_data["blood_pressure_readings"] = reading_count
+    else:
+        highlights.append("No vitals recorded this week")
+
+    if medications:
+        highlights.append(f"Active medications: {len(medications)}")
+    if appt_count:
+        highlights.append(f"Appointments this week: {appt_count}")
+
+    # Build recommendations from data
+    recommendations = ["Continue regular exercise routine"]
+    if vitals and vitals.get("avg_heart_rate") and vitals["avg_heart_rate"] > 100:
+        recommendations.append("Consider monitoring elevated heart rate with your doctor")
+    if not vitals or vitals.get("reading_count", 0) < 3:
+        recommendations.append("Try to record vitals at least 3 times per week")
+    recommendations.append("Stay hydrated — aim for 8 glasses of water daily")
+
+    # Health score based on data
+    health_score = 7.5
+    if vitals:
+        avg_hr = vitals.get("avg_heart_rate")
+        if avg_hr and 60 <= avg_hr <= 80:
+            health_score += 0.5
+        elif avg_hr and avg_hr > 100:
+            health_score -= 1.0
+
+    summary_text = f"Weekly health summary based on {vitals.get('reading_count', 0) if vitals else 0} recorded vitals readings."
 
     return WeeklySummary(
         user_id=user_id,
         period_start=week_start.isoformat() + "Z",
         period_end=week_end.isoformat() + "Z",
-        summary="This week's health metrics are within normal ranges. Keep maintaining your healthy lifestyle.",
-        highlights=[
-            "Average resting heart rate: 72 bpm (normal)",
-            "Blood pressure readings stable",
-            "Activity goal met 5/7 days",
-        ],
-        health_score=7.5,
-        recommendations=[
-            "Continue regular exercise routine",
-            "Stay hydrated — aim for 8 glasses of water daily",
-            "Schedule your annual check-up if not done recently",
-        ],
-        vitals_summary={
-            "avg_heart_rate": 72,
-            "avg_steps": 8500,
-            "avg_sleep_hours": 7.2,
-            "blood_pressure_readings": 3,
-        },
+        summary=summary_text,
+        highlights=highlights,
+        health_score=round(health_score, 1),
+        recommendations=recommendations,
+        vitals_summary=vitals_summary_data or None,
         generated_at=datetime.utcnow().isoformat() + "Z",
     )
 
@@ -96,7 +136,7 @@ async def predict_from_document(request: PredictFromDocumentRequest):
     # 2. Extract clinical values using NLP
     # 3. Run the heart prediction model
 
-    logger.info(f"Document prediction requested: doc={request.document_id}, user={request.user_id}")
+    logger.info(f"Document prediction requested: doc={request.document_id}, user=***")
 
     return DocumentPrediction(
         document_id=request.document_id,

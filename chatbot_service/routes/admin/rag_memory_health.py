@@ -9,8 +9,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+from core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +180,7 @@ async def get_memory_health():
 
 
 @router.get("/rag/metrics")
-async def get_rag_metrics(minutes: int = 60):
+async def get_rag_metrics(minutes: int = Query(60, ge=1, le=1440)):
     """Get RAG performance metrics for the last N minutes."""
     if not _rag_performance_monitor:
         raise HTTPException(
@@ -195,7 +197,7 @@ async def get_rag_metrics(minutes: int = 60):
 
 
 @router.get("/memory/metrics")
-async def get_memory_metrics(minutes: int = 60):
+async def get_memory_metrics(minutes: int = Query(60, ge=1, le=1440)):
     """Get memory performance metrics for the last N minutes."""
     if not _memory_performance_monitor:
         raise HTTPException(
@@ -296,8 +298,8 @@ async def get_combined_health():
 async def get_vector_indexes():
     """Get information about vector indexes in the database."""
     try:
-        from core.database import get_database
-        db = get_database()
+        from core.database.postgres_db import get_database
+        db = await get_database()
         
         async with db.pool.acquire() as conn:
             # Get HNSW indexes
@@ -330,8 +332,8 @@ async def get_vector_indexes():
 async def get_materialized_views():
     """Get RAG materialized view information."""
     try:
-        from core.database import get_database
-        db = get_database()
+        from core.database.postgres_db import get_database
+        db = await get_database()
         
         async with db.pool.acquire() as conn:
             # Get materialized views
@@ -371,11 +373,13 @@ async def get_materialized_views():
 
 
 @router.post("/materialized-views/refresh")
-async def refresh_materialized_views():
+async def refresh_materialized_views(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """Refresh RAG materialized views."""
     try:
-        from core.database import get_database
-        db = get_database()
+        from core.database.postgres_db import get_database
+        db = await get_database()
         
         async with db.pool.acquire() as conn:
             await conn.execute("SELECT refresh_rag_materialized_views()")

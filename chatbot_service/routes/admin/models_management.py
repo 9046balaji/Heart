@@ -52,7 +52,7 @@ def _discover_models() -> Dict[str, Dict]:
                     "directory": subdir_path,
                     "versions": _extract_versions(files),
                     "current_version": _get_latest_version(files),
-                    "last_updated": datetime.fromtimestamp(
+                    "last_updated": datetime.utcfromtimestamp(
                         max(os.path.getmtime(os.path.join(subdir_path, f)) for f in files)
                     ).isoformat() + "Z",
                 }
@@ -93,7 +93,7 @@ def _extract_versions(files: List[str]) -> List[str]:
         match = re.search(r'v(\d+)', f)
         if match:
             versions.append(f"v{match.group(1)}")
-    return sorted(set(versions)) if versions else ["v1"]
+    return sorted(set(versions), key=lambda v: int(v[1:])) if versions else ["v1"]
 
 
 def _get_latest_version(files: List[str]) -> str:
@@ -169,12 +169,21 @@ async def get_model_history(model_name: str):
         raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found. Available: {list(discovered.keys())}")
 
     info = discovered[model_name]
+    subdir_path = info["directory"]
     history = []
     for version in info["versions"]:
+        # Find files matching this version to get per-version timestamp
+        version_files = [f for f in info["files"] if version in f]
+        if version_files:
+            deployed_ts = datetime.utcfromtimestamp(
+                max(os.path.getmtime(os.path.join(subdir_path, f)) for f in version_files)
+            ).isoformat() + "Z"
+        else:
+            deployed_ts = info["last_updated"]
         history.append(ModelHistoryEntry(
             version=version,
-            deployed_at=info["last_updated"],
-            metrics={"files": len(info["files"])},
+            deployed_at=deployed_ts,
+            metrics={"files": len(version_files) if version_files else len(info["files"])},
             notes=f"Model files: {', '.join(info['files'][:5])}{'...' if len(info['files']) > 5 else ''}",
         ))
 

@@ -42,6 +42,8 @@ async def visualize_text(
         text: Text to analyze
         style: Visualization style ("ent" for entities, "dep" for dependencies)
     """
+    if not SPACY_AVAILABLE:
+        raise HTTPException(status_code=503, detail="spaCy is not available")
     try:
         service = get_spacy_service()
         doc = service.process(request.text)
@@ -70,16 +72,22 @@ async def visualize_text(
         return html
         
     except Exception as e:
-        logger.error(f"Visualization failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Visualization failed: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Visualization processing failed")
 
 @router.get("/pipeline/info")
 async def get_pipeline_info(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Get information about the active NLP pipeline."""
-    service = get_spacy_service()
-    nlp = service.nlp
+    if not SPACY_AVAILABLE:
+        raise HTTPException(status_code=503, detail="spaCy is not available")
+    try:
+        service = get_spacy_service()
+        nlp = service.nlp
+    except Exception as e:
+        logger.error(f"Pipeline info failed: {type(e).__name__}")
+        raise HTTPException(status_code=503, detail="NLP pipeline not available")
     
     return {
         "model": nlp.meta["name"],

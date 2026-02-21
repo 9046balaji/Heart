@@ -77,6 +77,12 @@ async def evaluate_rag(request: RAGEvaluationRequest):
     if not request.queries:
         raise HTTPException(status_code=400, detail="At least one query is required")
 
+    if request.ground_truth and len(request.ground_truth) != len(request.queries):
+        raise HTTPException(
+            status_code=400,
+            detail=f"ground_truth length ({len(request.ground_truth)}) must match queries length ({len(request.queries)})"
+        )
+
     evaluations = []
 
     for i, query in enumerate(request.queries):
@@ -106,11 +112,11 @@ async def evaluate_rag(request: RAGEvaluationRequest):
             except Exception as e:
                 logger.warning(f"Evaluator failed for query '{query[:50]}': {e}")
 
-        # Fallback: basic scoring
+        # Fallback: basic scoring (estimated - not from real evaluation)
         metrics = [
-            EvaluationMetric(metric="relevance", score=0.7, details="Estimated based on query complexity"),
-            EvaluationMetric(metric="coherence", score=0.8, details="Structural analysis"),
-            EvaluationMetric(metric="faithfulness", score=0.75, details="Source alignment estimate"),
+            EvaluationMetric(metric="relevance", score=0.7, details="Estimated (evaluator unavailable)"),
+            EvaluationMetric(metric="coherence", score=0.8, details="Estimated (evaluator unavailable)"),
+            EvaluationMetric(metric="faithfulness", score=0.75, details="Estimated (evaluator unavailable)"),
         ]
 
         if gt:

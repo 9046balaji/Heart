@@ -262,7 +262,7 @@ async def list_user_jobs(
     
     return JobListResponse(
         jobs=job_responses,
-        total=len(job_responses),  # Could be improved with count query
+        total=len(job_responses),  # Note: page count only, use count query for real total
         offset=offset,
         limit=limit
     )
@@ -373,14 +373,7 @@ async def retry_job(
             detail=f"Cannot retry job with status: {job.status}"
         )
     
-    # Reset job for retry
-    updated_job = await job_store.update_job_status(
-        job_id,
-        JobStatus.PENDING.value,
-        metadata={"manual_retry": True}
-    )
-    
-    # Queue for processing via ARQ (if available)
+    # Queue for processing via ARQ first (if available)
     try:
         from arq import create_pool
         from arq.connections import RedisSettings
@@ -407,6 +400,13 @@ async def retry_job(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to queue job for retry"
         )
+    
+    # Only update status to PENDING after successful enqueue
+    updated_job = await job_store.update_job_status(
+        job_id,
+        JobStatus.PENDING.value,
+        metadata={"manual_retry": True}
+    )
     
     logger.info(f"🔄 Job {job_id} queued for retry by user {current_user.get('user_id')}")
     
