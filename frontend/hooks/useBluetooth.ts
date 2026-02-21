@@ -103,18 +103,55 @@ function parseSensorLocation(value: number): string {
 }
 
 /**
+ * Decode an IEEE 11073 SFLOAT (16-bit) value.
+ * Format: 4-bit exponent (signed) | 12-bit mantissa (signed)
+ * Special values: NaN (0x07FF), NRes (0x0800), +INF (0x07FE), -INF (0x0802), Reserved (0x0801)
+ */
+function decodeSFLOAT(raw: number): number | null {
+  const SPECIAL = [0x07FF, 0x0800, 0x07FE, 0x0802, 0x0801];
+  if (SPECIAL.includes(raw)) return null;
+  let exponent = (raw >> 12) & 0x0F;
+  let mantissa = raw & 0x0FFF;
+  // Sign-extend exponent (4-bit signed)
+  if (exponent >= 0x08) exponent -= 0x10;
+  // Sign-extend mantissa (12-bit signed)
+  if (mantissa >= 0x0800) mantissa -= 0x1000;
+  return mantissa * Math.pow(10, exponent);
+}
+
+/**
  * Parse Blood Pressure Measurement characteristic (0x2A35)
  */
 function parseBloodPressure(value: DataView): { systolic: number; diastolic: number } {
-  const flags = value.getUint8(0);
-  const isKPa = (flags & 0x01) !== 0;
-  // IEEE 11073 SFLOAT format - simplified reading
-  const systolic = value.getFloat32 ? value.getUint16(1, true) / (isKPa ? 10 : 1) : value.getUint16(1, true);
-  const diastolic = value.getFloat32 ? value.getUint16(3, true) / (isKPa ? 10 : 1) : value.getUint16(3, true);
+  // Flags byte determines unit: 0 = mmHg, 1 = kPa
+  // const flags = value.getUint8(0);
+  // const isKPa = (flags & 0x01) !== 0;
+  // SFLOAT values at offsets 1 and 3
+  const systolicRaw = value.getUint16(1, true);
+  const diastolicRaw = value.getUint16(3, true);
+  const systolic = decodeSFLOAT(systolicRaw);
+  const diastolic = decodeSFLOAT(diastolicRaw);
   return {
-    systolic: Math.round(systolic),
-    diastolic: Math.round(diastolic),
+    systolic: systolic != null ? Math.round(systolic) : 0,
+    diastolic: diastolic != null ? Math.round(diastolic) : 0,
   };
+}
+
+/**
+ * Decode an IEEE 11073 FLOAT (32-bit) value.
+ * Format: 8-bit exponent (signed) | 24-bit mantissa (signed)
+ */
+function decodeFLOAT(value: DataView, offset: number): number | null {
+  const raw = value.getUint32(offset, true);
+  const SPECIAL_MANTISSA = [0x007FFFFF, 0x00800000, 0x007FFFFE, 0x00800002, 0x00800001];
+  let exponent = (raw >> 24) & 0xFF;
+  let mantissa = raw & 0x00FFFFFF;
+  if (SPECIAL_MANTISSA.includes(mantissa)) return null;
+  // Sign-extend exponent (8-bit signed)
+  if (exponent >= 0x80) exponent -= 0x100;
+  // Sign-extend mantissa (24-bit signed)
+  if (mantissa >= 0x800000) mantissa -= 0x1000000;
+  return mantissa * Math.pow(10, exponent);
 }
 
 /**
@@ -123,12 +160,11 @@ function parseBloodPressure(value: DataView): { systolic: number; diastolic: num
 function parseTemperature(value: DataView): number {
   const flags = value.getUint8(0);
   const isFahrenheit = (flags & 0x01) !== 0;
-  // IEEE 11073 FLOAT - simplified: mantissa (3 bytes) + exponent (1 byte)
-  const mantissa = value.getUint16(1, true) | (value.getUint8(3) << 16);
-  const exponent = value.getInt8(4);
-  let temp = mantissa * Math.pow(10, exponent);
+  // IEEE 11073 FLOAT at offset 1 (4 bytes)
+  const temp = decodeFLOAT(value, 1);
+  if (temp == null) return 0;
   if (isFahrenheit) {
-    temp = (temp - 32) * 5 / 9; // Convert to Celsius
+    return Math.round(((temp - 32) * 5 / 9) * 10) / 10;
   }
   return Math.round(temp * 10) / 10;
 }
@@ -477,20 +513,42 @@ export const useBluetooth = (): UseBluetoothReturn => {
 
   const readTemperature = useCallback(async (deviceId: string): Promise<number | null> => {
     try {
-      const result = await BleClient.read(
-        deviceId,
-        BLE_SERVICES.HEALTH_THERMOMETER,
-        BLE_CHARACTERISTICS.TEMPERATURE_MEASUREMENT
-      );
-      const temp = parseTemperature(new DataView(result.buffer));
-      const timestamp = new Date().toISOString();
-      setSmartwatchData(prev => ({
-        ...prev,
-        temperature: temp,
-        temperatureTimestamp: timestamp,
-      }));
-      console.log(`🌡️ Temperature: ${temp}°C`);
-      return temp;
+      // Temperature Measurement (0x2A1C) is typically indicate-only.
+      // Subscribe to indications and resolve on the first value received.
+      return await new Promise<number | null>((resolve) => {
+        let resolved = false;
+        const timeout = setTimeout(() => {
+          if (!resolved) { resolved = true; resolve(null); }
+        }, 10000);
+
+        BleClient.startNotifications(
+          deviceId,
+          BLE_SERVICES.HEALTH_THERMOMETER,
+          BLE_CHARACTERISTICS.TEMPERATURE_MEASUREMENT,
+          (value) => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timeout);
+            const temp = parseTemperature(new DataView(value.buffer));
+            const timestamp = new Date().toISOString();
+            setSmartwatchData(prev => ({
+              ...prev,
+              temperature: temp,
+              temperatureTimestamp: timestamp,
+            }));
+            console.log(`🌡️ Temperature: ${temp}°C`);
+            // Stop indications after first reading
+            BleClient.stopNotifications(
+              deviceId,
+              BLE_SERVICES.HEALTH_THERMOMETER,
+              BLE_CHARACTERISTICS.TEMPERATURE_MEASUREMENT
+            ).catch(() => {});
+            resolve(temp);
+          }
+        ).catch((err) => {
+          if (!resolved) { resolved = true; clearTimeout(timeout); resolve(null); }
+        });
+      });
     } catch (err) {
       console.warn('Temperature service not available on this device');
       return null;

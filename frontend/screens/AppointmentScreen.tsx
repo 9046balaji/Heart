@@ -1,38 +1,12 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Provider, Appointment } from '../types';
-import { doctorsData } from '../data/doctors';
 import { apiClient } from '../services/apiClient';
 import { useToast } from '../components/Toast';
 
-const MOCK_AVAILABILITY: Record<string, Record<string, string[]>> = {
-  'p_101': {
-    '2024-10-07': ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30'],
-    '2024-10-08': ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30'],
-  },
-  'p_102': {
-    '2024-10-08': ['10:00', '10:30', '11:00', '11:30', '15:00'],
-    '2024-10-09': ['09:00', '09:30', '10:00', '10:30'],
-  },
-  'p_103': {
-    '2024-10-28': ['09:00', '09:30', '10:00', '10:30', '11:00'],
-  },
-};
-
-// Helper to simulate availability check
-const getAvailability = (providerId: string, dateStr: string): string[] => {
-  const specific = MOCK_AVAILABILITY[providerId]?.[dateStr];
-  if (specific) return specific;
-
-  // Return generic slots for future weekdays for demo continuity
-  const date = new Date(dateStr);
-  const day = date.getDay();
-  if (day !== 0 && day !== 6) { // Mon-Fri
-      return ['09:00', '10:00', '11:00', '14:00', '15:30'];
-  }
-  return [];
-};
+// User ID — in production this comes from auth context
+const USER_ID = localStorage.getItem('user_id') || 'user123';
 
 // --- New Intake Modal Component ---
 const IntakeModal = ({
@@ -53,15 +27,14 @@ const IntakeModal = ({
         setIsAnalyzing(true);
 
         try {
-            // Use backend API for triage analysis
-            const result = await apiClient.generateInsight({
-                user_name: 'Patient',
-                vitals: {}
-            });
+            // Use backend triage API
+            const result = await apiClient.analyzeIntake(symptoms);
 
-            // Default to routine appointment
-            onComplete(symptoms, 'Routine', `Patient notes: ${symptoms}`);
-
+            if (result.urgency === 'emergency') {
+                setTriageResult('emergency');
+            } else {
+                onComplete(symptoms, result.urgency, result.summary);
+            }
         } catch (error) {
             console.error("Triage Error", error);
             // Allow booking if AI fails, default to routine
@@ -438,37 +411,115 @@ const AppointmentScreen: React.FC = () => {
   const [showReceptionist, setShowReceptionist] = useState(false);
   const [activeVideoCall, setActiveVideoCall] = useState<Appointment | null>(null);
 
-  // Appointments Data
+  // Data from backend
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [latestBooking, setLatestBooking] = useState<Appointment | null>(null);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [specialties, setSpecialties] = useState<string[]>(['All']);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
+  // --- Load providers from backend ---
+  const loadProviders = useCallback(async () => {
+      setIsLoadingProviders(true);
+      try {
+          const data = await apiClient.getProviders({
+              specialty: selectedSpecialty !== 'All' ? selectedSpecialty : undefined,
+              search: searchQuery || undefined,
+          });
+          setProviders(data);
+      } catch (e) {
+          console.error('Failed to load providers', e);
+          showToast('Failed to load providers', 'error');
+      } finally {
+          setIsLoadingProviders(false);
+      }
+  }, [selectedSpecialty, searchQuery]);
+
+  // --- Load specialties from backend ---
   useEffect(() => {
-      const saved = localStorage.getItem('user_appointments');
-      if (saved) {
+      (async () => {
           try {
-            const parsed = JSON.parse(saved);
-            // Sort by date ascending
-            parsed.sort((a: Appointment, b: Appointment) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
-            setAppointments(parsed);
+              const result = await apiClient.getSpecialties();
+              setSpecialties(result.specialties || ['All']);
           } catch (e) {
-            console.error("Failed to parse appointments", e);
+              console.error('Failed to load specialties', e);
+          }
+      })();
+  }, []);
+
+  // --- Load providers when filters change ---
+  useEffect(() => {
+      loadProviders();
+  }, [loadProviders]);
+
+  // --- Load user appointments from backend ---
+  const loadAppointments = useCallback(async () => {
+      try {
+          const data = await apiClient.getUserAppointments(USER_ID);
+          const mapped: Appointment[] = data.map((a: any) => ({
+              id: a.appointment_id,
+              doctorName: a.doctorName || a.doctor_name,
+              specialty: a.specialty,
+              date: a.date,
+              time: a.time,
+              type: a.type || a.appointment_type || 'in-person',
+              location: a.location || '',
+              rating: a.doctor_rating,
+              summary: a.summary || a.consultation_summary || a.intake_summary || '',
+          }));
+          mapped.sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+          setAppointments(mapped);
+          // Also sync to localStorage for dashboard widget
+          localStorage.setItem('user_appointments', JSON.stringify(mapped));
+      } catch (e) {
+          console.error('Failed to load appointments from API, trying localStorage', e);
+          const saved = localStorage.getItem('user_appointments');
+          if (saved) {
+              try {
+                  const parsed = JSON.parse(saved);
+                  parsed.sort((a: Appointment, b: Appointment) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+                  setAppointments(parsed);
+              } catch (err) {
+                  console.error("Failed to parse appointments", err);
+              }
           }
       }
   }, []);
 
-  // --- Filtering ---
-  const filteredProviders = doctorsData.filter(provider => {
-    const matchesSearch = searchQuery
-      ? provider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        provider.specialty.toLowerCase().includes(searchQuery.toLowerCase())
-      : true;
-    const matchesSpecialty = selectedSpecialty === 'All'
-      ? true
-      : provider.specialty === selectedSpecialty;
-    return matchesSearch && matchesSpecialty;
-  });
+  useEffect(() => {
+      loadAppointments();
+  }, [loadAppointments]);
 
-  const specialties = ['All', 'Cardiologist', 'Nutritionist', 'Surgeon', 'Therapist'];
+  // --- Load availability when provider + date change ---
+  useEffect(() => {
+      if (!selectedProvider || !selectedDate) {
+          setAvailableSlots([]);
+          return;
+      }
+      (async () => {
+          setIsLoadingSlots(true);
+          try {
+              const result = await apiClient.getProviderAvailability(selectedProvider.id, selectedDate);
+              setAvailableSlots(result.slots || []);
+          } catch (e) {
+              console.error('Failed to load availability', e);
+              // Fallback: generate default weekday slots
+              const day = new Date(selectedDate).getDay();
+              if (day !== 0 && day !== 6) {
+                  setAvailableSlots(['09:00', '10:00', '11:00', '14:00', '15:30']);
+              } else {
+                  setAvailableSlots([]);
+              }
+          } finally {
+              setIsLoadingSlots(false);
+          }
+      })();
+  }, [selectedProvider, selectedDate]);
+
+  // --- Filtering is now handled by the backend API ---
+  // providers state is already filtered from loadProviders()
 
   // --- Calendar Helpers ---
   const getDaysInMonth = (date: Date) => {
@@ -545,54 +596,79 @@ const AppointmentScreen: React.FC = () => {
       }
   };
 
-  const handleConfirmBooking = (medicalSummary?: string) => {
+  const handleConfirmBooking = async (medicalSummary?: string) => {
     if (!selectedProvider || !selectedDate || !selectedTime) return;
 
     let finalSummary = medicalSummary || '';
+    let sharedChart: Record<string, any> | undefined;
 
     // Append shared chart data if enabled
     if (shareChart) {
         const savedAssessment = localStorage.getItem('last_assessment');
         if (savedAssessment) {
             const data = JSON.parse(savedAssessment);
+            sharedChart = {
+                bp: `${data.vitals.systolic}/80`,
+                cholesterol: data.vitals.cholesterol,
+                risk_level: data.risk,
+                date: data.date,
+            };
             finalSummary += `\n\n[SHARED CHART DATA]\nBP: ${data.vitals.systolic}/80\nCholesterol: ${data.vitals.cholesterol}\nRisk Level: ${data.risk}`;
         }
     }
 
-    const newAppt: Appointment = {
-        id: `apt_${Date.now()}`,
-        doctorName: selectedProvider.name,
-        specialty: selectedProvider.specialty,
-        date: selectedDate,
-        time: selectedTime,
-        type: appointmentType,
-        location: selectedProvider.clinicName,
-        rating: selectedProvider.rating,
-        summary: finalSummary
-    };
+    try {
+        // Book via backend API
+        const result = await apiClient.createAppointment(USER_ID, {
+            provider_id: selectedProvider.id,
+            date: selectedDate,
+            time: selectedTime,
+            appointment_type: appointmentType,
+            reason: intakeData?.reason,
+            intake_summary: finalSummary,
+            shared_chart_data: sharedChart,
+            insurance_provider: insuranceDetails.provider || undefined,
+            insurance_member_id: insuranceDetails.memberId || undefined,
+            insurance_group_id: insuranceDetails.groupId || undefined,
+            estimated_cost: 150.0,
+        });
 
-    const updatedList = [...appointments, newAppt];
-    updatedList.sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+        const newAppt: Appointment = {
+            id: result.appointment_id,
+            doctorName: result.doctorName || result.doctor_name || selectedProvider.name,
+            specialty: selectedProvider.specialty,
+            date: selectedDate,
+            time: selectedTime,
+            type: appointmentType,
+            location: selectedProvider.clinicName,
+            rating: selectedProvider.rating,
+            summary: finalSummary,
+        };
 
-    setAppointments(updatedList);
-    setLatestBooking(newAppt);
+        setLatestBooking(newAppt);
 
-    localStorage.setItem('user_appointments', JSON.stringify(updatedList));
+        // Reload appointments from backend
+        await loadAppointments();
 
-    const newNotification = {
-        id: Date.now(),
-        title: 'Appointment Confirmed',
-        message: `Booked with Dr. ${selectedProvider.name} for ${selectedDate} at ${selectedTime}.`,
-        time: 'Just now',
-        icon: 'event_available',
-        color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-        path: '/appointment'
-    };
+        // Save notification
+        const newNotification = {
+            id: Date.now(),
+            title: 'Appointment Confirmed',
+            message: `Booked with Dr. ${selectedProvider.name} for ${selectedDate} at ${selectedTime}.`,
+            time: 'Just now',
+            icon: 'event_available',
+            color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+            path: '/appointment'
+        };
+        const existingNotifs = JSON.parse(localStorage.getItem('user_notifications') || '[]');
+        localStorage.setItem('user_notifications', JSON.stringify([newNotification, ...existingNotifs]));
 
-    const existingNotifs = JSON.parse(localStorage.getItem('user_notifications') || '[]');
-    localStorage.setItem('user_notifications', JSON.stringify([newNotification, ...existingNotifs]));
-
-    setShowSuccessModal(true);
+        setShowSuccessModal(true);
+        showToast('Appointment booked successfully!', 'success');
+    } catch (error: any) {
+        console.error('Booking failed', error);
+        showToast(error?.message || 'Failed to book appointment. Please try again.', 'error');
+    }
   };
 
   const resetFlow = () => {
@@ -697,7 +773,6 @@ const AppointmentScreen: React.FC = () => {
     const days = getDaysInMonth(currentMonthDate);
     const startDay = getFirstDayOfMonth(currentMonthDate);
     const todayStr = formatDate(new Date());
-    const availableSlots = selectedDate ? getAvailability(selectedProvider.id, selectedDate) : [];
 
     // Data for Chart Preview
     const savedAssessment = localStorage.getItem('last_assessment');
@@ -829,7 +904,12 @@ const AppointmentScreen: React.FC = () => {
                         {/* Time Selection */}
                         <div>
                             <h3 className="font-bold text-lg mb-3 dark:text-white">Select Time</h3>
-                            {availableSlots.length > 0 ? (
+                            {isLoadingSlots ? (
+                                <div className="flex items-center justify-center py-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                                    <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2"></span>
+                                    <span className="text-slate-500 text-sm">Loading available slots...</span>
+                                </div>
+                            ) : availableSlots.length > 0 ? (
                                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                     {availableSlots.map(time => (
                                         <button
@@ -1022,6 +1102,26 @@ const AppointmentScreen: React.FC = () => {
                                         <span className="font-bold text-xs">Join</span>
                                     </button>
                                 )}
+                                {new Date(`${appt.date}T${appt.time}`).getTime() > Date.now() && (
+                                    <button
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (!confirm('Cancel this appointment?')) return;
+                                            try {
+                                                await apiClient.cancelAppointment(USER_ID, appt.id, 'Cancelled by patient');
+                                                showToast('Appointment cancelled', 'success');
+                                                await loadAppointments();
+                                            } catch (err) {
+                                                console.error('Cancel failed', err);
+                                                showToast('Failed to cancel', 'error');
+                                            }
+                                        }}
+                                        className="ml-auto bg-red-500/80 hover:bg-red-600 text-white rounded-lg px-3 py-1 flex items-center gap-1 transition-colors shadow-sm"
+                                    >
+                                        <span className="material-symbols-outlined text-[12px]">close</span>
+                                        <span className="font-bold text-xs">Cancel</span>
+                                    </button>
+                                )}
                             </div>
                             {appt.summary && (
                                 <div className="mt-3 pt-3 border-t border-white/10">
@@ -1065,7 +1165,12 @@ const AppointmentScreen: React.FC = () => {
 
         {/* Provider List */}
         <div className="space-y-4 pt-2">
-            {filteredProviders.length > 0 ? filteredProviders.map(provider => (
+            {isLoadingProviders ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <span className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mb-3"></span>
+                    <p className="text-slate-500 font-medium">Loading providers...</p>
+                </div>
+            ) : providers.length > 0 ? providers.map(provider => (
                 <div
                     key={provider.id}
                     onClick={() => { setSelectedProvider(provider); setView('detail'); }}

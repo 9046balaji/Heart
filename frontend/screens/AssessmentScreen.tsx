@@ -701,11 +701,12 @@ const AssessmentScreen: React.FC = () => {
                                     <button
                                         onClick={() => {
                                             // Save last assessment in HealthAssessment format for dashboard
-                                            const riskLabel = result.risk_level === 'high' ? 'High Risk'
-                                                : result.risk_level === 'moderate' ? 'Moderate Risk' : 'Low Risk';
+                                            const rl = (result.risk_level || '').toLowerCase();
+                                            const riskLabel = (rl === 'high' || rl === 'critical') ? 'High Risk'
+                                                : rl === 'moderate' ? 'Moderate Risk' : 'Low Risk';
                                             const scoreVal = result.probability != null
                                                 ? Math.round((1 - result.probability) * 100)
-                                                : (result.risk_level === 'high' ? 30 : result.risk_level === 'moderate' ? 60 : 85);
+                                                : ((rl === 'high' || rl === 'critical') ? 30 : rl === 'moderate' ? 60 : 85);
                                             localStorage.setItem('last_assessment', JSON.stringify({
                                                 date: new Date().toISOString(),
                                                 score: scoreVal,

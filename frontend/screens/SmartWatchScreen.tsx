@@ -74,7 +74,7 @@ export default function SmartWatchScreen() {
                 ...(smartwatchData.batteryLevel != null && { battery: smartwatchData.batteryLevel }),
             }));
 
-            if (smartwatchData.heartRate) {
+            if (smartwatchData.heartRate != null && smartwatchData.heartRate !== 0) {
                 setHeartRateHistory(prev => {
                     const newPoint = {
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),

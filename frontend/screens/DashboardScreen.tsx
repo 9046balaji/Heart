@@ -734,8 +734,8 @@ const DashboardScreen: React.FC = () => {
                                 <span className="material-symbols-outlined text-2xl">health_metrics</span>
                             </div>
                             <div className="text-center relative z-10">
-                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">Heart Check</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">AI risk assessment</p>
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">{t('dashboard.heart_check')}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t('dashboard.heart_check_desc')}</p>
                             </div>
                         </Link>
                         <Link to="/chat" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">
@@ -744,8 +744,8 @@ const DashboardScreen: React.FC = () => {
                                 <span className="material-symbols-outlined text-2xl">smart_toy</span>
                             </div>
                             <div className="text-center relative z-10">
-                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">AI Chat</p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Talk to CardioAI</p>
+                                <p className="font-bold text-sm text-slate-800 dark:text-white mb-0.5">{t('dashboard.ai_chat')}</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t('dashboard.ai_chat_desc')}</p>
                             </div>
                         </Link>
                         <Link to="/medications" className="bg-white dark:bg-card-dark p-5 rounded-2xl flex flex-col items-center gap-3 hover:shadow-lg transition-all border border-slate-100 dark:border-slate-800 group relative overflow-hidden">

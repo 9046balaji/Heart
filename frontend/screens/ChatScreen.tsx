@@ -98,6 +98,7 @@ const ChatScreen: React.FC = () => {
 
   // Search mode: what tools/context to use for the next message
   const [searchMode, setSearchMode] = useState<SearchMode>('default');
+  const [activeSearchMode, setActiveSearchMode] = useState<SearchMode>('default');
 
   // Editing a user message
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -173,9 +174,11 @@ const ChatScreen: React.FC = () => {
     const currentSearchMode = searchMode;
     setInput('');
     setAttachment(null);
+    setActiveSearchMode(currentSearchMode); // Track mode during loading
     setSearchMode('default'); // Reset after send (Gemini-style)
     if (fileInputRef.current) fileInputRef.current.value = '';
     await chatActions.sendMessage(text, selectedModel, currentSearchMode);
+    setActiveSearchMode('default');
   };
 
   const startRecording = async () => {
@@ -602,7 +605,7 @@ const ChatScreen: React.FC = () => {
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-xl shadow-red-500/20 mb-6 animate-breathe">
               <span className="material-symbols-outlined text-white text-4xl">cardiology</span>
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">{getGreeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 text-center">{getGreeting()}{user?.name?.trim() ? `, ${user.name.trim().split(' ')[0]}` : ''}</h2>
             <p className="text-sm text-slate-400 dark:text-slate-500 text-center max-w-[280px] mb-8 leading-relaxed">
               Ask me about heart health, log your vitals, or get personalized guidance.
             </p>
@@ -827,7 +830,7 @@ const ChatScreen: React.FC = () => {
                         <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full typing-dot" />
                       </div>
                       <span className="text-[11px] text-slate-400 ml-1 font-medium">
-                        {searchMode === 'web_search' ? 'Searching the web...' : searchMode === 'deep_search' ? 'Analyzing in depth...' : searchMode === 'memory' ? 'Checking your history...' : 'Thinking...'}
+                        {activeSearchMode === 'web_search' ? 'Searching the web...' : activeSearchMode === 'deep_search' ? 'Analyzing in depth...' : activeSearchMode === 'memory' ? 'Checking your history...' : 'Thinking...'}
                       </span>
                     </div>
                   </div>

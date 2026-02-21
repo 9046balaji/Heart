@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { badgesData } from '../data/gamification';
 import { FamilyMember } from '../types';
 import { useToast } from '../components/Toast';
+import { apiClient } from '../services/apiClient';
+import { useAuth } from '../hooks/useAuth';
 
 // --- Types ---
 interface UserProfile {
@@ -419,9 +421,13 @@ const EditContactModal = ({
 
 const ProfileScreen: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'Personal' | 'Medical' | 'Achievements' | 'Family' | 'Settings'>('Personal');
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [activeCaretakerId, setActiveCaretakerId] = useState<string | null>(null);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>(FAMILY_MEMBERS);
+  const [loading, setLoading] = useState(true);
 
   // Modal States
   const [showEditPersonal, setShowEditPersonal] = useState(false);
@@ -430,24 +436,76 @@ const ProfileScreen: React.FC = () => {
   const [showEditContact, setShowEditContact] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-  // Load from LocalStorage
+  // Load from API with localStorage fallback
   useEffect(() => {
-    const saved = localStorage.getItem('user_profile');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setProfile({ ...DEFAULT_PROFILE, ...parsed });
-    }
+    const loadProfile = async () => {
+      const userId = user?.id || localStorage.getItem('user_id') || 'default';
+      try {
+        const data = await apiClient.getProfile(userId);
+        if (data && data.name) {
+          setProfile({ ...DEFAULT_PROFILE, ...data });
+          // Cache in localStorage
+          localStorage.setItem('user_profile', JSON.stringify(data));
+        } else {
+          // Fall back to localStorage
+          const saved = localStorage.getItem('user_profile');
+          if (saved) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(saved) });
+        }
+      } catch (err) {
+        console.warn('Failed to load profile from API, using localStorage', err);
+        const saved = localStorage.getItem('user_profile');
+        if (saved) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(saved) });
+      }
+
+      // Load family members from API
+      try {
+        const members = await apiClient.getFamilyMembers(userId);
+        if (members && members.length > 0) {
+          setFamilyMembers(members.map(m => ({
+            id: m.id,
+            name: m.name,
+            relation: m.relation,
+            avatar: m.avatar || '',
+            accessLevel: (m.accessLevel as any) || 'read-only',
+            status: (m.status as any) || 'Stable',
+            lastActive: m.lastActive || ''
+          })));
+        }
+      } catch {
+        // Keep default family members
+      }
+
+      setLoading(false);
+    };
+
+    loadProfile();
 
     const caretakerMode = localStorage.getItem('active_profile_mode');
     if (caretakerMode) {
         setActiveCaretakerId(caretakerMode);
     }
-  }, []);
+  }, [user]);
 
-  // Save to LocalStorage helper
-  const updateProfile = (newProfile: UserProfile) => {
+  // Save to backend + localStorage helper
+  const updateProfile = async (newProfile: UserProfile) => {
     setProfile(newProfile);
     localStorage.setItem('user_profile', JSON.stringify(newProfile));
+
+    const userId = user?.id || localStorage.getItem('user_id') || 'default';
+    try {
+      await apiClient.updateProfile(userId, {
+        name: newProfile.name,
+        email: newProfile.email,
+        phone: newProfile.phone,
+        dob: newProfile.dob,
+        gender: newProfile.gender,
+      });
+
+      // Update emergency contact
+      await apiClient.updateEmergencyContact(userId, newProfile.emergencyContact);
+    } catch (err) {
+      console.warn('Failed to sync profile to backend', err);
+    }
   };
 
   const handleTabChange = (tab: 'Personal' | 'Medical' | 'Achievements' | 'Family' | 'Settings') => {
@@ -459,15 +517,36 @@ const ProfileScreen: React.FC = () => {
   };
 
   const removeItem = (type: 'conditions' | 'allergies', index: number) => {
+      const item = profile[type][index];
       const newList = [...profile[type]];
       newList.splice(index, 1);
-      updateProfile({ ...profile, [type]: newList });
+      const newProfile = { ...profile, [type]: newList };
+      setProfile(newProfile);
+      localStorage.setItem('user_profile', JSON.stringify(newProfile));
+
+      // Sync with backend
+      const userId = user?.id || localStorage.getItem('user_id') || 'default';
+      if (type === 'conditions') {
+        apiClient.removeCondition(userId, item).catch(err => console.warn('Failed to sync remove condition', err));
+      } else {
+        apiClient.removeAllergy(userId, item).catch(err => console.warn('Failed to sync remove allergy', err));
+      }
   };
 
   const addItem = (type: 'conditions' | 'allergies', value: string) => {
-      updateProfile({ ...profile, [type]: [...profile[type], value] });
+      const newProfile = { ...profile, [type]: [...profile[type], value] };
+      setProfile(newProfile);
+      localStorage.setItem('user_profile', JSON.stringify(newProfile));
       setShowAddCondition(false);
       setShowAddAllergy(false);
+
+      // Sync with backend
+      const userId = user?.id || localStorage.getItem('user_id') || 'default';
+      if (type === 'conditions') {
+        apiClient.addCondition(userId, value).catch(err => console.warn('Failed to sync add condition', err));
+      } else {
+        apiClient.addAllergy(userId, value).catch(err => console.warn('Failed to sync add allergy', err));
+      }
   };
 
   const toggleCaretakerMode = (member: FamilyMember) => {
@@ -700,7 +779,7 @@ const ProfileScreen: React.FC = () => {
                   <div>
                       <h3 className="text-gray-900 dark:text-white text-base font-bold mb-3 px-1">I am caring for:</h3>
                       <div className="space-y-3">
-                          {FAMILY_MEMBERS.map(member => (
+                      {familyMembers.map(member => (
                               <div key={member.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${activeCaretakerId === member.id ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' : 'bg-white dark:bg-card-dark border-gray-200 dark:border-slate-800'}`}>
                                   <div className="flex items-center gap-3">
                                       <div className="relative">
@@ -856,7 +935,13 @@ const ProfileScreen: React.FC = () => {
       {showPhotoModal && (
           <PhotoEditModal
             onClose={() => setShowPhotoModal(false)}
-            onSave={(url) => { updateProfile({...profile, avatar: url}); setShowPhotoModal(false); }}
+            onSave={(url) => {
+              updateProfile({...profile, avatar: url});
+              setShowPhotoModal(false);
+              // Also sync avatar separately for efficiency
+              const userId = user?.id || localStorage.getItem('user_id') || 'default';
+              apiClient.updateAvatar(userId, url).catch(err => console.warn('Failed to sync avatar', err));
+            }}
           />
       )}
 

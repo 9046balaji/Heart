@@ -866,9 +866,53 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
     ];
   });
 
+  // Load settings & devices from API on mount
+  useEffect(() => {
+    const userId = user?.id || localStorage.getItem('user_id') || 'default';
+    const loadFromApi = async () => {
+      try {
+        const apiSettings = await apiClient.getAppSettings(userId);
+        if (apiSettings) {
+          const merged: AppSettings = {
+            notifications: apiSettings.notifications || settings.notifications,
+            preferences: { units: (apiSettings.preferences?.units as any) || settings.preferences.units },
+          };
+          setSettings(merged);
+          localStorage.setItem('app_settings', JSON.stringify(merged));
+        }
+      } catch {
+        // Keep localStorage values
+      }
+
+      try {
+        const apiDevices = await apiClient.getDevices(userId);
+        if (apiDevices && apiDevices.length > 0) {
+          setDevices(apiDevices.map(d => ({
+            id: d.id,
+            name: d.name,
+            type: d.type as any,
+            lastSync: d.lastSync,
+            status: d.status as any,
+            battery: d.battery,
+          })));
+          localStorage.setItem('connected_devices', JSON.stringify(apiDevices));
+        }
+      } catch {
+        // Keep localStorage values
+      }
+    };
+    loadFromApi();
+  }, [user]);
+
   // Save settings
   useEffect(() => {
     localStorage.setItem('app_settings', JSON.stringify(settings));
+    // Sync to backend
+    const userId = user?.id || localStorage.getItem('user_id') || 'default';
+    apiClient.updateAppSettings(userId, {
+      notifications: settings.notifications,
+      preferences: { units: settings.preferences.units, language: language, theme: isDark ? 'dark' : 'light' },
+    }).catch(() => { /* silent fail */ });
   }, [settings]);
 
   // Save devices
@@ -955,10 +999,20 @@ const SettingsScreen: React.FC<SettingsProps> = ({ isDark, toggleTheme }) => {
 
   const handleConnectDevice = (newDevice: Device) => {
     setDevices(prev => [...prev, newDevice]);
+    const userId = user?.id || localStorage.getItem('user_id') || 'default';
+    apiClient.addDevice(userId, {
+      id: newDevice.id,
+      name: newDevice.name,
+      type: newDevice.type,
+      status: newDevice.status,
+      battery: newDevice.battery,
+    }).catch(err => console.warn('Failed to sync device to backend', err));
   };
 
   const handleDisconnectDevice = (id: string) => {
     setDevices(prev => prev.filter(d => d.id !== id));
+    const userId = user?.id || localStorage.getItem('user_id') || 'default';
+    apiClient.removeDevice(userId, id).catch(err => console.warn('Failed to sync device removal', err));
   };
 
   const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange?: () => void }) => (
