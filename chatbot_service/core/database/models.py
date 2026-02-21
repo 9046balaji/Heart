@@ -28,7 +28,10 @@ class User(Base):
     medications = Column(JSON)
     allergies = Column(JSON)
     is_active = Column(Boolean, default=True)
+    phone = Column(String(50))
+    avatar = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
     __table_args__ = (
         Index('idx_user_id', 'user_id'),
@@ -209,6 +212,12 @@ class Medication(Base):
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     is_active = Column(Boolean, default=True)
+    schedule = Column(JSON, default=list)  # e.g. ['08:00', '20:00']
+    notes = Column(Text)
+    quantity = Column(Integer, default=30)
+    instructions = Column(Text)
+    taken_today = Column(JSON, default=list)  # e.g. [false, true]
+    times = Column(JSON, default=lambda: ['08:00'])  # time slots
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     __table_args__ = (
@@ -242,6 +251,66 @@ class Feedback(Base):
     )
 
 
+class EmergencyContact(Base):
+    """Emergency contact for a user."""
+    __tablename__ = 'emergency_contacts'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
+    relation = Column(String(100))
+    phone = Column(String(50))
+    is_primary = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_emergency_user', 'user_id'),
+    )
+
+
+class UserAppSettings(Base):
+    """Application-level settings per user."""
+    __tablename__ = 'user_app_settings'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), unique=True, nullable=False)
+    notifications_all = Column(Boolean, default=True)
+    notifications_meds = Column(Boolean, default=True)
+    notifications_insights = Column(Boolean, default=False)
+    units = Column(String(20), default='Metric')
+    theme = Column(String(20), default='light')
+    language = Column(String(10), default='en')
+    settings_json = Column(JSON, default=dict)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_app_settings_user', 'user_id'),
+    )
+
+
+class FamilyMember(Base):
+    """Family member / caretaker relationship."""
+    __tablename__ = 'family_members'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False)
+    member_user_id = Column(String(255))
+    name = Column(String(255), nullable=False)
+    relation = Column(String(100))
+    avatar = Column(Text)
+    access_level = Column(String(50), default='read-only')
+    status = Column(String(50), default='Stable')
+    last_active = Column(String(50))
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_family_user', 'user_id'),
+    )
+
+
 class UserDevice(Base):
     __tablename__ = 'user_devices'
 
@@ -249,8 +318,14 @@ class UserDevice(Base):
     user_id = Column(String(255), nullable=False)
     device_id = Column(String(255), unique=True, nullable=False)
     device_type = Column(String(100))
+    device_name = Column(String(255))
+    firmware_version = Column(String(100))
+    battery = Column(Integer, default=100)
+    status = Column(String(50), default='connected')
+    last_sync = Column(TIMESTAMP)
     registered_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     is_active = Column(Boolean, default=True)
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
     __table_args__ = (
         Index('idx_user_device_user', 'user_id'),
@@ -274,4 +349,292 @@ class DeviceTimeSeries(Base):
         Index('idx_dt_metric', 'metric_type'),
         Index('idx_dt_ts', 'ts'),
         Index('idx_dt_device_ts', 'device_id', 'ts'),
+    )
+
+
+# ============================================================================
+# Appointment System Models
+# ============================================================================
+
+class Provider(Base):
+    """Healthcare provider / doctor record."""
+    __tablename__ = 'providers'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider_id = Column(String(50), unique=True, nullable=False)  # e.g. 'p_101'
+    name = Column(String(255), nullable=False)
+    specialty = Column(String(100), nullable=False)
+    qualifications = Column(String(255))
+    rating = Column(Float, default=0.0)
+    review_count = Column(Integer, default=0)
+    photo_url = Column(String(500))
+    clinic_name = Column(String(255))
+    address = Column(Text)
+    languages = Column(JSON)  # ["English", "Spanish"]
+    telehealth_available = Column(Boolean, default=False)
+    accepted_insurances = Column(JSON)  # ["Aetna", "BlueCross"]
+    bio = Column(Text)
+    experience_years = Column(Integer, default=0)
+    accepts_new_patients = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_provider_id', 'provider_id'),
+        Index('idx_provider_specialty', 'specialty'),
+        Index('idx_provider_active', 'is_active'),
+    )
+
+
+class ProviderAvailability(Base):
+    """Recurring or specific-date availability slots for a provider."""
+    __tablename__ = 'provider_availability'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider_id = Column(String(50), nullable=False)  # references providers.provider_id
+    date = Column(String(10), nullable=False)  # 'YYYY-MM-DD'
+    time_slot = Column(String(5), nullable=False)  # 'HH:MM'
+    is_booked = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_avail_provider', 'provider_id'),
+        Index('idx_avail_date', 'provider_id', 'date'),
+        Index('idx_avail_booked', 'provider_id', 'date', 'is_booked'),
+    )
+
+
+class AppointmentRecord(Base):
+    """Patient appointment booking record."""
+    __tablename__ = 'appointments'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    appointment_id = Column(String(100), unique=True, nullable=False)  # e.g. 'apt_1700000000'
+    user_id = Column(String(255), nullable=False)
+    provider_id = Column(String(50), nullable=False)  # references providers.provider_id
+
+    # Provider snapshot (denormalized for quick display)
+    doctor_name = Column(String(255), nullable=False)
+    specialty = Column(String(100))
+    doctor_rating = Column(Float)
+
+    # Schedule
+    date = Column(String(10), nullable=False)  # 'YYYY-MM-DD'
+    time = Column(String(5), nullable=False)   # 'HH:MM'
+    duration_minutes = Column(Integer, default=30)
+    appointment_type = Column(String(20), nullable=False, default='in-person')  # 'in-person' | 'video'
+
+    # Location
+    location = Column(String(255))
+    virtual_link = Column(String(500))
+
+    # Clinical
+    reason = Column(Text)  # from intake
+    intake_summary = Column(Text)  # AI triage result
+    consultation_summary = Column(Text)  # post-visit AI summary
+    shared_chart_data = Column(JSON)  # vitals shared with doctor
+
+    # Insurance
+    insurance_provider = Column(String(255))
+    insurance_member_id = Column(String(100))
+    insurance_group_id = Column(String(100))
+
+    # Status
+    status = Column(String(20), nullable=False, default='scheduled')
+    # 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
+    cancellation_reason = Column(Text)
+
+    # Cost
+    estimated_cost = Column(Float, default=150.00)
+    actual_cost = Column(Float)
+
+    # Timestamps
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_appt_id', 'appointment_id'),
+        Index('idx_appt_user', 'user_id'),
+        Index('idx_appt_provider', 'provider_id'),
+        Index('idx_appt_date', 'date'),
+        Index('idx_appt_status', 'status'),
+        Index('idx_appt_user_date', 'user_id', 'date'),
+    )
+
+
+class InsuranceInfo(Base):
+    """Stored insurance information for a user."""
+    __tablename__ = 'insurance_info'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False)
+    insurance_provider = Column(String(255), nullable=False)
+    member_id = Column(String(100), nullable=False)
+    group_id = Column(String(100))
+    plan_type = Column(String(50))  # HMO, PPO, etc.
+    is_primary = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_insurance_user', 'user_id'),
+    )
+
+
+# =========================================================================
+# Consent System
+# =========================================================================
+
+class UserConsent(Base):
+    """User consent records for GDPR/HIPAA compliance."""
+    __tablename__ = 'user_consents'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False)
+    consent_type = Column(String(100), nullable=False)  # e.g. 'data_processing'
+    granted = Column(Boolean, default=False, nullable=False)
+    description = Column(Text)
+    required = Column(Boolean, default=False)
+    granted_at = Column(TIMESTAMP)
+    revoked_at = Column(TIMESTAMP)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_consent_user', 'user_id'),
+        Index('idx_consent_user_type', 'user_id', 'consent_type', unique=True),
+    )
+
+
+# =========================================================================
+# Calendar System
+# =========================================================================
+
+class CalendarCredential(Base):
+    """Calendar integration credentials per user."""
+    __tablename__ = 'calendar_credentials'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, unique=True)
+    provider = Column(String(50), default='google')
+    access_token = Column(Text)
+    refresh_token = Column(Text)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_calcred_user', 'user_id'),
+    )
+
+
+class CalendarEvent(Base):
+    """Calendar events synced or created."""
+    __tablename__ = 'calendar_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_id = Column(String(100), unique=True, nullable=False)
+    user_id = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    start_time = Column(String(30), nullable=False)
+    end_time = Column(String(30), nullable=False)
+    location = Column(String(255))
+    description = Column(Text)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_calevent_user', 'user_id'),
+        Index('idx_calevent_start', 'user_id', 'start_time'),
+    )
+
+
+class CalendarReminder(Base):
+    """Health-related reminders."""
+    __tablename__ = 'calendar_reminders'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    reminder_id = Column(String(100), unique=True, nullable=False)
+    user_id = Column(String(255), nullable=False)
+    appointment_id = Column(String(100))
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    scheduled_for = Column(String(30), nullable=False)
+    reminder_minutes_before = Column(Integer, default=30)
+    status = Column(String(20), default='scheduled')  # scheduled, sent, dismissed
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_calreminder_user', 'user_id'),
+        Index('idx_calreminder_status', 'status'),
+    )
+
+
+# =========================================================================
+# Push Notification Devices
+# =========================================================================
+
+class PushDevice(Base):
+    """Registered push notification devices."""
+    __tablename__ = 'push_devices'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False)
+    device_token = Column(String(500), nullable=False)
+    platform = Column(String(20), nullable=False)  # ios, android, web
+    registered_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_pushdev_user', 'user_id'),
+        Index('idx_pushdev_token', 'user_id', 'device_token', unique=True),
+    )
+
+
+# =========================================================================
+# Content Verification (Compliance)
+# =========================================================================
+
+class ContentVerification(Base):
+    """Content verification queue for HIPAA compliance."""
+    __tablename__ = 'content_verifications'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_id = Column(String(100), unique=True, nullable=False)
+    content = Column(Text, nullable=False)
+    content_type = Column(String(50), nullable=False)
+    submitted_by = Column(String(255))
+    status = Column(String(20), default='pending')  # pending, verified, rejected
+    reviewer_notes = Column(Text)
+    submitted_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    reviewed_at = Column(TIMESTAMP)
+
+    __table_args__ = (
+        Index('idx_verify_status', 'status'),
+        Index('idx_verify_item', 'item_id'),
+    )
+
+
+# =========================================================================
+# Prediction History
+# =========================================================================
+
+class PredictionHistory(Base):
+    """Heart disease prediction history for longitudinal tracking."""
+    __tablename__ = 'prediction_history'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    prediction_id = Column(String(100), unique=True, nullable=False)
+    user_id = Column(String(255))
+    input_data = Column(JSON)
+    prediction = Column(Integer)  # 0 or 1
+    probability = Column(Float)
+    risk_level = Column(String(20))
+    confidence = Column(Float)
+    clinical_interpretation = Column(Text)
+    processing_time_ms = Column(Float)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index('idx_pred_user', 'user_id'),
+        Index('idx_pred_created', 'created_at'),
     )
