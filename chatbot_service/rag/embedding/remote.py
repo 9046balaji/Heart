@@ -302,6 +302,30 @@ class RemoteEmbeddingService(BaseEmbeddingService):
         return client.embed_batch_images(image_paths)
 
     # ------------------------------------------------------------------
+    # Cache warming
+    # ------------------------------------------------------------------
+
+    def warm_cache(self, texts: List[str]) -> int:
+        """Pre-populate the embedding cache with common terms.
+
+        Args:
+            texts: List of texts to pre-embed and cache.
+
+        Returns:
+            Number of embeddings warmed (newly cached).
+        """
+        warmed = 0
+        for text in texts:
+            key = self._cache_key(text)
+            if self._get_cached(key) is None:
+                try:
+                    self.embed_text(text, use_cache=True)
+                    warmed += 1
+                except Exception as exc:
+                    logger.debug(f"warm_cache: failed to embed '{text[:30]}…': {exc}")
+        return warmed
+
+    # ------------------------------------------------------------------
     # Info
     # ------------------------------------------------------------------
 

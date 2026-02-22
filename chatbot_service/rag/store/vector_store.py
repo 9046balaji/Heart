@@ -93,11 +93,14 @@ class InMemoryVectorStore:
         
         # Try to initialize embedding service
         self.embedding_service = None
-        if RemoteEmbeddingService is not None:
+        use_remote = os.getenv("USE_REMOTE_EMBEDDINGS", "true").lower() == "true"
+        if use_remote and RemoteEmbeddingService is not None:
             try:
                 self.embedding_service = RemoteEmbeddingService.get_instance()
             except Exception as e:
                 logger.warning(f"Failed to initialize embedding service: {e}")
+        elif not use_remote:
+            logger.info("ℹ️ Remote embeddings disabled (USE_REMOTE_EMBEDDINGS=false)")
         
         logger.warning("⚠️ Using InMemoryVectorStore - data will NOT be persisted!")
         logger.info("✅ InMemoryVectorStore initialized")

@@ -214,7 +214,10 @@ class GraphInteractionChecker:
         
         # Wait for initialization to complete (with timeout)
         if not self._init_complete.wait(timeout=5.0):
-            logger.warning("PostgreSQL init timeout (5s)")
+            logger.warning("PostgreSQL init timeout (5s) — skipping interaction checks")
+            # Set the event and error so future calls don't block again
+            self._init_error = "PostgreSQL fallback never initialized (timeout)"
+            self._init_complete.set()
             return None
         
         if self._init_error:
@@ -282,6 +285,9 @@ class GraphInteractionChecker:
                 result = await self._check_pair(drug_a, drug_b)
                 
                 if result:
+                    # Include drug names in result for downstream consumers
+                    result['drug_a'] = drug_a
+                    result['drug_b'] = drug_b
                     interactions.append(result)
                     
                     if result.get('severity') == 'severe':

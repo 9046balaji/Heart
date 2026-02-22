@@ -6,12 +6,16 @@ Uses RemoteEmbeddingService to connect to a Colab-hosted
 MedCPT encoder (768-dim) via ngrok.
 """
 
+import os
 from .base import BaseEmbeddingService
 from .remote import RemoteEmbeddingService
 
 # Simple factory for backward compatibility
-def get_embedding_service(**kwargs) -> RemoteEmbeddingService:
-    """Get or create the singleton RemoteEmbeddingService."""
+def get_embedding_service(**kwargs):
+    """Get or create the singleton RemoteEmbeddingService (if enabled)."""
+    use_remote = os.getenv("USE_REMOTE_EMBEDDINGS", "true").lower() == "true"
+    if not use_remote:
+        return None
     return RemoteEmbeddingService.get_instance(**kwargs)
 
 # Alias for backward compatibility

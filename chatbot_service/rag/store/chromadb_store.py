@@ -155,12 +155,15 @@ class ChromaDBVectorStore:
 
         # Initialize embedding service (optional — rag_engines.py provides its own)
         self.embedding_service = None
-        if RemoteEmbeddingService is not None:
+        use_remote = os.getenv("USE_REMOTE_EMBEDDINGS", "true").lower() == "true"
+        if use_remote and RemoteEmbeddingService is not None:
             try:
                 self.embedding_service = RemoteEmbeddingService.get_instance()
                 logger.info("✅ Using RemoteEmbeddingService (MedCPT 768-dim)")
             except Exception as e:
                 logger.warning(f"Remote embedding unavailable: {e}")
+        elif not use_remote:
+            logger.info("ℹ️ Remote embeddings disabled (USE_REMOTE_EMBEDDINGS=false)")
 
         # Query result cache
         self._query_cache: OrderedDict[str, List[Dict]] = OrderedDict()
