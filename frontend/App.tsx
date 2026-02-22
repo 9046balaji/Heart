@@ -61,6 +61,7 @@ const PatientSummaryScreen = lazy(() => import('./screens/PatientSummaryScreen')
 const ConsentScreen = lazy(() => import('./screens/ConsentScreen'));
 const DocumentScreen = lazy(() => import('./screens/DocumentScreen'));
 const AgentSettingsScreen = lazy(() => import('./screens/AgentSettingsScreen'));
+const SavedResultsScreen = lazy(() => import('./screens/SavedResultsScreen'));
 
 import BottomNav from './components/BottomNav';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -120,6 +121,7 @@ const AppContent: React.FC = () => {
     '/smartwatch',
     '/calendar',
     '/weekly-summary',
+    '/saved-results',
   ].includes(location.pathname);
 
   // Update HTML class for dark mode and native status bar
@@ -251,6 +253,11 @@ const AppContent: React.FC = () => {
             <Route path="/agent-settings" element={
               <Suspense fallback={<ListFallback />}>
                 <AgentSettingsScreen />
+              </Suspense>
+            } />
+            <Route path="/saved-results" element={
+              <Suspense fallback={<ListFallback />}>
+                <SavedResultsScreen />
               </Suspense>
             } />
           </Routes>
