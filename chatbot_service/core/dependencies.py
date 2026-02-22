@@ -191,9 +191,14 @@ class DIContainer:
     def embeddings(self):
         """Get EmbeddingService singleton."""
         if self._embeddings is None:
-            from rag.embedding.remote import RemoteEmbeddingService
-            self._embeddings = RemoteEmbeddingService.get_instance()
-            logger_di.debug("RemoteEmbeddingService instance created and cached")
+            use_remote = os.getenv("USE_REMOTE_EMBEDDINGS", "true").lower() == "true"
+            if use_remote:
+                from rag.embedding.remote import RemoteEmbeddingService
+                self._embeddings = RemoteEmbeddingService.get_instance()
+                logger_di.debug("RemoteEmbeddingService instance created and cached")
+            else:
+                logger_di.info("ℹ️ Remote embeddings disabled (USE_REMOTE_EMBEDDINGS=false)")
+                self._embeddings = None
         return self._embeddings
     
     @property
@@ -427,6 +432,10 @@ class DIContainer:
                     verbose=False
                 )
                 
+                # Enable Memori so it can record conversations
+                memori.enable()
+                logger_di.info("✅ Memori enabled for conversation recording")
+                
                 # Create MemoriRAGBridge with both services
                 self._memori_bridge = MemoriRAGBridge(
                     memori=memori,
@@ -609,10 +618,20 @@ class DIContainer:
                     if not hasattr(self, '_rag_optimizer') or self._rag_optimizer is None:
                         from rag.pipeline.query_optimizer import OptimizedRAGQueryExecutor
                         
+                        redis_url = None
+                        if self.redis_client:
+                            try:
+                                conn_kwargs = self.redis_client.connection_pool.connection_kwargs
+                                host = conn_kwargs.get('host', 'localhost')
+                                port = conn_kwargs.get('port', 6379)
+                                db = conn_kwargs.get('db', 0)
+                                redis_url = f"redis://{host}:{port}/{db}"
+                            except Exception:
+                                redis_url = "redis://localhost:6379/0"
                         self._rag_optimizer = OptimizedRAGQueryExecutor(
                             vector_store=self.vector_store,
                             embedding_service=self.embedding_service,
-                            redis_client=self.redis_client
+                            cache_config={"redis_url": redis_url} if redis_url else None
                         )
                         logger_di.info("✅ RAG optimizer initialized")
             except ImportError as e:
