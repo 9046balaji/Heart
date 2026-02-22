@@ -24,7 +24,8 @@ import hashlib
 try:
     from agents.components.thinking import ThinkingAgent, ThinkingResult
     from tools.web_search import VerifiedWebSearchTool
-    from .search_tool import get_search_results
+    from tools.medical_search import MedicalContentSearcher, ContentType
+    from .search_tool import get_search_results, get_comprehensive_medical_search
     from .crawler_tool import deep_crawl_research
     from .reporter import synthesize_report
     from .models import ResearchInsight
@@ -34,7 +35,8 @@ except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     from agents.components.thinking import ThinkingAgent, ThinkingResult
     from tools.web_search import VerifiedWebSearchTool
-    from agents.deep_research_agent.search_tool import get_search_results
+    from tools.medical_search import MedicalContentSearcher, ContentType
+    from agents.deep_research_agent.search_tool import get_search_results, get_comprehensive_medical_search
     from agents.deep_research_agent.crawler_tool import deep_crawl_research
     from agents.deep_research_agent.reporter import synthesize_report
     from agents.deep_research_agent.models import ResearchInsight
@@ -173,26 +175,29 @@ class ReasoningResearcher:
         )
         
         # Research prompt - v2.0: Encourage diverse searches, mention deduplication
-        research_prompt = f"""You are an expert research assistant. Your task is to conduct thorough research on:
+        research_prompt = f"""You are an expert medical research assistant. Your task is to conduct thorough research on:
 
 "{query}"
 
 Available tools:
 1. perform_search(query, search_pdfs) - Search the web for articles or PDFs
-2. perform_deep_crawl(urls, question) - Crawl specific URLs to extract information
-3. finalize_research(summary) - Complete the research with final summary
+2. search_medical_research(query, content_types) - Search for medical research papers, news, images, and videos from verified medical sources (PubMed, WHO, CDC, NIH, FDA, medical journals)
+3. perform_deep_crawl(urls, question) - Crawl specific URLs to extract information
+4. finalize_research(summary) - Complete the research with final summary
 
 IMPORTANT RULES:
 - Do NOT repeat the same search query - each search must be DIFFERENT
+- Use search_medical_research for comprehensive medical content (papers, articles, news, images, videos)
 - After finding good URLs, use perform_deep_crawl to extract information
 - If you have collected enough information (3+ good sources), call finalize_research
-- Vary your search queries: try different keywords, angles, or add "recent" / "2024"
+- Vary your search queries: try different keywords, angles, or add "recent" / "2024" / "2025"
+- Include relevant medical images and videos in your findings when available
 
 Research Strategy:
-1. Start with a focused search on the main topic
-2. If you need more, search with DIFFERENT keywords or angles
+1. Start with search_medical_research for broad medical content (papers, news, images, videos)
+2. Use perform_search for additional web content if needed
 3. Select 2-3 relevant URLs and crawl them for details
-4. Once you have useful findings, summarize and finalize
+4. Once you have useful findings (including any relevant media), summarize and finalize
 
 Begin your research now."""
 
@@ -314,6 +319,98 @@ Begin your research now."""
             except Exception as e:
                 return f"Crawl error: {e}. Try different URLs."
         
+        async def search_medical_research(query: str, content_types: str = "all") -> str:
+            """
+            Search for comprehensive medical content: research papers, articles,
+            news, images, and videos from verified medical sources.
+            
+            Args:
+                query: Medical research query (must be DIFFERENT from previous searches)
+                content_types: Comma-separated types: 'article,research_paper,news,image,video' or 'all'
+                
+            Returns:
+                Structured results with papers, news, images, and videos
+            """
+            # Check for duplicate query
+            if self.current_session.is_query_executed(f"med_{query}"):
+                return (
+                    f"⚠️ This medical search query was already executed. "
+                    f"Please try DIFFERENT keywords or call finalize_research."
+                )
+            
+            try:
+                self.current_session.mark_query_executed(f"med_{query}")
+                
+                # Parse content types
+                types = None
+                if content_types and content_types.lower() != "all":
+                    types = [ct.strip() for ct in content_types.split(",")]
+                
+                result_data = await get_comprehensive_medical_search(
+                    query=query,
+                    max_results=5,
+                    content_types=types
+                )
+                
+                # Add URLs for crawling
+                self.current_session.urls_searched.extend(result_data.get("urls", []))
+                
+                # Build readable result
+                output_lines = [f"📊 Medical search found {result_data.get('total_results', 0)} results:\n"]
+                
+                # Research papers
+                papers = result_data.get("papers", [])
+                if papers:
+                    output_lines.append(f"\n📄 **Research Papers ({len(papers)}):**")
+                    for i, p in enumerate(papers[:3], 1):
+                        output_lines.append(f"  {i}. {p['title']}")
+                        if p.get('authors'):
+                            output_lines.append(f"     Authors: {p['authors']}")
+                        if p.get('journal'):
+                            output_lines.append(f"     Journal: {p['journal']}")
+                        output_lines.append(f"     URL: {p['url']}")
+                
+                # Articles
+                articles = result_data.get("articles", [])
+                if articles:
+                    output_lines.append(f"\n📋 **Medical Articles ({len(articles)}):**")
+                    for i, a in enumerate(articles[:3], 1):
+                        output_lines.append(f"  {i}. {a['title']} [{a['domain']}]")
+                        output_lines.append(f"     URL: {a['url']}")
+                
+                # News
+                news = result_data.get("news", [])
+                if news:
+                    output_lines.append(f"\n📰 **Medical News ({len(news)}):**")
+                    for i, n in enumerate(news[:3], 1):
+                        cat = f" [{n['category']}]" if n.get('category') else ""
+                        output_lines.append(f"  {i}. {n['title']}{cat}")
+                        output_lines.append(f"     Source: {n['source']} | URL: {n['url']}")
+                
+                # Images
+                images = result_data.get("images", [])
+                if images:
+                    output_lines.append(f"\n🖼️ **Medical Images ({len(images)}):**")
+                    for i, img in enumerate(images[:3], 1):
+                        output_lines.append(f"  {i}. {img['title']} (Source: {img['source']})")
+                        output_lines.append(f"     URL: {img['url']}")
+                
+                # Videos
+                videos = result_data.get("videos", [])
+                if videos:
+                    output_lines.append(f"\n🎬 **Medical Videos ({len(videos)}):**")
+                    for i, vid in enumerate(videos[:3], 1):
+                        dur = f" ({vid['duration']})" if vid.get('duration') else ""
+                        output_lines.append(f"  {i}. {vid['title']}{dur}")
+                        output_lines.append(f"     Source: {vid['source']} | URL: {vid['url']}")
+                
+                output_lines.append(f"\n💡 Total URLs collected: {len(self.current_session.urls_searched)}")
+                
+                return "\n".join(output_lines)
+                
+            except Exception as e:
+                return f"Medical search error: {e}. Try different keywords."
+        
         async def finalize_research(summary: str) -> str:
             """
             Complete the research with a final summary.
@@ -332,6 +429,10 @@ Begin your research now."""
         perform_search.name = "perform_search"
         perform_search.description = "Search the web for articles or PDFs related to the research topic"
         
+        search_medical_research.__name__ = "search_medical_research"
+        search_medical_research.name = "search_medical_research"
+        search_medical_research.description = "Search for medical research papers, articles, news, images, and videos from verified medical sources (PubMed, WHO, CDC, NIH, FDA, journals)"
+        
         perform_deep_crawl.__name__ = "perform_deep_crawl"
         perform_deep_crawl.name = "perform_deep_crawl"
         perform_deep_crawl.description = "Crawl specific URLs to extract detailed information"
@@ -340,7 +441,7 @@ Begin your research now."""
         finalize_research.name = "finalize_research"
         finalize_research.description = "Complete the research with a final summary"
         
-        return [perform_search, perform_deep_crawl, finalize_research]
+        return [perform_search, search_medical_research, perform_deep_crawl, finalize_research]
     
     def _synthesize_final_report(self) -> str:
         """Generate final report from collected insights."""
