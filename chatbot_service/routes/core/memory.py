@@ -205,11 +205,9 @@ Query: {query}
 Provide a helpful, accurate response. If this is an emergency, advise seeking immediate medical attention."""
 
                     result = await self.llm_gateway.generate(
-                        prompt=prompt,
-                        provider=ai_provider,
-                        max_tokens=500
+                        prompt=prompt
                     )
-                    response_text = result.get("text", "") if isinstance(result, dict) else str(result)
+                    response_text = result if isinstance(result, str) else (result.get("text", "") if isinstance(result, dict) else str(result))
                 except Exception as e:
                     logger.error(f"LLM generation failed: {e}")
                     response_text = f"I apologize, but I encountered an error processing your query. Please try again or consult a healthcare provider directly."

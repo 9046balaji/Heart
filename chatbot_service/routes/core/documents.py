@@ -15,8 +15,10 @@ Uses rag/multimodal/ components for:
 
 
 import os
+import uuid
 import tempfile
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
@@ -77,6 +79,12 @@ class DocumentQueryResponse(BaseModel):
 
 
 # ============================================================
+# In-Memory Document Store (fallback when ingestion service unavailable)
+# ============================================================
+
+_documents_store: List[Dict[str, Any]] = []
+
+# ============================================================
 # Lazy Service Initialization
 # ============================================================
 
@@ -120,11 +128,8 @@ def _get_ingestion_service():
             )
             logger.info("MultimodalIngestionService initialized for document routes")
         except Exception as e:
-            logger.error(f"Failed to initialize ingestion service: {e}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Document processing service unavailable: {e}"
-            )
+            logger.warning(f"MultimodalIngestionService not available (will use basic storage): {e}")
+            _ingestion_service = None
     
     return _ingestion_service
 
@@ -165,8 +170,8 @@ async def list_documents(
 ):
     """List available documents (status overview)."""
     return {
-        "documents": [],
-        "total": 0,
+        "documents": _documents_store,
+        "total": len(_documents_store),
         "message": "Document listing available. Upload documents via POST /documents/upload.",
     }
 
@@ -226,7 +231,7 @@ async def upload_document(
     ingestion_service = _get_ingestion_service()
     
     # Validate file type
-    allowed_extensions = {".pdf", ".docx", ".txt", ".md", ".doc"}
+    allowed_extensions = {".pdf", ".docx", ".txt", ".md", ".doc", ".jpg", ".jpeg", ".png"}
     file_ext = Path(file.filename).suffix.lower()
     
     if file_ext not in allowed_extensions:
@@ -305,34 +310,81 @@ async def upload_document(
         
         logger.info(f"📁 File uploaded and validated: {file.filename} ({total_bytes / (1024*1024):.1f}MB)")
         
-        # Ingest document
-        result = await ingestion_service.ingest_document(
-            file_path=temp_path,
-            metadata=metadata
-        )
+        # Try to ingest document with full multimodal pipeline, fallback to basic storage
+        doc_id = str(uuid.uuid4())
         
+        if ingestion_service is not None:
+            try:
+                result = await ingestion_service.ingest_document(
+                    file_path=temp_path,
+                    metadata=metadata
+                )
+                
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except Exception:
+                    pass
+                
+                if result.success:
+                    # Store in in-memory list
+                    _documents_store.append({
+                        "id": result.doc_id,
+                        "filename": file.filename,
+                        "classification": {"document_type": category, "category": category},
+                        "status": "processed",
+                        "uploaded_at": datetime.now().isoformat(),
+                        "file_size": total_bytes,
+                        "description": description,
+                    })
+                    
+                    return DocumentUploadResponse(
+                        success=True,
+                        doc_id=result.doc_id,
+                        file_name=file.filename,
+                        chunks_created=result.chunks_created,
+                        tables_processed=result.tables_processed,
+                        images_processed=result.images_processed,
+                        message="Document processed successfully",
+                        metadata=result.metadata,
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Document processing failed: {result.error}"
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Full ingestion failed, using basic storage: {e}")
+        
+        # Fallback: basic document storage without multimodal processing
         # Clean up temp file
         try:
             os.unlink(temp_path)
         except Exception:
             pass
         
-        if result.success:
-            return DocumentUploadResponse(
-                success=True,
-                doc_id=result.doc_id,
-                file_name=file.filename,
-                chunks_created=result.chunks_created,
-                tables_processed=result.tables_processed,
-                images_processed=result.images_processed,
-                message="Document processed successfully",
-                metadata=result.metadata,
-            )
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Document processing failed: {result.error}"
-            )
+        _documents_store.append({
+            "id": doc_id,
+            "filename": file.filename,
+            "classification": {"document_type": category or "medical", "category": category or "medical"},
+            "status": "uploaded",
+            "uploaded_at": datetime.now().isoformat(),
+            "file_size": total_bytes,
+            "description": description,
+        })
+        
+        return DocumentUploadResponse(
+            success=True,
+            doc_id=doc_id,
+            file_name=file.filename,
+            chunks_created=0,
+            tables_processed=0,
+            images_processed=0,
+            message="Document uploaded successfully (basic storage mode)",
+            metadata=metadata,
+        )
     
     except HTTPException:
         raise

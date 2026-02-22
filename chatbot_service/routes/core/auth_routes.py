@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Header
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import timedelta, datetime, timezone
 import logging
 import re
@@ -59,6 +59,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     refresh_token: Optional[str] = None
+    token: Optional[str] = None
+    user: Optional[Dict[str, Any]] = None
 
 class UserResponse(BaseModel):
     id: str  # Accepts int, converts to str
@@ -117,7 +119,14 @@ async def register(user: UserCreate, db: 'AuthDatabaseService' = Depends(get_aut
         
         return {
             "access_token": access_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
+            "token": access_token,
+            "user": {
+                "id": str(user_id),
+                "email": user.email,
+                "name": user.name,
+                "role": "patient",
+            },
         }
         
     except ValueError as e:
@@ -181,7 +190,14 @@ async def login(user_credentials: UserLogin, db: 'AuthDatabaseService' = Depends
     
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "token": access_token,
+        "user": {
+            "id": str(user["id"]),
+            "email": user["email"],
+            "name": user.get("name", ""),
+            "role": "patient",
+        },
     }
 
 @router.get("/me", response_model=UserResponse)

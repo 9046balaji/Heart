@@ -49,6 +49,9 @@ ALLOWED_DOCUMENT_MIMES = {
     'text/plain',
     'text/markdown',
     'text/x-markdown',
+    'image/jpeg',
+    'image/png',
+    'image/jpg',
 }
 
 # Maximum file size: 500MB
