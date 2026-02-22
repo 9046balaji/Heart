@@ -118,6 +118,7 @@ const IntakeModal = ({
 };
 
 const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
+    const navigate = useNavigate();
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
             <div className="bg-white dark:bg-card-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -133,7 +134,9 @@ const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
                 </div>
 
                 <div className="space-y-3">
-                    <button className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+                    <button
+                        onClick={() => window.location.href = 'tel:+18001234567'}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
                             <span className="material-symbols-outlined">call</span>
                         </div>
@@ -143,7 +146,9 @@ const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
                         </div>
                     </button>
 
-                    <button className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+                    <button
+                        onClick={() => { onClose(); navigate('/chat'); }}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
                             <span className="material-symbols-outlined">chat</span>
                         </div>
@@ -153,7 +158,9 @@ const ReceptionistModal = ({ onClose }: { onClose: () => void }) => {
                         </div>
                     </button>
 
-                    <button className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
+                    <button
+                        onClick={() => window.location.href = 'mailto:help@cardioai.com'}
+                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center gap-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group">
                         <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
                             <span className="material-symbols-outlined">mail</span>
                         </div>

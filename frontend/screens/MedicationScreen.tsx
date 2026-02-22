@@ -7,6 +7,8 @@ import { Medication } from '../types';
 import { useMedications } from '../hooks/useMedications';
 import ScreenHeader from '../components/ScreenHeader';
 import { useConfirm } from '../components/ConfirmDialog';
+import { scheduleLocalNotification, requestNotificationPermission } from '../services/nativeNotificationService';
+import { useToast } from '../components/Toast';
 
 /**
  * Convert service errors to user-friendly messages
@@ -25,6 +27,7 @@ function getUserFriendlyError(error: unknown): string {
 const MedicationScreen: React.FC = () => {
     const navigate = useNavigate();
     const confirm = useConfirm();
+    const { showToast } = useToast();
     const { medications, loading: isLoading, addMedication, updateMedication, deleteMedication: removeMedication } = useMedications();
     const [showAddModal, setShowAddModal] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -44,6 +47,50 @@ const MedicationScreen: React.FC = () => {
         quantity: '30'
     });
 
+    /**
+     * Schedule a daily medication reminder notification
+     */
+    const scheduleMedicationReminder = async (medName: string, medDosage: string, timeStr: string) => {
+        try {
+            // Request notification permission first
+            const hasPermission = await requestNotificationPermission();
+            if (!hasPermission) {
+                console.log('[MedicationScreen] Notification permission denied');
+                return false;
+            }
+
+            // Parse time string (HH:MM) and create scheduled date for today
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            const scheduledAt = new Date();
+            scheduledAt.setHours(hours, minutes, 0, 0);
+
+            // If time already passed today, schedule for tomorrow
+            if (scheduledAt <= new Date()) {
+                scheduledAt.setDate(scheduledAt.getDate() + 1);
+            }
+
+            // Schedule the notification with daily repeat
+            const success = await scheduleLocalNotification({
+                id: Date.now(),
+                title: `Time to take ${medName}`,
+                body: `Take your ${medDosage} dose of ${medName}`,
+                scheduledAt: scheduledAt,
+                repeats: true,
+                repeatInterval: 'day',
+                channelId: 'cardio-reminders',
+                extra: { type: 'medication', medName },
+            });
+
+            if (success) {
+                console.log(`[MedicationScreen] Scheduled daily reminder for ${medName} at ${timeStr}`);
+            }
+            return success;
+        } catch (err) {
+            console.error('[MedicationScreen] Failed to schedule reminder:', err);
+            return false;
+        }
+    };
+
     const handleAddMedication = async () => {
         if (!newMed.name || !newMed.dosage) return;
 
@@ -59,6 +106,13 @@ const MedicationScreen: React.FC = () => {
         } as any;
 
         addMedication(medData);
+
+        // Schedule reminder notification for the medication time
+        const reminderScheduled = await scheduleMedicationReminder(newMed.name, newMed.dosage, newMed.time);
+        if (reminderScheduled) {
+            showToast(`Reminder set for ${newMed.time}`, 'success');
+        }
+
         setShowAddModal(false);
         setNewMed({ name: '', dosage: '', frequency: 'Daily', time: '08:00', instructions: '', quantity: '30' });
     };

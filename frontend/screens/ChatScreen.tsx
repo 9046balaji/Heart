@@ -6,6 +6,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Message } from '../types';
 import { memoryService } from '../services/memoryService';
 import { ChatMessageMarkdown } from '../components/MarkdownRenderer';
+import { EnhancedChatMessage } from '../components/EnhancedChatMessage';
 import { useChatStore, ChatSession, chatActions, groupSessionsByDate, ChatSettings, SearchMode } from '../store/useChatStore';
 import { useAuth } from '../hooks/useAuth';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
@@ -734,7 +735,7 @@ const ChatScreen: React.FC = () => {
                       <div className={`group relative text-sm leading-relaxed transition-all ${
                         isUser
                           ? 'px-4 py-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-2xl rounded-br-md shadow-sm shadow-red-500/15'
-                          : 'py-1 text-slate-800 dark:text-slate-100'
+                          : 'px-4 py-3 bg-white/80 dark:bg-slate-800/60 backdrop-blur-sm rounded-2xl rounded-bl-md border border-slate-100 dark:border-slate-700/50 shadow-sm text-slate-800 dark:text-slate-100'
                       }`}>
                         {msg.image && (
                           <div className="mb-2.5 rounded-xl overflow-hidden">
@@ -742,7 +743,13 @@ const ChatScreen: React.FC = () => {
                           </div>
                         )}
                         {!isUser ? (
-                          <ChatMessageMarkdown content={msg.content} sources={msg.sources} showHealthAlerts={true} />
+                          <EnhancedChatMessage
+                            content={msg.content}
+                            sources={msg.sources}
+                            isStreaming={msg.isStreaming}
+                            isError={msg.isError}
+                            metadata={msg.metadata}
+                          />
                         ) : (
                           <span className="leading-relaxed whitespace-pre-wrap">{msg.content}</span>
                         )}

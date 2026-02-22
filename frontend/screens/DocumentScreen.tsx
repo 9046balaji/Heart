@@ -10,6 +10,12 @@ import { useToast } from '../components/Toast';
 // Use the shared type from api.types
 type Document = DocumentDetails;
 
+// Supported preview types
+const PREVIEWABLE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const PDF_EXTENSIONS = ['.pdf'];
+const TEXT_EXTENSIONS = ['.txt', '.md'];
+
 export default function DocumentScreen() {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -19,6 +25,11 @@ export default function DocumentScreen() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
+    const [previewType, setPreviewType] = useState<'image' | 'pdf' | 'text' | 'unsupported'>('unsupported');
+    const [textContent, setTextContent] = useState<string>('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,10 +53,13 @@ export default function DocumentScreen() {
         if (!user) return;
         setLoading(true);
         try {
-            const docs = await apiClient.getDocuments();
+            const response = await apiClient.getDocuments();
+            // Backend returns { documents: [], total: 0, ... } — extract the array
+            const docs = Array.isArray(response) ? response : (response as any)?.documents ?? [];
             setDocuments(docs);
         } catch (error) {
             console.error('Failed to load documents:', error);
+            setDocuments([]);
         } finally {
             setLoading(false);
         }
@@ -75,6 +89,58 @@ export default function DocumentScreen() {
             case 'imaging': return 'radiology';
             default: return 'description';
         }
+    };
+
+    const getPreviewType = (filename: string): 'image' | 'pdf' | 'text' | 'unsupported' => {
+        const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+        if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
+        if (PDF_EXTENSIONS.includes(ext)) return 'pdf';
+        if (TEXT_EXTENSIONS.includes(ext)) return 'text';
+        return 'unsupported';
+    };
+
+    const handleViewDocument = async (doc: Document) => {
+        setPreviewDoc(doc);
+        setPreviewLoading(true);
+        setTextContent('');
+
+        const type = getPreviewType(doc.filename || '');
+        setPreviewType(type);
+
+        if (type === 'unsupported') {
+            setPreviewLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/documents/${doc.document_id}/download`);
+            if (!response.ok) throw new Error('Failed to load document');
+            const blob = await response.blob();
+
+            if (type === 'text') {
+                const text = await blob.text();
+                setTextContent(text);
+            } else {
+                const url = URL.createObjectURL(blob);
+                setPreviewUrl(url);
+            }
+        } catch (err) {
+            console.error('Failed to load preview:', err);
+            showToast('Failed to load document preview', 'error');
+            setPreviewType('unsupported');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const closePreview = () => {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        setPreviewDoc(null);
+        setPreviewUrl(null);
+        setPreviewType('unsupported');
+        setTextContent('');
     };
 
     const handleDownload = async (doc: Document) => {
@@ -164,7 +230,7 @@ export default function DocumentScreen() {
                                 <p className="text-slate-500 dark:text-slate-400 text-sm">No documents matching "{searchQuery}"</p>
                             </div>
                         ) : filteredDocuments.map((doc) => (
-                            <div key={doc.document_id} className="bg-white dark:bg-card-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow group">
+                            <div key={doc.document_id} onClick={() => handleViewDocument(doc)} className="bg-white dark:bg-card-dark p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer">
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${doc.classification?.document_type === 'Lab Report' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' :
                                     doc.classification?.document_type === 'Prescription' ? 'bg-green-50 text-green-600 dark:bg-green-900/20' :
                                         'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20'
@@ -189,14 +255,79 @@ export default function DocumentScreen() {
                                     )}
                                 </div>
 
-                                <button onClick={() => handleDownload(doc)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors">
-                                    <span className="material-symbols-outlined">download</span>
-                                </button>
+                                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <button onClick={() => handleViewDocument(doc)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors" title="View">
+                                        <span className="material-symbols-outlined">visibility</span>
+                                    </button>
+                                    <button onClick={() => handleDownload(doc)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors" title="Download">
+                                        <span className="material-symbols-outlined">download</span>
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Document Preview Modal */}
+            {previewDoc && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in" onClick={closePreview}>
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                    previewDoc.classification?.document_type === 'Lab Report' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20' :
+                                    previewDoc.classification?.document_type === 'Prescription' ? 'bg-green-50 text-green-600 dark:bg-green-900/20' :
+                                    'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20'
+                                }`}>
+                                    <span className="material-symbols-outlined">{getIconForType(previewDoc.classification?.document_type || 'default')}</span>
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-slate-900 dark:text-white truncate">{previewDoc.filename}</h3>
+                                    <p className="text-xs text-slate-500">{previewDoc.classification?.document_type} • {new Date(previewDoc.created_at).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => handleDownload(previewDoc)} className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Download">
+                                    <span className="material-symbols-outlined">download</span>
+                                </button>
+                                <button onClick={closePreview} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-800/50">
+                            {previewLoading ? (
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                                </div>
+                            ) : previewType === 'image' && previewUrl ? (
+                                <div className="flex items-center justify-center min-h-[300px]">
+                                    <img src={previewUrl} alt={previewDoc.filename} className="max-w-full max-h-[70vh] rounded-lg shadow-lg object-contain" />
+                                </div>
+                            ) : previewType === 'pdf' && previewUrl ? (
+                                <iframe src={previewUrl} className="w-full h-[70vh] rounded-lg border-0" title={previewDoc.filename} />
+                            ) : previewType === 'text' ? (
+                                <pre className="whitespace-pre-wrap font-mono text-sm text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 overflow-auto max-h-[70vh]">
+                                    {textContent}
+                                </pre>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+                                    <span className="material-symbols-outlined text-5xl mb-4">preview_off</span>
+                                    <p className="font-medium">Preview not available for this file type</p>
+                                    <p className="text-sm mt-1">Click download to view the file</p>
+                                    <button onClick={() => handleDownload(previewDoc)} className="mt-4 px-6 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark transition-colors">
+                                        Download File
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Upload Modal */}
             {showUploadModal && (
@@ -217,7 +348,7 @@ export default function DocumentScreen() {
                                 <>
                                     <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
                                     <p className="font-bold text-slate-900 dark:text-white">Tap to Select File</p>
-                                    <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG up to 10MB</p>
+                                    <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG, TXT, DOC up to 10MB</p>
                                 </>
                             )}
                         </div>
@@ -226,7 +357,7 @@ export default function DocumentScreen() {
                             ref={fileInputRef}
                             className="hidden"
                             onChange={handleFileUpload}
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.md"
                         />
 
                         <button
