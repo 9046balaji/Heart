@@ -52,6 +52,7 @@ from tools.agentic_tools import (
     query_sql_db,
     semantic_search_knowledge_base,
     verified_web_search,
+    comprehensive_medical_search,
     calculator,
     analyze_medical_image,
     analyze_dicom_image
@@ -248,6 +249,7 @@ class LangGraphOrchestrator:
                 query_sql_db,
                 semantic_search_knowledge_base,
                 verified_web_search,
+                comprehensive_medical_search,
                 calculator,
                 analyze_medical_image,
                 analyze_dicom_image
@@ -873,22 +875,52 @@ class LangGraphOrchestrator:
         }
 
     async def researcher_node(self, state: AgentState) -> Dict:
-        """Worker: Researcher (Deep Reasoning Research)"""
+        """Worker: Researcher (Deep Reasoning Research with Medical Content)
+        
+        Searches across medical research papers, articles, news, images, and videos
+        using the unified medical content search engine, then performs deep reasoning
+        research for comprehensive analysis.
+        """
         query = state["messages"][-1].content
         
         try:
-            # Use ReasoningResearcher for intelligent, multi-step research
+            # Phase 1: Comprehensive medical content search (papers, news, images, videos)
+            from tools.medical_search import search_medical_content
+            medical_results = await search_medical_content(
+                query=query,
+                content_types=None,  # All types
+                max_results=5
+            )
+            
+            # Phase 2: Deep reasoning research for in-depth analysis
             from agents.deep_research_agent.reasoning_researcher import ReasoningResearcher
             
-            # Initialize with orchestrator's LLM
             researcher = ReasoningResearcher(llm=self.llm)
             session = await researcher.research(query)
             
             response = session.final_report
             reasoning_trace = session.reasoning_trace
             
-            # Format response with reasoning trace (collapsible)
-            full_response = f"{response}\n\n<details><summary>Research Reasoning</summary>\n\n{reasoning_trace}\n</details>"
+            # Combine: deep research report + medical content (images, videos, papers)
+            full_response = response
+            
+            # Append medical content results if they contain useful media
+            if medical_results and "Medical Images" in medical_results:
+                full_response += "\n\n" + medical_results.split("## 🖼️ Medical Images")[1].split("## ")[0] if "## 🖼️ Medical Images" in medical_results else ""
+            if medical_results and "Medical Videos" in medical_results:
+                video_section = ""
+                if "## 🎬 Medical Videos" in medical_results:
+                    parts = medical_results.split("## 🎬 Medical Videos")
+                    if len(parts) > 1:
+                        video_section = parts[1].split("## ")[0] if "## " in parts[1] else parts[1].split("---")[0]
+                if video_section:
+                    full_response += "\n\n## 🎬 Related Medical Videos\n" + video_section
+            
+            # If standalone medical results have more than the deep research found
+            if not response or len(response) < 100:
+                full_response = medical_results
+            
+            full_response += f"\n\n<details><summary>Research Reasoning</summary>\n\n{reasoning_trace}\n</details>"
             
             return {
                 "messages": [ToolMessage(content=full_response, tool_call_id="call_research")],
@@ -896,9 +928,16 @@ class LangGraphOrchestrator:
             }
         except Exception as e:
             logger.error(f"ReasoningResearcher failed: {e}")
-            # Fallback to simple web search
-            result = await verified_web_search(query=query)
-            return {"messages": [ToolMessage(content=str(result.data), tool_call_id="call_research")]}
+            # Fallback to comprehensive medical search only
+            try:
+                from tools.medical_search import search_medical_content
+                result = await search_medical_content(query=query)
+                return {"messages": [ToolMessage(content=result, tool_call_id="call_research")]}
+            except Exception as e2:
+                logger.error(f"Medical search fallback also failed: {e2}")
+                # Final fallback to simple web search
+                result = await verified_web_search(query=query)
+                return {"messages": [ToolMessage(content=str(result.data), tool_call_id="call_research")]}
 
     async def data_analyst_node(self, state: AgentState) -> Dict:
         """Worker: Data Analyst (SQL)"""
