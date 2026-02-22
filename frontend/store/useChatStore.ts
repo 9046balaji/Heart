@@ -630,11 +630,25 @@ export const chatActions = {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
-      store.setError(error instanceof Error ? error.message : 'Failed to send message');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to send message';
+      store.setError(errorMsg);
+
+      // Determine user-friendly error message
+      let displayMessage = 'Sorry, I encountered an error processing your request.';
+      if (errorMsg.includes('401') || errorMsg.toLowerCase().includes('session expired') || errorMsg.toLowerCase().includes('unauthorized')) {
+        displayMessage = '🔒 Your session has expired. Please log in again to continue chatting.';
+      } else if (errorMsg.includes('429')) {
+        displayMessage = '⏳ Too many requests. Please wait a moment and try again.';
+      } else if (errorMsg.includes('500') || errorMsg.includes('503')) {
+        displayMessage = '⚠️ The server is temporarily unavailable. Please try again in a few moments.';
+      } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+        displayMessage = '🌐 Unable to connect to the server. Please check your internet connection.';
+      }
+
       const lastMsg = store.messages[store.messages.length - 1];
       if (lastMsg) {
         store.updateMessage(lastMsg.id, {
-          content: 'Sorry, I encountered an error processing your request.',
+          content: displayMessage,
           isError: true,
           isStreaming: false,
         });
