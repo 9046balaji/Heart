@@ -455,20 +455,23 @@ class MemoriMonitoringMiddleware:
     def __init__(self, app):
         self.app = app
 
-    async def __call__(self, request, call_next):
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
         # Store start time
         start_time = time.time()
 
-        # Call next middleware/endpoint
-        response = await call_next(request)
+        # Wrap send to inject response headers
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                latency_ms = (time.time() - start_time) * 1000
+                headers = list(message.get("headers", []))
+                headers.append((b"x-response-time-ms", str(round(latency_ms, 2)).encode()))
+                message["headers"] = headers
+            await send(message)
 
-        # Calculate latency
-        latency_ms = (time.time() - start_time) * 1000
-
-        # Add latency to response headers for monitoring
-        response.headers["X-Response-Time-Ms"] = str(round(latency_ms, 2))
-
-        return response
+        await self.app(scope, receive, send_wrapper)
 
 
 # ============================================================================

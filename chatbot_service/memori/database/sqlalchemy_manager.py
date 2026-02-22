@@ -885,10 +885,7 @@ class SQLAlchemyDatabaseManager:
         Returns:
             Query result
         """
-        if parameters:
-            translated_params = self.query_translator.translate_parameters(parameters)
-        else:
-            translated_params = {}
+        translated_params = parameters or {}
 
         with self.engine.connect() as conn:
             result = conn.execute(text(query), translated_params)
@@ -963,7 +960,7 @@ class SQLAlchemyDatabaseManager:
 
             conn = self.engine.connect()
             try:
-                yield TranslatingConnection(conn, self.query_translator)
+                yield conn
             finally:
                 conn.close()
 

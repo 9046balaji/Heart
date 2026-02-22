@@ -6,6 +6,7 @@ Updated: Added embedding-based semantic search support
 
 import asyncio
 import json
+import os
 import threading
 import time
 import numpy as np
@@ -94,7 +95,8 @@ class EmbeddingSearchEngine:
         self._max_cache_size = 10000
         
         # Try remote embedding service first (if not using local)
-        if not self.use_local and REMOTE_EMBEDDING_AVAILABLE:
+        use_remote = os.getenv("USE_REMOTE_EMBEDDINGS", "true").lower() == "true"
+        if not self.use_local and REMOTE_EMBEDDING_AVAILABLE and use_remote:
             try:
                 self.remote_service = RemoteEmbeddingService.get_instance()
                 logger.info("EmbeddingSearchEngine: Using RemoteEmbeddingService (MedCPT)")

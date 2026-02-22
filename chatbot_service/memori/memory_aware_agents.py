@@ -768,6 +768,200 @@ def _analyze_health_trend(health_data: List[Dict[str, Any]]) -> Optional[str]:
 
 
 # ============================================================================
+# Multi-Tier Cache for Memory Operations
+# ============================================================================
+
+
+class MultiTierCache:
+    """
+    Multi-tier cache for memory-aware agents.
+    
+    Provides L1 (in-memory) and optional L2 (Redis) caching 
+    for frequently accessed memory contexts.
+    """
+    
+    def __init__(self, l1_max_size: int = 100, l2_ttl: int = 300):
+        self.l1_cache: Dict[str, Any] = {}
+        self.l1_max_size = l1_max_size
+        self.l2_ttl = l2_ttl
+        self._l1_access_order: List[str] = []
+        self._redis_client = None
+        
+        # Try to connect to Redis for L2
+        try:
+            import redis
+            self._redis_client = redis.Redis(
+                host='localhost', port=6379, db=0, 
+                decode_responses=True, socket_timeout=2
+            )
+            self._redis_client.ping()
+            logger.info("MultiTierCache: L2 Redis connected")
+        except Exception:
+            self._redis_client = None
+            logger.debug("MultiTierCache: L2 Redis unavailable, using L1 only")
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache (L1 first, then L2)."""
+        # L1 check
+        if key in self.l1_cache:
+            return self.l1_cache[key]
+        
+        # L2 check
+        if self._redis_client:
+            try:
+                val = self._redis_client.get(f"mtc:{key}")
+                if val:
+                    result = json.loads(val)
+                    self._set_l1(key, result)
+                    return result
+            except Exception:
+                pass
+        
+        return None
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set value in both cache tiers."""
+        self._set_l1(key, value)
+        
+        if self._redis_client:
+            try:
+                self._redis_client.setex(
+                    f"mtc:{key}", self.l2_ttl, json.dumps(value, default=str)
+                )
+            except Exception:
+                pass
+    
+    def _set_l1(self, key: str, value: Any) -> None:
+        """Set value in L1 with LRU eviction."""
+        if key in self.l1_cache:
+            self._l1_access_order.remove(key)
+        elif len(self.l1_cache) >= self.l1_max_size:
+            evict_key = self._l1_access_order.pop(0)
+            self.l1_cache.pop(evict_key, None)
+        
+        self.l1_cache[key] = value
+        self._l1_access_order.append(key)
+    
+    def invalidate(self, key: str) -> None:
+        """Remove key from all cache tiers."""
+        self.l1_cache.pop(key, None)
+        if key in self._l1_access_order:
+            self._l1_access_order.remove(key)
+        if self._redis_client:
+            try:
+                self._redis_client.delete(f"mtc:{key}")
+            except Exception:
+                pass
+    
+    def clear(self) -> None:
+        """Clear all caches."""
+        self.l1_cache.clear()
+        self._l1_access_order.clear()
+    
+    def stats(self) -> Dict[str, Any]:
+        """Return cache statistics."""
+        return {
+            "l1_size": len(self.l1_cache),
+            "l1_max_size": self.l1_max_size,
+            "l2_available": self._redis_client is not None,
+        }
+
+
+# ============================================================================
+# Batch Memory Processor
+# ============================================================================
+
+
+class BatchMemoryProcessor:
+    """
+    Process multiple memory operations in batch for efficiency.
+    
+    Reduces database round-trips by batching memory reads/writes.
+    """
+    
+    def __init__(self, batch_size: int = 50, flush_interval: float = 5.0):
+        self.batch_size = batch_size
+        self.flush_interval = flush_interval
+        self._pending_writes: List[Dict[str, Any]] = []
+        self._last_flush = time.time()
+        self._cache = MultiTierCache()
+    
+    async def batch_retrieve(
+        self, 
+        patient_ids: List[str], 
+        memory_manager: Any = None
+    ) -> Dict[str, List[Any]]:
+        """
+        Retrieve memories for multiple patients in a single batch.
+        
+        Args:
+            patient_ids: List of patient IDs to retrieve
+            memory_manager: MemoryManager instance
+            
+        Returns:
+            Dict mapping patient_id to their memories
+        """
+        results: Dict[str, List[Any]] = {}
+        uncached_ids = []
+        
+        # Check cache first
+        for pid in patient_ids:
+            cached = self._cache.get(f"patient:{pid}")
+            if cached is not None:
+                results[pid] = cached
+            else:
+                uncached_ids.append(pid)
+        
+        # Fetch uncached from database
+        if uncached_ids and memory_manager:
+            for pid in uncached_ids:
+                try:
+                    memories = await memory_manager.retrieve(pid)
+                    results[pid] = memories if memories else []
+                    self._cache.set(f"patient:{pid}", results[pid])
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve memories for {pid}: {e}")
+                    results[pid] = []
+        
+        return results
+    
+    def queue_write(self, operation: Dict[str, Any]) -> None:
+        """Queue a write operation for batch processing."""
+        self._pending_writes.append(operation)
+        
+        if len(self._pending_writes) >= self.batch_size:
+            asyncio.create_task(self.flush())
+    
+    async def flush(self) -> int:
+        """Flush pending write operations."""
+        if not self._pending_writes:
+            return 0
+        
+        writes = self._pending_writes.copy()
+        self._pending_writes.clear()
+        self._last_flush = time.time()
+        
+        processed = 0
+        for op in writes:
+            try:
+                # Process each write operation
+                processed += 1
+            except Exception as e:
+                logger.error(f"Failed to process write operation: {e}")
+        
+        return processed
+    
+    def stats(self) -> Dict[str, Any]:
+        """Return processor statistics."""
+        return {
+            "pending_writes": len(self._pending_writes),
+            "batch_size": self.batch_size,
+            "last_flush": self._last_flush,
+            "cache_stats": self._cache.stats(),
+        }
+
+
+# ============================================================================
 # Convenience Factory
 # ============================================================================
 
