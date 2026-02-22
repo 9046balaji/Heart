@@ -200,13 +200,20 @@ class IntakeResponse(BaseModel):
 def _provider_row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a DB row into a dict suitable for ProviderResponse."""
     data = dict(row)
-    # Parse JSON strings if needed
+    # Parse JSON strings if needed (handles double-encoded JSON too)
     for field in ('languages', 'accepted_insurances'):
-        if isinstance(data.get(field), str):
+        val = data.get(field)
+        if isinstance(val, str):
             try:
-                data[field] = json.loads(data[field])
+                parsed = json.loads(val)
+                # Handle double-encoded JSON: '"[\"a\",\"b\"]"' -> '["a","b"]' -> ["a","b"]
+                if isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+                data[field] = parsed if isinstance(parsed, list) else []
             except (json.JSONDecodeError, TypeError):
                 data[field] = []
+        elif val is None:
+            data[field] = []
     # Map snake_case to camelCase aliases
     data['photoUrl'] = data.pop('photo_url', None)
     data['clinicName'] = data.pop('clinic_name', None)
@@ -305,6 +312,37 @@ async def get_availability(
 # ===========================================================================
 # APPOINTMENT ENDPOINTS
 # ===========================================================================
+
+# ===========================================================================
+# INSURANCE ENDPOINTS (must be before /{user_id}/{appointment_id} to avoid
+# "insurance" being matched as appointment_id)
+# ===========================================================================
+
+@router.get("/{user_id}/insurance", response_model=List[InsuranceResponse])
+async def get_insurance(user_id: str):
+    """Get insurance information for a user."""
+    db = await _get_db()
+    rows = await db.get_user_insurance(user_id)
+    return rows
+
+
+@router.post("/{user_id}/insurance", response_model=InsuranceResponse, status_code=201)
+async def save_insurance(user_id: str, body: InsuranceCreate):
+    """Save or update insurance information."""
+    db = await _get_db()
+    data = {
+        'user_id': user_id,
+        'insurance_provider': body.insurance_provider,
+        'member_id': body.member_id,
+        'group_id': body.group_id,
+        'plan_type': body.plan_type,
+        'is_verified': False,
+    }
+    result = await db.save_insurance(data)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to save insurance info")
+    return result
+
 
 @router.get("/{user_id}", response_model=List[AppointmentResponse])
 async def list_appointments(
@@ -460,36 +498,6 @@ async def complete_appointment(user_id: str, appointment_id: str, body: Complete
 
     logger.info(f"Appointment {appointment_id} completed")
     return _appointment_row_to_dict(result)
-
-
-# ===========================================================================
-# INSURANCE ENDPOINTS
-# ===========================================================================
-
-@router.get("/{user_id}/insurance", response_model=List[InsuranceResponse])
-async def get_insurance(user_id: str):
-    """Get insurance information for a user."""
-    db = await _get_db()
-    rows = await db.get_user_insurance(user_id)
-    return rows
-
-
-@router.post("/{user_id}/insurance", response_model=InsuranceResponse, status_code=201)
-async def save_insurance(user_id: str, body: InsuranceCreate):
-    """Save or update insurance information."""
-    db = await _get_db()
-    data = {
-        'user_id': user_id,
-        'insurance_provider': body.insurance_provider,
-        'member_id': body.member_id,
-        'group_id': body.group_id,
-        'plan_type': body.plan_type,
-        'is_verified': False,
-    }
-    result = await db.save_insurance(data)
-    if not result:
-        raise HTTPException(status_code=500, detail="Failed to save insurance info")
-    return result
 
 
 # ===========================================================================
