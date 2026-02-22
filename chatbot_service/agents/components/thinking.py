@@ -205,6 +205,15 @@ Begin with your structured thinking:"""
         
         self.thinking_history: List[ThinkingBlock] = []
         self.tool_call_history: List[Dict[str, Any]] = []
+        
+        # P2.3: Token budget management
+        self._token_budget = None
+        try:
+            from core.llm.token_budget import get_token_calculator
+            self._token_budget = get_token_calculator()
+            logger.info(f"✅ TokenBudget loaded (model={self._token_budget.model_name}, context={self._token_budget.limits['context']})")
+        except Exception as e:
+            logger.debug(f"TokenBudget not available: {e}")
     
     async def run(self, query: str, context: str = "", file_ids: Optional[List[str]] = None) -> ThinkingResult:
         """
@@ -302,7 +311,23 @@ Begin with your structured thinking:"""
         return await self._generate_final_answer(query, current_context, start_time)
     
     async def _generate_response(self, query: str, context: str) -> str:
-        """Generate next response from LLM."""
+        """Generate next response from LLM with token budget awareness."""
+        # P2.3: Use token budget to determine safe context size
+        if self._token_budget:
+            budget = self._token_budget.calculate(
+                prompt=query,
+                num_documents=len(self.tool_call_history),
+                avg_doc_tokens=200,
+                system_prompt_tokens=300  # THINKING_PROMPT overhead
+            )
+            if not budget["safe"]:
+                logger.warning(f"⚠️ Token budget tight: {budget['total_used']}/{budget['total_limit']} used")
+                # Trim context to fit within budget
+                max_context_tokens = budget["total_limit"] - budget["prompt_tokens"] - budget["system_prompt_tokens"] - budget["output_budget"]
+                max_chars = max(2000, max_context_tokens * 4)  # ~4 chars per token
+                if len(context) > max_chars:
+                    context = context[:max_chars] + "\n...[context trimmed for token budget]"
+        
         prompt = self.THINKING_PROMPT.format(
             tool_descriptions=self._get_tool_descriptions(),
             query=query,

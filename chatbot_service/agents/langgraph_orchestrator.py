@@ -841,7 +841,7 @@ class LangGraphOrchestrator:
                 }
 
     async def medical_analyst_node(self, state: AgentState) -> Dict:
-        """Worker: Medical Analyst (Self-RAG)"""
+        """Worker: Medical Analyst (Self-RAG with Medical Prompt Builder)"""
         query = state["messages"][-1].content
         user_id = state["user_id"]
         
@@ -849,15 +849,28 @@ class LangGraphOrchestrator:
         result = await self.rag_tool.process(query, user_id=user_id)
         
         if result.requires_crag_fallback or result.needs_web_search:
-            # Fallback to CRAG / Web Search
-            # We can either call CRAG here or route to researcher.
-            # Let's call CRAG directly for seamless integration
             docs, method = await self.crag_fallback.retrieve_with_fallback(query)
             
-            # Synthesize response from CRAG docs
-            # For now, just return the docs as context
-            fallback_content = "\n".join([d.get('content', '') for d in docs])
-            response_content = f"I couldn't find enough info in my medical database, so I searched the web:\n\n{fallback_content}"
+            # Format context using centralized medical prompts
+            try:
+                from core.prompts.medical_prompts import get_prompt_builder
+                prompt_builder = get_prompt_builder()
+                formatted_context = prompt_builder.format_medical_context(
+                    medical_docs="\n".join([d.get('content', '') for d in docs]),
+                    drug_info="",
+                    patient_memories="",
+                    graph_context="",
+                    drug_interactions=""
+                )
+                response_content = prompt_builder.build_rag_prompt(
+                    query=query,
+                    context=formatted_context,
+                    history=""
+                )
+            except Exception:
+                # Fallback to basic formatting
+                fallback_content = "\n".join([d.get('content', '') for d in docs])
+                response_content = f"I couldn't find enough info in my medical database, so I searched the web:\n\n{fallback_content}"
             
             return {
                 "messages": [ToolMessage(content=response_content, tool_call_id="call_medical")],
@@ -875,15 +888,28 @@ class LangGraphOrchestrator:
         }
 
     async def researcher_node(self, state: AgentState) -> Dict:
-        """Worker: Researcher (Deep Reasoning Research with Medical Content)
+        """Worker: Researcher (Deep Reasoning Research with Medical Content + Clinical Guidelines)
         
         Searches across medical research papers, articles, news, images, and videos
-        using the unified medical content search engine, then performs deep reasoning
-        research for comprehensive analysis.
+        using the unified medical content search engine, enriches with clinical guidelines,
+        then performs deep reasoning research for comprehensive analysis.
         """
         query = state["messages"][-1].content
         
         try:
+            # Phase 0: Clinical Guidelines Search (trusted medical sources)
+            guidelines_context = ""
+            try:
+                from tools.clinical_guidelines_search import ClinicalGuidelinesSearch
+                guideline_searcher = ClinicalGuidelinesSearch()
+                guidelines = await guideline_searcher.search(query, max_results=3)
+                if guidelines:
+                    parts = [f"### {g.title}\n**Source**: {g.source}\n{g.summary}" for g in guidelines]
+                    guidelines_context = "\n\n## 📋 Clinical Guidelines\n" + "\n\n".join(parts)
+                    logger.info(f"📋 Found {len(guidelines)} clinical guidelines for '{query[:50]}'")
+            except Exception as e:
+                logger.debug(f"Clinical guidelines search skipped: {e}")
+            
             # Phase 1: Comprehensive medical content search (papers, news, images, videos)
             from tools.medical_search import search_medical_content
             medical_results = await search_medical_content(
@@ -901,8 +927,12 @@ class LangGraphOrchestrator:
             response = session.final_report
             reasoning_trace = session.reasoning_trace
             
-            # Combine: deep research report + medical content (images, videos, papers)
+            # Combine: deep research report + clinical guidelines + medical content (images, videos, papers)
             full_response = response
+            
+            # Append clinical guidelines if found
+            if guidelines_context:
+                full_response += guidelines_context
             
             # Append medical content results if they contain useful media
             if medical_results and "Medical Images" in medical_results:
@@ -947,7 +977,7 @@ class LangGraphOrchestrator:
         return {"messages": [ToolMessage(content=str(result.data), tool_call_id="call_sql")]}
 
     async def drug_expert_node(self, state: AgentState) -> Dict:
-        """Worker: Drug Expert (GraphRAG + Local Interaction Database)"""
+        """Worker: Drug Expert (EntityValidator + GraphRAG + OpenFDA + Local Interaction Database)"""
         query = state["messages"][-1].content
         
         # 1. Extract drugs using regex heuristic
@@ -958,6 +988,26 @@ class LangGraphOrchestrator:
         
         if len(drugs) < 2:
              return {"messages": [ToolMessage(content="I need at least two drug names to check for interactions.", tool_call_id="call_drug")]}
+
+        # 1b. Validate drug names via EntityValidator (prevents hallucinated entity names)
+        validation_warnings = []
+        try:
+            from tools.entity_validator import EntityValidator
+            validator = EntityValidator.get_instance()
+            sanitized = await validator.validate_and_sanitize_drugs(drugs, auto_fix=True)
+            if sanitized["warnings"]:
+                validation_warnings = sanitized["warnings"]
+                logger.info(f"🔍 Drug name corrections: {validation_warnings}")
+            if sanitized["normalized"]:
+                drugs = sanitized["normalized"]
+            if sanitized["invalid"]:
+                invalid_msg = ", ".join(f"'{k}': {v}" for k, v in sanitized["invalid"].items())
+                logger.warning(f"⚠️ Unknown drugs skipped: {invalid_msg}")
+        except Exception as e:
+            logger.debug(f"EntityValidator skipped: {e}")
+
+        if len(drugs) < 2:
+            return {"messages": [ToolMessage(content="I need at least two valid drug names to check for interactions.", tool_call_id="call_drug")]}
 
         # 2. Check interactions via GraphRAG (primary)
         result = await self.graph_checker.check_interaction(drugs)
@@ -979,6 +1029,28 @@ class LangGraphOrchestrator:
                 "messages": [ToolMessage(content=f"No known interactions found between {', '.join(drugs)}.", tool_call_id="call_drug")],
                 "confidence": 0.9
             }
+        
+        # 2c. Query OpenFDA for adverse events & safety data (supplementary)
+        openfda_alerts = []
+        try:
+            from tools.openfda import get_safety_service
+            fda_service = get_safety_service()
+            for drug_name in drugs[:4]:  # Limit to 4 drugs for API rate limits
+                try:
+                    adverse = await fda_service.get_adverse_events(drug_name, limit=3)
+                    if adverse and adverse.get("results"):
+                        top_reactions = [r.get("term", "") for r in adverse["results"][:3]]
+                        openfda_alerts.append({
+                            "drug": drug_name,
+                            "top_adverse_reactions": top_reactions,
+                            "source": "OpenFDA"
+                        })
+                except Exception:
+                    pass  # Individual drug lookup failure is non-critical
+            if openfda_alerts:
+                logger.info(f"📋 OpenFDA found adverse data for {len(openfda_alerts)} drug(s)")
+        except Exception as e:
+            logger.debug(f"OpenFDA safety check skipped: {e}")
             
         # 3. Format response from GraphRAG
         response_lines = ["⚠️ **Potential Interactions Found:**\n"]
@@ -1001,11 +1073,24 @@ class LangGraphOrchestrator:
                     response_lines.append(f"- **{drug_str}** (from local database)")
                     response_lines.append(f"  - Severity: {inter.get('severity', 'UNKNOWN')}")
                     response_lines.append(f"  - Description: {inter.get('description', '')}\n")
+        
+        # OpenFDA adverse event data
+        if openfda_alerts:
+            response_lines.append("\n📋 **FDA Adverse Event Data:**\n")
+            for alert in openfda_alerts:
+                reactions = ", ".join(alert["top_adverse_reactions"])
+                response_lines.append(f"- **{alert['drug']}**: Most reported reactions — {reactions}")
+        
+        # Entity validation warnings (fuzzy-matched drug names)
+        if validation_warnings:
+            response_lines.append("\nℹ️ **Drug Name Notes:**")
+            for w in validation_warnings:
+                response_lines.append(f"  - {w}")
             
         return {
             "messages": [ToolMessage(content="\n".join(response_lines), tool_call_id="call_drug")],
             "confidence": 1.0,
-            "citations": ["Graph Knowledge Base", "Local Interaction Database"]
+            "citations": ["Graph Knowledge Base", "Local Interaction Database", "OpenFDA"]
         }
 
     async def profile_manager_node(self, state: AgentState) -> Dict:
@@ -1138,15 +1223,45 @@ class LangGraphOrchestrator:
     async def clinical_reasoning_node(self, state: AgentState) -> Dict:
         """
         Worker: Clinical Reasoning Agent.
-        Handles differential diagnosis and triage requests.
+        Handles differential diagnosis, triage, and symptom analysis.
+        Integrates SymptomChecker for automated symptom extraction with red flag detection.
         """
         messages = state.get("messages", [])
         query = messages[-1].content if messages else ""
         intent = state.get("intent", "")
         
-        # Map string intent to enum if needed, or just check string
-        # IntentCategory values are strings
+        # Pre-processing: Extract symptoms with SymptomChecker
+        symptom_context = ""
+        has_red_flags = False
+        try:
+            from rag.nlp.symptom_checker import get_symptom_checker
+            checker = get_symptom_checker()
+            analysis = checker.analyze_symptoms(query)
+            present = analysis.get("present_symptoms", [])
+            denied = analysis.get("denied_symptoms", [])
+            has_red_flags = analysis.get("has_red_flags", False)
+            
+            if present or denied:
+                parts = []
+                if present:
+                    symptom_strs = [s["text"] if isinstance(s, dict) else str(s) for s in present]
+                    parts.append(f"**Present symptoms**: {', '.join(symptom_strs)}")
+                if denied:
+                    denied_strs = [s["text"] if isinstance(s, dict) else str(s) for s in denied]
+                    parts.append(f"**Denied symptoms**: {', '.join(denied_strs)}")
+                if has_red_flags:
+                    parts.append("🚨 **RED FLAGS DETECTED** — Urgent evaluation recommended")
+                symptom_context = "\n".join(parts) + "\n\n"
+                logger.info(f"🩺 SymptomChecker: {len(present)} present, {len(denied)} denied, red_flags={has_red_flags}")
+        except Exception as e:
+            logger.debug(f"SymptomChecker skipped: {e}")
         
+        # If red flags detected, force triage
+        if has_red_flags and intent != "triage":
+            logger.warning("🚨 Red flags detected — escalating to triage")
+            intent = "triage"
+        
+        # Map string intent to enum if needed, or just check string
         if intent == "differential_diagnosis":
             result = await generate_differential_diagnosis(symptoms=query)
         elif intent == "triage":
@@ -1158,9 +1273,13 @@ class LangGraphOrchestrator:
             else:
                 result = await generate_differential_diagnosis(symptoms=query)
         
+        # Prepend symptom analysis if available
+        if symptom_context:
+            result = f"## 🩺 Symptom Analysis\n{symptom_context}\n{result}"
+        
         return {
             "messages": [ToolMessage(content=result, tool_call_id="call_clinical")],
-            "confidence": 0.9,
+            "confidence": 0.95 if has_red_flags else 0.9,
             "intent": intent
         }
 
@@ -1198,8 +1317,24 @@ class LangGraphOrchestrator:
         if self.checkpointer and not thread_id:
             thread_id = f"thread_{user_id}_{uuid.uuid4().hex[:8]}"
         
+        # Load recent conversation history for context continuity
+        history_messages = []
+        try:
+            from core.services.chat_history import ChatHistory
+            chat_history = ChatHistory(user_id=user_id, max_messages=10)
+            recent = chat_history.get_recent_messages(limit=6)
+            for msg in recent:
+                if msg.get("role") == "human":
+                    history_messages.append(HumanMessage(content=msg["content"]))
+                elif msg.get("role") == "ai":
+                    history_messages.append(AIMessage(content=msg["content"]))
+            if history_messages:
+                logger.info(f"📝 Loaded {len(history_messages)} messages from chat history")
+        except Exception as e:
+            logger.debug(f"Chat history loading skipped: {e}")
+        
         initial_state = {
-            "messages": [HumanMessage(content=query)],
+            "messages": history_messages + [HumanMessage(content=query)],
             "user_id": user_id,
             "next": "router",
             "final_response": None,
@@ -1399,6 +1534,22 @@ class LangGraphOrchestrator:
                     })
         except Exception:
             pass  # Tracing must never break execution
+        
+        # Emit webhook events for significant outcomes
+        try:
+            from core.services.webhook_service import get_webhook_service, WebhookEvent
+            webhook = get_webhook_service()
+            if webhook:
+                if not is_grounded:
+                    await webhook.emit(WebhookEvent.HALLUCINATION_DETECTED, {
+                        "user_id": user_id, "intent": intent, "thread_id": thread_id
+                    })
+                if drug_interaction_warning:
+                    await webhook.emit(WebhookEvent.DRUG_INTERACTION_FOUND, {
+                        "user_id": user_id, "drugs": detected_drugs, "thread_id": thread_id
+                    })
+        except Exception:
+            pass  # Webhooks must never break execution
         
         return {
             "response": response,
