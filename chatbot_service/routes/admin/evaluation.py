@@ -26,13 +26,21 @@ router = APIRouter()
 _evaluator = None
 _batch_evaluator = None
 
-try:
-    from agents.evaluation import ResponseEvaluator, BatchEvaluator
-    _evaluator = ResponseEvaluator()
-    _batch_evaluator = BatchEvaluator()
-    logger.info("ResponseEvaluator and BatchEvaluator loaded from agents/evaluation.py")
-except Exception as e:
-    logger.info(f"Evaluation service not available: {e}")
+def _get_evaluator():
+    """Lazily initialize the evaluator with the LLM from DI container."""
+    global _evaluator, _batch_evaluator
+    if _evaluator is None:
+        try:
+            from agents.evaluation import ResponseEvaluator, BatchEvaluator
+            from core.dependencies import DIContainer
+            container = DIContainer()
+            llm = container.llm_gateway
+            _evaluator = ResponseEvaluator(llm=llm)
+            _batch_evaluator = BatchEvaluator(base_evaluator=_evaluator)
+            logger.info("ResponseEvaluator and BatchEvaluator initialized with LLM from DI container")
+        except Exception as e:
+            logger.info(f"Evaluation service not available: {e}")
+    return _evaluator, _batch_evaluator
 
 
 # ---------------------------------------------------------------------------
@@ -89,9 +97,10 @@ async def evaluate_rag(request: RAGEvaluationRequest):
         gt = request.ground_truth[i] if request.ground_truth and i < len(request.ground_truth) else None
 
         # Try using the existing evaluator
-        if _evaluator:
+        evaluator, _ = _get_evaluator()
+        if evaluator:
             try:
-                result = await _evaluator.evaluate_all(
+                result = await evaluator.evaluate_all(
                     query=query,
                     response="",  # Would need actual RAG response
                     context=[],

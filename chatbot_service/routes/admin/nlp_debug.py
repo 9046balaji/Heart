@@ -25,6 +25,30 @@ from core.security import get_current_user
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+@router.get("/health")
+async def nlp_health():
+    """Health check for NLP pipeline."""
+    service_ok = False
+    model_name = None
+    pipeline = []
+    try:
+        service = get_spacy_service()
+        if service and service.nlp:
+            service_ok = True
+            model_name = service.nlp.meta.get("name")
+            pipeline = service.nlp.pipe_names
+    except Exception:
+        pass
+    return {
+        "status": "healthy" if service_ok else "degraded",
+        "service": "NLP Pipeline",
+        "spacy_available": SPACY_AVAILABLE,
+        "model": model_name,
+        "pipeline": pipeline,
+    }
+
+
 class VisualizeRequest(BaseModel):
     text: str
     style: str = "ent"  # "ent" or "dep"
