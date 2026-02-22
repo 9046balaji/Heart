@@ -106,6 +106,25 @@ export const authService = {
     },
 
     /**
+     * Get current user's ID from stored user data or decoded token
+     */
+    getUserId(): string | null {
+        // Try from stored user data first
+        const user = this.getUser();
+        if (user?.user_id) return user.user_id;
+        if (user?.id) return user.id;
+
+        // Fallback: extract from JWT token
+        const token = this.getToken();
+        if (token) {
+            const payload = this.decodeToken(token);
+            if (payload?.user_id) return payload.user_id;
+        }
+
+        return null;
+    },
+
+    /**
      * Clear all authentication data
      */
     clearAuth(): void {

@@ -15,6 +15,7 @@ import {
     WeeklySummaryPreferences,
     NotificationPlatform,
 } from './api.types';
+import { authService } from './authService';
 
 // Use environment variable or fallback to localhost
 const API_BASE_URL = (import.meta as any).env?.VITE_NLP_SERVICE_URL || 'http://localhost:5001';
@@ -111,6 +112,7 @@ export async function registerDevice(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({
                 user_id: userId,
@@ -195,6 +197,7 @@ export async function getWeeklySummaryPreferences(
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
                 },
             }
         );
@@ -226,6 +229,7 @@ export async function updateWeeklySummaryPreferences(
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({
                 user_id: userId,
@@ -260,6 +264,7 @@ export async function triggerWeeklySummary(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({
                 user_id: userId,
@@ -292,6 +297,7 @@ export async function unsubscribeWeeklySummary(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({ user_id: userId }),
         });
@@ -324,6 +330,7 @@ export async function getNotificationTemplates(): Promise<
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 

@@ -17,6 +17,7 @@ import {
     ReminderRequest,
     CalendarProvider,
 } from './api.types';
+import { authService } from './authService';
 
 // Use environment variable or fallback to localhost
 const API_BASE_URL = (import.meta as any).env?.VITE_NLP_SERVICE_URL || 'http://localhost:5001';
@@ -132,6 +133,7 @@ export async function storeCalendarCredentials(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify(credentials),
             signal: controller.signal,
@@ -167,6 +169,9 @@ export async function revokeCalendarCredentials(
             `${API_BASE_URL}/api/calendar/${userId}/credentials/${provider}`,
             {
                 method: 'DELETE',
+                headers: {
+                    ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
+                },
             }
         );
 
@@ -200,6 +205,7 @@ export async function syncCalendar(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify(request),
             signal: controller.signal,
@@ -245,6 +251,7 @@ export async function getCalendarEvents(
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
                 },
             }
         );
@@ -277,6 +284,7 @@ export async function scheduleReminder(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify(reminder),
         });
@@ -304,6 +312,7 @@ export async function getReminders(userId: string): Promise<ReminderRequest[]> {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 
@@ -335,6 +344,9 @@ export async function cancelReminder(
             `${API_BASE_URL}/api/calendar/${userId}/reminder/${reminderId}`,
             {
                 method: 'DELETE',
+                headers: {
+                    ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
+                },
             }
         );
 

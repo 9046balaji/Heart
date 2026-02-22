@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@capacitor/filesystem": [
+        "./mocks/capacitor-filesystem.ts"
       ]
     },
     "allowImportingTsExtensions": true,

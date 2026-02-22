@@ -380,17 +380,8 @@ export const apiClient = {
         skipAuth: true,
       });
     } catch (error) {
-      console.warn('[MockAuth] Login API failed, using mock data', error);
-      return {
-        user: {
-          id: 'dev-user-123',
-          email: email,
-          name: 'Developer User',
-          role: 'patient',
-        },
-        token: 'mock-dev-token',
-        refresh_token: 'mock-refresh-token',
-      };
+      console.error('[Auth] Login failed:', error);
+      throw error;
     }
   },
 
@@ -417,17 +408,8 @@ export const apiClient = {
         skipAuth: true,
       });
     } catch (error) {
-      console.warn('[MockAuth] Register API failed, using mock data', error);
-      return {
-        user: {
-          id: 'dev-user-123',
-          email: data.email,
-          name: data.name,
-          role: 'patient',
-        },
-        token: 'mock-dev-token',
-        refresh_token: 'mock-refresh-token',
-      };
+      console.error('[Auth] Registration failed:', error);
+      throw error;
     }
   },
 
@@ -462,13 +444,8 @@ export const apiClient = {
         role: string;
       }>('/auth/me');
     } catch (error) {
-      console.warn('[MockAuth] Me API failed, using mock data');
-      return {
-        id: 'dev-user-123',
-        email: 'dev@example.com',
-        name: 'Developer User',
-        role: 'patient',
-      };
+      console.error('[Auth] Failed to fetch user profile:', error);
+      throw error;
     }
   },
 

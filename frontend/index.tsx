@@ -42,35 +42,36 @@ const mockApiResponses: Record<string, (url: string, options?: RequestInit) => R
   },
 };
 
-// Intercept fetch calls to mock API endpoints
-const originalFetch = window.fetch;
-window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const urlString = typeof input === 'string' ? input : input.toString();
-  
-  // Extract the path from the URL (handles https://localhost/api/provider/status -> /api/provider/status)
-  let pathToMatch = urlString;
-  try {
-    const urlObj = new URL(urlString, window.location.href);
-    pathToMatch = urlObj.pathname + urlObj.search;
-  } catch {
-    // If URL parsing fails, use the string as-is
-    pathToMatch = urlString;
-  }
-  
-  // Check if this is a mock API endpoint
-  for (const [mockPath, mockHandler] of Object.entries(mockApiResponses)) {
-    if (pathToMatch.includes(mockPath)) {
-      console.log(`[Mock API] Intercepting ${mockPath}: ${pathToMatch}`);
-      const response = mockHandler(pathToMatch, init);
-      if (response) {
-        return Promise.resolve(response);
+// Intercept fetch calls to mock API endpoints (dev only)
+if (import.meta.env.DEV) {
+  const originalFetch = window.fetch;
+  window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const urlString = typeof input === 'string' ? input : input.toString();
+    
+    // Extract the path from the URL
+    let pathToMatch = urlString;
+    try {
+      const urlObj = new URL(urlString, window.location.href);
+      pathToMatch = urlObj.pathname + urlObj.search;
+    } catch {
+      pathToMatch = urlString;
+    }
+    
+    // Check if this is a mock API endpoint
+    for (const [mockPath, mockHandler] of Object.entries(mockApiResponses)) {
+      if (pathToMatch.includes(mockPath)) {
+        console.log(`[Mock API] Intercepting ${mockPath}: ${pathToMatch}`);
+        const response = mockHandler(pathToMatch, init);
+        if (response) {
+          return Promise.resolve(response);
+        }
       }
     }
-  }
-  
-  // Fall back to original fetch for all other requests
-  return originalFetch.apply(this, arguments as any);
-};
+    
+    // Fall back to original fetch for all other requests
+    return originalFetch.apply(this, arguments as any);
+  };
+}
 
 // Show loading indicator immediately
 const rootElement = document.getElementById('root');
@@ -83,7 +84,17 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
   console.error('Global error:', msg, url, lineNo, columnNo, error);
   const statusEl = document.getElementById('loading-status');
   if (statusEl) {
-    statusEl.innerHTML = '<div style="color:red;">Error: ' + msg + '</div><div style="font-size:12px;margin-top:8px;">' + url + ':' + lineNo + '</div>';
+    // Use textContent instead of innerHTML to prevent XSS
+    statusEl.textContent = '';
+    const errorDiv = document.createElement('div');
+    errorDiv.style.color = 'red';
+    errorDiv.textContent = 'Error: ' + String(msg);
+    const detailDiv = document.createElement('div');
+    detailDiv.style.fontSize = '12px';
+    detailDiv.style.marginTop = '8px';
+    detailDiv.textContent = String(url || '') + ':' + String(lineNo || '');
+    statusEl.appendChild(errorDiv);
+    statusEl.appendChild(detailDiv);
   }
   return false;
 };

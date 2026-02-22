@@ -18,6 +18,7 @@ import {
     ClassificationResult,
     APIErrorResponse,
 } from './api.types';
+import { authService } from './authService';
 
 // Use environment variable or fallback to localhost
 const API_BASE_URL = (import.meta as any).env?.VITE_NLP_SERVICE_URL || 'http://localhost:5001';
@@ -158,6 +159,9 @@ export async function uploadDocument(
     try {
         const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
             method: 'POST',
+            headers: {
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
+            },
             body: formData,
             signal: controller.signal,
         });
@@ -193,6 +197,7 @@ export async function processDocument(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({ document_id: documentId }),
             signal: controller.signal,
@@ -224,6 +229,7 @@ export async function getDocument(documentId: string): Promise<DocumentDetails> 
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 
@@ -254,6 +260,7 @@ export async function extractEntities(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({
                 text,
@@ -291,6 +298,7 @@ export async function classifyDocument(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify({
                 document_id: documentId,
@@ -333,6 +341,7 @@ export async function listDocuments(
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 
@@ -359,6 +368,7 @@ export async function deleteDocument(
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 

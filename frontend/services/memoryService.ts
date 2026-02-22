@@ -12,6 +12,8 @@
  * @version 2.0.0
  */
 
+import { authService } from './authService';
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -728,8 +730,13 @@ class EnhancedMemoryService {
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
+      const authHeader = authService.getAuthHeader();
       const response = await fetch(url, {
         ...options,
+        headers: {
+          ...options.headers,
+          ...(authHeader && { Authorization: authHeader }),
+        },
         signal: controller.signal,
       });
 

@@ -36,8 +36,8 @@ export default defineConfig(({ mode }) => {
       jsxDev: false,
     },
     define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // SECURITY: API keys must NOT be inlined in the client bundle.
+      // All AI API calls should go through the backend which holds keys server-side.
       global: 'globalThis',
       __DEV__: mode === 'development',
     },

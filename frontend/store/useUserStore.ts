@@ -11,6 +11,8 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { apiClient } from '../services/apiClient';
+import { authService } from '../services/authService';
 
 // ============================================================================
 // Types
@@ -197,22 +199,29 @@ export const useUserStore = create<UserState>()(
         login: async (email, password) => {
           set({ isLoading: true, error: null });
           try {
-            // In production, call auth API
-            // const response = await authService.login(email, password);
+            const response = await apiClient.login(email, password);
 
-            // Simulate login
-            await new Promise(r => setTimeout(r, 500));
+            // Store auth tokens
+            if (response.token) {
+              authService.setToken(response.token);
+            }
+            if (response.refresh_token) {
+              authService.setRefreshToken(response.refresh_token);
+            }
+            if (response.user) {
+              authService.setUser(response.user);
+            }
 
-            const mockUser: UserProfile = {
-              id: 'user_' + Date.now(),
-              name: email.split('@')[0],
-              email,
+            const user: UserProfile = {
+              id: response.user?.id || '',
+              name: response.user?.name || email.split('@')[0],
+              email: response.user?.email || email,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
 
             set((state) => {
-              state.user = mockUser;
+              state.user = user;
               state.isAuthenticated = true;
               state.isLoading = false;
             });

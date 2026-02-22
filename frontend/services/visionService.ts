@@ -19,6 +19,7 @@ import {
     SupportedTypesResponse,
     ParsedMedication,
 } from './api.types';
+import { authService } from './authService';
 
 // Use environment variable or fallback to localhost
 const API_BASE_URL = (import.meta as any).env?.VITE_NLP_SERVICE_URL || 'http://localhost:5001';
@@ -238,6 +239,9 @@ export async function analyzeECG(
     try {
         const response = await fetch(`${API_BASE_URL}/api/vision/ecg/analyze`, {
             method: 'POST',
+            headers: {
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
+            },
             body: formData,
             signal: controller.signal,
         });
@@ -279,6 +283,9 @@ export async function analyzeECGBase64(
     try {
         const response = await fetch(`${API_BASE_URL}/api/vision/ecg/analyze-base64`, {
             method: 'POST',
+            headers: {
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
+            },
             body: formData,
             signal: controller.signal,
         });
@@ -325,6 +332,7 @@ export async function analyzeVision(
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
             body: JSON.stringify(request),
             signal: controller.signal,
@@ -355,6 +363,7 @@ export async function getSupportedTypes(): Promise<SupportedTypesResponse> {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
+                ...(authService.getAuthHeader() && { Authorization: authService.getAuthHeader()! }),
             },
         });
 
