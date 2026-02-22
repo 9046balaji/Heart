@@ -174,6 +174,80 @@ class PrometheusMetrics:
             MetricType.GAUGE,
             "Current number of active requests"
         )
+        
+        # Performance monitor metrics (rerank, embedding, cache)
+        self._register_metric(
+            "rag_rerank_duration_ms",
+            MetricType.HISTOGRAM,
+            "Rerank operation duration in milliseconds"
+        )
+        self._register_metric(
+            "rag_rerank_operations",
+            MetricType.COUNTER,
+            "Total rerank operations"
+        )
+        self._register_metric(
+            "rag_embedding_duration_ms",
+            MetricType.HISTOGRAM,
+            "Embedding operation duration in milliseconds"
+        )
+        self._register_metric(
+            "rag_embedding_operations",
+            MetricType.COUNTER,
+            "Total embedding operations"
+        )
+        self._register_metric(
+            "rag_cache_operation_duration_ms",
+            MetricType.HISTOGRAM,
+            "Cache operation duration in milliseconds"
+        )
+        
+        # Orchestrator metrics
+        self._register_metric(
+            "orchestrator_executions",
+            MetricType.COUNTER,
+            "Total orchestrator executions"
+        )
+        self._register_metric(
+            "orchestrator_latency_ms",
+            MetricType.HISTOGRAM,
+            "Orchestrator execution latency in milliseconds"
+        )
+        self._register_metric(
+            "orchestrator_hallucination_checks",
+            MetricType.COUNTER,
+            "Total hallucination grading checks"
+        )
+        self._register_metric(
+            "orchestrator_hallucination_detected",
+            MetricType.COUNTER,
+            "Responses flagged as hallucinated"
+        )
+        self._register_metric(
+            "orchestrator_drug_interactions_checked",
+            MetricType.COUNTER,
+            "Drug interaction checks performed by orchestrator"
+        )
+        self._register_metric(
+            "deep_research_executions",
+            MetricType.COUNTER,
+            "Total deep research executions"
+        )
+        self._register_metric(
+            "deep_research_latency_ms",
+            MetricType.HISTOGRAM,
+            "Deep research execution latency in milliseconds"
+        )
+        self._register_metric(
+            "web_search_executions",
+            MetricType.COUNTER,
+            "Total web search executions"
+        )
+        self._register_metric(
+            "web_search_latency_ms",
+            MetricType.HISTOGRAM,
+            "Web search execution latency in milliseconds"
+        )
     
     def _register_metric(self, name: str, metric_type: MetricType, help_text: str):
         """Register a new metric."""
