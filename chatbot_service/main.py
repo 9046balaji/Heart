@@ -3,8 +3,12 @@ Cardio AI - NLP Service Main Application
 """
 
 import sys
+import os
 import io
 import platform
+
+# Prevent OpenMP duplicate library crash (sentence-transformers + NumPy on Windows)
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 
 # Force UTF-8 encoding for Windows consoles to prevent charmap errors with emojis
@@ -28,7 +32,6 @@ if platform.system() == 'Windows':
         except Exception as e2:
             print(f"❌ Both event loop policies failed: {e2}")
 
-import os
 import logging
 from contextlib import asynccontextmanager
 import asyncio
@@ -372,34 +375,29 @@ async def lifespan(app: FastAPI):
     import sys
     
     try:
-        # Run alembic check asynchronously
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "alembic", "current",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=os.path.dirname(__file__)
+        # Run alembic check synchronously with short timeout (more reliable on Windows)
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "current"],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(__file__),
+            timeout=10.0
         )
         
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
-            stdout_str = stdout.decode()
-            stderr_str = stderr.decode()
-            
-            if process.returncode == 0:
-                if "(head)" not in stdout_str:
-                    logger.warning(
-                        "⚠️  Database migrations are not up to date! "
-                        "Run 'alembic upgrade head' to update schema."
-                    )
-                else:
-                    logger.info("✅ Database migrations are up to date")
+        if result.returncode == 0:
+            if "(head)" not in result.stdout:
+                logger.warning(
+                    "⚠️  Database migrations are not up to date! "
+                    "Run 'alembic upgrade head' to update schema."
+                )
             else:
-                logger.warning(f"⚠️  Alembic migration check failed (will continue): {stderr_str[:100]}")
-        except asyncio.TimeoutError:
-            logger.warning("⚠️  Alembic migration check timed out (continuing without check)")
-            # Don't kill, just ignore
+                logger.info("✅ Database migrations are up to date")
+        else:
+            logger.warning(f"⚠️  Alembic migration check failed (will continue): {result.stderr[:100]}")
+    except subprocess.TimeoutExpired:
+        logger.warning("⚠️  Alembic migration check timed out (continuing without check)")
     except Exception as e:
-        logger.warning(f"⚠️  Could not run Alembic check (continuing): {str(e)[:100]}")
+        logger.warning(f"⚠️  Could not run Alembic check (continuing): {type(e).__name__}: {str(e)[:100]}")
     
     logger.info(f"Starting {SERVICE_NAME} v{SERVICE_VERSION}...")
 
