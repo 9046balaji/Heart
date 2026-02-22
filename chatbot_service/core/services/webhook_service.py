@@ -56,6 +56,11 @@ class WebhookEvent(str, Enum):
     JOB_FAILED = "job.failed"
     JOB_PROGRESS = "job.progress"
     JOB_CANCELLED = "job.cancelled"
+    # Medical events
+    HALLUCINATION_DETECTED = "medical.hallucination_detected"
+    DRUG_INTERACTION_FOUND = "medical.drug_interaction_found"
+    RED_FLAG_SYMPTOMS = "medical.red_flag_symptoms"
+    EMERGENCY_TRIAGE = "medical.emergency_triage"
 
 
 class DeliveryStatus(str, Enum):
@@ -281,6 +286,41 @@ class WebhookService:
     # ========================================================================
     # Webhook Delivery
     # ========================================================================
+    
+    async def emit(
+        self,
+        event: WebhookEvent,
+        payload: Dict[str, Any],
+        user_id: Optional[str] = None
+    ) -> List[str]:
+        """
+        Emit a webhook event to all matching registered endpoints.
+        
+        Convenience method that broadcasts to all users with matching event subscriptions,
+        or to a specific user if user_id is provided.
+        
+        Args:
+            event: WebhookEvent type
+            payload: Event payload data
+            user_id: Optional specific user to notify
+            
+        Returns:
+            List of delivery IDs
+        """
+        event_str = event.value if isinstance(event, WebhookEvent) else str(event)
+        target_user = user_id or payload.get("user_id", "system")
+        job_id = payload.get("thread_id", payload.get("job_id", "event"))
+        
+        try:
+            return await self.deliver(
+                job_id=job_id,
+                user_id=target_user,
+                event=event_str,
+                payload=payload
+            )
+        except Exception as e:
+            logger.debug(f"Webhook emit for {event_str} skipped: {e}")
+            return []
     
     async def deliver(
         self,
