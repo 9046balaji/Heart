@@ -390,7 +390,7 @@ Use the available tools to complete this task. Think carefully and explain your 
         if not completed_atoms:
             return "No atoms were successfully completed."
         
-        synthesis_prompt = f"""Synthesize these research findings into a cohesive report.
+        synthesis_prompt = f"""Synthesize these research findings into a cohesive, evidence-based report.
 
 Original Query: {query}
 
@@ -406,12 +406,17 @@ Findings from {len(completed_atoms)} research atoms:
         synthesis_prompt += """
 
 Create a comprehensive report that:
-1. Summarizes the key findings
-2. Identifies patterns and themes
-3. Notes any gaps or contradictions
-4. Provides actionable conclusions
+1. **Key Findings** - Summarize the most important discoveries, ranked by evidence strength
+2. **Cross-Validation** - Identify findings confirmed by multiple atoms/sources
+3. **Contradictions** - Note any disagreements between sources with context
+4. **Evidence Gaps** - What questions remain unanswered?
+5. **Clinical Implications** - Actionable takeaways (if medical)
+6. **Limitations** - What are the limitations of this research?
+7. **Source Quality** - Rate the overall quality of evidence gathered
 
-Write the report in markdown format."""
+Write the report in well-structured markdown format.
+For medical topics, always include safety disclaimers.
+Cite specific sources where possible."""
 
         try:
             response = await self.llm.ainvoke(synthesis_prompt)

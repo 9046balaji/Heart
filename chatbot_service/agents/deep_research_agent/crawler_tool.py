@@ -3,7 +3,8 @@ import os
 import json
 import base64
 import logging
-from typing import List, Dict, Optional, Union
+import hashlib
+from typing import List, Dict, Optional, Union, Set
 from datetime import datetime
 
 
@@ -41,6 +42,21 @@ LLM_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
 # Each browser instance uses ~300MB+ RAM. Default: 3 concurrent crawlers.
 MAX_CONCURRENT_CRAWLERS = int(os.getenv("MAX_CONCURRENT_CRAWLERS", "3"))
 _crawler_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CRAWLERS)
+
+# Retry Configuration
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1.0  # seconds (exponential backoff: 1s, 2s, 4s)
+PER_URL_TIMEOUT = 30  # seconds per URL
+
+# Content Quality Thresholds
+MIN_CONTENT_LENGTH = 100  # Minimum chars for valid extracted content
+MIN_WORD_COUNT = 30  # Minimum words for valid content
+CONTENT_QUALITY_KEYWORDS = {
+    "study", "research", "findings", "treatment", "clinical", "evidence",
+    "patient", "results", "analysis", "data", "methodology", "conclusion",
+    "significant", "outcome", "trial", "diagnosis", "therapy", "mechanism",
+    "efficacy", "safety", "adverse", "guideline", "protocol", "review",
+}
 
 # JavaScript injection for expanding hidden content
 EXPAND_CONTENT_SCRIPT = """
@@ -85,31 +101,223 @@ async def _crawl_with_limit(
     crawler: AsyncWebCrawler, 
     url: str, 
     config: CrawlerRunConfig,
-    deep_crawl_strategy=None
+    deep_crawl_strategy=None,
+    max_retries: int = MAX_RETRIES
 ) -> CrawlResult:
     """
-    Wrap crawler.arun with semaphore to limit concurrent browser instances.
+    Wrap crawler.arun with semaphore, retry logic, and timeout.
     
     **Concurrency Control**: Prevents OOM by limiting parallel crawlers.
-    Each browser instance consumes ~300MB RAM. With default limit of 3,
-    max memory usage = ~900MB for crawling alone.
+    **Retry Logic**: Exponential backoff on transient failures.
+    **Timeout**: Per-URL timeout to prevent hanging.
     
     Args:
         crawler: AsyncWebCrawler instance
         url: URL to crawl
         config: CrawlerRunConfig with extraction strategy
         deep_crawl_strategy: Optional deep crawl strategy (for recursive crawling)
+        max_retries: Maximum retry attempts
     """
-    async with _crawler_semaphore:
-        logger.debug(f"Acquired crawler slot ({_crawler_semaphore._value}/{MAX_CONCURRENT_CRAWLERS} available)")
-        if deep_crawl_strategy:
-            return await crawler.arun(url=url, config=config, deep_crawl_strategy=deep_crawl_strategy)
-        else:
-            return await crawler.arun(url=url, config=config)
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            async with _crawler_semaphore:
+                logger.debug(f"Acquired crawler slot ({_crawler_semaphore._value}/{MAX_CONCURRENT_CRAWLERS} available) - attempt {attempt + 1}/{max_retries}")
+                
+                # Wrap with per-URL timeout
+                if deep_crawl_strategy:
+                    result = await asyncio.wait_for(
+                        crawler.arun(url=url, config=config, deep_crawl_strategy=deep_crawl_strategy),
+                        timeout=PER_URL_TIMEOUT * 2  # Deep crawl gets extra time
+                    )
+                else:
+                    result = await asyncio.wait_for(
+                        crawler.arun(url=url, config=config),
+                        timeout=PER_URL_TIMEOUT
+                    )
+                
+                # Validate result quality
+                if result.success:
+                    return result
+                elif attempt < max_retries - 1:
+                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(f"\u26a0\ufe0f Crawl returned failure for {url}, retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    return result  # Return the failed result on last attempt
+                    
+        except asyncio.TimeoutError:
+            last_error = f"Timeout after {PER_URL_TIMEOUT}s"
+            if attempt < max_retries - 1:
+                delay = RETRY_BASE_DELAY * (2 ** attempt)
+                logger.warning(f"\u23f0 Crawl timeout for {url}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"\u274c Crawl timeout for {url} after {max_retries} attempts")
+                
+        except Exception as e:
+            last_error = str(e)
+            if attempt < max_retries - 1:
+                delay = RETRY_BASE_DELAY * (2 ** attempt)
+                logger.warning(f"\u26a0\ufe0f Crawl error for {url}: {e}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"\u274c Crawl failed for {url} after {max_retries} attempts: {e}")
+    
+    # Return a synthetic failed result
+    class FailedResult:
+        success = False
+        url = url
+        extracted_content = None
+        markdown = None
+        screenshot = None
+        error_message = last_error
+    
+    return FailedResult()
+
+def _validate_content_quality(content: str) -> bool:
+    """
+    Validate that extracted content meets minimum quality standards.
+    
+    Checks:
+    - Minimum length
+    - Minimum word count  
+    - Medical/research keyword presence
+    - Not just boilerplate (cookie notices, nav menus)
+    
+    Returns:
+        True if content passes quality checks
+    """
+    if not content:
+        return False
+    
+    if len(content) < MIN_CONTENT_LENGTH:
+        return False
+    
+    words = content.split()
+    if len(words) < MIN_WORD_COUNT:
+        return False
+    
+    # Check for boilerplate content
+    boilerplate_indicators = [
+        "cookie", "privacy policy", "terms of service",
+        "subscribe to newsletter", "accept all cookies",
+        "enable javascript", "browser not supported",
+    ]
+    content_lower = content.lower()
+    boilerplate_score = sum(1 for bp in boilerplate_indicators if bp in content_lower)
+    if boilerplate_score >= 3:  # Likely boilerplate
+        return False
+    
+    # Check for minimum medical/research keyword presence
+    content_words = set(content_lower.split())
+    medical_hits = len(CONTENT_QUALITY_KEYWORDS & content_words)
+    if medical_hits < 2:  # At least 2 relevant keywords
+        logger.debug(f"Content quality check: only {medical_hits} relevant keywords found")
+        # Don't reject outright - might be valid non-medical content
+        # but flag as lower quality
+    
+    return True
+
+
+def _fallback_plain_text_extraction(result: CrawlResult, url: str) -> Optional[ResearchInsight]:
+    """
+    Fallback extraction when LLM extraction fails.
+    
+    Uses the raw markdown/text content and creates a basic insight
+    without requiring LLM processing.
+    
+    Args:
+        result: CrawlResult with raw content
+        url: Source URL
+        
+    Returns:
+        ResearchInsight or None if content insufficient
+    """
+    # Try markdown first, then try any available text
+    raw_text = ""
+    if hasattr(result, 'markdown') and result.markdown:
+        raw_text = result.markdown
+    elif hasattr(result, 'cleaned_html') and result.cleaned_html:
+        import re
+        raw_text = re.sub(r'<[^>]+>', ' ', result.cleaned_html)
+    elif hasattr(result, 'html') and result.html:
+        import re
+        raw_text = re.sub(r'<[^>]+>', ' ', result.html)
+    
+    if not raw_text or len(raw_text) < MIN_CONTENT_LENGTH:
+        return None
+    
+    # Clean up text
+    import re
+    raw_text = re.sub(r'\s+', ' ', raw_text).strip()
+    
+    # Extract title from first line or heading
+    title = "Untitled"
+    title_match = re.search(r'^#\s+(.+?)$', raw_text, re.MULTILINE)
+    if title_match:
+        title = title_match.group(1).strip()[:200]
+    elif raw_text:
+        title = raw_text[:100].split('.')[0].strip()
+    
+    # Extract summary (first substantial paragraph)
+    paragraphs = [p.strip() for p in raw_text.split('\n\n') if len(p.strip()) > 50]
+    summary = paragraphs[0][:500] if paragraphs else raw_text[:500]
+    
+    # Extract key findings (sentences with key terms)
+    sentences = re.split(r'[.!?]+', raw_text)
+    key_findings = []
+    for sent in sentences:
+        sent = sent.strip()
+        if len(sent) > 30:
+            words = set(sent.lower().split())
+            if len(CONTENT_QUALITY_KEYWORDS & words) >= 2:
+                key_findings.append(sent[:200])
+                if len(key_findings) >= 5:
+                    break
+    
+    if not key_findings:
+        key_findings = [s.strip()[:200] for s in sentences[:3] if len(s.strip()) > 30]
+    
+    # Extract quotes (sentences in quotes or with key phrases)
+    quotes = []
+    for match in re.finditer(r'"([^"]{20,200})"', raw_text):
+        quotes.append(match.group(1))
+        if len(quotes) >= 3:
+            break
+    
+    # Save screenshot if available
+    screenshot_path = None
+    if hasattr(result, 'screenshot') and result.screenshot:
+        screenshot_path = _save_screenshot(url, result.screenshot)
+    
+    return ResearchInsight(
+        source_url=url,
+        title=title,
+        summary=summary,
+        key_findings=key_findings or ["Content extracted via fallback - manual review recommended"],
+        relevant_quotes=quotes,
+        screenshot_path=screenshot_path,
+    )
+
 
 def _parse_and_add_insight(result: CrawlResult, insights: List[ResearchInsight]):
     """Helper to parse result and add to insights list."""
     if not result.success or not result.extracted_content:
+        # Try fallback extraction from raw content
+        if result.success and not result.extracted_content:
+            logger.info(f"\u26a0\ufe0f LLM extraction empty for {result.url}, trying fallback...")
+            fallback = _fallback_plain_text_extraction(result, result.url)
+            if fallback:
+                insights.append(fallback)
+                logger.info(f"\u2705 Fallback extraction successful for {result.url}")
+        elif hasattr(result, 'markdown') and result.markdown:
+            logger.info(f"\u26a0\ufe0f Crawl failed but has markdown for {result.url}, trying fallback...")
+            fallback = _fallback_plain_text_extraction(result, getattr(result, 'url', 'unknown'))
+            if fallback:
+                insights.append(fallback)
+                logger.info(f"\u2705 Fallback extraction from failed crawl for {result.url}")
         return
 
     try:
@@ -130,13 +338,31 @@ def _parse_and_add_insight(result: CrawlResult, insights: List[ResearchInsight])
             # Extract links if available
             if hasattr(result, 'links'):
                 item['source_links'] = [l.get('href', '') for l in result.links[:5]]
-                
-            insights.append(ResearchInsight(**item))
             
-        logger.info(f"✅ Extracted insight from {result.url}")
+            # Validate content quality before adding
+            summary = item.get('summary', '')
+            if _validate_content_quality(summary):
+                insights.append(ResearchInsight(**item))
+                logger.info(f"\u2705 Extracted high-quality insight from {result.url}")
+            else:
+                # Still add but log the quality concern
+                insights.append(ResearchInsight(**item))
+                logger.warning(f"\u26a0\ufe0f Low-quality content from {result.url} - may need review")
             
-    except Exception as e:
+    except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse JSON from {result.url}: {e}")
+        # Fallback: try to extract insight from raw markdown
+        fallback = _fallback_plain_text_extraction(result, result.url)
+        if fallback:
+            insights.append(fallback)
+            logger.info(f"\u2705 Fallback extraction after JSON error for {result.url}")
+    except Exception as e:
+        logger.warning(f"Error processing insight from {result.url}: {e}")
+        # Last resort fallback
+        fallback = _fallback_plain_text_extraction(result, result.url)
+        if fallback:
+            insights.append(fallback)
+            logger.info(f"\u2705 Fallback extraction after error for {result.url}")
 
 async def crawl_and_extract(urls: List[str], extraction_prompt: str) -> List[ResearchInsight]:
     """

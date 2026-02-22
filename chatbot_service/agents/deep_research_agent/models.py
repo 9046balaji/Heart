@@ -10,4 +10,10 @@ class ResearchInsight(BaseModel):
     relevant_quotes: List[str] = Field(..., description="Direct quotes that support the findings.")
     source_links: List[str] = Field(default_factory=list, description="External links found on the page (for depth-2 research).")
     screenshot_path: Optional[str] = Field(default=None, description="Path to saved screenshot if available.")
+    key_points: List[str] = Field(default_factory=list, description="Concise bullet-point key points from the content.")
+    evidence_level: Optional[str] = Field(default=None, description="Evidence level: systematic_review, rct, observational, case_report, expert_opinion")
+    publication_date: Optional[str] = Field(default=None, description="Publication or last update date if available.")
+    authors: Optional[str] = Field(default=None, description="Author(s) if available.")
+    confidence_score: float = Field(default=0.5, description="Extraction confidence score (0.0-1.0)")
+    content_type: str = Field(default="article", description="Type: article, research_paper, guideline, news, review")
 
