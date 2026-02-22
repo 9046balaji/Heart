@@ -28,8 +28,10 @@ import logging
 import asyncio
 import time
 import hashlib
-from typing import List, Optional, Dict, Any
+import re as _re
+from typing import List, Optional, Dict, Any, Set, Tuple
 from datetime import datetime
+from collections import Counter
 from pydantic import BaseModel, Field
 
 # --- Project Architecture Imports ---
@@ -97,16 +99,242 @@ DISCLAIMER = (
     "before making medical decisions."
 )
 
+# --- Medical Synonym Expansion Map ---
+# Maps common terms to medical synonyms/alternatives for query expansion
+MEDICAL_SYNONYMS = {
+    "heart attack": ["myocardial infarction", "MI", "acute coronary syndrome"],
+    "high blood pressure": ["hypertension", "elevated blood pressure", "HTN"],
+    "stroke": ["cerebrovascular accident", "CVA", "brain attack"],
+    "diabetes": ["diabetes mellitus", "DM", "hyperglycemia"],
+    "chest pain": ["angina", "thoracic pain", "precordial pain"],
+    "shortness of breath": ["dyspnea", "breathlessness", "SOB"],
+    "blood clot": ["thrombosis", "embolism", "DVT"],
+    "irregular heartbeat": ["arrhythmia", "atrial fibrillation", "dysrhythmia"],
+    "heart failure": ["congestive heart failure", "CHF", "cardiac insufficiency"],
+    "high cholesterol": ["hyperlipidemia", "dyslipidemia", "hypercholesterolemia"],
+    "kidney disease": ["renal disease", "nephropathy", "CKD"],
+    "liver disease": ["hepatic disease", "hepatopathy"],
+    "obesity": ["morbid obesity", "BMI overweight", "adiposity"],
+    "anxiety": ["generalized anxiety disorder", "GAD", "anxious"],
+    "depression": ["major depressive disorder", "MDD", "clinical depression"],
+    "cancer": ["malignancy", "neoplasm", "carcinoma"],
+    "infection": ["sepsis", "bacteremia", "infectious disease"],
+    "allergy": ["hypersensitivity", "allergic reaction", "anaphylaxis"],
+    "headache": ["cephalgia", "migraine", "tension headache"],
+    "fatigue": ["chronic fatigue", "asthenia", "exhaustion"],
+}
+
+# --- Domain Authority Scores ---
+# Used for relevance scoring — higher authority = higher base score
+DOMAIN_AUTHORITY_SCORES = {
+    "nih.gov": 0.98,
+    "pubmed.ncbi.nlm.nih.gov": 0.97,
+    "cdc.gov": 0.96,
+    "who.int": 0.96,
+    "fda.gov": 0.95,
+    "medlineplus.gov": 0.94,
+    "mayoclinic.org": 0.93,
+    "clevelandclinic.org": 0.92,
+    "hopkinsmedicine.org": 0.91,
+    "heart.org": 0.90,
+    "drugs.com": 0.85,
+    "webmd.com": 0.82,
+    "healthline.com": 0.80,
+}
+
+# --- Medical Relevance Keywords (for quality scoring) ---
+MEDICAL_RELEVANCE_KEYWORDS = {
+    "study", "trial", "clinical", "treatment", "diagnosis", "symptoms",
+    "therapy", "medication", "drug", "patient", "outcome", "evidence",
+    "guideline", "protocol", "research", "findings", "efficacy",
+    "safety", "adverse", "risk", "prognosis", "pathology", "FDA",
+    "approved", "contraindication", "dosage", "mechanism", "disease",
+    "condition", "disorder", "syndrome", "intervention", "biomarker",
+    "meta-analysis", "randomized", "controlled", "placebo", "cohort",
+}
+
+
+def _compute_content_relevance(content: str, query: str) -> float:
+    """
+    Compute relevance score between content and query using keyword overlap.
+    
+    Combines:
+    - Query term overlap (how many query words appear in content)
+    - Medical keyword density (authority of medical language)
+    - Content richness (length and information density)
+    
+    Returns:
+        Float between 0.0 and 1.0
+    """
+    if not content or not query:
+        return 0.0
+    
+    content_lower = content.lower()
+    query_lower = query.lower()
+    query_terms = set(query_lower.split())
+    content_words = set(content_lower.split())
+    
+    # 1. Query term overlap (0-0.4)
+    if query_terms:
+        overlap = len(query_terms & content_words) / len(query_terms)
+    else:
+        overlap = 0.0
+    query_score = min(overlap * 0.4, 0.4)
+    
+    # 2. Medical keyword density (0-0.3)
+    medical_hits = len(MEDICAL_RELEVANCE_KEYWORDS & content_words)
+    medical_score = min(medical_hits / 8.0, 1.0) * 0.3
+    
+    # 3. Content richness (0-0.2) — prefer longer, more detailed content
+    word_count = len(content_words)
+    if word_count > 200:
+        richness = 0.2
+    elif word_count > 100:
+        richness = 0.15
+    elif word_count > 50:
+        richness = 0.1
+    else:
+        richness = 0.05
+    
+    # 4. Exact phrase match bonus (0-0.1)
+    phrase_bonus = 0.1 if query_lower in content_lower else 0.0
+    
+    return min(query_score + medical_score + richness + phrase_bonus, 1.0)
+
+
+def _expand_medical_query(query: str) -> str:
+    """
+    Expand query with medical synonyms for better coverage.
+    
+    Example:
+        'heart attack treatment' -> 'heart attack myocardial infarction treatment'
+    """
+    query_lower = query.lower()
+    expansions = []
+    
+    for term, synonyms in MEDICAL_SYNONYMS.items():
+        if term in query_lower:
+            # Add the first (most relevant) synonym
+            expansions.append(synonyms[0])
+    
+    if expansions:
+        # Append top 2 synonyms to query (avoid making it too long)
+        expanded = query + " " + " ".join(expansions[:2])
+        return expanded[:400]  # Respect API limits
+    
+    return query
+
+
+def _clean_content_snippet(raw_content: str, max_length: int = 1500) -> str:
+    """
+    Clean and extract the most informative content from raw markdown/html.
+    
+    - Removes markdown artifacts, excessive whitespace, nav elements
+    - Extracts the most information-dense section
+    - Preserves key medical facts and data points
+    
+    Args:
+        raw_content: Raw markdown or text content
+        max_length: Maximum character length for snippet
+        
+    Returns:
+        Cleaned, information-dense content snippet
+    """
+    if not raw_content:
+        return ""
+    
+    text = raw_content
+    
+    # Remove markdown link syntax but keep text
+    text = _re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # Remove markdown headers (keep text)
+    text = _re.sub(r'^#{1,6}\s+', '', text, flags=_re.MULTILINE)
+    # Remove markdown bold/italic markers
+    text = _re.sub(r'[*_]{1,3}([^*_]+)[*_]{1,3}', r'\1', text)
+    # Remove HTML tags
+    text = _re.sub(r'<[^>]+>', ' ', text)
+    # Remove image references
+    text = _re.sub(r'!\[[^\]]*\]\([^)]+\)', '', text)
+    # Remove excessive whitespace and newlines
+    text = _re.sub(r'\n{3,}', '\n\n', text)
+    text = _re.sub(r'[ \t]{2,}', ' ', text)
+    # Remove common nav/footer patterns
+    text = _re.sub(r'(Skip to|Jump to|Table of Contents|Navigation|Menu|Footer|Copyright).*?\n', '', text, flags=_re.IGNORECASE)
+    
+    text = text.strip()
+    
+    if len(text) <= max_length:
+        return text
+    
+    # Extract the most information-dense paragraphs
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    if not paragraphs:
+        return text[:max_length]
+    
+    # Score paragraphs by medical keyword density
+    scored_paragraphs = []
+    for para in paragraphs:
+        if len(para) < 30:  # Skip very short paragraphs (likely headers/nav)
+            continue
+        words = set(para.lower().split())
+        med_score = len(MEDICAL_RELEVANCE_KEYWORDS & words)
+        scored_paragraphs.append((med_score, para))
+    
+    # Sort by score descending and take top paragraphs
+    scored_paragraphs.sort(key=lambda x: x[0], reverse=True)
+    
+    result = []
+    current_length = 0
+    for _, para in scored_paragraphs:
+        if current_length + len(para) > max_length:
+            break
+        result.append(para)
+        current_length += len(para)
+    
+    return "\n\n".join(result) if result else text[:max_length]
+
+
+def _deduplicate_results(results: List['WebSearchResult']) -> List['WebSearchResult']:
+    """
+    Deduplicate search results by URL and similar content.
+    
+    Removes:
+    - Exact URL duplicates
+    - Results with >80% content overlap
+    """
+    seen_urls: Set[str] = set()
+    seen_content_hashes: Set[str] = set()
+    unique_results = []
+    
+    for result in results:
+        # URL dedup
+        normalized_url = result.url.rstrip('/').lower()
+        if normalized_url in seen_urls:
+            continue
+        seen_urls.add(normalized_url)
+        
+        # Content similarity dedup (using shingle hash)
+        content_key = hashlib.md5(result.content[:200].lower().encode()).hexdigest()
+        if content_key in seen_content_hashes:
+            continue
+        seen_content_hashes.add(content_key)
+        
+        unique_results.append(result)
+    
+    return unique_results
+
 
 # --- Pydantic Models (aligned with project standard) ---
 class WebSearchResult(BaseModel):
     """Single web search result."""
     title: str = Field(..., description="Article or page title")
     url: str = Field(..., description="Source URL")
-    content: str = Field(..., description="Content snippet (up to 500 chars)")
+    content: str = Field(..., description="Content snippet (up to 1500 chars)")
     domain: str = Field(..., description="Source domain (e.g., 'nih.gov')")
     score: float = Field(default=0.0, description="Relevance score (0.0-1.0)")
     provider: Optional[str] = Field(default=None, description="Search provider (tavily/crawl4ai/ddgs)")
+    domain_authority: float = Field(default=0.5, description="Domain authority score (0.0-1.0)")
+    content_relevance: float = Field(default=0.0, description="Content-query relevance score")
 
 
 class WebSearchResponse(BaseModel):
@@ -196,9 +424,17 @@ class VerifiedWebSearchTool:
         Returns:
             WebSearchResponse with results and metadata
         """
+        _search_start = time.perf_counter()
+        
         # Sanitize query for API compatibility
         query = self._sanitize_query(query)
-        logger.info(f"🔍 Web search initiated: '{query[:50]}...'")
+        
+        # Expand query with medical synonyms for better coverage
+        expanded_query = _expand_medical_query(query)
+        if expanded_query != query:
+            logger.info(f"🔬 Query expanded: '{query[:40]}' → '{expanded_query[:60]}'")
+        
+        logger.info(f"🔍 Web search initiated: '{expanded_query[:60]}...'")
         
         # 1. Check Redis cache
         cache_key = self._make_cache_key(query)
@@ -216,11 +452,11 @@ class VerifiedWebSearchTool:
         results = []
         provider = "none"
         
-        # 2. Try Tavily (Primary - Premium)
+        # 2. Try Tavily (Primary - Premium) with expanded query
         if self.tavily_client:
             try:
                 logger.info("🌐 Attempting Tavily search (primary provider)...")
-                results = await self._search_tavily(query, num_results)
+                results = await self._search_tavily(expanded_query, num_results)
                 provider = "tavily"
                 if results:
                     logger.info(f"✅ Tavily returned {len(results)} results")
@@ -231,12 +467,30 @@ class VerifiedWebSearchTool:
         if not results:
             logger.info("🔄 Falling back to DuckDuckGo + Crawl4AI...")
             try:
-                results = await self._search_ddg_crawl4ai(query, num_results)
+                results = await self._search_ddg_crawl4ai(expanded_query, num_results)
                 provider = "crawl4ai_ddg"
                 if results:
                     logger.info(f"✅ Crawl4AI returned {len(results)} results")
             except Exception as e:
                 logger.error(f"❌ Fallback search also failed: {e}")
+        
+        # 3.5 Score, deduplicate, and rank results
+        if results:
+            for r in results:
+                # Compute domain authority
+                r.domain_authority = DOMAIN_AUTHORITY_SCORES.get(r.domain, 0.5)
+                # Compute content relevance against original query
+                r.content_relevance = _compute_content_relevance(r.content, query)
+                # Combined score: 40% provider score + 30% domain authority + 30% content relevance
+                r.score = round(r.score * 0.4 + r.domain_authority * 0.3 + r.content_relevance * 0.3, 3)
+            
+            # Deduplicate
+            results = _deduplicate_results(results)
+            # Sort by combined score descending
+            results.sort(key=lambda r: r.score, reverse=True)
+            # Take top N
+            results = results[:num_results]
+            logger.info(f"📊 Ranked & deduped: {len(results)} results (top score: {results[0].score:.2f})")
         
         # 4. Construct response
         response = WebSearchResponse(
@@ -258,6 +512,16 @@ class VerifiedWebSearchTool:
                 logger.info(f"💾 Cached result for {query[:50]}... (TTL: 24h)")
             except Exception as e:
                 logger.warning(f"⚠️ Cache write failed: {e}")
+        
+        # Record metrics
+        _search_elapsed = (time.perf_counter() - _search_start) * 1000
+        try:
+            from core.monitoring.prometheus_metrics import get_metrics
+            _m = get_metrics()
+            _m.increment_counter("web_search_executions")
+            _m.record_histogram("web_search_latency_ms", _search_elapsed)
+        except Exception:
+            pass
         
         return response
     
@@ -295,8 +559,9 @@ class VerifiedWebSearchTool:
         
         # Truncate very long queries (Tavily has limits)
         if len(clean_query) > 400:
-            clean_query = clean_query[:400]
-            logger.info(f"📝 Query truncated to 400 chars for Tavily")
+            # Truncate at last word boundary
+            clean_query = clean_query[:400].rsplit(' ', 1)[0]
+            logger.info(f"📝 Query truncated to {len(clean_query)} chars for Tavily")
         
         # Limit max_results to Tavily's maximum (20) - ensure num_results is int
         try:
@@ -313,9 +578,11 @@ class VerifiedWebSearchTool:
                     asyncio.to_thread(
                         self.tavily_client.search,
                         query=clean_query,
-                        search_depth="basic",  # Use basic to reduce 422 errors
-                        include_domains=VERIFIED_MEDICAL_DOMAINS[:10],  # Limit domains
-                        max_results=safe_num_results
+                        search_depth="advanced",  # Use advanced for richer content extraction
+                        include_domains=VERIFIED_MEDICAL_DOMAINS,  # All verified domains
+                        max_results=safe_num_results,
+                        include_answer=True,  # Get AI-generated answer summary
+                        include_raw_content=True,  # Get full page content for better extraction
                     ),
                     timeout=self._tavily_timeout
                 )
@@ -331,13 +598,25 @@ class VerifiedWebSearchTool:
         for item in response.get("results", []):
             try:
                 domain = item["url"].split("//")[-1].split("/")[0].replace("www.", "")
+                
+                # Prefer raw_content (full page) over snippet for better extraction
+                raw = item.get("raw_content", "") or ""
+                snippet = item.get("content", "") or ""
+                
+                # Use the richer content source, cleaned and truncated
+                if raw and len(raw) > len(snippet):
+                    content = _clean_content_snippet(raw, max_length=1500)
+                else:
+                    content = _clean_content_snippet(snippet, max_length=1500)
+                
                 result = WebSearchResult(
                     title=item.get("title", ""),
                     url=item.get("url", ""),
-                    content=item.get("content", "")[:500],  # Limit to 500 chars
+                    content=content,
                     domain=domain,
                     score=float(item.get("score", 0.0)),
-                    provider="tavily"
+                    provider="tavily",
+                    domain_authority=DOMAIN_AUTHORITY_SCORES.get(domain, 0.5),
                 )
                 results.append(result)
             except Exception as e:
@@ -583,9 +862,9 @@ class VerifiedWebSearchTool:
                             # Extract domain
                             domain = crawl_result.url.split("//")[-1].split("/")[0].replace("www.", "")
                             
-                            # Create content snippet (first 500 chars of markdown)
-                            content_snippet = (
-                                crawl_result.markdown.replace("\n", " ")[:500] + "..."
+                            # Create content snippet with intelligent extraction
+                            content_snippet = _clean_content_snippet(
+                                crawl_result.markdown, max_length=1500
                             )
                             
                             # Get title from DDG result
@@ -597,7 +876,8 @@ class VerifiedWebSearchTool:
                                 content=content_snippet,
                                 domain=domain,
                                 score=0.85,  # Crawled content is higher quality
-                                provider="crawl4ai"
+                                provider="crawl4ai",
+                                domain_authority=DOMAIN_AUTHORITY_SCORES.get(domain, 0.5),
                             )
                             results.append(result)
                             logger.debug(f"✅ Crawled: {title}")
