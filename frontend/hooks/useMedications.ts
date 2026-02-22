@@ -135,13 +135,14 @@ export const useMedications = () => {
         // Optimistic update: add to UI immediately
         setMedications(prev => [...prev, optimisticMed]);
 
-        // Prepare API payload (without UI-only fields)
+        // Prepare API payload (include quantity for persistence)
         const apiPayload = {
             name: med.name,
             dosage: med.dosage,
             schedule: med.times || [],
             frequency: med.frequency,
             notes: med.instructions,
+            quantity: (med as Medication).quantity || 30,
         };
 
         // If offline, queue for later sync
@@ -203,13 +204,14 @@ export const useMedications = () => {
             prev.map(m => m.id === updatedMed.id ? updatedMed : m)
         );
 
-        // Prepare API payload
+        // Prepare API payload (include quantity for persistence)
         const apiPayload = {
             name: updatedMed.name,
             dosage: updatedMed.dosage,
             schedule: updatedMed.times || [],
             frequency: updatedMed.frequency,
             notes: updatedMed.instructions,
+            quantity: updatedMed.quantity,
         };
 
         // If offline, queue for later sync
@@ -230,11 +232,14 @@ export const useMedications = () => {
             // Call API
             const saved = await apiClient.updateMedication(user.id, updatedMed.id, apiPayload);
 
-            // Map response
+            // Map response but preserve UI-only fields (takenToday, quantity)
             const fullMed: Medication = {
                 ...saved,
                 times: saved.schedule || [],
-                takenToday: (saved.schedule || []).map(() => false),
+                // Preserve takenToday from the updated med instead of resetting
+                takenToday: updatedMed.takenToday,
+                // Preserve quantity from the updated med
+                quantity: updatedMed.quantity ?? saved.quantity,
             };
 
             // Update with server response

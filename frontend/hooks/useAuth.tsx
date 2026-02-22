@@ -61,6 +61,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             authService.setUser(response.user);
             setUser(response.user as User);
 
+            // Store user_id for appointment system
+            if (response.user?.id) {
+                localStorage.setItem('user_id', response.user.id);
+            }
+
             console.log('[Auth] Login successful');
         } catch (error) {
             console.error('[Auth] Login failed:', error);
