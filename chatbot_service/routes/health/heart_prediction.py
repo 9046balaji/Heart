@@ -384,10 +384,10 @@ class ModelLoader:
 
     # Ordered list of directories to search for model files
     MODEL_SEARCH_PATHS = [
-        # Primary: canonical models directory
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "heart_disease"),
+        # Primary: canonical models directory (chatbot_service/models/heart_disease)
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "heart_disease"),
         # Fallback: legacy heart_disease_prediction/Models directory
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "heart_disease_prediction", "Models"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "heart_disease_prediction", "Models"),
     ]
 
     def __init__(self, model_dir: Optional[str] = None):

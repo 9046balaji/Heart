@@ -18,6 +18,16 @@ logger = logging.getLogger("weekly-summary")
 router = APIRouter()
 
 
+@router.get("/health")
+async def weekly_summary_health():
+    """Health check for weekly summary service."""
+    return {
+        "status": "healthy",
+        "service": "Weekly Summary",
+        "message": "Weekly summary trigger available via POST /weekly-summary/trigger",
+    }
+
+
 class TriggerRequest(BaseModel):
     user_id: str
 

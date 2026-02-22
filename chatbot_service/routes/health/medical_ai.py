@@ -30,22 +30,25 @@ _phrase_matcher = None
 _medgemma = None
 
 try:
-    from core.services.spacy_service import SpacyService
-    _spacy_service = SpacyService()
+    from core.services.spacy_service import SpaCyService
+    _spacy_service = SpaCyService()
     logger.info("SpacyService loaded for medical entity extraction")
 except Exception as e:
     logger.info(f"SpacyService not available: {e}")
 
 try:
     from core.services.medical_phrase_matcher import MedicalPhraseMatcher
-    _phrase_matcher = MedicalPhraseMatcher()
-    logger.info("MedicalPhraseMatcher loaded")
+    if _spacy_service and hasattr(_spacy_service, '_nlp') and _spacy_service._nlp:
+        _phrase_matcher = MedicalPhraseMatcher(_spacy_service._nlp)
+        logger.info("MedicalPhraseMatcher loaded")
+    else:
+        logger.info("MedicalPhraseMatcher skipped: SpaCyService NLP pipeline not available")
 except Exception as e:
     logger.info(f"MedicalPhraseMatcher not available: {e}")
 
 try:
-    from core.llm.medgemma_service import get_medgemma_service
-    _medgemma = get_medgemma_service()
+    from core.llm.medgemma_service import MedGemmaService
+    _medgemma = MedGemmaService.get_instance()
     logger.info("MedGemma service available for medical AI")
 except Exception as e:
     logger.info(f"MedGemma service not available: {e}")

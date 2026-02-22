@@ -18,7 +18,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from core.dependencies import get_current_user
+from core.security import get_current_user
 from core.database.postgres_db import get_database
 
 logger = logging.getLogger("compliance")

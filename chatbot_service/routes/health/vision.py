@@ -51,6 +51,17 @@ except Exception as e:
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
+@router.get("/health")
+async def vision_health():
+    """Health check for vision service."""
+    return {
+        "status": "healthy" if _vision_service else "degraded",
+        "service": "Vision / ECG Analysis",
+        "vision_backend": "MedicalImageAnalyzer" if _vision_service else "gemini-fallback",
+    }
+
+
 @router.post("/ecg/analyze", response_model=ECGAnalysisResponse)
 async def analyze_ecg(
     file: UploadFile = File(...),
