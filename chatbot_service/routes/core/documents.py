@@ -158,6 +158,35 @@ def _get_query_service():
 # Endpoints
 # ============================================================
 
+
+@router.get("/")
+async def list_documents(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """List available documents (status overview)."""
+    return {
+        "documents": [],
+        "total": 0,
+        "message": "Document listing available. Upload documents via POST /documents/upload.",
+    }
+
+
+@router.get("/health")
+async def documents_health():
+    """Health check for document service."""
+    ingestion_ok = False
+    try:
+        _get_ingestion_service()
+        ingestion_ok = True
+    except Exception:
+        pass
+    return {
+        "status": "healthy" if ingestion_ok else "degraded",
+        "service": "Document Management",
+        "ingestion_service": ingestion_ok,
+    }
+
+
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(...),

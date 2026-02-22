@@ -55,7 +55,7 @@ _stt_available = False
 _tts_available = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
     _stt_available = True
 except ImportError:
     pass
@@ -103,11 +103,14 @@ async def transcribe_audio(request: TranscribeRequest):
                 mime_type = "audio/wav"
             
             # Use Gemini for audio transcription if available
-            model = genai.GenerativeModel("gemini-2.0-flash")
-            response = model.generate_content([
-                "Transcribe the following audio accurately. Return only the transcription text.",
-                {"mime_type": mime_type, "data": audio_bytes},
-            ])
+            client = genai.Client()
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    "Transcribe the following audio accurately. Return only the transcription text.",
+                    {"mime_type": mime_type, "data": audio_bytes},
+                ],
+            )
             elapsed = round((time.time() - start) * 1000, 1)
             return TranscribeResponse(
                 text=response.text.strip(),

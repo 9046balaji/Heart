@@ -68,6 +68,17 @@ def get_orchestrator() -> "LangGraphOrchestrator":
     global _orchestrator
     if _orchestrator is None:
         try:
+            # Try to use the orchestrator initialized in app_lifespan first
+            from app_lifespan import get_orchestrator as get_lifespan_orchestrator
+            lifespan_orch = get_lifespan_orchestrator()
+            if lifespan_orch is not None:
+                _orchestrator = lifespan_orch
+                logger.info("✅ Using orchestrator from app_lifespan")
+                return _orchestrator
+        except Exception:
+            pass
+        
+        try:
             # LAZY IMPORT: Only load heavy dependencies when first request comes in
             from agents.langgraph_orchestrator import LangGraphOrchestrator
             logger.info("Initializing LangGraph Orchestrator for the first time...")
