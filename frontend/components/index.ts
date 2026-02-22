@@ -42,6 +42,17 @@ export {
   HealthAlertMarkdown,
 } from './MarkdownRenderer';
 
+// Medical Media Rendering
+export {
+  MedicalMediaSection,
+  MedicalImageGallery,
+  MedicalVideoGrid,
+  VideoCard,
+  ResearchPaperCard,
+  MedicalNewsCard,
+  parseMedicalContent,
+} from './MedicalMediaRenderer';
+
 // Confirmation Dialog
 export {
   ConfirmDialog,

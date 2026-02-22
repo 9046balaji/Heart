@@ -38,17 +38,19 @@ const sanitizeContent = (content: string): string => {
       'ul', 'ol', 'li',
       'code', 'pre', 'kbd', 'samp', 'var',
       'blockquote', 'q', 'cite', 'abbr',
-      'a', 'img',
+      'a', 'img', 'iframe',
       'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
       'div', 'span', 'hr', 'sup', 'sub',
+      'details', 'summary',
     ],
     ALLOWED_ATTR: [
       'href', 'target', 'rel', 'title', 'alt', 'src', 'width', 'height',
       'class', 'id', 'lang', 'dir', 'colspan', 'rowspan', 'scope',
+      'frameborder', 'allow', 'allowfullscreen', 'loading',
     ],
     ADD_ATTR: ['target', 'rel'],
     ALLOW_DATA_ATTR: false,
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+    FORBID_TAGS: ['script', 'style', 'object', 'embed', 'form', 'input', 'button'],
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
     RETURN_DOM: false,
     RETURN_DOM_FRAGMENT: false,
@@ -444,7 +446,7 @@ const createComponents = (variant: string): Components => ({
     </td>
   ),
 
-  // Links - with external link handling and URL sanitization
+  // Links - with external link handling, URL sanitization, and video detection
   a: ({ href, children }) => {
     const safeHref = sanitizeUrl(href);
     if (!safeHref) {
@@ -453,6 +455,39 @@ const createComponents = (variant: string): Components => ({
     }
 
     const isExternal = safeHref.startsWith('http');
+
+    // Detect YouTube links and render as video cards
+    const youtubeMatch = safeHref.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (youtubeMatch) {
+      const videoId = youtubeMatch[1];
+      const title = typeof children === 'string' ? children : 'Medical Video';
+      return (
+        <div className="my-2 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-red-400 dark:hover:border-red-500 transition-all max-w-lg">
+          <a href={safeHref} target="_blank" rel="noopener noreferrer" className="block group">
+            <div className="relative aspect-video bg-slate-200 dark:bg-slate-800">
+              <img
+                src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+                alt={String(title)}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                <div className="w-12 h-12 rounded-full bg-red-600 group-hover:bg-red-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-all">
+                  <svg className="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div className="p-2 bg-white dark:bg-slate-800/50">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200 line-clamp-2">{children}</p>
+              <p className="text-xs text-red-500 mt-0.5">YouTube</p>
+            </div>
+          </a>
+        </div>
+      );
+    }
+
     return (
       <a
         href={safeHref}
@@ -475,15 +510,37 @@ const createComponents = (variant: string): Components => ({
     <hr className="my-4 border-slate-200 dark:border-slate-700" />
   ),
 
-  // Images (rarely used in chat but good to have)
-  img: ({ src, alt }) => (
-    <img
-      src={src}
-      alt={alt}
-      className="max-w-full h-auto rounded-lg my-2"
-      loading="lazy"
-    />
-  ),
+  // Images - enhanced for medical content with click-to-expand
+  img: ({ src, alt }) => {
+    const safeUrl = sanitizeUrl(src);
+    if (!safeUrl) return null;
+
+    return (
+      <span className="block my-2">
+        <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="block group">
+          <span className="block relative rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 transition-all max-w-md">
+            <img
+              src={safeUrl}
+              alt={alt || 'Medical image'}
+              className="max-w-full h-auto rounded-lg group-hover:scale-[1.02] transition-transform duration-300"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).parentElement!.style.display = 'none';
+              }}
+            />
+            <span className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-1.5">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+            </span>
+          </span>
+          {alt && alt !== 'Medical image' && (
+            <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1 text-center italic">{alt}</span>
+          )}
+        </a>
+      </span>
+    );
+  },
 });
 
 // ============================================================================
