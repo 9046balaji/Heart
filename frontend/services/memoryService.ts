@@ -740,6 +740,15 @@ class EnhancedMemoryService {
         signal: controller.signal,
       });
 
+      // Handle 401 Unauthorized - token expired or invalid
+      if (response.status === 401) {
+        authService.clearAuth();
+        if (typeof window !== 'undefined') {
+          window.location.hash = '#/login';
+        }
+        throw new Error('Session expired. Please log in again.');
+      }
+
       if (!response.ok) {
         const error = await response.text();
         throw new Error(`HTTP ${response.status}: ${error}`);

@@ -352,7 +352,8 @@ export const apiClient = {
   predictHeartDisease: async (data: HeartDiseasePredictionRequest) => {
     return apiCall<HeartDiseasePredictionResponse>('/heart/predict', {
       method: 'POST',
-      body: data
+      body: data,
+      timeout: 150000, // 120 seconds – model inference can be slow
     });
   },
 
@@ -1452,7 +1453,9 @@ export const apiClient = {
     if (params?.limit) query.set('limit', String(params.limit));
     if (params?.offset) query.set('offset', String(params.offset));
     const qs = query.toString();
-    return apiCall<any[]>(`/appointments/providers${qs ? `?${qs}` : ''}`, { method: 'GET' });
+    const data = await apiCall<any[]>(`/appointments/providers${qs ? `?${qs}` : ''}`, { method: 'GET' });
+    // Map provider_id to id for frontend type compatibility
+    return (data || []).map((p: any) => ({ ...p, id: p.provider_id || p.id }));
   },
 
   /**
@@ -1466,7 +1469,11 @@ export const apiClient = {
    * Get a single provider by ID
    */
   getProvider: async (providerId: string) => {
-    return apiCall<any>(`/appointments/providers/${providerId}`, { method: 'GET' });
+    const data = await apiCall<any>(`/appointments/providers/${providerId}`, { method: 'GET' });
+    if (data) {
+      data.id = data.provider_id || data.id;
+    }
+    return data;
   },
 
   /**
