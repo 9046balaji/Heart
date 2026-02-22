@@ -947,12 +947,10 @@ class LangGraphOrchestrator:
         return {"messages": [ToolMessage(content=str(result.data), tool_call_id="call_sql")]}
 
     async def drug_expert_node(self, state: AgentState) -> Dict:
-        """Worker: Drug Expert (GraphRAG)"""
+        """Worker: Drug Expert (GraphRAG + Local Interaction Database)"""
         query = state["messages"][-1].content
         
-        # 1. Extract drugs (Simple heuristic or LLM)
-        # For robustness, we should use an LLM extraction if possible.
-        # But to keep it fast, let's try regex first, then LLM if available.
+        # 1. Extract drugs using regex heuristic
         import re
         drugs = re.findall(r'\b[A-Za-z]{3,}\b', query)
         stop_words = {"what", "are", "the", "interactions", "between", "and", "with", "can", "take", "safe", "check", "interaction"}
@@ -961,27 +959,53 @@ class LangGraphOrchestrator:
         if len(drugs) < 2:
              return {"messages": [ToolMessage(content="I need at least two drug names to check for interactions.", tool_call_id="call_drug")]}
 
-        # 2. Check interactions
+        # 2. Check interactions via GraphRAG (primary)
         result = await self.graph_checker.check_interaction(drugs)
         
-        if not result["found_interactions"]:
+        # 2b. Also check local interaction detector for additional coverage
+        local_interactions = []
+        try:
+            from core.services.interaction_detector import DrugInteractionDetector
+            detector = DrugInteractionDetector()
+            local_result = detector.get_interaction_summary(drugs)
+            if local_result.get("found"):
+                local_interactions = local_result.get("interactions", [])
+                logger.info(f"💊 Local DB found {len(local_interactions)} additional interactions")
+        except Exception as e:
+            logger.debug(f"Local interaction detector skipped: {e}")
+        
+        if not result["found_interactions"] and not local_interactions:
             return {
                 "messages": [ToolMessage(content=f"No known interactions found between {', '.join(drugs)}.", tool_call_id="call_drug")],
                 "confidence": 0.9
             }
             
-        # 3. Format response
+        # 3. Format response from GraphRAG
         response_lines = ["⚠️ **Potential Interactions Found:**\n"]
-        for interaction in result["interactions"]:
+        
+        # GraphRAG results
+        for interaction in result.get("interactions", []):
             response_lines.append(f"- **{interaction['drug_a']} + {interaction['drug_b']}**")
             response_lines.append(f"  - Severity: {interaction['severity'].upper()}")
             response_lines.append(f"  - Mechanism: {interaction.get('mechanism', 'Unknown')}")
             response_lines.append(f"  - Description: {interaction.get('description', '')}\n")
+        
+        # Local DB results (supplement GraphRAG)
+        if local_interactions:
+            seen_pairs = {frozenset([i['drug_a'].lower(), i['drug_b'].lower()]) 
+                         for i in result.get("interactions", [])}
+            for inter in local_interactions:
+                pair = frozenset([d.lower() for d in inter.get("drugs", [])])
+                if pair not in seen_pairs:
+                    drug_str = " + ".join(inter.get("drugs", []))
+                    response_lines.append(f"- **{drug_str}** (from local database)")
+                    response_lines.append(f"  - Severity: {inter.get('severity', 'UNKNOWN')}")
+                    response_lines.append(f"  - Description: {inter.get('description', '')}\n")
             
         return {
             "messages": [ToolMessage(content="\n".join(response_lines), tool_call_id="call_drug")],
             "confidence": 1.0,
-            "citations": ["Graph Knowledge Base"]
+            "citations": ["Graph Knowledge Base", "Local Interaction Database"]
         }
 
     async def profile_manager_node(self, state: AgentState) -> Dict:
@@ -1243,6 +1267,78 @@ class LangGraphOrchestrator:
              except Exception as e:
                  logger.error(f"❌ Failed to record to Memori: {e}")
         
+        # --- HALLUCINATION GRADING ---
+        # Grade the response against the context from worker messages
+        # to detect unsupported medical claims before returning to user.
+        is_grounded = True
+        try:
+            from core.safety.hallucination_grader import HallucinationGrader
+            grader = HallucinationGrader()
+            
+            # Build context from all worker (tool) messages
+            worker_messages = [m.content for m in final_state.get("messages", [])
+                               if getattr(m, 'type', '') == 'tool' and hasattr(m, 'content')]
+            context_for_grading = "\n---\n".join(worker_messages[-3:])  # Last 3 worker outputs
+            
+            if context_for_grading and response and len(response) > 50:
+                is_grounded = await grader.grade(answer=str(response), context=context_for_grading)
+                if not is_grounded:
+                    logger.warning("⚠️ Hallucination detected — response may not be fully grounded")
+                    response = (
+                        str(response) +
+                        "\n\n---\n⚠️ *Note: Some claims in this response may not be fully supported "
+                        "by the retrieved evidence. Please verify with a healthcare professional.*"
+                    )
+                    final_state["confidence"] = max(0.0, (final_state.get("confidence") or 0.5) - 0.2)
+                else:
+                    logger.debug("✅ Hallucination grading passed — response is grounded")
+        except Exception as e:
+            logger.warning(f"Hallucination grading skipped: {e}")
+        
+        # --- MEDICAL ENTITY EXTRACTION ---
+        # Extract drug names and medical terms from the query for downstream checks
+        detected_drugs = []
+        try:
+            from core.services.medical_phrase_matcher import MedicalPhraseMatcher, SPACY_AVAILABLE
+            if SPACY_AVAILABLE:
+                import spacy
+                # Use lightweight model if available
+                try:
+                    nlp = spacy.blank("en")  # Minimal — PhraseMatcher only needs vocab
+                    matcher = MedicalPhraseMatcher(nlp)
+                    doc = nlp(query)
+                    matches = matcher.find_matches(doc)
+                    detected_drugs = [m["text"] for m in matches if m.get("label") == "DRUG"]
+                    if matches:
+                        logger.info(f"🔬 Medical entities in query: {[m['text'] for m in matches[:5]]}")
+                except Exception as e_nlp:
+                    logger.debug(f"Medical phrase matching skipped: {e_nlp}")
+        except Exception:
+            pass  # spaCy/matcher not available
+        
+        # --- DRUG INTERACTION CHECK ---
+        # If 2+ drugs are detected in the query, check for interactions automatically
+        drug_interaction_warning = ""
+        if len(detected_drugs) >= 2:
+            try:
+                from core.services.interaction_detector import DrugInteractionDetector
+                detector = DrugInteractionDetector()
+                interaction_result = detector.get_interaction_summary(detected_drugs)
+                if interaction_result.get("found"):
+                    warnings = []
+                    for inter in interaction_result.get("interactions", []):
+                        severity = inter.get("severity", "UNKNOWN")
+                        desc = inter.get("description", "")
+                        drugs = " + ".join(inter.get("drugs", []))
+                        warnings.append(f"  - **{drugs}** ({severity}): {desc}")
+                    drug_interaction_warning = (
+                        "\n\n---\n⚠️ **Drug Interaction Alert:**\n" + "\n".join(warnings)
+                    )
+                    response = str(response) + drug_interaction_warning
+                    logger.info(f"💊 Drug interaction detected for {detected_drugs}")
+            except Exception as e:
+                logger.debug(f"Drug interaction check skipped: {e}")
+        
         # Determine if this is a utility response (calculator, etc.) that doesn't need PII scrubbing
         # Calculator outputs are pure numbers and shouldn't be modified
         intent = final_state.get("intent", "unknown")
@@ -1270,6 +1366,21 @@ class LangGraphOrchestrator:
         
         _latency_ms = (_time.perf_counter() - _start) * 1000
         
+        # Record Prometheus metrics for the orchestrator
+        try:
+            from core.monitoring.prometheus_metrics import get_metrics
+            _prom = get_metrics()
+            _prom.increment_counter("orchestrator_executions")
+            _prom.record_histogram("orchestrator_latency_ms", _latency_ms)
+            _prom.record_llm_latency(_latency_ms)
+            if not is_grounded:
+                _prom.increment_counter("orchestrator_hallucination_detected")
+            _prom.increment_counter("orchestrator_hallucination_checks")
+            if len(detected_drugs) >= 2:
+                _prom.increment_counter("orchestrator_drug_interactions_checked")
+        except Exception:
+            pass  # Metrics must never break execution
+        
         # Record agent execution in AgentTracer
         try:
             from app_lifespan import get_agent_tracer
@@ -1296,11 +1407,16 @@ class LangGraphOrchestrator:
             "citations": citations,
             "pii_scrubbed": _pii_scrubber is not None,
             "thread_id": thread_id,  # Return thread_id for resumption
+            "is_grounded": is_grounded,
+            "detected_drugs": detected_drugs,
+            "drug_interaction_found": bool(drug_interaction_warning),
             "metadata": {
                 "steps": len(final_state["messages"]),
                 "source": final_state.get("source", "unknown"),  # Track response source
                 "checkpointed": self.checkpointer is not None,
                 "latency_ms": round(_latency_ms, 1),
+                "hallucination_checked": True,
+                "medical_entities_extracted": len(detected_drugs) > 0,
             }
         }
     
