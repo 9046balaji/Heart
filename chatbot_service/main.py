@@ -986,6 +986,9 @@ safe_include_router(app, "routes.admin.evaluation", "router", prefix="/evaluatio
 # Integrations - cross-service integration endpoints
 safe_include_router(app, "routes.admin.integrations", "router", prefix="/integrations", tags=["Integrations"])
 
+# Graph Visualization - Mermaid diagrams, graph JSON, metrics dashboard
+safe_include_router(app, "routes.admin.graph_visualization", "router", prefix="/graph", tags=["Graph Visualization"])
+
 # WebSocket Routes - Real-time updates via WebSocket
 # Note: WebSocket routes are typically registered directly, not via include_router
 try:
@@ -1256,93 +1259,75 @@ async def detailed_metrics():
 @app.get("/health/detailed", tags=["Health"])
 async def detailed_health_check():
     """
-    Comprehensive health check with dependency status.
+    Comprehensive health check with dependency status using HealthService.
     
     Returns status for all major dependencies:
     - PostgreSQL database
     - Redis cache
-    - LLM Gateway
+    - LLM Gateway (MedGemma)
     - Vector Store
     - Memori system
+    - System memory
     """
     from datetime import datetime
     import time
     
-    checks = {}
+    # Use centralized HealthService for core checks
+    try:
+        from core.services.health_service import get_health_service
+        health_service = get_health_service()
+        health_result = await health_service.run_all_checks()
+        checks = health_result.get("checks", {})
+    except Exception as e:
+        logger.warning(f"HealthService unavailable: {e}")
+        checks = {}
+    
     overall_healthy = True
     
-    # Check PostgreSQL
-    start = time.time()
-    try:
-        from core.dependencies import DIContainer
-        container = DIContainer.get_instance()
-        if hasattr(container, '_sql_tool') and container._sql_tool:
-            checks["postgresql"] = {
-                "status": "up",
-                "latency_ms": round((time.time() - start) * 1000, 2)
-            }
-        else:
-            checks["postgresql"] = {"status": "not_initialized"}
-            overall_healthy = False
-    except Exception as e:
-        checks["postgresql"] = {"status": "down", "error": str(e)}
-        overall_healthy = False
-    
-    # Check Redis Cache
-    start = time.time()
-    try:
-        from core.services.advanced_cache import MultiTierCache
-        cache = MultiTierCache()
-        if hasattr(cache, 'is_available') and cache.is_available():
-            checks["redis"] = {
-                "status": "up",
-                "latency_ms": round((time.time() - start) * 1000, 2)
-            }
-        else:
-            checks["redis"] = {"status": "unavailable"}
-    except Exception as e:
-        checks["redis"] = {"status": "not_configured"}
-    
-    # Check LLM Gateway
-    start = time.time()
-    try:
-        from core.dependencies import DIContainer
-        container = DIContainer.get_instance()
-        if container.llm_gateway:
-            checks["llm_gateway"] = {
-                "status": "up",
-                "latency_ms": round((time.time() - start) * 1000, 2)
-            }
-        else:
-            checks["llm_gateway"] = {"status": "not_initialized"}
-            overall_healthy = False
-    except Exception as e:
-        checks["llm_gateway"] = {"status": "down", "error": str(e)}
-        overall_healthy = False
+    # Supplement with application-level checks not in HealthService
     
     # Check Vector Store
     start = time.time()
     try:
         if NLPState.vector_store:
             checks["vector_store"] = {
-                "status": "up",
+                "status": "healthy",
                 "type": type(NLPState.vector_store).__name__,
                 "latency_ms": round((time.time() - start) * 1000, 2)
             }
         else:
-            checks["vector_store"] = {"status": "not_initialized"}
+            checks["vector_store"] = {"status": "degraded", "reason": "not_initialized"}
     except Exception as e:
-        checks["vector_store"] = {"status": "down", "error": str(e)}
+        checks["vector_store"] = {"status": "unhealthy", "error": str(e)}
     
     # Check Memori
     if MEMORI_MANAGER_AVAILABLE:
         try:
             health = await get_memori_health_check()
-            checks["memori"] = {"status": "up", "details": health if isinstance(health, dict) else "available"}
+            checks["memori"] = {"status": "healthy", "details": health if isinstance(health, dict) else "available"}
         except Exception as e:
             checks["memori"] = {"status": "degraded", "error": str(e)}
     else:
-        checks["memori"] = {"status": "not_installed"}
+        checks["memori"] = {"status": "degraded", "reason": "not_installed"}
+    
+    # Check Analyzer Registry
+    try:
+        from app_lifespan import get_analyzer_registry
+        registry = get_analyzer_registry()
+        if registry:
+            checks["analyzer_registry"] = {
+                "status": "healthy",
+                "analyzer_count": registry.analyzer_count
+            }
+    except Exception:
+        pass
+    
+    # Determine overall status
+    for check_result in checks.values():
+        status = check_result.get("status", "unknown")
+        if status == "unhealthy":
+            overall_healthy = False
+            break
     
     return {
         "status": "healthy" if overall_healthy else "degraded",

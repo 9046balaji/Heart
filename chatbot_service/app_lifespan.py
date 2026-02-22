@@ -70,6 +70,9 @@ _agent_tracer: Optional[Any] = None
 _redis_rate_limiter: Optional[Any] = None
 _service_tracker: Optional[Any] = None
 
+# Analyzer Registry
+_analyzer_registry: Optional[Any] = None
+
 
 def get_orchestrator() -> Optional[Any]:
     """Get orchestrator instance (initialized during startup)."""
@@ -145,6 +148,11 @@ def get_redis_rate_limiter():
 def get_service_tracker():
     """Get ServiceStatusTracker instance (initialized during startup)."""
     return _service_tracker
+
+
+def get_analyzer_registry():
+    """Get AnalyzerRegistry instance (initialized during startup)."""
+    return _analyzer_registry
 
 
 # ============================================================================
@@ -533,6 +541,15 @@ async def startup_event():
             _service_tracker.record_success("feedback_store")
         if _redis_rate_limiter:
             _service_tracker.record_success("redis")
+    
+    # --- Analyzer Registry: Initialize pluggable NLP analyzer framework ---
+    try:
+        global _analyzer_registry
+        from core.services.analyzer_protocol import initialize_global_registry, AnalyzerRegistry
+        _analyzer_registry = initialize_global_registry()
+        logger.info(f"✅ AnalyzerRegistry initialized ({_analyzer_registry.analyzer_count} analyzers)")
+    except Exception as e:
+        logger.warning(f"⚠️ AnalyzerRegistry not initialized: {e}")
     
     logger.info("🎉 Application startup complete")
 
