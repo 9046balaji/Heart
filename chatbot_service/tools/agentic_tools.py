@@ -30,6 +30,7 @@ from tools.tool_registry import register_tool, ToolParameter, ToolResult
 from tools.safe_calculator import SafeCalculator
 from tools.text_to_sql_tool import TextToSQLTool
 from tools.web_search import VerifiedWebSearchTool, search_verified_sources
+from tools.medical_search import MedicalContentSearcher, search_medical_content, ContentType
 from tools.dicom.dicom_handler import DicomHandler
 
 logger = logging.getLogger(__name__)
@@ -405,6 +406,62 @@ async def verified_web_search(query: str, source: str = "all") -> ToolResult:
         )
     except Exception as e:
         logger.error(f"Web search failed: {e}")
+        return ToolResult(success=False, error=str(e))
+
+
+# ==============================================================================
+# 7. COMPREHENSIVE MEDICAL CONTENT SEARCH
+# ==============================================================================
+
+@register_tool(
+    name="search_medical_content",
+    description=(
+        "Search for comprehensive medical content: research papers (PubMed), "
+        "medical articles (WHO, CDC, NIH, Mayo Clinic), medical news (FDA alerts, "
+        "clinical trials), medical images (radiology, anatomy, pathology), "
+        "and medical videos (procedures, lectures, patient education). "
+        "All results are from verified medical sources only."
+    ),
+    parameters=[
+        ToolParameter("query", "string", "Medical search query", required=True),
+        ToolParameter("content_types", "string",
+                      "Comma-separated types: 'article,research_paper,news,image,video' or 'all'",
+                      required=False),
+        ToolParameter("max_results", "integer", "Max results per type (default 5)", required=False)
+    ],
+    category="knowledge",
+    modes=["medical_qa", "research", "general"]
+)
+async def comprehensive_medical_search(
+    query: str,
+    content_types: str = "all",
+    max_results: int = 5
+) -> ToolResult:
+    """
+    Search for medical research papers, articles, news, images, and videos.
+    Does NOT require DI context.
+    """
+    try:
+        # Parse content types
+        types = None
+        if content_types and content_types.lower() != "all":
+            types = [ct.strip() for ct in content_types.split(",")]
+
+        results = await search_medical_content(
+            query=query,
+            content_types=types,
+            max_results=max_results
+        )
+        return ToolResult(
+            success=True,
+            data={
+                "query": query,
+                "content_types": content_types,
+                "results": results
+            }
+        )
+    except Exception as e:
+        logger.error(f"Medical content search failed: {e}")
         return ToolResult(success=False, error=str(e))
 
 
