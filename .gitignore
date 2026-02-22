@@ -17,3 +17,4 @@ build/
 frontend/.env.local
 
 db-audit
+dump.rdb
