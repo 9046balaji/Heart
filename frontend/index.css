@@ -281,3 +281,219 @@ body.keyboard-visible {
     background: rgba(100, 116, 139, 0.3);
     border-radius: 3px;
 }
+
+/* ============================================================================
+   ChatGPT/Gemini-Style Thinking Indicator
+   ============================================================================ */
+
+@keyframes thinkingShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+@keyframes thinkingPulse {
+    0%, 100% { opacity: 0.5; transform: scale(0.97); }
+    50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes thinkingDotWave {
+    0%, 100% { transform: translateY(0); opacity: 0.3; }
+    50% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes sparkleRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes progressExpand {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+@keyframes thinkFlicker {
+    0%, 100% { opacity: 0.4; }
+    25% { opacity: 0.8; }
+    50% { opacity: 1; }
+    75% { opacity: 0.6; }
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.thinking-shimmer-bar {
+    background: linear-gradient(
+        90deg,
+        rgba(239, 68, 68, 0.08) 0%,
+        rgba(239, 68, 68, 0.25) 20%,
+        rgba(239, 68, 68, 0.08) 40%,
+        rgba(239, 68, 68, 0.25) 60%,
+        rgba(239, 68, 68, 0.08) 80%,
+        rgba(239, 68, 68, 0.25) 100%
+    );
+    background-size: 200% 100%;
+    animation: thinkingShimmer 2s ease-in-out infinite;
+}
+
+html.dark .thinking-shimmer-bar {
+    background: linear-gradient(
+        90deg,
+        rgba(239, 68, 68, 0.05) 0%,
+        rgba(239, 68, 68, 0.2) 20%,
+        rgba(239, 68, 68, 0.05) 40%,
+        rgba(239, 68, 68, 0.2) 60%,
+        rgba(239, 68, 68, 0.05) 80%,
+        rgba(239, 68, 68, 0.2) 100%
+    );
+    background-size: 200% 100%;
+    animation: thinkingShimmer 2s ease-in-out infinite;
+}
+
+.thinking-sparkle {
+    animation: sparkleRotate 3s linear infinite;
+}
+
+.thinking-step-dot {
+    animation: thinkFlicker 1.5s ease-in-out infinite;
+}
+
+/* Thinking container gradient border */
+.thinking-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.thinking-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #ef4444, #f97316, #ef4444, transparent);
+    background-size: 200% 100%;
+    animation: gradientShift 3s ease-in-out infinite;
+    border-radius: 2px;
+}
+
+/* ============================================================================
+   Enhanced Message Hover Actions (ChatGPT-style)
+   ============================================================================ */
+
+.message-actions-bar {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-row:hover .message-actions-bar,
+.message-row:focus-within .message-actions-bar {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ============================================================================
+   ChatGPT-style centered message layout
+   ============================================================================ */
+
+.chat-content-width {
+    max-width: 768px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ============================================================================
+   Enhanced Sidebar Styles
+   ============================================================================ */
+
+.sidebar-session-item {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-session-item:hover {
+    background: rgba(100, 116, 139, 0.08);
+}
+
+html.dark .sidebar-session-item:hover {
+    background: rgba(100, 116, 139, 0.12);
+}
+
+.sidebar-session-item.active {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+html.dark .sidebar-session-item.active {
+    background: rgba(239, 68, 68, 0.12);
+}
+
+/* Streaming cursor */
+@keyframes cursorBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.streaming-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: #ef4444;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: cursorBlink 1s step-end infinite;
+    border-radius: 1px;
+}
+
+/* Gradient text for welcome */
+.gradient-text {
+    background: linear-gradient(135deg, #ef4444 0%, #f97316 50%, #ef4444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+html.dark .gradient-text {
+    background: linear-gradient(135deg, #fca5a5 0%, #fdba74 50%, #fca5a5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Input capsule focus glow enhanced */
+.input-capsule {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-capsule:focus-within {
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12), 0 2px 16px rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+html.dark .input-capsule:focus-within {
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2), 0 2px 24px rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Smooth scroll container */
+.smooth-scroll {
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+}
+
+/* Message fade in from bottom */
+@keyframes messageAppear {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-appear {
+    animation: messageAppear 0.35s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
