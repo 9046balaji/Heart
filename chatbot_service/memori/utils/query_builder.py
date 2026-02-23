@@ -1,6 +1,6 @@
 """
-Unified query builder with database-agnostic parameter binding
-Provides consistent parameter handling across SQLite, PostgreSQL, and MySQL
+Unified query builder with PostgreSQL parameter binding
+Provides consistent parameter handling for PostgreSQL
 """
 
 from enum import Enum
@@ -15,26 +15,20 @@ from .input_validator import InputValidator
 class DatabaseDialect(str, Enum):
     """Supported database dialects"""
 
-    SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
-    MYSQL = "mysql"
 
 
 class QueryBuilder:
     """Database-agnostic query builder with proper parameter binding"""
 
-    # Parameter styles for different databases
+    # Parameter styles for PostgreSQL
     PARAM_STYLES = {
-        DatabaseDialect.SQLITE: "?",
         DatabaseDialect.POSTGRESQL: "%s",
-        DatabaseDialect.MYSQL: "%s",
     }
 
-    # SQL keywords that need special handling per database
+    # SQL keywords for PostgreSQL
     LIMIT_SYNTAX = {
-        DatabaseDialect.SQLITE: "LIMIT ?",
         DatabaseDialect.POSTGRESQL: "LIMIT %s",
-        DatabaseDialect.MYSQL: "LIMIT %s",
     }
 
     def __init__(self, dialect: DatabaseDialect):
@@ -73,26 +67,12 @@ class QueryBuilder:
         where_conditions = []
 
         # Build FTS-specific or LIKE-based search conditions
-        if use_fts and self.dialect == DatabaseDialect.SQLITE:
-            # SQLite FTS5 syntax
-            fts_condition = f"memory_search_fts MATCH {self.param_placeholder}"
-            params.append(f'"{query_text}"' if query_text else "*")
-            where_conditions.append(fts_condition)
-        elif use_fts and self.dialect == DatabaseDialect.POSTGRESQL:
+        if use_fts and self.dialect == DatabaseDialect.POSTGRESQL:
             # PostgreSQL full-text search
             search_conditions = []
             for column in search_columns:
                 search_conditions.append(
                     f"to_tsvector('english', {column}) @@ plainto_tsquery('english', {self.param_placeholder})"
-                )
-                params.append(query_text)
-            where_conditions.append(f"({' OR '.join(search_conditions)})")
-        elif use_fts and self.dialect == DatabaseDialect.MYSQL:
-            # MySQL FULLTEXT search
-            search_conditions = []
-            for column in search_columns:
-                search_conditions.append(
-                    f"MATCH({column}) AGAINST ({self.param_placeholder} IN BOOLEAN MODE)"
                 )
                 params.append(query_text)
             where_conditions.append(f"({' OR '.join(search_conditions)})")
@@ -172,37 +152,27 @@ class QueryBuilder:
         columns_str = ", ".join(columns)
         placeholders = ", ".join([self.param_placeholder] * len(values))
 
-        # Handle different conflict resolution strategies per database
+        # Handle conflict resolution for PostgreSQL
         if on_conflict == "REPLACE":
-            if self.dialect == DatabaseDialect.SQLITE:
-                query = f"INSERT OR REPLACE INTO {table} ({columns_str}) VALUES ({placeholders})"
-            elif self.dialect == DatabaseDialect.POSTGRESQL:
-                # PostgreSQL uses ON CONFLICT clause
-                primary_key = self._get_primary_key_column(columns)
-                if primary_key:
-                    update_clause = ", ".join(
-                        [
-                            f"{col} = EXCLUDED.{col}"
-                            for col in columns
-                            if col != primary_key
-                        ]
-                    )
-                    query = f"""
-                        INSERT INTO {table} ({columns_str}) VALUES ({placeholders})
-                        ON CONFLICT ({primary_key}) DO UPDATE SET {update_clause}
-                    """
-                else:
-                    # Fallback to simple insert if no primary key detected
-                    query = (
-                        f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"
-                    )
-            elif self.dialect == DatabaseDialect.MYSQL:
-                # MySQL uses ON DUPLICATE KEY UPDATE
-                update_clause = ", ".join([f"{col} = VALUES({col})" for col in columns])
+            # PostgreSQL uses ON CONFLICT clause
+            primary_key = self._get_primary_key_column(columns)
+            if primary_key:
+                update_clause = ", ".join(
+                    [
+                        f"{col} = EXCLUDED.{col}"
+                        for col in columns
+                        if col != primary_key
+                    ]
+                )
                 query = f"""
                     INSERT INTO {table} ({columns_str}) VALUES ({placeholders})
-                    ON DUPLICATE KEY UPDATE {update_clause}
+                    ON CONFLICT ({primary_key}) DO UPDATE SET {update_clause}
                 """
+            else:
+                # Fallback to simple insert if no primary key detected
+                query = (
+                    f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"
+                )
         else:
             # Simple insert for all databases
             query = f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"
@@ -292,130 +262,39 @@ class QueryBuilder:
         params = []
         where_conditions = []
 
-        if self.dialect == DatabaseDialect.SQLITE:
-            # SQLite FTS5
-            where_conditions.append(f"memory_search_fts MATCH {self.param_placeholder}")
-            params.append(f'"{query_text}"' if query_text else "*")
+        # PostgreSQL full-text search using tsvector
+        where_conditions.append(
+            "(to_tsvector('english', st.searchable_content) @@ plainto_tsquery('english', %s) OR to_tsvector('english', lt.searchable_content) @@ plainto_tsquery('english', %s))"
+        )
+        params.extend([query_text, query_text])
 
-            where_conditions.append(f"fts.namespace = {self.param_placeholder}")
-            params.append(namespace)
+        where_conditions.append("(st.namespace = %s OR lt.namespace = %s)")
+        params.extend([namespace, namespace])
 
-            if category_filter:
-                placeholders = ",".join([self.param_placeholder] * len(category_filter))
-                where_conditions.append(f"fts.category_primary IN ({placeholders})")
-                params.extend(category_filter)
-
-            query = f"""
-                SELECT
-                    fts.memory_id, fts.memory_type, fts.category_primary,
-                    CASE
-                        WHEN fts.memory_type = 'short_term' THEN st.processed_data
-                        WHEN fts.memory_type = 'long_term' THEN lt.processed_data
-                    END as processed_data,
-                    CASE
-                        WHEN fts.memory_type = 'short_term' THEN st.importance_score
-                        WHEN fts.memory_type = 'long_term' THEN lt.importance_score
-                        ELSE 0.5
-                    END as importance_score,
-                    CASE
-                        WHEN fts.memory_type = 'short_term' THEN st.created_at
-                        WHEN fts.memory_type = 'long_term' THEN lt.created_at
-                    END as created_at,
-                    fts.summary,
-                    rank
-                FROM memory_search_fts fts
-                LEFT JOIN short_term_memory st ON fts.memory_id = st.memory_id AND fts.memory_type = 'short_term'
-                LEFT JOIN long_term_memory lt ON fts.memory_id = lt.memory_id AND fts.memory_type = 'long_term'
-                WHERE {' AND '.join(where_conditions)}
-                ORDER BY rank, importance_score DESC
-                {self.LIMIT_SYNTAX[self.dialect]}
-            """
-
-        elif self.dialect == DatabaseDialect.POSTGRESQL:
-            # PostgreSQL full-text search using tsvector
+        if category_filter:
+            placeholders = ",".join(["%s"] * len(category_filter))
             where_conditions.append(
-                "(to_tsvector('english', st.searchable_content) @@ plainto_tsquery('english', %s) OR to_tsvector('english', lt.searchable_content) @@ plainto_tsquery('english', %s))"
+                f"(st.category_primary IN ({placeholders}) OR lt.category_primary IN ({placeholders}))"
             )
-            params.extend([query_text, query_text])
+            params.extend(category_filter * 2)  # For both tables
 
-            where_conditions.append("(st.namespace = %s OR lt.namespace = %s)")
-            params.extend([namespace, namespace])
-
-            if category_filter:
-                placeholders = ",".join(["%s"] * len(category_filter))
-                where_conditions.append(
-                    f"(st.category_primary IN ({placeholders}) OR lt.category_primary IN ({placeholders}))"
-                )
-                params.extend(category_filter * 2)  # For both tables
-
-            query = f"""
-                SELECT DISTINCT
-                    COALESCE(st.memory_id, lt.memory_id) as memory_id,
-                    CASE WHEN st.memory_id IS NOT NULL THEN 'short_term' ELSE 'long_term' END as memory_type,
-                    COALESCE(st.category_primary, lt.category_primary) as category_primary,
-                    COALESCE(st.processed_data, lt.processed_data) as processed_data,
-                    COALESCE(st.importance_score, lt.importance_score) as importance_score,
-                    COALESCE(st.created_at, lt.created_at) as created_at,
-                    COALESCE(st.summary, lt.summary) as summary,
-                    ts_rank(COALESCE(to_tsvector('english', st.searchable_content), to_tsvector('english', lt.searchable_content)), plainto_tsquery('english', %s)) as rank
-                FROM short_term_memory st
-                FULL OUTER JOIN long_term_memory lt ON FALSE  -- Force separate processing
-                WHERE {' AND '.join(where_conditions)}
-                ORDER BY rank DESC, importance_score DESC
-                {self.LIMIT_SYNTAX[self.dialect]}
-            """
-            params.append(query_text)  # For ts_rank
-
-        elif self.dialect == DatabaseDialect.MYSQL:
-            # MySQL FULLTEXT search
-            where_conditions.append(
-                "(MATCH(st.searchable_content) AGAINST(%s IN BOOLEAN MODE) OR MATCH(lt.searchable_content) AGAINST(%s IN BOOLEAN MODE))"
-            )
-            params.extend([query_text, query_text])
-
-            where_conditions.append("(st.namespace = %s OR lt.namespace = %s)")
-            params.extend([namespace, namespace])
-
-            if category_filter:
-                placeholders = ",".join(["%s"] * len(category_filter))
-                where_conditions.append(
-                    f"(st.category_primary IN ({placeholders}) OR lt.category_primary IN ({placeholders}))"
-                )
-                params.extend(category_filter * 2)
-
-            query = f"""
-                SELECT
-                    COALESCE(st.memory_id, lt.memory_id) as memory_id,
-                    CASE WHEN st.memory_id IS NOT NULL THEN 'short_term' ELSE 'long_term' END as memory_type,
-                    COALESCE(st.category_primary, lt.category_primary) as category_primary,
-                    COALESCE(st.processed_data, lt.processed_data) as processed_data,
-                    COALESCE(st.importance_score, lt.importance_score) as importance_score,
-                    COALESCE(st.created_at, lt.created_at) as created_at,
-                    COALESCE(st.summary, lt.summary) as summary,
-                    GREATEST(
-                        COALESCE(MATCH(st.searchable_content) AGAINST(%s IN BOOLEAN MODE), 0),
-                        COALESCE(MATCH(lt.searchable_content) AGAINST(%s IN BOOLEAN MODE), 0)
-                    ) as rank
-                FROM short_term_memory st
-                LEFT JOIN long_term_memory lt ON FALSE  -- Force UNION behavior
-                UNION ALL
-                SELECT
-                    lt.memory_id,
-                    'long_term' as memory_type,
-                    lt.category_primary,
-                    lt.processed_data,
-                    lt.importance_score,
-                    lt.created_at,
-                    lt.summary,
-                    MATCH(lt.searchable_content) AGAINST(%s IN BOOLEAN MODE) as rank
-                FROM long_term_memory lt
-                WHERE {' AND '.join(where_conditions)}
-                ORDER BY rank DESC, importance_score DESC
-                {self.LIMIT_SYNTAX[self.dialect]}
-            """
-            params.extend(
-                [query_text, query_text, query_text]
-            )  # For MATCH calculations
+        query = f"""
+            SELECT DISTINCT
+                COALESCE(st.memory_id, lt.memory_id) as memory_id,
+                CASE WHEN st.memory_id IS NOT NULL THEN 'short_term' ELSE 'long_term' END as memory_type,
+                COALESCE(st.category_primary, lt.category_primary) as category_primary,
+                COALESCE(st.processed_data, lt.processed_data) as processed_data,
+                COALESCE(st.importance_score, lt.importance_score) as importance_score,
+                COALESCE(st.created_at, lt.created_at) as created_at,
+                COALESCE(st.summary, lt.summary) as summary,
+                ts_rank(COALESCE(to_tsvector('english', st.searchable_content), to_tsvector('english', lt.searchable_content)), plainto_tsquery('english', %s)) as rank
+            FROM short_term_memory st
+            FULL OUTER JOIN long_term_memory lt ON FALSE  -- Force separate processing
+            WHERE {' AND '.join(where_conditions)}
+            ORDER BY rank DESC, importance_score DESC
+            {self.LIMIT_SYNTAX[self.dialect]}
+        """
+        params.append(query_text)  # For ts_rank
 
         params.append(limit)
         return query, params

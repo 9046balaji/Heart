@@ -1,5 +1,6 @@
 """
 Centralized logging configuration for Memoriai
+Includes PII/credential sanitization for HIPAA compliance.
 """
 
 import logging
@@ -11,6 +12,12 @@ from loguru import logger
 
 from ..config.settings import LoggingSettings, LogLevel
 from .exceptions import ConfigurationError
+from .log_sanitizer import LogSanitizer
+
+
+def _sanitize_log_record(record):
+    """Patch loguru records to sanitize PII/credentials before output."""
+    record["message"] = LogSanitizer.sanitize(record["message"])
 
 
 class LoggingManager:
@@ -25,6 +32,9 @@ class LoggingManager:
         try:
             if not cls._initialized:
                 logger.remove()
+
+            # Enable PII/credential sanitization on all log output
+            logger.configure(patcher=_sanitize_log_record)
 
             if verbose:
                 cls._disable_other_loggers()

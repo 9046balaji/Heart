@@ -395,54 +395,34 @@ class Memori:
     def _create_database_manager(
         self, database_connect: str, template: str, schema_init: bool
     ):
-        """Create appropriate database manager based on connection string with fallback"""
+        """Create PostgreSQL database manager based on connection string"""
         try:
-            # Detect MongoDB connection strings
-            if self._is_mongodb_connection(database_connect):
-                logger.info(
-                    "Detected MongoDB connection string - attempting MongoDB manager"
+            if not database_connect.startswith("postgresql"):
+                logger.warning(
+                    f"Non-PostgreSQL connection string detected. Only PostgreSQL is supported. "
+                    f"Falling back to default PostgreSQL connection."
                 )
-                try:
-                    from ..database.mongodb_manager import MongoDBDatabaseManager  # type: ignore[import-not-found]
+                database_connect = self._get_default_database_url()
 
-                    # Test MongoDB connection before proceeding
-                    manager = MongoDBDatabaseManager(
-                        database_connect, template, schema_init
-                    )
-                    # Verify connection works
-                    _ = manager._get_client()
-                    logger.info("MongoDB manager initialized successfully")
-                    return manager
-                except ImportError:
-                    logger.error(
-                        "MongoDB support requires pymongo. Install with: pip install pymongo"
-                    )
-                    logger.info("Falling back to SQLite for compatibility")
-                    return self._create_fallback_sqlite_manager(template, schema_init)
-                except Exception as e:
-                    logger.error(f"MongoDB connection failed: {e}")
-                    logger.info("Falling back to SQLite for compatibility")
-                    return self._create_fallback_sqlite_manager(template, schema_init)
-            else:
-                logger.info("Detected SQL connection string - using SQLAlchemy manager")
-                return SQLAlchemyDatabaseManager(
-                    database_connect,
-                    template,
-                    schema_init,
-                    pool_size=self.pool_size,
-                    max_overflow=self.max_overflow,
-                    pool_timeout=self.pool_timeout,
-                    pool_recycle=self.pool_recycle,
-                    pool_pre_ping=self.pool_pre_ping,
-                )
+            logger.info("Using SQLAlchemy manager with PostgreSQL")
+            return SQLAlchemyDatabaseManager(
+                database_connect,
+                template,
+                schema_init,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+                pool_pre_ping=self.pool_pre_ping,
+            )
 
         except Exception as e:
             logger.error(f"Failed to create database manager: {e}")
-            logger.info("Creating fallback SQLite manager")
-            return self._create_fallback_sqlite_manager(template, schema_init)
+            logger.info("Creating fallback PostgreSQL manager")
+            return self._create_fallback_manager(template, schema_init)
 
-    def _create_fallback_sqlite_manager(self, template: str, schema_init: bool):
-        """Create fallback PostgreSQL manager when other options fail"""
+    def _create_fallback_manager(self, template: str, schema_init: bool):
+        """Create fallback PostgreSQL manager when primary connection fails"""
         # Try to use PostgreSQL fallback first
         try:
             fallback_connect = self._get_default_database_url()
@@ -460,14 +440,6 @@ class Memori:
         except Exception as e:
             logger.error(f"PostgreSQL fallback failed: {e}")
             raise DatabaseError(f"Could not connect to PostgreSQL: {e}")
-
-    def _is_mongodb_connection(self, database_connect: str) -> bool:
-        """Detect if connection string is for MongoDB"""
-        mongodb_prefixes = [
-            "mongodb://",
-            "mongodb+srv://",
-        ]
-        return any(database_connect.startswith(prefix) for prefix in mongodb_prefixes)
 
     @staticmethod
     def _get_default_database_url() -> str:

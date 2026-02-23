@@ -1,6 +1,6 @@
 """
 Base database connector interface for Memori
-Provides abstraction layer for different database backends
+Provides abstraction layer for PostgreSQL database backend
 """
 
 from abc import ABC, abstractmethod
@@ -11,10 +11,7 @@ from typing import Any
 class DatabaseType(str, Enum):
     """Supported database types"""
 
-    SQLITE = "sqlite"
-    MYSQL = "mysql"
     POSTGRESQL = "postgresql"
-    MONGODB = "mongodb"
 
 
 class SearchStrategy(str, Enum):
@@ -151,14 +148,14 @@ class BaseSearchAdapter(ABC):
 
             # Search short-term memory with parameterized query
             if sanitized_categories:
-                category_placeholders = ",".join(["?"] * len(sanitized_categories))
+                category_placeholders = ",".join(["%s"] * len(sanitized_categories))
                 short_term_query = f"""
                     SELECT *, 'short_term' as memory_type, 'like_fallback' as search_strategy
                     FROM short_term_memory
-                    WHERE namespace = ? AND (searchable_content LIKE ? OR summary LIKE ?)
+                    WHERE namespace = %s AND (searchable_content LIKE %s OR summary LIKE %s)
                     AND category_primary IN ({category_placeholders})
                     ORDER BY importance_score DESC, created_at DESC
-                    LIMIT ?
+                    LIMIT %s
                 """
                 short_term_params = (
                     [
@@ -173,9 +170,9 @@ class BaseSearchAdapter(ABC):
                 short_term_query = """
                     SELECT *, 'short_term' as memory_type, 'like_fallback' as search_strategy
                     FROM short_term_memory
-                    WHERE namespace = ? AND (searchable_content LIKE ? OR summary LIKE ?)
+                    WHERE namespace = %s AND (searchable_content LIKE %s OR summary LIKE %s)
                     ORDER BY importance_score DESC, created_at DESC
-                    LIMIT ?
+                    LIMIT %s
                 """
                 short_term_params = [
                     sanitized_namespace,
@@ -194,14 +191,14 @@ class BaseSearchAdapter(ABC):
 
             # Search long-term memory with parameterized query
             if sanitized_categories:
-                category_placeholders = ",".join(["?"] * len(sanitized_categories))
+                category_placeholders = ",".join(["%s"] * len(sanitized_categories))
                 long_term_query = f"""
                     SELECT *, 'long_term' as memory_type, 'like_fallback' as search_strategy
                     FROM long_term_memory
-                    WHERE namespace = ? AND (searchable_content LIKE ? OR summary LIKE ?)
+                    WHERE namespace = %s AND (searchable_content LIKE %s OR summary LIKE %s)
                     AND category_primary IN ({category_placeholders})
                     ORDER BY importance_score DESC, created_at DESC
-                    LIMIT ?
+                    LIMIT %s
                 """
                 long_term_params = (
                     [
@@ -216,9 +213,9 @@ class BaseSearchAdapter(ABC):
                 long_term_query = """
                     SELECT *, 'long_term' as memory_type, 'like_fallback' as search_strategy
                     FROM long_term_memory
-                    WHERE namespace = ? AND (searchable_content LIKE ? OR summary LIKE ?)
+                    WHERE namespace = %s AND (searchable_content LIKE %s OR summary LIKE %s)
                     ORDER BY importance_score DESC, created_at DESC
-                    LIMIT ?
+                    LIMIT %s
                 """
                 long_term_params = [
                     sanitized_namespace,

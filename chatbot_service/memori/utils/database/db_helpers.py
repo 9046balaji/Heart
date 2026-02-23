@@ -1,8 +1,8 @@
 """
 Database Helper Utilities
 
-Provides database-agnostic utilities for handling different database types
-(PostgreSQL, MySQL, SQLite, MongoDB) and their specific requirements.
+Provides PostgreSQL-specific utilities for handling database operations
+and JSON serialization requirements.
 """
 
 import json
@@ -21,7 +21,7 @@ def detect_database_type(connection: Any) -> str:
         connection: SQLAlchemy connection, engine, or session
 
     Returns:
-        Database type as lowercase string: "postgresql", "mysql", "sqlite", "mongodb"
+        Database type as lowercase string (expected: "postgresql")
 
     Example:
         >>> db_type = detect_database_type(connection)
@@ -40,7 +40,7 @@ def detect_database_type(connection: Any) -> str:
             # Try to get engine from bind
             engine = getattr(connection, "bind", connection)
 
-        # Get dialect name (e.g., "postgresql", "mysql", "sqlite")
+        # Get dialect name (e.g., "postgresql")
         db_type = str(engine.dialect.name).lower()
 
         logger.debug(f"Detected database type: {db_type}")
@@ -94,14 +94,10 @@ def get_json_cast_clause(db_type: str, column_name: str = "processed_data") -> s
     """
     Get the appropriate SQL CAST clause for JSON data based on database type.
 
-    Different databases handle JSON differently:
-    - PostgreSQL: Use JSONB type with CAST
-    - MySQL 5.7+: Use JSON type
-    - SQLite: Store as TEXT
-    - MongoDB: Native JSON support
+    PostgreSQL uses JSONB type with CAST for optimal performance.
 
     Args:
-        db_type: Database type ("postgresql", "mysql", "sqlite", etc.)
+        db_type: Database type ("postgresql")
         column_name: Name of the column (for parameterized queries use :column_name)
 
     Returns:
@@ -118,12 +114,8 @@ def get_json_cast_clause(db_type: str, column_name: str = "processed_data") -> s
         # PostgreSQL uses JSONB for better performance
         return f"CAST({column_name} AS JSONB)"
 
-    elif db_type == "mysql":
-        # MySQL 5.7+ supports JSON type
-        return f"CAST({column_name} AS JSON)"
-
     else:
-        # SQLite and others: store as TEXT, no casting needed
+        # Fallback: no casting needed
         return column_name
 
 
@@ -161,32 +153,6 @@ def is_postgres(connection: Any) -> bool:
         True if PostgreSQL, False otherwise
     """
     return detect_database_type(connection) == "postgresql"
-
-
-def is_mysql(connection: Any) -> bool:
-    """
-    Quick check if connection is MySQL.
-
-    Args:
-        connection: Database connection/engine/session
-
-    Returns:
-        True if MySQL, False otherwise
-    """
-    return detect_database_type(connection) == "mysql"
-
-
-def is_sqlite(connection: Any) -> bool:
-    """
-    Quick check if connection is SQLite.
-
-    Args:
-        connection: Database connection/engine/session
-
-    Returns:
-        True if SQLite, False otherwise
-    """
-    return detect_database_type(connection) == "sqlite"
 
 
 def get_insert_statement(

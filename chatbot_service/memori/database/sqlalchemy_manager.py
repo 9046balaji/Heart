@@ -5,12 +5,9 @@ Replaces the existing database.py with cross-database compatibility
 
 import importlib.util
 import json
-import ssl
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
 from loguru import logger
 from sqlalchemy import create_engine, func, text
@@ -36,7 +33,7 @@ from .search_service import SearchService
 
 
 class SQLAlchemyDatabaseManager:
-    """SQLAlchemy-based database manager with cross-database support"""
+    """SQLAlchemy-based database manager with PostgreSQL support"""
 
     def __init__(
         self,
@@ -85,44 +82,8 @@ class SQLAlchemyDatabaseManager:
         )
 
     def _validate_database_dependencies(self, database_connect: str):
-        """Validate that required database drivers are installed"""
-        if database_connect.startswith("mysql:") or database_connect.startswith(
-            "mysql+"
-        ):
-            # Check for MySQL drivers
-            mysql_drivers = []
-
-            if (
-                "mysqlconnector" in database_connect
-                or "mysql+mysqlconnector" in database_connect
-            ):
-                if importlib.util.find_spec("mysql.connector") is not None:
-                    mysql_drivers.append("mysql-connector-python")
-
-            if "pymysql" in database_connect:
-                if importlib.util.find_spec("pymysql") is not None:
-                    mysql_drivers.append("PyMySQL")
-
-            # If using generic mysql:// try both drivers
-            if database_connect.startswith("mysql://"):
-                if importlib.util.find_spec("mysql.connector") is not None:
-                    mysql_drivers.append("mysql-connector-python")
-                if importlib.util.find_spec("pymysql") is not None:
-                    mysql_drivers.append("PyMySQL")
-
-            if not mysql_drivers:
-                error_msg = (
-                    "ERROR: No MySQL driver found. Install one of the following:\n\n"
-                    "Option 1 (Recommended): pip install mysql-connector-python\n"
-                    "Option 2: pip install PyMySQL\n"
-                    "Option 3: pip install memorisdk[mysql]\n\n"
-                    "Then update your connection string:\n"
-                    "- For mysql-connector-python: mysql+mysqlconnector://user:pass@host:port/db\n"
-                    "- For PyMySQL: mysql+pymysql://user:pass@host:port/db"
-                )
-                raise DatabaseError(error_msg)
-
-        elif database_connect.startswith("postgresql:") or database_connect.startswith(
+        """Validate that required PostgreSQL database drivers are installed"""
+        if database_connect.startswith("postgresql:") or database_connect.startswith(
             "postgresql+"
         ):
             # Check for PostgreSQL drivers
@@ -137,116 +98,30 @@ class SQLAlchemyDatabaseManager:
                     "Then use connection string: postgresql://user:pass@host:port/db"
                 )
                 raise DatabaseError(error_msg)
+        else:
+            raise DatabaseError(
+                f"Unsupported database type. Only PostgreSQL is supported. "
+                f"Use: postgresql://user:pass@host:port/db"
+            )
 
     def _create_engine(self, database_connect: str):
-        """Create SQLAlchemy engine with appropriate configuration"""
+        """Create SQLAlchemy engine with PostgreSQL configuration"""
         try:
             # Validate database driver dependencies first
             self._validate_database_dependencies(database_connect)
-            # Parse connection string
-            if database_connect.startswith("sqlite:"):
-                # Ensure directory exists for SQLite
-                if ":///" in database_connect:
-                    db_path = database_connect.replace("sqlite:///", "")
-                    db_dir = Path(db_path).parent
-                    db_dir.mkdir(parents=True, exist_ok=True)
 
-                # SQLite-specific configuration
-                engine = create_engine(
-                    database_connect,
-                    json_serializer=json.dumps,
-                    json_deserializer=json.loads,
-                    echo=False,
-                    # SQLite-specific options
-                    connect_args={
-                        "check_same_thread": False,  # Allow multiple threads
-                    },
-                )
-
-            elif database_connect.startswith("mysql:") or database_connect.startswith(
-                "mysql+"
-            ):
-                # MySQL-specific configuration
-                connect_args = {"charset": "utf8mb4"}
-
-                # Parse URL for SSL parameters
-                parsed = urlparse(database_connect)
-                if parsed.query:
-                    query_params = parse_qs(parsed.query)
-
-                    # Handle SSL parameters for PyMySQL - enforce secure transport
-                    if any(key in query_params for key in ["ssl", "ssl_disabled"]):
-                        if query_params.get("ssl", ["false"])[0].lower() == "true":
-                            # Enable SSL with secure configuration for required secure transport
-                            connect_args["ssl"] = {
-                                "ssl_disabled": False,
-                                "check_hostname": False,
-                                "verify_mode": ssl.CERT_NONE,
-                            }
-                            # Also add ssl_disabled=False for PyMySQL
-                            connect_args["ssl_disabled"] = False
-                        elif (
-                            query_params.get("ssl_disabled", ["true"])[0].lower()
-                            == "false"
-                        ):
-                            # Enable SSL with secure configuration for required secure transport
-                            connect_args["ssl"] = {
-                                "ssl_disabled": False,
-                                "check_hostname": False,
-                                "verify_mode": ssl.CERT_NONE,
-                            }
-                            # Also add ssl_disabled=False for PyMySQL
-                            connect_args["ssl_disabled"] = False
-
-                # Different args for different MySQL drivers
-                if "pymysql" in database_connect:
-                    # PyMySQL-specific arguments
-                    connect_args.update(
-                        {
-                            "charset": "utf8mb4",
-                            "autocommit": False,
-                        }
-                    )
-                elif (
-                    "mysqlconnector" in database_connect
-                    or "mysql+mysqlconnector" in database_connect
-                ):
-                    # MySQL Connector/Python-specific arguments
-                    connect_args.update(
-                        {
-                            "charset": "utf8mb4",
-                            "use_pure": True,
-                        }
-                    )
-
-                engine = create_engine(
-                    database_connect,
-                    json_serializer=json.dumps,
-                    json_deserializer=json.loads,
-                    echo=False,
-                    connect_args=connect_args,
-                    pool_pre_ping=True,  # Validate connections
-                    pool_recycle=3600,  # Recycle connections every hour
-                )
-
-            elif database_connect.startswith(
-                "postgresql:"
-            ) or database_connect.startswith("postgresql+"):
-                # PostgreSQL-specific configuration with connection pool management
-                engine = create_engine(
-                    database_connect,
-                    json_serializer=json.dumps,
-                    json_deserializer=json.loads,
-                    echo=False,
-                    pool_size=self.pool_size,  # Base pool size
-                    max_overflow=self.max_overflow,  # Additional connections when pool is full
-                    pool_timeout=self.pool_timeout,  # Wait time for connection
-                    pool_recycle=self.pool_recycle,  # Recycle connections to prevent stale connections
-                    pool_pre_ping=self.pool_pre_ping,  # Test connections before use
-                )
-
-            else:
-                raise DatabaseError(f"Unsupported database type: {database_connect}")
+            # PostgreSQL-specific configuration with connection pool management
+            engine = create_engine(
+                database_connect,
+                json_serializer=json.dumps,
+                json_deserializer=json.loads,
+                echo=False,
+                pool_size=self.pool_size,
+                max_overflow=self.max_overflow,
+                pool_timeout=self.pool_timeout,
+                pool_recycle=self.pool_recycle,
+                pool_pre_ping=self.pool_pre_ping,
+            )
 
             # Test connection
             with engine.connect() as conn:
@@ -255,19 +130,9 @@ class SQLAlchemyDatabaseManager:
             return engine
 
         except DatabaseError:
-            # Re-raise our custom database errors with helpful messages
             raise
         except ModuleNotFoundError as e:
-            if "mysql" in str(e).lower():
-                error_msg = (
-                    "ERROR: MySQL driver not found. Install one of the following:\n\n"
-                    "Option 1 (Recommended): pip install mysql-connector-python\n"
-                    "Option 2: pip install PyMySQL\n"
-                    "Option 3: pip install memorisdk[mysql]\n\n"
-                    f"Original error: {e}"
-                )
-                raise DatabaseError(error_msg)
-            elif "psycopg" in str(e).lower() or "postgresql" in str(e).lower():
+            if "psycopg" in str(e).lower() or "postgresql" in str(e).lower():
                 error_msg = (
                     "ERROR: PostgreSQL driver not found. Install one of the following:\n\n"
                     "Option 1 (Recommended): pip install psycopg2-binary\n"
@@ -301,143 +166,14 @@ class SQLAlchemyDatabaseManager:
             raise DatabaseError(f"Failed to initialize schema: {e}")
 
     def _setup_database_features(self):
-        """Setup database-specific features like full-text search"""
+        """Setup PostgreSQL full-text search features"""
         try:
             with self.engine.connect() as conn:
-                if self.database_type == "sqlite":
-                    self._setup_sqlite_fts(conn)
-                elif self.database_type == "mysql":
-                    self._setup_mysql_fulltext(conn)
-                elif self.database_type == "postgresql":
-                    self._setup_postgresql_fts(conn)
-
+                self._setup_postgresql_fts(conn)
                 conn.commit()
 
         except Exception as e:
             logger.warning(f"Failed to setup database-specific features: {e}")
-
-    def _setup_sqlite_fts(self, conn):
-        """Setup SQLite FTS5"""
-        try:
-            # Create FTS5 virtual table
-            conn.execute(
-                text(
-                    """
-                CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
-                    memory_id,
-                    memory_type,
-                    user_id,
-                    assistant_id,
-                    session_id,
-                    searchable_content,
-                    summary,
-                    category_primary,
-                    content='',
-                    contentless_delete=1
-                )
-            """
-                )
-            )
-
-            # Create triggers
-            conn.execute(
-                text(
-                    """
-                CREATE TRIGGER IF NOT EXISTS short_term_memory_fts_insert AFTER INSERT ON short_term_memory
-                BEGIN
-                    INSERT INTO memory_search_fts(memory_id, memory_type, user_id, assistant_id, session_id, searchable_content, summary, category_primary)
-                    VALUES (NEW.memory_id, 'short_term', NEW.user_id, NEW.assistant_id, NEW.session_id, NEW.searchable_content, NEW.summary, NEW.category_primary);
-                END
-            """
-                )
-            )
-
-            conn.execute(
-                text(
-                    """
-                CREATE TRIGGER IF NOT EXISTS long_term_memory_fts_insert AFTER INSERT ON long_term_memory
-                BEGIN
-                    INSERT INTO memory_search_fts(memory_id, memory_type, user_id, assistant_id, session_id, searchable_content, summary, category_primary)
-                    VALUES (NEW.memory_id, 'long_term', NEW.user_id, NEW.assistant_id, NEW.session_id, NEW.searchable_content, NEW.summary, NEW.category_primary);
-                END
-            """
-                )
-            )
-
-            logger.info("SQLite FTS5 setup completed")
-
-        except Exception as e:
-            logger.warning(f"SQLite FTS5 setup failed: {e}")
-
-    def _setup_mysql_fulltext(self, conn):
-        """Setup MySQL FULLTEXT indexes"""
-        try:
-            # Check if indexes exist before creating them
-            index_check_query = text(
-                """
-                SELECT COUNT(*) as index_count
-                FROM information_schema.statistics
-                WHERE table_schema = DATABASE()
-                AND index_name IN ('ft_short_term_search', 'ft_long_term_search')
-            """
-            )
-
-            result = conn.execute(index_check_query)
-            existing_indexes = result.fetchone()[0]
-
-            if existing_indexes < 2:
-                logger.info(
-                    f"Creating missing MySQL FULLTEXT indexes ({existing_indexes}/2 exist)..."
-                )
-
-                # Check and create short_term_memory index if missing
-                short_term_check = conn.execute(
-                    text(
-                        """
-                        SELECT COUNT(*) FROM information_schema.statistics
-                        WHERE table_schema = DATABASE()
-                        AND table_name = 'short_term_memory'
-                        AND index_name = 'ft_short_term_search'
-                        """
-                    )
-                ).fetchone()[0]
-
-                if short_term_check == 0:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE short_term_memory ADD FULLTEXT INDEX ft_short_term_search (searchable_content, summary)"
-                        )
-                    )
-                    logger.info("Created ft_short_term_search index")
-
-                # Check and create long_term_memory index if missing
-                long_term_check = conn.execute(
-                    text(
-                        """
-                        SELECT COUNT(*) FROM information_schema.statistics
-                        WHERE table_schema = DATABASE()
-                        AND table_name = 'long_term_memory'
-                        AND index_name = 'ft_long_term_search'
-                        """
-                    )
-                ).fetchone()[0]
-
-                if long_term_check == 0:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE long_term_memory ADD FULLTEXT INDEX ft_long_term_search (searchable_content, summary)"
-                        )
-                    )
-                    logger.info("Created ft_long_term_search index")
-
-                logger.info("MySQL FULLTEXT indexes setup completed")
-            else:
-                logger.debug(
-                    "MySQL FULLTEXT indexes already exist (2/2), skipping creation"
-                )
-
-        except Exception as e:
-            logger.warning(f"MySQL FULLTEXT setup failed: {e}")
 
     def _setup_postgresql_fts(self, conn):
         """Setup PostgreSQL full-text search"""

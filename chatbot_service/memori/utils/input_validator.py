@@ -227,7 +227,7 @@ class InputValidator:
             return datetime.now()
 
         if isinstance(timestamp, datetime):
-            # Make timezone-naive for SQLite compatibility
+            # Make timezone-naive for database compatibility
             return timestamp.replace(tzinfo=None)
 
         if isinstance(timestamp, str):
