@@ -64,6 +64,7 @@ from rag.knowledge_graph.interaction_checker import GraphInteractionChecker
 from rag.pipeline.crag_fallback import CRAGFallback
 from agents.heart_predictor import HeartDiseasePredictor
 from tools.fhir.fhir_agent_tool import get_fhir_tool
+from tools.medical_coding.auto_coder import auto_code_clinical_note
 from agents.components.workflow_automation import WorkflowRouter
 from agents.components.differential_diagnosis import generate_differential_diagnosis
 from agents.components.triage_system import triage_patient
@@ -399,6 +400,7 @@ class LangGraphOrchestrator:
         workflow.add_node("thinking_agent", self.thinking_node)
         workflow.add_node("fhir_agent", self.fhir_query_node)
         workflow.add_node("clinical_reasoning", self.clinical_reasoning_node)
+        workflow.add_node("medical_coding", self.medical_coding_node)
         
         # Set Entry Point
         workflow.set_entry_point("router")
@@ -419,6 +421,7 @@ class LangGraphOrchestrator:
                 "heart_analyst": "heart_analyst",
                 "fhir_agent": "fhir_agent",
                 "clinical_reasoning": "clinical_reasoning",
+                "medical_coding": "medical_coding",
                 "FINISH": END
             }
         )
@@ -437,6 +440,7 @@ class LangGraphOrchestrator:
                 "heart_analyst": "heart_analyst",
                 "fhir_agent": "fhir_agent",
                 "clinical_reasoning": "clinical_reasoning",
+                "medical_coding": "medical_coding",
                 "FINISH": END
             }
         )
@@ -452,6 +456,7 @@ class LangGraphOrchestrator:
         workflow.add_edge("heart_analyst", "supervisor")
         workflow.add_edge("fhir_agent", "supervisor")
         workflow.add_edge("clinical_reasoning", "supervisor")
+        workflow.add_edge("medical_coding", "supervisor")
         
         return workflow
 
@@ -778,6 +783,7 @@ class LangGraphOrchestrator:
                 "thinking agent": "thinking_agent",
                 "heart analyst": "heart_analyst",
                 "fhir agent": "fhir_agent",
+                "medical coding": "medical_coding",
                 "finish": "FINISH",
             }
             normalized = str(next_step).lower().strip()
@@ -786,7 +792,7 @@ class LangGraphOrchestrator:
             # Validate next_step is a known node
             valid_nodes = {"medical_analyst", "researcher", "data_analyst", "drug_expert", 
                           "profile_manager", "thinking_agent", "heart_analyst", "fhir_agent",
-                          "clinical_reasoning", "FINISH"}
+                          "clinical_reasoning", "medical_coding", "FINISH"}
             if next_step not in valid_nodes:
                 logger.warning(f"Unknown next_step '{next_step}', defaulting to FINISH")
                 next_step = "FINISH"
@@ -1282,6 +1288,34 @@ class LangGraphOrchestrator:
             "confidence": 0.95 if has_red_flags else 0.9,
             "intent": intent
         }
+
+    async def medical_coding_node(self, state: AgentState) -> Dict:
+        """
+        Worker: Medical Coding Agent.
+        Maps clinical text to standardized codes (SNOMED-CT, ICD-10, LOINC, CPT).
+        Uses tools/medical_coding/auto_coder.py.
+        """
+        query = state["messages"][-1].content
+        
+        try:
+            result = await auto_code_clinical_note(
+                clinical_text=query,
+                include_billing=True
+            )
+            return {
+                "messages": [ToolMessage(content=result, tool_call_id="call_medical_coding")],
+                "confidence": 0.9,
+                "intent": "medical_coding"
+            }
+        except Exception as e:
+            logger.error(f"Medical coding failed: {e}")
+            return {
+                "messages": [ToolMessage(
+                    content=f"Error generating medical codes: {e}",
+                    tool_call_id="call_medical_coding"
+                )],
+                "confidence": 0.0
+            }
 
     # --- Main Execution ---
     async def execute(
