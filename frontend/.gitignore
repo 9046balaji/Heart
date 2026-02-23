@@ -12,6 +12,8 @@
 .env.production
 .env.staging
 
+backup
+
 e2e
 check_ui_overflow.js
 check_ui_overflow_puppeteer.js

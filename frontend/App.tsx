@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import './styles/charts.css';
 
 // ============================================================================
 // Capacitor Platform Initialization

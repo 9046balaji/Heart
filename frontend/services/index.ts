@@ -7,24 +7,6 @@
 // API Services
 export * from './apiClient';
 
-// Caching
-export {
-  apiCache,
-  healthCache,
-  APICache,
-  HealthDataCache,
-  LRUCache,
-  useCachedFetch,
-} from './apiCache';
-
-export type {
-  CacheEntry,
-  CacheOptions,
-  RequestConfig,
-  UseCachedFetchOptions,
-  UseCachedFetchResult,
-} from './apiCache';
-
 // Memory / State Persistence
 // Note: Using selective exports to avoid naming conflicts with apiClient.ts
 export {
@@ -69,9 +51,6 @@ export {
   isServiceWorkerActive,
   isServiceWorkerSupported,
 } from './serviceWorker';
-// Firebase
-export { db } from './firebase';
-
 // Document Processing
 export * from './documentService';
 

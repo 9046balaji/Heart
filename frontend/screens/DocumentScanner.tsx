@@ -29,7 +29,7 @@ import {
     formatFileSize,
     getCompressionStats,
     CompressionResult
-} from '../src/utils/imageCompressionEnhanced';
+} from '../utils/imageCompressionEnhanced';
 
 type ProcessingStage = 'idle' | 'compressing' | 'uploading' | 'processing' | 'classifying' | 'complete' | 'error';
 

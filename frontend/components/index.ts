@@ -5,7 +5,6 @@
  */
 
 // Loading & State Components
-export { LoadingSpinner } from './LoadingSpinner';
 export {
   Skeleton,
   TextSkeleton,
@@ -60,9 +59,6 @@ export {
   useConfirmDialog,
   useConfirm,
 } from './ConfirmDialog';
-
-// Structured Data Rendering
-export { StructuredDataRenderer } from './StructuredDataRenderer';
 
 // Toast Notifications
 export { ToastProvider } from './Toast';
