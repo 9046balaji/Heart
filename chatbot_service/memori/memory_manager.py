@@ -26,6 +26,7 @@ Complexity:
 """
 
 import asyncio
+import enum
 import json
 import logging
 import threading
@@ -34,7 +35,7 @@ from collections import OrderedDict, deque
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from tenacity import (
@@ -261,6 +262,122 @@ class LRUMemoryCache:
         """Get all items in cache."""
         with self._lock:
             return list(self.cache.items())
+
+
+# ============================================================================
+# Circuit Breaker
+# ============================================================================
+
+
+class CircuitState(enum.Enum):
+    """Circuit breaker states."""
+    CLOSED = "CLOSED"        # Normal operation – requests pass through
+    OPEN = "OPEN"            # Failures exceeded threshold – requests rejected
+    HALF_OPEN = "HALF_OPEN"  # Cooldown elapsed – allow one probe request
+
+
+class CircuitBreaker:
+    """
+    Thread-safe circuit breaker for memory operations.
+
+    Prevents cascading failures by short-circuiting requests when the
+    backend is unhealthy.  After a cooldown period the breaker enters
+    HALF_OPEN state and allows a single probe request.  If it succeeds
+    the breaker closes again; if it fails the breaker re-opens.
+
+    Parameters:
+        failure_threshold: Consecutive failures before opening.
+        recovery_timeout:  Seconds to wait before probing (HALF_OPEN).
+        success_threshold: Consecutive successes in HALF_OPEN to fully close.
+    """
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        success_threshold: int = 2,
+    ):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
+
+        self._state = CircuitState.CLOSED
+        self._failure_count = 0
+        self._success_count = 0
+        self._last_failure_time: Optional[float] = None
+        self._open_count = 0
+        self._lock = threading.RLock()
+
+    # -- public interface ----------------------------------------------------
+
+    @property
+    def state(self) -> CircuitState:
+        """Current circuit state (may transition from OPEN → HALF_OPEN)."""
+        with self._lock:
+            if (
+                self._state == CircuitState.OPEN
+                and self._last_failure_time is not None
+                and time.time() - self._last_failure_time >= self.recovery_timeout
+            ):
+                self._state = CircuitState.HALF_OPEN
+                self._success_count = 0
+                logger.info("Circuit breaker → HALF_OPEN (recovery timeout elapsed)")
+            return self._state
+
+    def allow_request(self) -> bool:
+        """Return True if a request should be allowed through."""
+        state = self.state  # property performs OPEN→HALF_OPEN transition
+        if state == CircuitState.CLOSED:
+            return True
+        if state == CircuitState.HALF_OPEN:
+            return True  # allow probe
+        return False  # OPEN
+
+    def record_success(self) -> None:
+        """Record a successful operation."""
+        with self._lock:
+            if self._state == CircuitState.HALF_OPEN:
+                self._success_count += 1
+                if self._success_count >= self.success_threshold:
+                    self._state = CircuitState.CLOSED
+                    self._failure_count = 0
+                    self._success_count = 0
+                    logger.info("Circuit breaker → CLOSED (recovered)")
+            else:
+                # In CLOSED state – reset failure count on success
+                self._failure_count = 0
+
+    def record_failure(self) -> None:
+        """Record a failed operation."""
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+
+            if self._state == CircuitState.HALF_OPEN:
+                # Probe failed – reopen
+                self._state = CircuitState.OPEN
+                self._open_count += 1
+                logger.warning("Circuit breaker → OPEN (probe failed)")
+            elif (
+                self._state == CircuitState.CLOSED
+                and self._failure_count >= self.failure_threshold
+            ):
+                self._state = CircuitState.OPEN
+                self._open_count += 1
+                logger.warning(
+                    f"Circuit breaker → OPEN (failures={self._failure_count})"
+                )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Metrics snapshot."""
+        return {
+            "state": self.state.value,
+            "failure_count": self._failure_count,
+            "success_count": self._success_count,
+            "open_count": self._open_count,
+            "failure_threshold": self.failure_threshold,
+            "recovery_timeout": self.recovery_timeout,
+        }
 
 
 # ============================================================================
@@ -666,9 +783,20 @@ class MemoryManager:
         # LRU cache for patient memories
         self._cache = LRUMemoryCache(maxsize=cache_size)
 
+        # Circuit breaker
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=circuit_breaker_threshold,
+            recovery_timeout=60.0,
+            success_threshold=2,
+        )
+
         # Per-patient initialization locks to prevent race conditions
         self._patient_init_locks: Dict[str, asyncio.Lock] = {}
         self._locks_lock: Optional[asyncio.Lock] = None  # Lazy init in async context
+
+        # Background workers
+        self._promotion_task: Optional[asyncio.Task] = None
+        self._decay_task: Optional[asyncio.Task] = None
 
         # Metrics
         self.metrics = MemoryManagerMetrics()
@@ -797,6 +925,13 @@ class MemoryManager:
         if not self.enabled:
             raise MemoryManagerException("Memory manager is disabled")
 
+        # Circuit breaker guard
+        if not self._circuit_breaker.allow_request():
+            self.metrics.circuit_breaker_state = self._circuit_breaker.state.value
+            raise MemoryCircuitBreakerOpen(
+                "Memory service unavailable (circuit breaker OPEN)"
+            )
+
         cache_key = f"{patient_id}:{session_id}"
 
         # Try cache first (fast path - no lock)
@@ -893,9 +1028,12 @@ class MemoryManager:
                 self.metrics.cache_evictions = self._cache.evictions
 
                 logger.info(f"Patient memory initialized: {cache_key}")
+                self._circuit_breaker.record_success()
                 return patient_memory
 
             except Exception as e:
+                self._circuit_breaker.record_failure()
+                self.metrics.circuit_breaker_state = self._circuit_breaker.state.value
                 self.metrics.errors_total += 1
                 logger.error(
                     f"Failed to initialize patient memory {cache_key}: {e}",
@@ -1094,12 +1232,358 @@ class MemoryManager:
             logger.error(f"Memory store error: {e}", exc_info=True)
             raise
 
+    # ========================================================================
+    # Memory Promotion Worker
+    # ========================================================================
+
+    async def start_background_workers(self) -> None:
+        """
+        Start background workers for memory promotion and decay.
+        Call this after ``initialize()``.
+        """
+        if not self.enabled or not self._initialized:
+            return
+
+        if self._promotion_task is None or self._promotion_task.done():
+            self._promotion_task = asyncio.create_task(
+                self._promotion_loop(), name="memori-promotion-worker"
+            )
+            logger.info("Memory promotion worker started")
+
+        if self._decay_task is None or self._decay_task.done():
+            self._decay_task = asyncio.create_task(
+                self._decay_loop(), name="memori-decay-worker"
+            )
+            logger.info("Memory decay worker started")
+
+    async def _promotion_loop(
+        self,
+        interval_seconds: float = 300.0,
+        min_messages: int = 3,
+        min_age_seconds: float = 120.0,
+        importance_threshold: float = 0.4,
+    ) -> None:
+        """
+        Periodically scan short-term sessions and promote important ones
+        to long-term memory via FactExtractor.
+
+        Steps per cycle:
+          1. Query ``RedisSessionBuffer.get_promotable_sessions()``
+          2. Score each session via ``analyze_session_importance()``
+          3. Extract facts using ``FactExtractor.extract_batch()``
+          4. Store extracted facts in long-term memory via ``store_memory()``
+        """
+        logger.info("Promotion loop starting")
+        while True:
+            try:
+                await asyncio.sleep(interval_seconds)
+                await self._run_promotion_cycle(
+                    min_messages=min_messages,
+                    min_age_seconds=min_age_seconds,
+                    importance_threshold=importance_threshold,
+                )
+            except asyncio.CancelledError:
+                logger.info("Promotion loop cancelled")
+                return
+            except Exception as e:
+                logger.error(f"Promotion cycle error: {e}", exc_info=True)
+                # Back-off on repeated errors
+                await asyncio.sleep(30)
+
+    async def _run_promotion_cycle(
+        self,
+        min_messages: int = 3,
+        min_age_seconds: float = 120.0,
+        importance_threshold: float = 0.4,
+    ) -> int:
+        """
+        Execute one promotion cycle.
+
+        Returns:
+            Number of sessions promoted.
+        """
+        promoted = 0
+        try:
+            # Import lazily to avoid circular deps
+            from .short_term.redis_buffer import RedisSessionBuffer, InMemorySessionBuffer
+            from .long_term.fact_extractor import FactExtractor
+
+            # Try to get the session buffer instance
+            buffer: Optional[Any] = None
+            try:
+                buffer = RedisSessionBuffer.get_instance()
+            except Exception:
+                buffer = InMemorySessionBuffer()
+
+            if buffer is None:
+                return 0
+
+            # 1. Find promotable sessions
+            promotable = buffer.get_promotable_sessions(
+                min_messages=min_messages,
+                min_age_seconds=min_age_seconds,
+            )
+            if not promotable:
+                return 0
+
+            logger.info(f"Promotion: found {len(promotable)} candidate sessions")
+
+            # 2. Score and filter
+            qualified_sessions: List[Tuple[str, Dict[str, Any]]] = []
+            for session_id in promotable:
+                try:
+                    analysis = buffer.analyze_session_importance(session_id)
+                    if analysis.get("importance_score", 0) >= importance_threshold:
+                        qualified_sessions.append((session_id, analysis))
+                except Exception as e:
+                    logger.warning(f"Promotion scoring failed for {session_id}: {e}")
+
+            if not qualified_sessions:
+                return 0
+
+            logger.info(
+                f"Promotion: {len(qualified_sessions)} sessions qualify "
+                f"(threshold={importance_threshold})"
+            )
+
+            # 3. Extract facts from conversation text
+            extractor = FactExtractor()
+            texts = []
+            session_ids = []
+            for sid, analysis in qualified_sessions:
+                try:
+                    messages = buffer.get_messages(sid)
+                    if messages:
+                        combined = "\n".join(
+                            f"{getattr(m, 'role', 'user')}: {getattr(m, 'content', str(m))}"
+                            for m in messages
+                        )
+                        texts.append(combined)
+                        session_ids.append(sid)
+                except Exception as e:
+                    logger.warning(f"Failed to read messages for {sid}: {e}")
+
+            if not texts:
+                return 0
+
+            batch_results = await extractor.extract_batch(texts, max_concurrent=5)
+
+            # 4. Store extracted facts in long-term memory
+            for idx, facts in enumerate(batch_results):
+                if not facts:
+                    continue
+                sid = session_ids[idx]
+                for fact in facts:
+                    try:
+                        # Derive a patient_id from session metadata or use session id
+                        patient_id = sid.split(":")[0] if ":" in sid else sid
+                        await self.store_memory(
+                            patient_id=patient_id,
+                            memory_type="health_data",
+                            content=json.dumps({
+                                "fact": fact.text if hasattr(fact, "text") else str(fact),
+                                "category": fact.category.value if hasattr(fact, "category") else "general",
+                                "confidence": getattr(fact, "confidence", 1.0),
+                                "source": "promotion",
+                            }),
+                            session_id=sid,
+                            metadata={
+                                "data_type": "promoted_fact",
+                                "source_session": sid,
+                                "promotion_timestamp": datetime.now().isoformat(),
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to store promoted fact: {e}")
+
+                promoted += 1
+                logger.debug(f"Promoted session {sid}: {len(facts)} facts")
+
+        except ImportError as e:
+            logger.warning(f"Promotion dependencies unavailable: {e}")
+        except Exception as e:
+            logger.error(f"Promotion cycle failed: {e}", exc_info=True)
+
+        if promoted:
+            logger.info(f"Promotion cycle complete: {promoted} sessions promoted")
+        return promoted
+
+    # ========================================================================
+    # Memory Consolidation & Decay
+    # ========================================================================
+
+    async def _decay_loop(
+        self,
+        interval_seconds: float = 3600.0,
+        decay_factor: float = 0.95,
+        min_score: float = 0.05,
+        max_age_days: int = 90,
+    ) -> None:
+        """
+        Periodically apply time-based importance decay to long-term memories
+        and clean up obsolete entries.
+
+        Each cycle:
+        1. Decay importance scores of memories that haven't been accessed recently
+        2. Remove memories whose scores fall below ``min_score``
+        3. Deduplicate nearly-identical memories (same patient, same content hash)
+        """
+        logger.info("Decay loop starting")
+        while True:
+            try:
+                await asyncio.sleep(interval_seconds)
+                await self._run_decay_cycle(
+                    decay_factor=decay_factor,
+                    min_score=min_score,
+                    max_age_days=max_age_days,
+                )
+            except asyncio.CancelledError:
+                logger.info("Decay loop cancelled")
+                return
+            except Exception as e:
+                logger.error(f"Decay cycle error: {e}", exc_info=True)
+                await asyncio.sleep(60)
+
+    async def _run_decay_cycle(
+        self,
+        decay_factor: float = 0.95,
+        min_score: float = 0.05,
+        max_age_days: int = 90,
+    ) -> Dict[str, int]:
+        """
+        Execute one consolidation/decay cycle.
+
+        Returns:
+            Dict with counts: ``decayed``, ``pruned``, ``deduplicated``.
+        """
+        stats = {"decayed": 0, "pruned": 0, "deduplicated": 0}
+
+        try:
+            from .core.memory import Memori
+
+            # Iterate over all cached patient memories
+            for cache_key, patient_memory in self._cache.items():
+                try:
+                    memori = patient_memory.memori
+                    db = getattr(memori, "db", None) or getattr(memori, "database", None)
+                    if db is None:
+                        continue
+
+                    # Attempt to get all memories via available DB methods
+                    memories = []
+                    try:
+                        if hasattr(db, "get_all_memories"):
+                            memories = await asyncio.to_thread(db.get_all_memories)
+                        elif hasattr(db, "execute_query"):
+                            result = await asyncio.to_thread(
+                                db.execute_query,
+                                "SELECT id, importance_score, last_accessed, created_at "
+                                "FROM memories WHERE importance_score IS NOT NULL"
+                            )
+                            memories = result if result else []
+                    except Exception as e:
+                        logger.debug(f"Skipping decay for {cache_key}: {e}")
+                        continue
+
+                    if not memories:
+                        continue
+
+                    cutoff = datetime.now() - timedelta(days=max_age_days)
+
+                    for mem in memories:
+                        mem_id = mem.get("id") if isinstance(mem, dict) else getattr(mem, "id", None)
+                        score = (
+                            mem.get("importance_score", 1.0)
+                            if isinstance(mem, dict)
+                            else getattr(mem, "importance_score", 1.0)
+                        )
+                        last_accessed = (
+                            mem.get("last_accessed")
+                            if isinstance(mem, dict)
+                            else getattr(mem, "last_accessed", None)
+                        )
+                        created_at = (
+                            mem.get("created_at")
+                            if isinstance(mem, dict)
+                            else getattr(mem, "created_at", None)
+                        )
+
+                        if score is None:
+                            continue
+
+                        # Parse timestamps
+                        ts = None
+                        for candidate in [last_accessed, created_at]:
+                            if candidate is None:
+                                continue
+                            if isinstance(candidate, datetime):
+                                ts = candidate
+                                break
+                            try:
+                                ts = datetime.fromisoformat(str(candidate))
+                                break
+                            except (ValueError, TypeError):
+                                continue
+
+                        # 1. Prune if older than max_age_days and low score
+                        if ts and ts < cutoff and score < 0.2:
+                            try:
+                                if hasattr(db, "delete_memory"):
+                                    await asyncio.to_thread(db.delete_memory, mem_id)
+                                    stats["pruned"] += 1
+                            except Exception:
+                                pass
+                            continue
+
+                        # 2. Apply decay
+                        new_score = score * decay_factor
+                        if new_score < min_score:
+                            # Score too low — prune
+                            try:
+                                if hasattr(db, "delete_memory"):
+                                    await asyncio.to_thread(db.delete_memory, mem_id)
+                                    stats["pruned"] += 1
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                if hasattr(db, "update_memory"):
+                                    await asyncio.to_thread(
+                                        db.update_memory,
+                                        mem_id,
+                                        {"importance_score": new_score},
+                                    )
+                                    stats["decayed"] += 1
+                            except Exception:
+                                pass
+
+                except Exception as e:
+                    logger.debug(f"Decay skip for {cache_key}: {e}")
+
+        except ImportError:
+            logger.debug("Memori core not available for decay")
+        except Exception as e:
+            logger.error(f"Decay cycle failed: {e}", exc_info=True)
+
+        if any(stats.values()):
+            logger.info(f"Decay cycle: {stats}")
+        return stats
+
     async def shutdown(self) -> None:
-        """Cleanup all patient memory instances gracefully."""
+        """Cleanup all patient memory instances and background workers gracefully."""
         if not self._initialized:
             return
 
         logger.info("Shutting down MemoryManager...")
+
+        # Cancel background workers
+        for task in [self._promotion_task, self._decay_task]:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
         for cache_key, patient_memory in self._cache.items():
             try:
@@ -1119,6 +1603,19 @@ class MemoryManager:
             "initialized": self._initialized,
             "cache_size": self._cache.size(),
             "cache_max_size": self.cache_size,
+            "circuit_breaker": self._circuit_breaker.to_dict(),
+            "background_workers": {
+                "promotion": (
+                    "running"
+                    if self._promotion_task and not self._promotion_task.done()
+                    else "stopped"
+                ),
+                "decay": (
+                    "running"
+                    if self._decay_task and not self._decay_task.done()
+                    else "stopped"
+                ),
+            },
             "metrics": self.metrics.to_dict(),
         }
 

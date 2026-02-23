@@ -26,7 +26,9 @@ Integration Points:
 import logging
 import asyncio
 import json
+import threading
 import time
+from collections import OrderedDict
 from typing import Dict, List, Optional, Any, Tuple, Protocol, runtime_checkable
 from dataclasses import dataclass, field
 
@@ -778,14 +780,16 @@ class MultiTierCache:
     
     Provides L1 (in-memory) and optional L2 (Redis) caching 
     for frequently accessed memory contexts.
+    Uses OrderedDict for O(1) LRU eviction instead of list scanning.
     """
     
     def __init__(self, l1_max_size: int = 100, l2_ttl: int = 300):
-        self.l1_cache: Dict[str, Any] = {}
+        self.l1_cache: OrderedDict[str, Any] = OrderedDict()
         self.l1_max_size = l1_max_size
         self.l2_ttl = l2_ttl
-        self._l1_access_order: List[str] = []
         self._redis_client = None
+        self._hits = 0
+        self._misses = 0
         
         # Try to connect to Redis for L2
         try:
@@ -804,6 +808,8 @@ class MultiTierCache:
         """Get value from cache (L1 first, then L2)."""
         # L1 check
         if key in self.l1_cache:
+            self.l1_cache.move_to_end(key)
+            self._hits += 1
             return self.l1_cache[key]
         
         # L2 check
@@ -813,10 +819,12 @@ class MultiTierCache:
                 if val:
                     result = json.loads(val)
                     self._set_l1(key, result)
+                    self._hits += 1
                     return result
             except Exception:
                 pass
         
+        self._misses += 1
         return None
     
     def set(self, key: str, value: Any) -> None:
@@ -832,21 +840,18 @@ class MultiTierCache:
                 pass
     
     def _set_l1(self, key: str, value: Any) -> None:
-        """Set value in L1 with LRU eviction."""
+        """Set value in L1 with O(1) LRU eviction using OrderedDict."""
         if key in self.l1_cache:
-            self._l1_access_order.remove(key)
-        elif len(self.l1_cache) >= self.l1_max_size:
-            evict_key = self._l1_access_order.pop(0)
-            self.l1_cache.pop(evict_key, None)
-        
-        self.l1_cache[key] = value
-        self._l1_access_order.append(key)
+            self.l1_cache.move_to_end(key)
+            self.l1_cache[key] = value
+        else:
+            if len(self.l1_cache) >= self.l1_max_size:
+                self.l1_cache.popitem(last=False)  # O(1) eviction
+            self.l1_cache[key] = value
     
     def invalidate(self, key: str) -> None:
         """Remove key from all cache tiers."""
         self.l1_cache.pop(key, None)
-        if key in self._l1_access_order:
-            self._l1_access_order.remove(key)
         if self._redis_client:
             try:
                 self._redis_client.delete(f"mtc:{key}")
@@ -856,14 +861,17 @@ class MultiTierCache:
     def clear(self) -> None:
         """Clear all caches."""
         self.l1_cache.clear()
-        self._l1_access_order.clear()
     
     def stats(self) -> Dict[str, Any]:
         """Return cache statistics."""
+        total = self._hits + self._misses
         return {
             "l1_size": len(self.l1_cache),
             "l1_max_size": self.l1_max_size,
             "l2_available": self._redis_client is not None,
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": round(self._hits / total * 100, 1) if total > 0 else 0.0,
         }
 
 
@@ -877,14 +885,25 @@ class BatchMemoryProcessor:
     Process multiple memory operations in batch for efficiency.
     
     Reduces database round-trips by batching memory reads/writes.
+    Supports parallel retrieval and actual data persistence.
     """
     
-    def __init__(self, batch_size: int = 50, flush_interval: float = 5.0):
+    def __init__(
+        self,
+        batch_size: int = 50,
+        flush_interval: float = 5.0,
+        memory_manager: Any = None,
+    ):
         self.batch_size = batch_size
         self.flush_interval = flush_interval
+        self._memory_manager = memory_manager
         self._pending_writes: List[Dict[str, Any]] = []
         self._last_flush = time.time()
         self._cache = MultiTierCache()
+        self._write_lock = asyncio.Lock() if asyncio else threading.Lock()
+        self._flush_count = 0
+        self._total_writes = 0
+        self._failed_writes = 0
     
     async def batch_retrieve(
         self, 
@@ -892,7 +911,10 @@ class BatchMemoryProcessor:
         memory_manager: Any = None
     ) -> Dict[str, List[Any]]:
         """
-        Retrieve memories for multiple patients in a single batch.
+        Retrieve memories for multiple patients in parallel.
+        
+        Uses asyncio.gather for concurrent retrieval, significantly
+        reducing total fetch time for multi-patient operations.
         
         Args:
             patient_ids: List of patient IDs to retrieve
@@ -901,6 +923,7 @@ class BatchMemoryProcessor:
         Returns:
             Dict mapping patient_id to their memories
         """
+        mgr = memory_manager or self._memory_manager
         results: Dict[str, List[Any]] = {}
         uncached_ids = []
         
@@ -912,16 +935,28 @@ class BatchMemoryProcessor:
             else:
                 uncached_ids.append(pid)
         
-        # Fetch uncached from database
-        if uncached_ids and memory_manager:
-            for pid in uncached_ids:
+        # Fetch uncached from database in parallel
+        if uncached_ids and mgr:
+            async def _fetch_patient(pid: str):
                 try:
-                    memories = await memory_manager.retrieve(pid)
-                    results[pid] = memories if memories else []
-                    self._cache.set(f"patient:{pid}", results[pid])
+                    memories = await mgr.retrieve(pid)
+                    return pid, memories if memories else []
                 except Exception as e:
                     logger.warning(f"Failed to retrieve memories for {pid}: {e}")
-                    results[pid] = []
+                    return pid, []
+
+            fetch_results = await asyncio.gather(
+                *[_fetch_patient(pid) for pid in uncached_ids],
+                return_exceptions=True
+            )
+            
+            for result in fetch_results:
+                if isinstance(result, Exception):
+                    logger.warning(f"Batch retrieval error: {result}")
+                    continue
+                pid, memories = result
+                results[pid] = memories
+                self._cache.set(f"patient:{pid}", memories)
         
         return results
     
@@ -930,10 +965,26 @@ class BatchMemoryProcessor:
         self._pending_writes.append(operation)
         
         if len(self._pending_writes) >= self.batch_size:
-            asyncio.create_task(self.flush())
+            # Schedule flush - handle both async and sync contexts
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.flush())
+            except RuntimeError:
+                # No running event loop, flush synchronously via thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(asyncio.run, self.flush())
     
     async def flush(self) -> int:
-        """Flush pending write operations."""
+        """
+        Flush pending write operations to the memory manager.
+        
+        Actually persists each queued operation to the database
+        through the memory manager, with error handling per-operation.
+        
+        Returns:
+            Number of successfully processed operations
+        """
         if not self._pending_writes:
             return 0
         
@@ -942,13 +993,62 @@ class BatchMemoryProcessor:
         self._last_flush = time.time()
         
         processed = 0
+        mgr = self._memory_manager
+        
         for op in writes:
             try:
-                # Process each write operation
+                op_type = op.get("type", "store")
+                patient_id = op.get("patient_id", op.get("user_id", "unknown"))
+                content = op.get("content", "")
+                memory_type = op.get("memory_type", "general")
+                metadata = op.get("metadata", {})
+                session_id = op.get("session_id", "default")
+                
+                if mgr and op_type == "store":
+                    await mgr.store_memory(
+                        patient_id=patient_id,
+                        memory_type=memory_type,
+                        content=content,
+                        session_id=session_id,
+                        metadata=metadata,
+                    )
+                elif mgr and op_type == "conversation":
+                    patient_memory = await mgr.get_patient_memory(patient_id, session_id)
+                    await patient_memory.add_conversation(
+                        user_message=op.get("user_message", ""),
+                        assistant_message=op.get("assistant_message", ""),
+                        intent=op.get("intent"),
+                        sentiment=op.get("sentiment"),
+                        metadata=metadata,
+                    )
+                elif mgr and op_type == "health_data":
+                    patient_memory = await mgr.get_patient_memory(patient_id, session_id)
+                    await patient_memory.add_health_data(
+                        data_type=op.get("data_type", "unknown"),
+                        data=op.get("data", {}),
+                        severity=op.get("severity"),
+                        metadata=metadata,
+                    )
+                else:
+                    logger.warning(
+                        f"Unknown write operation type '{op_type}' or no memory manager"
+                    )
+                    continue
+                
                 processed += 1
+                self._total_writes += 1
+                
+                # Invalidate cache for this patient
+                self._cache.invalidate(f"patient:{patient_id}")
+                
             except Exception as e:
+                self._failed_writes += 1
                 logger.error(f"Failed to process write operation: {e}")
         
+        self._flush_count += 1
+        logger.debug(
+            f"Batch flush complete: {processed}/{len(writes)} operations persisted"
+        )
         return processed
     
     def stats(self) -> Dict[str, Any]:
@@ -957,6 +1057,9 @@ class BatchMemoryProcessor:
             "pending_writes": len(self._pending_writes),
             "batch_size": self.batch_size,
             "last_flush": self._last_flush,
+            "flush_count": self._flush_count,
+            "total_writes": self._total_writes,
+            "failed_writes": self._failed_writes,
             "cache_stats": self._cache.stats(),
         }
 

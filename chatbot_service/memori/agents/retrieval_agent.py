@@ -1097,22 +1097,103 @@ class MemorySearchEngine:
             logger.error(f"Error creating search query from dict: {e}")
             return self._create_fallback_query(original_query)
 
+    def _execute_semantic_search(
+        self, query: str, db_manager, user_id: str, limit: int
+    ) -> list[dict[str, Any]]:
+        """
+        Execute semantic search using embedding similarity.
+
+        Uses the EmbeddingSearchEngine to find semantically similar memories
+        even when exact keywords don't match.
+
+        Args:
+            query: Search query text
+            db_manager: Database manager instance
+            user_id: User identifier for multi-tenant isolation
+            limit: Maximum results to return
+
+        Returns:
+            List of memory dicts with similarity_score field added
+        """
+        try:
+            # Initialize embedding engine lazily
+            if not hasattr(self, '_embedding_engine') or self._embedding_engine is None:
+                self._embedding_engine = EmbeddingSearchEngine(
+                    use_local=True,
+                    openai_client=self.client,
+                    similarity_threshold=0.4,
+                )
+
+            # Fetch candidate memories from database
+            try:
+                from ..database.search_service import SearchService
+                db_type = self._detect_database_type(db_manager)
+
+                with db_manager.SessionLocal() as session:
+                    search_service = SearchService(session, db_type)
+                    # Get a larger candidate pool for semantic ranking
+                    candidates = search_service.search_memories(
+                        query="", user_id=user_id, limit=limit * 5
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to fetch candidates for semantic search: {e}")
+                candidates = []
+
+            if not candidates:
+                return []
+
+            # Use embedding engine to rank by semantic similarity
+            ranked_results = self._embedding_engine.search(
+                query=query,
+                memories=candidates,
+                content_field="content",
+                limit=limit,
+            )
+
+            # Enrich results with similarity metadata
+            for result in ranked_results:
+                result["search_strategy"] = "semantic_search"
+                result["search_reasoning"] = (
+                    f"Semantic similarity match (score: {result.get('similarity_score', 'N/A'):.3f})"
+                )
+
+            logger.debug(
+                f"Semantic search for '{query}': {len(ranked_results)} results "
+                f"(from {len(candidates)} candidates)"
+            )
+            return ranked_results
+
+        except Exception as e:
+            logger.error(f"Semantic search failed: {e}", exc_info=True)
+            return []
+
     def _execute_importance_search(
         self, search_plan: MemorySearchQuery, db_manager, user_id: str, limit: int
     ) -> list[dict[str, Any]]:
-        """Execute importance-based search"""
+        """Execute importance-based search with SQL-level filtering."""
         min_importance = max(
             search_plan.min_importance, 0.7
         )  # Default to high importance
 
-        all_results = db_manager.search_memories(
-            query="", user_id=user_id, limit=limit * 2
-        )
+        try:
+            # Try SQL-level filtering first for performance
+            from ..database.search_service import SearchService
+            db_type = self._detect_database_type(db_manager)
+
+            with db_manager.SessionLocal() as session:
+                search_service = SearchService(session, db_type)
+                all_results = search_service.search_memories(
+                    query="", user_id=user_id, limit=limit * 2
+                )
+        except Exception:
+            all_results = db_manager.search_memories(
+                query="", user_id=user_id, limit=limit * 2
+            )
 
         high_importance_results = [
             result
             for result in all_results
-            if result.get("importance_score", 0) >= min_importance
+            if isinstance(result, dict) and result.get("importance_score", 0) >= min_importance
         ]
 
         return high_importance_results[:limit]

@@ -169,7 +169,10 @@ class MemoriRAGBridge:
         sync_to_rag: bool = True,
     ) -> Dict[str, Any]:
         """
-        Add a memory through the bridge (stores in both systems).
+        Add a memory through the bridge (stores in both systems concurrently).
+
+        Stores to Memori and RAG in parallel using asyncio.gather for
+        simultaneous data ingestion from the AI pipeline.
 
         Args:
             user_id: User identifier
@@ -183,8 +186,10 @@ class MemoriRAGBridge:
         """
         result = {"memori_id": None, "rag_id": None, "status": "pending"}
 
-        # 1. Store in Memori (primary)
-        if self.memori:
+        async def _store_in_memori():
+            """Store in Memori (primary structured storage)."""
+            if not self.memori:
+                return None
             try:
                 memori_result = self.memori.record_conversation(
                     user_input=content,
@@ -195,18 +200,19 @@ class MemoriRAGBridge:
                         **(metadata or {}),
                     },
                 )
-                result["memori_id"] = memori_result.get("memory_id")
+                return memori_result.get("memory_id")
             except Exception as e:
                 logger.error(f"Failed to store in Memori: {e}")
-                result["memori_error"] = str(e)
+                return None
 
-        # 2. Store in RAG (semantic search)
-        if self.vector_store and sync_to_rag:
+        async def _store_in_rag(memori_id=None):
+            """Store in RAG (semantic vector storage)."""
+            if not self.vector_store or not sync_to_rag:
+                return None
             try:
                 rag_id = self.vector_store.add_user_memory(
                     user_id=user_id,
-                    memory_id=result.get("memori_id")
-                    or f"mem_{datetime.now().timestamp()}",
+                    memory_id=memori_id or f"mem_{datetime.now().timestamp()}",
                     content=content,
                     metadata={
                         "category": category,
@@ -215,10 +221,36 @@ class MemoriRAGBridge:
                         **(metadata or {}),
                     },
                 )
-                result["rag_id"] = rag_id
+                return rag_id
             except Exception as e:
                 logger.error(f"Failed to store in RAG: {e}")
-                result["rag_error"] = str(e)
+                return None
+
+        # Execute both stores concurrently
+        tasks = []
+        if self.memori:
+            tasks.append(_store_in_memori())
+        if self.vector_store and sync_to_rag:
+            tasks.append(_store_in_rag())
+
+        if tasks:
+            store_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            idx = 0
+            if self.memori:
+                r = store_results[idx]
+                if isinstance(r, Exception):
+                    result["memori_error"] = str(r)
+                else:
+                    result["memori_id"] = r
+                idx += 1
+
+            if self.vector_store and sync_to_rag:
+                r = store_results[idx]
+                if isinstance(r, Exception):
+                    result["rag_error"] = str(r)
+                else:
+                    result["rag_id"] = r
 
         result["status"] = (
             "success" if result.get("memori_id") or result.get("rag_id") else "failed"
@@ -307,14 +339,17 @@ class MemoriRAGBridge:
             # Use Memori's built-in search
             results = self.memori.search(query, limit=top_k)
 
-            # Normalize results
+            # Normalize results with proper scoring (avoids negative scores)
             normalized = []
+            total = len(results) if results else 1
             for i, r in enumerate(results):
+                # Use reciprocal rank scoring: 1/(rank+1), always positive
+                score = 1.0 / (i + 1)
                 normalized.append(
                     {
                         "content": r.get("content", r.get("message", "")),
                         "metadata": r.get("metadata", {}),
-                        "score": 1.0 - (i * 0.1),  # Position-based score
+                        "score": score,
                         "source": "memori",
                         "id": r.get("id", r.get("memory_id")),
                     }
@@ -559,17 +594,54 @@ class MemoriRAGBridge:
             return []
 
     def _sync_batch(self, batch: List[Dict]) -> None:
-        """Sync a batch of memories to RAG."""
-        for memory in batch:
-            try:
-                self.vector_store.add_user_memory(
-                    user_id=memory["user_id"],
-                    memory_id=memory["id"],
-                    content=memory["content"],
-                    metadata=memory["metadata"],
-                )
-            except Exception as e:
-                logger.error(f"Failed to sync memory {memory['id']}: {e}")
+        """
+        Sync a batch of memories to RAG with parallel processing.
+        
+        Uses asyncio.gather for concurrent vector store writes when possible,
+        falling back to sequential writes.
+        """
+        if not batch:
+            return
+
+        async def _async_sync():
+            """Concurrent batch sync."""
+            tasks = []
+            for memory in batch:
+                tasks.append(self._sync_single_memory(memory))
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.error(f"Failed to sync memory {batch[i].get('id', i)}: {result}")
+
+        async def _sync_single_memory(memory: Dict) -> None:
+            """Sync a single memory, wrapped for async gather."""
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None,
+                self.vector_store.add_user_memory,
+                memory["user_id"],
+                memory["id"],
+                memory["content"],
+                memory["metadata"],
+            )
+
+        # Try async batch first
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, use create_task
+            loop.create_task(_async_sync())
+        except RuntimeError:
+            # No event loop, fall back to sequential
+            for memory in batch:
+                try:
+                    self.vector_store.add_user_memory(
+                        user_id=memory["user_id"],
+                        memory_id=memory["id"],
+                        content=memory["content"],
+                        metadata=memory["metadata"],
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to sync memory {memory['id']}: {e}")
 
     async def start_background_sync(self) -> None:
         """Start background synchronization task."""

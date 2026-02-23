@@ -332,6 +332,104 @@ class InMemorySessionBuffer(SessionBufferInterface):
                 "max_sessions": self.max_sessions,
             }
 
+    def get_promotable_sessions(
+        self,
+        min_messages: int = 3,
+        min_age_seconds: float = 300,
+    ) -> List[SessionData]:
+        """
+        Get sessions eligible for promotion to long-term memory.
+        
+        Sessions qualify when they have enough context (messages) and
+        have been active long enough to contain meaningful data.
+        
+        Args:
+            min_messages: Minimum number of messages for promotion eligibility
+            min_age_seconds: Minimum age of session in seconds
+            
+        Returns:
+            List of SessionData objects eligible for promotion
+        """
+        promotable = []
+        now = time.time()
+        
+        with self._lock:
+            for session_id, (session_data, created_time) in self._sessions.items():
+                age = now - created_time
+                msg_count = len(session_data.messages)
+                
+                if msg_count >= min_messages and age >= min_age_seconds:
+                    promotable.append(session_data)
+        
+        logger.debug(
+            f"Found {len(promotable)} promotable sessions "
+            f"(min_messages={min_messages}, min_age={min_age_seconds}s)"
+        )
+        return promotable
+
+    def analyze_session_importance(self, session_id: str) -> Dict[str, Any]:
+        """
+        Analyze a session to determine its importance for promotion.
+        
+        Scores the session based on:
+        - Message count and density
+        - Presence of health-related keywords
+        - User engagement level
+        - Content diversity
+        
+        Args:
+            session_id: Session to analyze
+            
+        Returns:
+            Dict with importance metrics
+        """
+        session_data = self.get_session(session_id)
+        if not session_data:
+            return {"importance_score": 0.0, "reason": "session_not_found"}
+        
+        messages = session_data.messages
+        if not messages:
+            return {"importance_score": 0.0, "reason": "no_messages"}
+        
+        # Scoring factors
+        msg_count = len(messages)
+        msg_score = min(msg_count / 10.0, 1.0)  # Normalize to 0-1
+        
+        # Check for medical/health keywords
+        health_keywords = {
+            "pain", "symptom", "medication", "doctor", "diagnosis",
+            "blood pressure", "heart rate", "allergy", "prescription",
+            "treatment", "condition", "surgery", "lab", "test",
+        }
+        all_content = " ".join(m.content.lower() for m in messages)
+        health_matches = sum(1 for kw in health_keywords if kw in all_content)
+        health_score = min(health_matches / 5.0, 1.0)
+        
+        # Engagement: ratio of user messages vs assistant
+        user_msgs = sum(1 for m in messages if m.role == "user")
+        engagement_score = min(user_msgs / max(msg_count, 1), 1.0)
+        
+        # Content diversity (unique words ratio)
+        words = all_content.split()
+        diversity_score = len(set(words)) / max(len(words), 1)
+        
+        # Weighted importance
+        importance_score = (
+            msg_score * 0.2 +
+            health_score * 0.4 +
+            engagement_score * 0.2 +
+            diversity_score * 0.2
+        )
+        
+        return {
+            "importance_score": round(importance_score, 3),
+            "message_count": msg_count,
+            "health_relevance": round(health_score, 3),
+            "engagement": round(engagement_score, 3),
+            "content_diversity": round(diversity_score, 3),
+            "promotable": importance_score >= 0.4,
+        }
+
 
 # ============================================================================
 # Redis Session Buffer
@@ -592,6 +690,169 @@ class RedisSessionBuffer(SessionBufferInterface):
     def is_using_fallback(self) -> bool:
         """Check if using in-memory fallback."""
         return self._using_fallback
+
+    # ========================================================================
+    # Async API (for use in async contexts alongside the rest of the system)
+    # ========================================================================
+
+    async def async_get_session(self, session_id: str) -> Optional[SessionData]:
+        """Async wrapper for get_session."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get_session, session_id)
+
+    async def async_set_session(self, session_data: SessionData) -> bool:
+        """Async wrapper for set_session."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.set_session, session_data)
+
+    async def async_add_message(
+        self,
+        session_id: str,
+        message: SessionMessage,
+        create_if_missing: bool = True,
+    ) -> bool:
+        """Async wrapper for add_message."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, self.add_message, session_id, message, create_if_missing
+        )
+
+    async def async_get_messages(
+        self,
+        session_id: str,
+        limit: Optional[int] = None,
+    ) -> List[SessionMessage]:
+        """Async wrapper for get_messages."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get_messages, session_id, limit)
+
+    # ========================================================================
+    # Promotion Support (Short-term → Long-term)
+    # ========================================================================
+
+    def get_promotable_sessions(
+        self,
+        min_messages: int = 3,
+        min_age_seconds: float = 300,
+    ) -> List[SessionData]:
+        """
+        Get sessions eligible for promotion to long-term memory.
+        
+        For Redis-backed storage, scans all sessions matching the key prefix.
+        Falls back to in-memory buffer's method if using fallback.
+        
+        Args:
+            min_messages: Minimum messages for eligibility
+            min_age_seconds: Minimum session age in seconds
+            
+        Returns:
+            List of promotable SessionData objects
+        """
+        if self._using_fallback and self._fallback_buffer:
+            return self._fallback_buffer.get_promotable_sessions(
+                min_messages=min_messages,
+                min_age_seconds=min_age_seconds,
+            )
+        
+        promotable = []
+        now = datetime.now()
+        
+        try:
+            # Scan Redis for all session keys
+            pattern = f"{self.key_prefix}*"
+            cursor = 0
+            keys = []
+            
+            while True:
+                cursor, batch_keys = self._redis_client.scan(
+                    cursor=cursor, match=pattern, count=100
+                )
+                keys.extend(batch_keys)
+                if cursor == 0:
+                    break
+            
+            # Use Redis pipeline for efficient batch get
+            if keys:
+                pipe = self._redis_client.pipeline()
+                for key in keys:
+                    pipe.get(key)
+                values = pipe.execute()
+                
+                for key, data in zip(keys, values):
+                    if not data:
+                        continue
+                    try:
+                        session_data = SessionData.from_dict(json.loads(data))
+                        msg_count = len(session_data.messages)
+                        
+                        # Check age
+                        try:
+                            created_dt = datetime.fromisoformat(session_data.created_at)
+                            age_seconds = (now - created_dt).total_seconds()
+                        except (ValueError, TypeError):
+                            age_seconds = min_age_seconds + 1  # Assume old enough
+                        
+                        if msg_count >= min_messages and age_seconds >= min_age_seconds:
+                            promotable.append(session_data)
+                    except (json.JSONDecodeError, Exception) as e:
+                        logger.warning(f"Failed to parse session {key}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error scanning promotable sessions: {e}")
+        
+        logger.debug(f"Found {len(promotable)} promotable sessions in Redis")
+        return promotable
+
+    def analyze_session_importance(self, session_id: str) -> Dict[str, Any]:
+        """
+        Analyze a session to determine its importance for promotion.
+        Delegates to the fallback buffer's implementation for consistency.
+        """
+        if self._using_fallback and self._fallback_buffer:
+            return self._fallback_buffer.analyze_session_importance(session_id)
+        
+        session_data = self.get_session(session_id)
+        if not session_data:
+            return {"importance_score": 0.0, "reason": "session_not_found"}
+        
+        messages = session_data.messages
+        if not messages:
+            return {"importance_score": 0.0, "reason": "no_messages"}
+        
+        # Same scoring logic as InMemorySessionBuffer
+        msg_count = len(messages)
+        msg_score = min(msg_count / 10.0, 1.0)
+        
+        health_keywords = {
+            "pain", "symptom", "medication", "doctor", "diagnosis",
+            "blood pressure", "heart rate", "allergy", "prescription",
+            "treatment", "condition", "surgery", "lab", "test",
+        }
+        all_content = " ".join(m.content.lower() for m in messages)
+        health_matches = sum(1 for kw in health_keywords if kw in all_content)
+        health_score = min(health_matches / 5.0, 1.0)
+        
+        user_msgs = sum(1 for m in messages if m.role == "user")
+        engagement_score = min(user_msgs / max(msg_count, 1), 1.0)
+        
+        words = all_content.split()
+        diversity_score = len(set(words)) / max(len(words), 1)
+        
+        importance_score = (
+            msg_score * 0.2 +
+            health_score * 0.4 +
+            engagement_score * 0.2 +
+            diversity_score * 0.2
+        )
+        
+        return {
+            "importance_score": round(importance_score, 3),
+            "message_count": msg_count,
+            "health_relevance": round(health_score, 3),
+            "engagement": round(engagement_score, 3),
+            "content_diversity": round(diversity_score, 3),
+            "promotable": importance_score >= 0.4,
+        }
 
 
 # ============================================================================

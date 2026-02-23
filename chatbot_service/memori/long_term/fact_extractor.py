@@ -427,6 +427,164 @@ class FactExtractor:
             context,
         )
 
+    async def extract_batch(
+        self,
+        texts: List[str],
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        max_concurrent: int = 5,
+    ) -> List[List[ExtractedFact]]:
+        """
+        Extract facts from multiple texts in parallel.
+        
+        Uses asyncio to process multiple texts concurrently, enabling
+        the AI to process multiple inputs simultaneously.
+
+        Args:
+            texts: List of texts to extract facts from
+            user_id: Optional user identifier
+            session_id: Optional session identifier
+            context: Optional context for extraction
+            max_concurrent: Maximum concurrent extractions
+            
+        Returns:
+            List of fact lists, one per input text
+        """
+        if not texts:
+            return []
+
+        loop = asyncio.get_running_loop()
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _extract_with_limit(text: str) -> List[ExtractedFact]:
+            async with semaphore:
+                return await loop.run_in_executor(
+                    None, self.extract, text, user_id, session_id, context
+                )
+
+        tasks = [_extract_with_limit(t) for t in texts if t and t.strip()]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Handle exceptions gracefully
+        final_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Batch extraction failed for text {i}: {result}")
+                final_results.append([])
+            else:
+                final_results.append(result)
+
+        logger.info(
+            f"Batch extraction complete: {len(texts)} texts, "
+            f"{sum(len(r) for r in final_results)} total facts extracted"
+        )
+        return final_results
+
+    async def extract_from_multiple_sources(
+        self,
+        sources: List[Dict[str, Any]],
+        max_concurrent: int = 10,
+    ) -> Dict[str, List[ExtractedFact]]:
+        """
+        Extract facts from multiple data sources simultaneously.
+
+        Each source can be a different type (conversation, health_data, 
+        lab_result, medication_record, etc.) processed in parallel.
+
+        Args:
+            sources: List of source dicts with keys:
+                - 'type': Source type ('conversation', 'health_data', 'lab_result', etc.) 
+                - 'content': Text content to extract from
+                - 'user_id': Optional user identifier  
+                - 'session_id': Optional session identifier
+                - 'metadata': Optional additional metadata
+            max_concurrent: Maximum concurrent extractions
+            
+        Returns:
+            Dict mapping source index to extracted facts
+        """
+        if not sources:
+            return {}
+
+        loop = asyncio.get_running_loop()
+        semaphore = asyncio.Semaphore(max_concurrent)
+        results: Dict[str, List[ExtractedFact]] = {}
+
+        async def _process_source(idx: int, source: Dict[str, Any]) -> tuple:
+            async with semaphore:
+                source_type = source.get("type", "unknown")
+                content = source.get("content", "")
+                user_id = source.get("user_id")
+                session_id = source.get("session_id")
+                metadata = source.get("metadata", {})
+
+                if not content or not content.strip():
+                    return idx, []
+
+                # Enrich context with source type information
+                context = {
+                    "source_type": source_type,
+                    "source_index": idx,
+                    **metadata,
+                }
+
+                # Pre-process based on source type
+                processed_content = self._preprocess_source(source_type, content)
+
+                facts = await loop.run_in_executor(
+                    None, self.extract, processed_content, user_id, session_id, context
+                )
+
+                # Tag facts with source information
+                for fact in facts:
+                    fact.metadata["source_type"] = source_type
+                    fact.metadata["source_index"] = idx
+
+                return idx, facts
+
+        tasks = [_process_source(i, s) for i, s in enumerate(sources)]
+        task_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in task_results:
+            if isinstance(result, Exception):
+                logger.error(f"Multi-source extraction error: {result}")
+                continue
+            idx, facts = result
+            results[str(idx)] = facts
+
+        total_facts = sum(len(f) for f in results.values())
+        logger.info(
+            f"Multi-source extraction complete: {len(sources)} sources, "
+            f"{total_facts} total facts extracted"
+        )
+        return results
+
+    def _preprocess_source(self, source_type: str, content: str) -> str:
+        """
+        Pre-process content based on source type for better extraction.
+        
+        Args:
+            source_type: Type of the data source
+            content: Raw content text
+            
+        Returns:
+            Pre-processed content optimized for extraction
+        """
+        if source_type == "lab_result":
+            # Structure lab results for better pattern matching
+            return f"Lab results show: {content}"
+        elif source_type == "medication_record":
+            return f"Patient is taking {content}"
+        elif source_type == "vital_signs":
+            return f"Vital signs recorded: {content}"
+        elif source_type == "clinical_note":
+            return f"Clinical note: {content}"
+        elif source_type == "radiology_report":
+            return f"Radiology findings: {content}"
+        else:
+            return content
+
 
 # ============================================================================
 # Memory Extraction Worker
@@ -440,9 +598,11 @@ class MemoryExtractionWorker:
     Runs in a separate thread and processes tasks from a queue.
     Supports:
     - Priority-based task processing
+    - Batch processing for efficiency
     - Callback notifications
+    - Persistent storage of extracted facts
+    - Retry logic for failed tasks
     - Graceful shutdown
-    - Error handling with retries
     """
     
     def __init__(
@@ -452,6 +612,7 @@ class MemoryExtractionWorker:
         batch_size: int = 10,
         processing_interval: float = 0.1,
         max_retries: int = 3,
+        persistence_callback: Optional[Callable[[List[ExtractedFact]], None]] = None,
     ):
         """
         Initialize the extraction worker.
@@ -462,14 +623,17 @@ class MemoryExtractionWorker:
             batch_size: Number of tasks to process per batch
             processing_interval: Sleep between processing cycles (seconds)
             max_retries: Maximum retries for failed tasks
+            persistence_callback: Function to persist extracted facts to long-term storage
         """
         self.extractor = extractor or FactExtractor()
         self.max_queue_size = max_queue_size
         self.batch_size = batch_size
         self.processing_interval = processing_interval
         self.max_retries = max_retries
+        self._persistence_callback = persistence_callback
         
         self._task_queue: Queue[ExtractionTask] = Queue(maxsize=max_queue_size)
+        self._retry_queue: Queue[tuple] = Queue()  # (task, retry_count) pairs
         self._results: Dict[str, List[ExtractedFact]] = {}
         self._worker_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -479,6 +643,9 @@ class MemoryExtractionWorker:
         # Metrics
         self._tasks_processed = 0
         self._tasks_failed = 0
+        self._tasks_retried = 0
+        self._batches_processed = 0
+        self._facts_persisted = 0
         self._total_processing_time = 0.0
     
     def start(self) -> None:
@@ -574,49 +741,118 @@ class MemoryExtractionWorker:
             "queue_size": self._task_queue.qsize(),
             "tasks_processed": self._tasks_processed,
             "tasks_failed": self._tasks_failed,
+            "tasks_retried": self._tasks_retried,
+            "batches_processed": self._batches_processed,
+            "facts_persisted": self._facts_persisted,
             "avg_processing_time_ms": avg_time * 1000,
         }
     
+    def set_persistence_callback(
+        self, callback: Callable[[List[ExtractedFact]], None]
+    ) -> None:
+        """Set or update the persistence callback for storing facts to long-term memory."""
+        self._persistence_callback = callback
+        logger.info("Persistence callback updated for extraction worker")
+    
     def _worker_loop(self) -> None:
-        """Main worker loop."""
+        """Main worker loop with batch processing and retry support."""
         while not self._stop_event.is_set():
             try:
-                # Try to get a task with timeout
-                try:
-                    task = self._task_queue.get(timeout=self.processing_interval)
-                except Empty:
+                # Collect a batch of tasks
+                batch: List[ExtractionTask] = []
+                
+                # First, check retry queue
+                while not self._retry_queue.empty() and len(batch) < self.batch_size:
+                    try:
+                        task, retry_count = self._retry_queue.get_nowait()
+                        task.context["_retry_count"] = retry_count
+                        batch.append(task)
+                    except Empty:
+                        break
+                
+                # Then, fill from main queue
+                while len(batch) < self.batch_size:
+                    try:
+                        task = self._task_queue.get(
+                            timeout=self.processing_interval if not batch else 0.01
+                        )
+                        batch.append(task)
+                    except Empty:
+                        break
+                
+                if not batch:
                     continue
                 
-                # Process the task
+                # Process the batch
                 start_time = time.time()
-                try:
-                    facts = self.extractor.extract(
-                        text=task.text,
-                        user_id=task.user_id,
-                        session_id=task.session_id,
-                        context=task.context,
-                    )
-                    
-                    # Store results
-                    with self._lock:
-                        self._results[task.id] = facts
-                        self._tasks_processed += 1
-                        self._total_processing_time += time.time() - start_time
-                    
-                    # Call callback if provided
-                    if task.callback:
-                        try:
-                            task.callback(facts)
-                        except Exception as e:
-                            logger.error(f"Callback failed for task {task.id}: {e}")
-                    
-                except Exception as e:
-                    logger.error(f"Failed to process task {task.id}: {e}")
-                    with self._lock:
-                        self._tasks_failed += 1
+                all_batch_facts: List[ExtractedFact] = []
                 
-                finally:
-                    self._task_queue.task_done()
+                for task in batch:
+                    retry_count = task.context.pop("_retry_count", 0)
+                    try:
+                        facts = self.extractor.extract(
+                            text=task.text,
+                            user_id=task.user_id,
+                            session_id=task.session_id,
+                            context=task.context,
+                        )
+                        
+                        # Store results
+                        with self._lock:
+                            self._results[task.id] = facts
+                            self._tasks_processed += 1
+                        
+                        all_batch_facts.extend(facts)
+                        
+                        # Call callback if provided
+                        if task.callback:
+                            try:
+                                task.callback(facts)
+                            except Exception as e:
+                                logger.error(f"Callback failed for task {task.id}: {e}")
+                        
+                    except Exception as e:
+                        if retry_count < self.max_retries:
+                            # Schedule for retry
+                            self._retry_queue.put((task, retry_count + 1))
+                            with self._lock:
+                                self._tasks_retried += 1
+                            logger.warning(
+                                f"Task {task.id} failed (attempt {retry_count + 1}/{self.max_retries}), "
+                                f"retrying: {e}"
+                            )
+                        else:
+                            logger.error(
+                                f"Task {task.id} permanently failed after {self.max_retries} retries: {e}"
+                            )
+                            with self._lock:
+                                self._tasks_failed += 1
+                    
+                    finally:
+                        self._task_queue.task_done()
+                
+                batch_time = time.time() - start_time
+                with self._lock:
+                    self._total_processing_time += batch_time
+                    self._batches_processed += 1
+                
+                # Persist all extracted facts from this batch to long-term storage
+                if all_batch_facts and self._persistence_callback:
+                    try:
+                        self._persistence_callback(all_batch_facts)
+                        with self._lock:
+                            self._facts_persisted += len(all_batch_facts)
+                        logger.debug(
+                            f"Persisted {len(all_batch_facts)} facts from batch of {len(batch)} tasks"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to persist batch facts: {e}")
+                
+                logger.debug(
+                    f"Batch processed: {len(batch)} tasks, "
+                    f"{len(all_batch_facts)} facts, "
+                    f"{batch_time*1000:.1f}ms"
+                )
                     
             except Exception as e:
                 logger.error(f"Worker loop error: {e}")

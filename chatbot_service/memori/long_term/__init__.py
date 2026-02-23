@@ -2,7 +2,8 @@
 Long-term Memory Module for Memori
 
 Provides persistent fact extraction and memory consolidation for AI agents.
-Supports background processing and async memory operations.
+Supports background processing, async memory operations, and parallel
+multi-source data extraction.
 """
 
 from .fact_extractor import (
@@ -10,6 +11,11 @@ from .fact_extractor import (
     MemoryExtractionWorker,
     get_fact_extractor,
     get_extraction_worker,
+    shutdown_extraction_worker,
+    ExtractedFact,
+    ExtractionTask,
+    FactCategory,
+    MedicalPatternMatcher,
 )
 
 __all__ = [
@@ -17,4 +23,9 @@ __all__ = [
     "MemoryExtractionWorker",
     "get_fact_extractor",
     "get_extraction_worker",
+    "shutdown_extraction_worker",
+    "ExtractedFact",
+    "ExtractionTask",
+    "FactCategory",
+    "MedicalPatternMatcher",
 ]
