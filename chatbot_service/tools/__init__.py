@@ -15,7 +15,6 @@ Features:
 - Execution with error handling
 - Safe calculator (AST-based, no eval)
 - Structured error handling with recovery suggestions
-- Parallel execution support
 
 Example:
     >>> from tools.openfda import DrugLabelQuerier, DrugEnforcementQuerier
@@ -42,7 +41,6 @@ from .tool_registry import (
 # P0 & P1 components
 from .safe_calculator import SafeCalculator, safe_evaluate
 from .tool_errors import ToolError, ToolErrorHandler, create_tool_error
-from .parallel_executor import ParallelToolExecutor, ToolCall, ExecutionResult
 
 # MedGemma Integration Imports
 from .fhir.fhir_client import get_fhir_client
@@ -74,11 +72,6 @@ __all__ = [
     "ToolErrorHandler",
     "create_tool_error",
     
-    # Parallel execution
-    "ParallelToolExecutor",
-    "ToolCall",
-    "ExecutionResult",
-
     # MedGemma Integration
     "get_fhir_client",
     "get_fhir_tool",
