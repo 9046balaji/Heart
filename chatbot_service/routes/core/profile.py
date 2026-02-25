@@ -114,7 +114,7 @@ async def get_profile(user_id: str):
     try:
         # Fetch user base info
         user_row = await db.fetch_one(
-            "SELECT * FROM users WHERE id = $1",
+            "SELECT * FROM users WHERE user_id = $1",
             (user_id,)
         )
 
@@ -238,7 +238,7 @@ async def update_profile(user_id: str, update: ProfileUpdate):
 
     try:
         await db.execute_query(
-            f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ${param_idx}",
+            f"UPDATE users SET {', '.join(set_clauses)} WHERE user_id = ${param_idx}",
             tuple(params),
         )
     except Exception as e:
@@ -255,7 +255,7 @@ async def update_avatar(user_id: str, body: AvatarUpdate):
     db = await _get_db()
     try:
         await db.execute_query(
-            "UPDATE users SET avatar = $1, updated_at = $2 WHERE id = $3",
+            "UPDATE users SET avatar = $1, updated_at = $2 WHERE user_id = $3",
             (body.avatar, datetime.utcnow(), user_id),
         )
         return {"message": "Avatar updated", "avatar": body.avatar}

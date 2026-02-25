@@ -16,6 +16,7 @@ Uses rag/multimodal/ components for:
 
 import os
 import uuid
+import json
 import tempfile
 import logging
 from datetime import datetime
@@ -79,10 +80,95 @@ class DocumentQueryResponse(BaseModel):
 
 
 # ============================================================
-# In-Memory Document Store (fallback when ingestion service unavailable)
+# PostgreSQL-Backed Document Store
 # ============================================================
 
-_documents_store: List[Dict[str, Any]] = []
+async def _get_db():
+    """Get the PostgreSQL database instance."""
+    from core.database.postgres_db import get_database
+    db = await get_database()
+    return db  # May be None if DB unavailable
+
+
+async def _db_store_document(doc: Dict[str, Any]) -> bool:
+    """Persist a document record to PostgreSQL. Returns True on success."""
+    db = await _get_db()
+    if not db or not db.pool:
+        logger.warning("Database not available — document metadata will not persist across restarts")
+        return False
+    try:
+        await db.execute_query(
+            """
+            INSERT INTO documents (doc_id, title, content, content_type, source, metadata_json)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (doc_id) DO UPDATE SET
+                title = EXCLUDED.title,
+                metadata_json = EXCLUDED.metadata_json,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                doc["id"],
+                doc.get("filename", ""),
+                doc.get("description") or "",
+                doc.get("classification", {}).get("document_type", "medical"),
+                "upload",
+                json.dumps(doc),            # store full metadata blob
+            ),
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to persist document to DB: {e}")
+        return False
+
+
+async def _db_list_documents(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Load document records from PostgreSQL."""
+    db = await _get_db()
+    if not db or not db.pool:
+        return []
+    try:
+        if user_id:
+            # IMPORTANT: metadata_json->>'user_id' returns TEXT, so the
+            # parameter must also be a string.  The JWT payload stores
+            # user_id as an int, causing asyncpg to reject the query
+            # with "expected str, got int" if we don't cast here.
+            rows = await db.fetch_all(
+                "SELECT metadata_json FROM documents WHERE source = 'upload' "
+                "AND metadata_json->>'user_id' = $1 ORDER BY created_at DESC",
+                (str(user_id),),
+            )
+        else:
+            rows = await db.fetch_all(
+                "SELECT metadata_json FROM documents WHERE source = 'upload' ORDER BY created_at DESC"
+            )
+        docs = []
+        for row in rows:
+            meta = row.get("metadata_json")
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            if meta:
+                docs.append(meta)
+        return docs
+    except Exception as e:
+        logger.error(f"Failed to load documents from DB: {e}")
+        return []
+
+
+async def _db_delete_document(doc_id: str) -> bool:
+    """Delete a document record from PostgreSQL."""
+    db = await _get_db()
+    if not db or not db.pool:
+        return False
+    try:
+        await db.execute_query(
+            "DELETE FROM documents WHERE doc_id = $1",
+            (doc_id,),
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete document from DB: {e}")
+        return False
+
 
 # ============================================================
 # Lazy Service Initialization
@@ -168,10 +254,32 @@ def _get_query_service():
 async def list_documents(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """List available documents (status overview)."""
+    """List available documents (status overview) from PostgreSQL."""
+    user_id = current_user.get("user_id") or current_user.get("sub")
+    # Ensure user_id is a string for consistent JSONB text comparison
+    if user_id is not None:
+        user_id = str(user_id)
+    raw_docs = await _db_list_documents(user_id)
+
+    # Normalise field names so the frontend (expects document_id, created_at)
+    # always receives a consistent shape regardless of how the record was stored.
+    docs = []
+    for d in raw_docs:
+        doc = dict(d)  # shallow copy
+        # Ensure document_id exists (backend historically stored as 'id')
+        if "document_id" not in doc:
+            doc["document_id"] = doc.get("id", doc.get("doc_id", ""))
+        # Ensure created_at exists (backend historically stored as 'uploaded_at')
+        if "created_at" not in doc:
+            doc["created_at"] = doc.get("uploaded_at", datetime.now().isoformat())
+        # Ensure content_type exists
+        if "content_type" not in doc:
+            doc["content_type"] = doc.get("classification", {}).get("document_type", "medical")
+        docs.append(doc)
+
     return {
-        "documents": _documents_store,
-        "total": len(_documents_store),
+        "documents": docs,
+        "total": len(docs),
         "message": "Document listing available. Upload documents via POST /documents/upload.",
     }
 
@@ -327,16 +435,23 @@ async def upload_document(
                     pass
                 
                 if result.success:
-                    # Store in in-memory list
-                    _documents_store.append({
+                    # Persist to PostgreSQL
+                    _now = datetime.now().isoformat()
+                    _resolved_uid = user_id or (current_user.get("user_id") or current_user.get("sub"))
+                    doc_record = {
                         "id": result.doc_id,
+                        "document_id": result.doc_id,
                         "filename": file.filename,
                         "classification": {"document_type": category, "category": category},
                         "status": "processed",
-                        "uploaded_at": datetime.now().isoformat(),
+                        "uploaded_at": _now,
+                        "created_at": _now,
                         "file_size": total_bytes,
+                        "content_type": category or "medical",
                         "description": description,
-                    })
+                        "user_id": str(_resolved_uid) if _resolved_uid is not None else None,
+                    }
+                    await _db_store_document(doc_record)
                     
                     return DocumentUploadResponse(
                         success=True,
@@ -365,15 +480,22 @@ async def upload_document(
         except Exception:
             pass
         
-        _documents_store.append({
+        _now = datetime.now().isoformat()
+        _resolved_uid = user_id or (current_user.get("user_id") or current_user.get("sub"))
+        fallback_record = {
             "id": doc_id,
+            "document_id": doc_id,
             "filename": file.filename,
             "classification": {"document_type": category or "medical", "category": category or "medical"},
             "status": "uploaded",
-            "uploaded_at": datetime.now().isoformat(),
+            "uploaded_at": _now,
+            "created_at": _now,
             "file_size": total_bytes,
+            "content_type": category or "medical",
             "description": description,
-        })
+            "user_id": str(_resolved_uid) if _resolved_uid is not None else None,
+        }
+        await _db_store_document(fallback_record)
         
         return DocumentUploadResponse(
             success=True,
@@ -615,25 +737,23 @@ async def delete_document(
         Deletion confirmation
     """
     try:
-        from rag.store.vector_store import get_vector_store
-        
-        vector_store = get_vector_store()
-        
-        # Delete all chunks with this doc_id
-        if hasattr(vector_store, "delete_by_metadata"):
-            deleted_count = vector_store.delete_by_metadata({"doc_id": doc_id})
-            return {
-                "success": True,
-                "doc_id": doc_id,
-                "chunks_deleted": deleted_count,
-            }
-        else:
-            # Fallback: mark as deleted but can't remove
-            return {
-                "success": False,
-                "doc_id": doc_id,
-                "message": "Deletion not supported by vector store",
-            }
+        # Delete from PostgreSQL document store
+        await _db_delete_document(doc_id)
+
+        # Also try to delete vector chunks
+        try:
+            from rag.store.vector_store import get_vector_store
+            vector_store = get_vector_store()
+            if hasattr(vector_store, "delete_by_metadata"):
+                vector_store.delete_by_metadata({"doc_id": doc_id})
+        except Exception:
+            pass  # vector store cleanup is best-effort
+
+        return {
+            "success": True,
+            "doc_id": doc_id,
+            "message": "Document deleted",
+        }
     
     except Exception as e:
         logger.error(f"Document deletion failed: {e}")
