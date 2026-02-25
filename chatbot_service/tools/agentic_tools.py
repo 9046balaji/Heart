@@ -395,7 +395,7 @@ async def verified_web_search(query: str, source: str = "all") -> ToolResult:
     Does NOT require DI context.
     """
     try:
-        results = await search_verified_sources(query, source)
+        results = await search_verified_sources(query, max_results=5)
         return ToolResult(
             success=True,
             data={

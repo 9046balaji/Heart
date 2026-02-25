@@ -844,7 +844,7 @@ class VerifiedWebSearchTool:
                 remove_overlay_elements=True,
                 # ✅ NEW: Performance & reliability improvements
                 wait_until="domcontentloaded",  # Don't wait for full page load
-                timeout=10,  # Per-URL timeout in seconds
+                page_timeout=10000,  # Per-URL timeout in milliseconds
                 only_main_content=True,  # Extract only main content (faster)
             )
             
@@ -853,7 +853,6 @@ class VerifiedWebSearchTool:
                 crawled = await crawler.arun_many(
                     urls[:num_results],
                     config=run_cfg,
-                    timeout=15  # Overall crawl timeout
                 )
                 
                 for idx, crawl_result in enumerate(crawled):

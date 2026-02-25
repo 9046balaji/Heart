@@ -92,24 +92,30 @@ class ClinicalGuidelinesSearch:
             # If we want structured results, we might need to access the underlying searcher 
             # or parse the output. For now, we'll use the run method and wrap the result.
             
-            raw_results = await self.web_search.run(enhanced_query)
+            search_response = await self.web_search.search(enhanced_query, num_results=5)
             
-            # Since VerifiedWebSearchTool returns a string summary, we'll wrap it
-            # into a single result for now, unless we modify WebSearchTool to return objects.
-            # To be safe and compatible with existing tools, we'll return a list 
-            # containing the summary.
+            # search() returns a WebSearchResponse with .results list of WebSearchResult
+            guidelines = []
+            if search_response and search_response.results:
+                for r in search_response.results:
+                    guidelines.append(GuidelineResult(
+                        title=r.title or f"Guidelines for {query}",
+                        source=r.domain or "Web Search",
+                        url=r.url or "",
+                        summary=r.content or "",
+                        publication_date=None
+                    ))
             
-            # Ideally, we would parse the raw search results (urls, titles).
-            # If VerifiedWebSearchTool doesn't expose them, we can't fully structure them without changes.
-            # For this implementation, we will create a generic result.
+            if not guidelines:
+                guidelines.append(GuidelineResult(
+                    title=f"Guidelines for {query}",
+                    source="Web Search",
+                    url="",
+                    summary="No guideline results found",
+                    publication_date=None
+                ))
             
-            return [GuidelineResult(
-                title=f"Guidelines for {query}",
-                source="Web Search",
-                url="",
-                summary=str(raw_results),
-                publication_date=None
-            )]
+            return guidelines
             
         except Exception as e:
             logger.error(f"Guideline search failed: {e}")
