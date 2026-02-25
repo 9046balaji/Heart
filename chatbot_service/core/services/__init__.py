@@ -17,8 +17,6 @@ from core.services.health_service import (
     HealthRecordDB,
     get_health_service,
     reset_health_service,
-    SessionLocal,
-    engine,
 )
 
 __all__ = [
@@ -31,6 +29,4 @@ __all__ = [
     "HealthRecordDB",
     "get_health_service",
     "reset_health_service",
-    "SessionLocal",
-    "engine",
 ]

@@ -116,37 +116,54 @@ class PromptRegistry:
         self._version_cache: Dict[str, str] = {}
         self._audit_log: List[Dict[str, Any]] = []
         
-        logger.info(f"PromptRegistry initialized. Cache directory: {self.cache_dir}")
+        # Track which categories have been loaded (lazy loading)
+        self._loaded_categories: set = set()
         
-        # Load prompts on initialization
-        self._load_prompts()
+        logger.info(f"PromptRegistry initialized (lazy loading). Cache directory: {self.cache_dir}")
     
-    def _load_prompts(self) -> None:
-        """Load all prompts from system_prompts module into memory cache."""
+    def _load_category(self, category: str) -> None:
+        """Lazy-load prompts for a single category on first access.
+        
+        This avoids loading ALL prompts into memory at startup,
+        saving context window space when only specific prompts are needed.
+        """
+        if category in self._loaded_categories:
+            return  # Already loaded
+        
+        if category not in self.PROMPT_CATEGORIES:
+            return  # Unknown category
+        
         try:
-            for category, prompts in self.PROMPT_CATEGORIES.items():
-                self._prompt_cache[category] = {}
-                for prompt_name, prompt_var_name in prompts.items():
-                    try:
-                        prompt_value = getattr(system_prompts, prompt_var_name, None)
-                        if prompt_value is None:
-                            logger.warning(f"Prompt not found: {prompt_var_name} ({category}.{prompt_name})")
-                            continue
-                        
-                        self._prompt_cache[category][prompt_name] = prompt_value
-                        
-                        # Generate and cache version hash
-                        version_hash = self._generate_version_hash(prompt_value)
-                        cache_key = f"{category}:{prompt_name}"
-                        self._version_cache[cache_key] = version_hash
-                        
-                    except Exception as e:
-                        logger.error(f"Error loading prompt {prompt_var_name}: {e}")
+            self._prompt_cache[category] = {}
+            prompts = self.PROMPT_CATEGORIES[category]
+            for prompt_name, prompt_var_name in prompts.items():
+                try:
+                    prompt_value = getattr(system_prompts, prompt_var_name, None)
+                    if prompt_value is None:
+                        logger.warning(f"Prompt not found: {prompt_var_name} ({category}.{prompt_name})")
+                        continue
+                    
+                    self._prompt_cache[category][prompt_name] = prompt_value
+                    
+                    # Generate and cache version hash
+                    version_hash = self._generate_version_hash(prompt_value)
+                    cache_key = f"{category}:{prompt_name}"
+                    self._version_cache[cache_key] = version_hash
+                    
+                except Exception as e:
+                    logger.error(f"Error loading prompt {prompt_var_name}: {e}")
             
-            logger.info(f"✅ Loaded {sum(len(p) for p in self._prompt_cache.values())} prompts")
+            self._loaded_categories.add(category)
+            logger.info(f"✅ Lazy-loaded {len(self._prompt_cache[category])} prompts for category '{category}'")
         except Exception as e:
-            logger.error(f"Failed to load prompts: {e}")
+            logger.error(f"Failed to load category '{category}': {e}")
             raise
+    
+    def _load_all_prompts(self) -> None:
+        """Load ALL prompts (used for export/stats/reload operations)."""
+        for category in self.PROMPT_CATEGORIES:
+            self._load_category(category)
+        logger.info(f"✅ Loaded all {sum(len(p) for p in self._prompt_cache.values())} prompts")
     
     def get_prompt(
         self,
@@ -178,6 +195,9 @@ class PromptRegistry:
             prompt = override_prompt
             logger.debug(f"Using override for {category}.{prompt_name}")
         else:
+            # Lazy-load the category on first access
+            self._load_category(category)
+            
             # Check category exists
             if category not in self._prompt_cache:
                 raise KeyError(f"Unknown prompt category: {category}")
@@ -213,6 +233,7 @@ class PromptRegistry:
             Dictionary of available prompts
         """
         if category:
+            self._load_category(category)
             if category not in self._prompt_cache:
                 raise KeyError(f"Unknown category: {category}")
             return {
@@ -220,6 +241,8 @@ class PromptRegistry:
                 for prompt_name, prompt in self._prompt_cache[category].items()
             }
         else:
+            # Load all categories for full listing
+            self._load_all_prompts()
             return {
                 cat: {
                     prompt_name: f"[{len(prompt)} chars]"
@@ -331,7 +354,8 @@ class PromptRegistry:
         """
         self._prompt_cache.clear()
         self._version_cache.clear()
-        self._load_prompts()
+        self._loaded_categories.clear()
+        self._load_all_prompts()
         logger.info("✅ Prompts reloaded")
     
     def export_prompts(self, filepath: str) -> None:
@@ -342,6 +366,8 @@ class PromptRegistry:
             filepath: Path to export to
         """
         try:
+            # Ensure all prompts are loaded for export
+            self._load_all_prompts()
             export_data = {
                 "exported_at": datetime.now().isoformat(),
                 "prompt_count": sum(len(p) for p in self._prompt_cache.values()),
@@ -360,6 +386,8 @@ class PromptRegistry:
         Returns:
             Dictionary with registry stats
         """
+        # Load all for accurate stats
+        self._load_all_prompts()
         return {
             "total_categories": len(self._prompt_cache),
             "total_prompts": sum(len(p) for p in self._prompt_cache.values()),

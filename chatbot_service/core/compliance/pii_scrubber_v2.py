@@ -245,18 +245,103 @@ class EnhancedPIIScrubber:
     }
     
     # Common English words that should never be redacted as names
-    # Prevents false positives like "The patient" or "has side"
+    # Prevents false positives like "Heart Disease" or "Blood Pressure"
+    # Expanded to cover general vocabulary, medical terms, and words
+    # commonly found in LLM-generated health advisory output
     COMMON_WORDS = {
+        # Articles / Prepositions / Conjunctions / Pronouns
         "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
         "of", "with", "by", "from", "as", "is", "are", "was", "were", "be",
         "being", "have", "has", "had", "do", "does", "did", "will", "would",
         "could", "should", "may", "might", "can", "must", "get", "got", "say",
-        "said", "has", "have", "take", "takes", "took", "taken", "patient",
-        "patient's", "doctor", "doctor's", "nurse", "nurse's", "medicine",
-        "medication", "drug", "treatment", "therapy", "disease", "condition",
-        "symptom", "side", "effect", "used", "used", "used", "use", "uses",
+        "said", "take", "takes", "took", "taken", "its", "it", "you", "your",
+        "my", "our", "their", "his", "her", "we", "they", "them", "him",
         "about", "what", "when", "where", "why", "how", "which", "who", "whom",
-        "there", "these", "those", "that", "this", "other", "such", "than"
+        "there", "these", "those", "that", "this", "other", "such", "than",
+        "into", "over", "under", "between", "through", "during", "after",
+        "before", "above", "below", "each", "every", "both", "all", "any",
+        "some", "most", "more", "less", "also", "very", "just", "only",
+        "not", "nor", "yet", "so", "if", "then", "else", "while", "until",
+        "because", "since", "although", "though", "whether", "either", "neither",
+
+        # Common verbs / adjectives / adverbs
+        "make", "made", "know", "known", "see", "seen", "need", "help",
+        "work", "keep", "start", "show", "try", "call", "come", "give",
+        "given", "find", "think", "tell", "become", "leave", "feel", "put",
+        "seem", "include", "including", "following", "based", "related",
+        "associated", "recommended", "required", "important", "significant",
+        "possible", "likely", "unlikely", "normal", "abnormal", "elevated",
+        "high", "low", "good", "bad", "new", "old", "long", "short",
+        "large", "small", "great", "first", "last", "next", "early", "late",
+        "right", "left", "different", "same", "specific", "general",
+        "overall", "total", "major", "minor", "primary", "secondary",
+        "current", "recent", "regular", "daily", "weekly", "monthly",
+        "certain", "available", "positive", "negative", "active", "common",
+
+        # Medical / Health domain common words
+        "patient", "patients", "doctor", "doctors", "nurse", "nurses",
+        "medicine", "medication", "medications", "drug", "drugs",
+        "treatment", "treatments", "therapy", "disease", "diseases",
+        "condition", "conditions", "symptom", "symptoms", "side", "effect",
+        "effects", "use", "used", "uses", "dose", "dosage", "level", "levels",
+        "risk", "risks", "factor", "factors", "rate", "rates", "test", "tests",
+        "result", "results", "value", "values", "range", "ranges",
+        "blood", "heart", "chest", "body", "brain", "lung", "liver", "kidney",
+        "pressure", "sugar", "pain", "health", "healthy", "care",
+        "clinical", "medical", "cardiac", "cardiovascular", "coronary",
+        "arterial", "venous", "vascular", "pulmonary", "respiratory",
+        "resting", "fasting", "exercise", "physical", "mental", "emotional",
+        "maximum", "minimum", "average", "mean", "median",
+        "prediction", "assessment", "evaluation", "analysis", "diagnosis",
+        "prognosis", "interpretation", "recommendation", "recommendations",
+        "management", "prevention", "monitoring", "screening", "detection",
+        "lifestyle", "dietary", "nutritional", "behavioral", "genetic",
+        "age", "sex", "male", "female", "weight", "height", "mass",
+        "index", "score", "stage", "grade", "class", "category",
+        "summary", "report", "note", "notes", "plan", "history",
+        "information", "data", "evidence", "research", "study", "studies",
+        "source", "sources", "reference", "references", "guideline", "guidelines",
+        "standard", "protocol", "procedure", "intervention", "approach",
+        "target", "goal", "aim", "outcome", "outcomes", "benefit", "benefits",
+        "reduces", "reduce", "increase", "increases", "decrease", "decreases",
+        "improve", "improves", "maintain", "prevent", "manage", "control",
+        "lower", "raise", "check", "checks", "measure", "measures",
+        "intake", "output", "consumption", "restriction", "modification",
+        "changes", "change", "step", "steps", "action", "actions",
+        "angina", "stroke", "attack", "failure", "arrest",
+        "hypertrophy", "stenosis", "artery", "arteries", "vein", "veins",
+        "muscle", "tissue", "cell", "cells", "organ", "system",
+        "function", "structure", "volume", "flow", "rhythm", "beat",
+        "reading", "readings", "measurement", "measurements",
+        "ecg", "ekg", "echo", "stress", "slope", "segment", "wave",
+        "depression", "elevation", "interval", "duration", "amplitude",
+        "abnormality", "finding", "findings", "indicator", "indicators",
+        "contributor", "contributors", "predictor", "predictors",
+        "protective", "harmful", "beneficial", "adverse", "chronic",
+        "acute", "severe", "mild", "moderate", "borderline",
+        "diet", "nutrition", "sodium", "potassium", "fiber",
+        "saturated", "trans", "unsaturated", "fatty", "lean",
+        "whole", "grain", "grains", "fruit", "fruits", "vegetable", "vegetables",
+        "smoking", "alcohol", "caffeine", "cessation", "abstinence",
+        "walking", "running", "swimming", "cycling", "aerobic",
+        "strength", "flexibility", "endurance", "recovery", "rest",
+        "sleep", "relaxation", "meditation", "yoga",
+        "professional", "specialist", "cardiologist", "physician",
+        "consultant", "provider", "healthcare", "hospital", "clinic",
+        "emergency", "urgent", "routine", "follow", "visit",
+        "appointment", "consultation", "referral", "triage",
+        "disclaimer", "warning", "caution", "notice", "advisory",
+        "general", "educational", "informational", "personalized",
+        "individual", "personal", "comprehensive", "detailed", "brief",
+        "actionable", "practical", "effective", "safe", "unsafe",
+        "approved", "certified", "verified", "validated", "trusted",
+        "continue", "continued", "consider", "consult", "discuss",
+        "seek", "obtain", "review", "evaluate", "assess",
+        "probability", "confidence", "likelihood", "percentage",
+        "unlikely", "likely", "possible", "probable", "definite",
+        "Contributors", "section", "paragraph", "table", "list",
+        "item", "point", "number", "figure", "image",
+        "thinq", "cardio",
     }
     
     # Regex patterns enhanced with medical context
@@ -286,8 +371,15 @@ class EnhancedPIIScrubber:
         
         # Patient names with titles - IMPROVED
         # Handles: "Mr. John Doe", "Dr. Jane Smith", "Mrs. M. Johnson"
-        (r"\b(?:Mr|Mrs|Ms|Dr|Prof|Dr\.|Mr\.|Mrs\.|Ms\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?(?:\s+[A-Z][a-z]+)?\b", "[NAME_REDACTED]"),
-        # First-last name without title
+        # Using (?i) inline flag for title matching only, so case-insensitive
+        # matching applies to the title prefix but the name parts still
+        # require capitalized first letter via [A-Z].
+        (r"(?i:\b(?:Mr|Mrs|Ms|Dr|Prof)\.?)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?(?:\s+[A-Z][a-z]+)?\b", "[NAME_REDACTED]"),
+        # First-last name without title — CONSERVATIVE
+        # Only matches exactly two capitalized words (3+ chars each).
+        # Must NOT be used with re.IGNORECASE (see _regex_scrub).
+        # The COMMON_WORDS / MEDICAL_WHITELIST checks in _regex_scrub
+        # provide additional defence against false positives.
         (r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b", "[NAME_REDACTED]"),
         
         # Hospital/Clinic names (context: "admitted to <NAME>")
@@ -565,14 +657,26 @@ class EnhancedPIIScrubber:
                 # These match "Firstname Lastname" but we need to exclude medical terms
                 if replacement == "[NAME_REDACTED]":
                     # Find all matches first
+                    # CRITICAL: Do NOT use re.IGNORECASE here!
+                    # The name patterns rely on capitalization ([A-Z][a-z]) to
+                    # distinguish "John Smith" from "heart disease". With
+                    # IGNORECASE, [A-Z] matches lowercase too, turning the
+                    # pattern into "any two 3+ letter words" — catastrophic.
                     import re as re_module
-                    matches = list(re_module.finditer(pattern, scrubbed, flags=re.IGNORECASE))
+                    matches = list(re_module.finditer(pattern, scrubbed))
                     
                     # Process matches in reverse order to avoid position shifts
                     for match in reversed(matches):
                         matched_text = match.group(0)
                         matched_lower = matched_text.lower()
                         words = matched_lower.split()
+                        
+                        # Detect if this is a titled name (Mr./Mrs./Dr./etc.)
+                        # Titles are a very strong signal of a real person name,
+                        # so titled matches bypass the context/common-word checks.
+                        _title_prefixes = ("mr.", "mr ", "mrs.", "mrs ", "ms.", "ms ",
+                                           "dr.", "dr ", "prof.", "prof ")
+                        is_titled = any(matched_lower.startswith(p) for p in _title_prefixes)
                         
                         # Skip if any word is a drug name (whitelisted medical term)
                         if any(word in self.MEDICAL_WHITELIST for word in words):
@@ -582,6 +686,14 @@ class EnhancedPIIScrubber:
                         # ✅ NEW: Skip if matched text is a multi-word medical phrase
                         if matched_lower in self.MEDICAL_WHITELIST:
                             logger.debug(f"Skipping whitelisted medical phrase: '{matched_text}'")
+                            continue
+                        
+                        # For titled names, we trust the title as strong PII signal
+                        # and skip context/common-word heuristics that would wrongly
+                        # protect "Mr. Robert Williams" near medical words.
+                        if is_titled:
+                            # Titled names → redact
+                            scrubbed = scrubbed[:match.start()] + replacement + scrubbed[match.end():]
                             continue
                         
                         # ✅ NEW: Check if this is part of a medical phrase using context
@@ -594,18 +706,28 @@ class EnhancedPIIScrubber:
                         # Check if context contains medical terms
                         medical_context_indicators = [
                             "type", "diabetes", "pain", "chest", "heart", "failure",
-                            "renal", "acute", "chronic", "severe", "mild", "moderate"
+                            "renal", "acute", "chronic", "severe", "mild", "moderate",
+                            "blood", "pressure", "risk", "factor", "rate", "level",
+                            "disease", "health", "cardiac", "medical", "clinical",
+                            "exercise", "resting", "fasting", "angina", "stroke",
+                            "cholesterol", "ecg", "ekg", "prediction", "assessment",
+                            "lifestyle", "dietary", "management", "treatment",
+                            "recommendation", "monitoring", "screening", "test",
+                            "result", "normal", "abnormal", "elevated", "high",
+                            "low", "protective", "contributor", "indicator",
+                            "slope", "segment", "depression", "hypertrophy",
+                            "artery", "vein", "muscle", "tissue", "cell",
                         ]
                         if any(indicator in context_str for indicator in medical_context_indicators):
-                            # Additional check: if "type" or "pain" is near, likely medical
-                            if any(indicator in matched_lower for indicator in ["type", "pain"]) or \
-                               any(indicator in c for c in context for indicator in ["type", "pain"]):
-                                logger.debug(f"Skipping medical context match: '{matched_text}'")
-                                continue
+                            logger.debug(f"Skipping medical context match: '{matched_text}'")
+                            continue
                         
-                        # Skip if all words are common English words
-                        if all(word in self.COMMON_WORDS for word in words):
-                            logger.debug(f"Skipping match with only common words: '{matched_text}'")
+                        # Skip if ANY word is a common English word
+                        # In medical text, name-like patterns ("Heart Disease",
+                        # "Blood Pressure") almost always contain common vocabulary.
+                        # Real person names ("John Smith") rarely do.
+                        if any(word in self.COMMON_WORDS for word in words):
+                            logger.debug(f"Skipping match with common word(s): '{matched_text}'")
                             continue
                         
                         # Not whitelisted, apply redaction

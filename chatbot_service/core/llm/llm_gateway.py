@@ -301,11 +301,9 @@ class LLMGateway:
         model = self._get_model()
 
         # Apply appropriate system prompt based on content type using PromptRegistry
-        system_prompts = {
-            "medical": get_prompt("llm_gateway", "medical"),
-            "nutrition": get_prompt("llm_gateway", "nutrition"),
-            "general": get_prompt("llm_gateway", "general"),
-        }
+        # Only load the ONE prompt needed for this content_type (saves context window)
+        prompt_key = content_type if content_type in ("medical", "nutrition", "general") else "general"
+        system_prompt = get_prompt("llm_gateway", prompt_key)
 
         # Create Chain with LangChain
         chain = (
@@ -313,7 +311,7 @@ class LLMGateway:
                 [
                     (
                         "system",
-                        system_prompts.get(content_type, system_prompts["general"]),
+                        system_prompt,
                     ),
                     ("human", "{input}"),
                 ]
@@ -343,11 +341,9 @@ class LLMGateway:
         
         model = self._get_model()
 
-        system_prompts = {
-            "medical": get_prompt("llm_gateway", "medical"),
-            "nutrition": get_prompt("llm_gateway", "nutrition"),
-            "general": get_prompt("llm_gateway", "general"),
-        }
+        # Only load the ONE prompt needed for this content_type (saves context window)
+        prompt_key = content_type if content_type in ("medical", "nutrition", "general") else "general"
+        system_prompt = get_prompt("llm_gateway", prompt_key)
 
         # Create Chain with LangChain
         chain = (
@@ -355,7 +351,7 @@ class LLMGateway:
                 [
                     (
                         "system",
-                        system_prompts.get(content_type, system_prompts["general"]),
+                        system_prompt,
                     ),
                     ("human", "{input}"),
                 ]
