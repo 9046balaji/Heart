@@ -814,7 +814,7 @@ if MEMORI_MANAGER_AVAILABLE:
 # This prevents runaway requests from consuming resources indefinitely
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "60"))
 # Longer timeout for research-heavy endpoints (deep research, complex analysis)
-RESEARCH_TIMEOUT_SECONDS = float(os.getenv("RESEARCH_TIMEOUT_SECONDS", "180"))
+RESEARCH_TIMEOUT_SECONDS = float(os.getenv("RESEARCH_TIMEOUT_SECONDS", "300"))
 
 # Paths that need longer timeouts (research queries, document analysis, etc.)
 LONG_TIMEOUT_PATHS = {
@@ -822,6 +822,8 @@ LONG_TIMEOUT_PATHS = {
     "/research",          # Explicit research endpoints
     "/documents/analyze", # Document analysis is slow
     "/analysis",          # Analysis endpoints
+    "/memory/ai/query",   # AI query can trigger web/deep search
+    "/memory/ai",         # Memory AI endpoints
 }
 
 try:
