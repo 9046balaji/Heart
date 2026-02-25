@@ -585,19 +585,55 @@ export const chatActions = {
           conversation_history: fullHistory,
           temperature: settings.temperature,
           signal,
+          web_search: searchMode === 'web_search',
+          deep_search: searchMode === 'deep_search',
+          thinking: searchMode === 'deep_search', // Enable thinking for deep search
         });
+
+        // Show a progress indicator while waiting for long operations
+        const isLongOperation = searchMode === 'web_search' || searchMode === 'deep_search';
+        let thinkingInterval: ReturnType<typeof setInterval> | null = null;
+        if (isLongOperation) {
+          const thinkingSteps = [
+            searchMode === 'web_search' ? '🔍 Searching the web...' : '🧠 Performing deep analysis...',
+            searchMode === 'web_search' ? '🌐 Gathering search results...' : '📊 Analyzing information...',
+            searchMode === 'web_search' ? '📝 Compiling findings...' : '🔬 Deep research in progress...',
+            '⏳ Still working — this may take a moment...',
+          ];
+          let stepIndex = 0;
+          store.updateMessage(assistantId, { content: thinkingSteps[0] });
+          thinkingInterval = setInterval(() => {
+            if (signal.aborted) {
+              if (thinkingInterval) clearInterval(thinkingInterval);
+              return;
+            }
+            stepIndex = Math.min(stepIndex + 1, thinkingSteps.length - 1);
+            // Only update if we haven't started receiving real content yet
+            if (!fullContent) {
+              store.updateMessage(assistantId, { content: thinkingSteps[stepIndex] });
+            }
+          }, 8000); // Update every 8 seconds
+        }
 
         let fullContent = '';
         for await (const chunk of generator) {
           // Check if generation was stopped
           if (signal.aborted) break;
           if (chunk.type === 'token') {
+            // Clear the thinking indicator once real content arrives
+            if (thinkingInterval && !fullContent) {
+              clearInterval(thinkingInterval);
+              thinkingInterval = null;
+            }
             fullContent += chunk.data;
             store.updateMessage(assistantId, { content: fullContent });
           } else if (chunk.type === 'error') {
+            if (thinkingInterval) clearInterval(thinkingInterval);
             throw new Error(chunk.data.error);
           }
         }
+
+        if (thinkingInterval) clearInterval(thinkingInterval);
 
         if (!signal.aborted) {
           store.updateMessage(assistantId, { isStreaming: false });
@@ -639,6 +675,8 @@ export const chatActions = {
         displayMessage = '🔒 Your session has expired. Please log in again to continue chatting.';
       } else if (errorMsg.includes('429')) {
         displayMessage = '⏳ Too many requests. Please wait a moment and try again.';
+      } else if (errorMsg.includes('504') || errorMsg.toLowerCase().includes('timeout') || errorMsg.toLowerCase().includes('timed out')) {
+        displayMessage = '⏱️ The response took too long to generate. This can happen with web search or deep research. Please try again — the server may have been busy.';
       } else if (errorMsg.includes('500') || errorMsg.includes('503')) {
         displayMessage = '⚠️ The server is temporarily unavailable. Please try again in a few moments.';
       } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
