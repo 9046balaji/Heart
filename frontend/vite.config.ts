@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:5001',
           changeOrigin: true,
           secure: false,
+          timeout: 300000, // 5 min - allow long-running research/search requests
+          proxyTimeout: 300000,
         },
       },
     },
@@ -54,6 +56,7 @@ export default defineConfig(({ mode }) => {
         'expo-modules-core': path.resolve(__dirname, 'mocks/expo-modules-core.ts'),
         'expo-font': path.resolve(__dirname, 'mocks/expo-font.ts'),
         'expo-image-picker': path.resolve(__dirname, 'mocks/expo-image-picker.ts'),
+        'expo-image-manipulator': path.resolve(__dirname, 'mocks/expo-image-manipulator.ts'),
         '@capacitor/filesystem': path.resolve(__dirname, 'mocks/capacitor-filesystem.ts'),
       },
       extensions: ['.web.js', '.web.jsx', '.web.ts', '.web.tsx', '.js', '.jsx', '.ts', '.tsx', '.json'],

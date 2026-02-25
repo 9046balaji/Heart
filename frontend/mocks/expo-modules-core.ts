@@ -29,6 +29,8 @@ export const requireNativeViewManager = (name: string) => {
 
 export class SharedObject { }
 
+export class SharedRef extends SharedObject { }
+
 export class NativeModule {
     addListener() { return { remove: () => { } }; }
     removeListeners() { }
@@ -69,6 +71,11 @@ export const requireNativeModule = (name: string) => {
     return {};
 };
 
+export const requireOptionalNativeModule = (name: string) => {
+    console.log('Mock requireOptionalNativeModule called for:', name);
+    return null;
+};
+
 // Add other commonly used exports if needed
 export const createPermissionHook = () => () => ({ status: 'granted', expires: 'never', canAskAgain: true, granted: true });
 export const PermissionStatus = {
@@ -84,6 +91,7 @@ export default {
     Platform,
     requireNativeViewManager,
     SharedObject,
+    SharedRef,
     NativeModule,
     CodedError,
     UnavailabilityError,
@@ -92,6 +100,7 @@ export default {
     registerWebModule,
     createWebModule,
     requireNativeModule,
+    requireOptionalNativeModule,
     createPermissionHook,
     PermissionStatus,
 };
