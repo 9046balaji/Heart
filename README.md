@@ -53,7 +53,7 @@ HeartGuard AI is a medical chatbot that helps patients and healthcare providers 
 │  │  ┌───────────────────────────────────────────────┐    │  │
 │  │  │  AI Engine                                    │    │  │
 │  │  │  • LangGraph Orchestrator (multi-agent)       │    │  │
-│  │  │  • 22 Medical Tools (drugs, FHIR, FDA...)     │    │  │
+│  │  │  • 27 Medical Tools (drugs, FHIR, FDA...)     │    │  │
 │  │  │  • RAG Pipeline (125K+ medical documents)     │    │  │
 │  │  │  • Memori (patient memory system)             │    │  │
 │  │  └───────────────────────────────────────────────┘    │  │
@@ -160,8 +160,8 @@ Heart/
 │   ├── main.py                # FastAPI entry point
 │   ├── agents/                # AI agents (LangGraph orchestrator)
 │   ├── core/                  # Core services (config, security, LLM)
-│   ├── routes/                # 32 API route files
-│   ├── tools/                 # 22 agent tools (drugs, FHIR, FDA)
+│   ├── routes/                # 37 API route files (core/health/admin)
+│   ├── tools/                 # 27 agent tools (drugs, FHIR, FDA)
 │   ├── rag/                   # RAG pipeline (embeddings, retrieval)
 │   ├── memori/                # Memory system (v2.3.0)
 │   ├── data/                  # Static data (drugs, symptoms)
@@ -242,7 +242,7 @@ Recommended: 32 GB RAM, 8 CPU cores, 500 GB SSD, GPU
 
 ## Contributing
 
-See [chatbot_service/CONTRIBUTING.md](chatbot_service/CONTRIBUTING.md) for contribution guidelines.
+See [chatbot_service/docs/CONTRIBUTING.md](chatbot_service/docs/CONTRIBUTING.md) for contribution guidelines.
 
 ---
 
