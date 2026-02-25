@@ -135,7 +135,7 @@ const MEMORY_BASE_URL = (() => {
 
 const DEFAULT_CONFIG: MemoryServiceConfig = {
   baseUrl: MEMORY_BASE_URL,
-  timeout: 30000,
+  timeout: 180000, // 3 minutes - enough for web search / deep research operations
   enableLocalCache: true,
   cacheExpiryMs: 5 * 60 * 1000, // 5 minutes
 };
@@ -728,6 +728,12 @@ class EnhancedMemoryService {
   private async fetch(url: string, options: RequestInit = {}): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+    // Combine caller's signal with our timeout signal so both can trigger abort
+    const callerSignal = options.signal;
+    if (callerSignal) {
+      callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     try {
       const authHeader = authService.getAuthHeader();

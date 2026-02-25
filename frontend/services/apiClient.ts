@@ -477,6 +477,13 @@ export const apiClient = {
     activities?: string[];
     medications?: string[];
   }) => {
+    // Backend expects a "query" field - build one from the params
+    const vitalsDesc = Object.entries(params.vitals || {})
+      .filter(([, v]) => v && v !== 'N/A')
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    const query = `Provide a daily cardiovascular health insight for ${params.user_name}. ${vitalsDesc ? `Current vitals: ${vitalsDesc}.` : ''} Give brief, actionable advice.`;
+
     return apiCall<{
       insight: string;
       timestamp: string;
@@ -485,7 +492,7 @@ export const apiClient = {
       provider?: string;
     }>('/heart/insight', {
       method: 'POST',
-      body: params,
+      body: { query, ...params },
     });
   },
 
@@ -589,6 +596,9 @@ export const apiClient = {
     conversation_history?: Array<{ role: string; content: string }>;
     temperature?: number;
     signal?: AbortSignal;
+    web_search?: boolean;
+    deep_search?: boolean;
+    thinking?: boolean;
   }): AsyncGenerator<{ type: 'token' | 'done' | 'error'; data: string | any }> {
     // Check for offline status before making request
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -599,7 +609,17 @@ export const apiClient = {
     const url = `${API_BASE_URL}/chat/message`;
     const { signal, ...rest } = params;
 
-    // Build auth headers
+    // Pre-check: if token is expired, try to refresh before making the request
+    if (authService.isTokenExpired()) {
+      console.log('[StreamChat] Token expired, attempting refresh before request...');
+      const refreshed = await handleTokenRefresh();
+      if (!refreshed) {
+        // No valid token - try to continue anyway (backend may allow anonymous)
+        console.warn('[StreamChat] Token refresh failed, proceeding without auth');
+      }
+    }
+
+    // Build auth headers (re-read after potential refresh)
     const authHeaders: Record<string, string> = {};
     const authHeader = authService.getAuthHeader();
     if (authHeader) {
@@ -608,25 +628,70 @@ export const apiClient = {
 
     // Map to the backend ChatRequest schema
     const userId = authService.getUserId?.() || localStorage.getItem('user_id') || 'anonymous';
+    const isResearchMode = rest.web_search || rest.deep_search || rest.thinking;
     const body = {
       user_id: userId,
       message: rest.message,
       sync: true, // Use sync mode for direct response
-      thinking: false,
-      web_search: false,
-      deep_search: false,
+      thinking: rest.thinking || false,
+      web_search: rest.web_search || false,
+      deep_search: rest.deep_search || false,
+    };
+
+    // Helper to make the fetch call (used for retry on 401)
+    // For research modes (web/deep search), use a longer timeout via AbortController
+    const fetchTimeout = isResearchMode ? 300000 : 180000; // 5 min for research, 3 min for normal
+    const doFetch = async (headers: Record<string, string>) => {
+      // Create a timeout-based abort that composes with the user's signal
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), fetchTimeout);
+
+      // If the caller's signal aborts, also abort our controller
+      if (signal) {
+        signal.addEventListener('abort', () => timeoutController.abort(), { once: true });
+      }
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: JSON.stringify(body),
+          signal: timeoutController.signal,
+        });
+        return resp;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify(body),
-        signal,
-      });
+      let response = await doFetch(authHeaders);
+
+      // Handle 401 Unauthorized - try token refresh and retry once
+      if (response.status === 401) {
+        console.log('[StreamChat] Got 401, attempting token refresh...');
+        const refreshed = await handleTokenRefresh();
+        if (refreshed) {
+          // Rebuild auth headers with new token
+          const newAuthHeaders: Record<string, string> = {};
+          const newAuthHeader = authService.getAuthHeader();
+          if (newAuthHeader) {
+            newAuthHeaders['Authorization'] = newAuthHeader;
+          }
+          response = await doFetch(newAuthHeaders);
+        } else {
+          // Refresh failed - clear auth and redirect to login
+          authService.clearAuth();
+          if (typeof window !== 'undefined') {
+            window.location.hash = '#/login';
+          }
+          yield { type: 'error', data: { error: 'Session expired. Please log in again.' } };
+          return;
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
