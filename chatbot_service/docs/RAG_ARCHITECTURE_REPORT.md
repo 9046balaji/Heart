@@ -564,48 +564,62 @@ RAGEngineFactory.create_all_engines()
 
 ## File Reference
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| **Embedding** | | |
-| `rag/embedding/__init__.py` | — | Factory for RemoteEmbeddingService |
-| `rag/embedding/remote.py` | ~365 | Remote Colab embedding service (singleton) |
-| `rag/embedding/base.py` | — | Base embedding interface |
-| `rag/embedding/cross_encoder_reranker.py` | — | MS-MARCO reranking + MMR |
-| **Knowledge Graph** | | |
-| `rag/knowledge_graph/graph_rag_engine.py` | — | Graph-enhanced retrieval |
-| `rag/knowledge_graph/entity_extractor.py` | — | spaCy + regex entity extraction |
-| `rag/knowledge_graph/community_detector.py` | — | Louvain clustering |
-| `rag/knowledge_graph/graph_store.py` | — | NetworkX graph CRUD |
-| **Memory** | | |
-| `rag/memory/rag_memory_bridge.py` | — | Memori ↔ RAG connection |
-| `rag/memory/context_manager.py` | — | Conversation context window |
-| **Multimodal** | | |
-| `rag/multimodal/multimodal_rag.py` | — | Text + image retrieval |
-| `rag/multimodal/image_processor.py` | — | Medical image preprocessing |
-| `rag/multimodal/document_parser.py` | — | PDF/Office parsing |
-| **NLP** | | |
-| `rag/nlp/medical_nlp.py` | — | NLP pipeline orchestrator |
-| `rag/nlp/medical_tokenizer.py` | — | Medical abbreviation tokenizer |
-| `rag/nlp/entity_ruler.py` | — | Pattern-based medical NER |
-| `rag/nlp/negation_detector.py` | — | NegEx negation detection |
-| `rag/nlp/medical_sentencizer.py` | — | Medical sentence splitting |
-| **Pipeline** | | |
-| `rag/pipeline/rag_pipeline.py` | — | End-to-end RAG pipeline |
-| `rag/pipeline/query_processor.py` | — | Query expansion + synonyms |
-| `rag/pipeline/response_generator.py` | — | Answer generation + citations |
-| `rag/pipeline/citation_manager.py` | — | Source tracking + formatting |
-| **Store** | | |
-| `rag/store/chroma_store.py` | — | ChromaDB wrapper |
-| `rag/store/pgvector_store.py` | — | PostgreSQL pgvector |
-| `rag/store/hybrid_store.py` | — | Dual-store with fallback |
-| **Trust** | | |
-| `rag/trust/self_rag.py` | — | Self-correcting retrieval |
-| `rag/trust/crag.py` | — | Corrective RAG with web fallback |
-| **Retrieval** | | |
-| `rag/retrieval/tiered_retrieval.py` | — | Tier 1/2 source routing |
-| `rag/retrieval/hyde_retriever.py` | — | Hypothetical document retrieval |
-| `rag/retrieval/raptor.py` | — | Tree-organized retrieval |
-| `rag/retrieval/intent_router.py` | — | Query → strategy routing |
+| File | Purpose |
+|------|---------|
+| **Top-Level** | |
+| `rag/__init__.py` | Package exports |
+| `rag/rag_engines.py` | RAG engine factory (creates all engine variants) |
+| **Embedding** | |
+| `rag/embedding/__init__.py` | Factory for RemoteEmbeddingService |
+| `rag/embedding/remote.py` | Remote Colab embedding service (singleton, MedCPT + SigLIP) |
+| `rag/embedding/base.py` | Base embedding interface |
+| **Knowledge Graph** | |
+| `rag/knowledge_graph/graph_rag.py` | Graph-enhanced retrieval engine |
+| `rag/knowledge_graph/interaction_checker.py` | Drug interaction graph checking |
+| `rag/knowledge_graph/medical_ontology.py` | Medical ontology management |
+| `rag/knowledge_graph/phonetic_matcher.py` | Phonetic matching for medical terms |
+| **Memory** | |
+| `rag/memory/memori_integration.py` | Memori ↔ RAG bridge |
+| `rag/memory/memori_interfaces.py` | Memory interface contracts |
+| **Multimodal** | |
+| `rag/multimodal/query.py` | Multimodal RAG query engine (text + image) |
+| `rag/multimodal/processors.py` | Medical image preprocessing |
+| `rag/multimodal/parser.py` | PDF/Office document parsing (MinerU + Docling) |
+| `rag/multimodal/batch_parser.py` | Batch document parsing |
+| `rag/multimodal/batch.py` | Batch processing utilities |
+| `rag/multimodal/config.py` | Multimodal configuration |
+| `rag/multimodal/prompts.py` | Multimodal prompt templates |
+| `rag/multimodal/utils.py` | Multimodal utilities |
+| `rag/multimodal/zero_shot_classifier.py` | Zero-shot image classification |
+| **NLP** | |
+| `rag/nlp/factory.py` | NLP pipeline factory / orchestrator |
+| `rag/nlp/tokenizer.py` | Medical abbreviation tokenizer |
+| `rag/nlp/medical_annotator.py` | Pattern-based medical NER |
+| `rag/nlp/negation_detector.py` | NegEx negation detection |
+| `rag/nlp/medical_sentencizer.py` | Medical sentence splitting |
+| `rag/nlp/symptom_checker.py` | NLP-based symptom checking |
+| **Pipeline** | |
+| `rag/pipeline/self_rag_medical.py` | Self-correcting retrieval (Self-RAG) |
+| `rag/pipeline/crag_fallback.py` | Corrective RAG with web fallback (CRAG) |
+| `rag/pipeline/query_optimizer.py` | Query expansion + optimization |
+| **Store** | |
+| `rag/store/chromadb_store.py` | ChromaDB vector store wrapper |
+| `rag/store/vector_store.py` | General vector store (pgvector-compatible) |
+| `rag/store/feedback_store.py` | User feedback storage |
+| **Trust** | |
+| `rag/trust/source_validator.py` | Source credibility validation |
+| `rag/trust/conflict_detector.py` | Information conflict detection |
+| `rag/trust/explainability.py` | Retrieval explainability |
+| **Retrieval** | |
+| `rag/retrieval/tiered_retriever.py` | Tier 1/2 source routing |
+| `rag/retrieval/fusion_retriever.py` | Reciprocal rank fusion retrieval |
+| `rag/retrieval/raptor_retrieval.py` | Tree-organized retrieval (RAPTOR) |
+| `rag/retrieval/reranker.py` | MS-MARCO cross-encoder reranking + MMR |
+| `rag/retrieval/context_assembler.py` | Context window assembly |
+| `rag/retrieval/explainable_retrieval.py` | Explainable retrieval with reasoning |
+| `rag/retrieval/token_budget.py` | Token budget management |
+| `rag/retrieval/unified_compressor.py` | Document compression |
+| `rag/retrieval/models.py` | Retrieval data models |
 
 ---
 

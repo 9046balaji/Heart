@@ -25,9 +25,13 @@
 
 ## Overview
 
-**Tools** are callable functions that AI agents can use during conversation. When the LangGraph Orchestrator routes a query to a specialist agent, that agent uses its assigned tools to fetch real data — drug interactions, patient vitals, FDA reports, appointment availability, etc.
+**Tools** are callable functions that AI agents can use during conversation. When the LangGraph Orchestrator routes a query to a specialist agent, that agent uses its assigned tools to fetch real data — drug interactions, patient vitals, FDA reports, etc.
 
 **Key Idea:** Tools connect the AI to real-world data sources, ensuring responses are based on actual patient records and verified medical databases — not just the LLM's training data.
+
+**LLM Model:** All tool-assisted generation uses **MedGemma-4B-IT** (local, via llama.cpp on port 8090).
+
+**Total:** 27 Python files across `tools/` directory and subdirectories.
 
 ---
 
@@ -38,29 +42,24 @@
 │                       TOOL ECOSYSTEM                             │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │                   CORE MEDICAL TOOLS                       │  │
+│  │                   CORE TOOLS                               │  │
 │  │                                                            │  │
 │  │  ┌────────────────┐  ┌─────────────────┐  ┌────────────┐  │  │
-│  │  │  Drug          │  │  Symptom        │  │  Health    │  │  │
-│  │  │  Interaction   │  │  Checker        │  │  Data      │  │  │
-│  │  │  Checker       │  │                 │  │  Tool      │  │  │
-│  │  │                │  │  NLP-based      │  │            │  │  │
-│  │  │  PostgreSQL +  │  │  triage with    │  │  Unified   │  │  │
-│  │  │  JSON fallback │  │  urgency        │  │  vitals,   │  │  │
-│  │  │  severity      │  │  levels         │  │  meds,     │  │  │
-│  │  │  scoring       │  │                 │  │  goals,    │  │  │
-│  │  │                │  │                 │  │  alerts    │  │  │
+│  │  │  Agentic       │  │  Entity         │  │  Text-to-  │  │  │
+│  │  │  Tools         │  │  Validator      │  │  SQL       │  │  │
+│  │  │                │  │                 │  │            │  │  │
+│  │  │  LangGraph     │  │  Prevents       │  │  Natural   │  │  │
+│  │  │  agent tool    │  │  hallucinated   │  │  language   │  │  │
+│  │  │  wrappers      │  │  entity names   │  │  to SQL    │  │  │
 │  │  └────────────────┘  └─────────────────┘  └────────────┘  │  │
 │  │                                                            │  │
 │  │  ┌────────────────┐  ┌─────────────────┐  ┌────────────┐  │  │
-│  │  │  Medication    │  │  Appointment    │  │  Patient   │  │  │
-│  │  │  Tool          │  │  Tool           │  │  Context   │  │  │
-│  │  │                │  │                 │  │  Tool      │  │  │
-│  │  │  Add/update/   │  │  Provider       │  │            │  │  │
-│  │  │  delete/list   │  │  search, book,  │  │  Full      │  │  │
-│  │  │  medications   │  │  cancel,        │  │  patient   │  │  │
-│  │  │                │  │  reschedule     │  │  data for  │  │  │
-│  │  │                │  │                 │  │  LLM       │  │  │
+│  │  │  Clinical      │  │  Medical        │  │  Semantic   │  │  │
+│  │  │  Guidelines    │  │  Search         │  │  Router V2  │  │  │
+│  │  │  Search        │  │                 │  │            │  │  │
+│  │  │  Trusted       │  │  Papers, news,  │  │  Fast      │  │  │
+│  │  │  medical       │  │  images, videos │  │  intent    │  │  │
+│  │  │  sources       │  │  content search │  │  classify  │  │  │
 │  │  └────────────────┘  └─────────────────┘  └────────────┘  │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
@@ -69,21 +68,13 @@
 │  │                                                            │  │
 │  │  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐ │  │
 │  │  │ OpenFDA  │  │   FHIR    │  │  DICOM   │  │ Medical  │ │  │
-│  │  │ (5 tools)│  │   R4      │  │  Parser  │  │ Coding   │ │  │
+│  │  │ (8 files)│  │   R4      │  │  Handler │  │ Coding   │ │  │
 │  │  │          │  │           │  │          │  │          │ │  │
 │  │  │ Adverse  │  │ Patient   │  │ Pixel    │  │ ICD-10   │ │  │
 │  │  │ Events   │  │ Observe   │  │ Extract  │  │ SNOMED   │ │  │
 │  │  │ Recalls  │  │ MedReq    │  │ Metadata │  │ CPT      │ │  │
-│  │  │ Labels   │  │           │  │ Anonymize│  │ LOINC    │ │  │
+│  │  │ Labels   │  │ Agent     │  │ Anonymize│  │ LOINC    │ │  │
 │  │  └──────────┘  └───────────┘  └──────────┘  └──────────┘ │  │
-│  │                                                            │  │
-│  │  ┌──────────────┐  ┌────────────────┐                     │  │
-│  │  │  Pathology   │  │  Radiology     │                     │  │
-│  │  │  WSI Analyzer│  │  Volume Viewer │                     │  │
-│  │  │              │  │                │                     │  │
-│  │  │  OpenSlide   │  │  NiBabel NIfTI │                     │  │
-│  │  │  Tile extract│  │  MIP/Slice     │                     │  │
-│  │  └──────────────┘  └────────────────┘                     │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
@@ -472,39 +463,42 @@ warfarin + aspirin = MAJOR
 
 | File | Purpose |
 |------|---------|
-| `tools/drug_interaction_checker.py` | Drug interaction analysis |
-| `tools/symptom_checker.py` | Symptom triage |
-| `tools/health_data_tool.py` | Unified health data query |
-| `tools/medication_tool.py` | Medication CRUD |
-| `tools/appointment_tool.py` | Appointment booking |
-| `tools/web_search_tool.py` | Medical web search |
-| `tools/patient_context_tool.py` | Full patient context |
+| `tools/agentic_tools.py` | LangGraph agent tool wrappers (initialize_agent_tools_new) |
+| `tools/clinical_guidelines_search.py` | Clinical guidelines search (trusted medical sources) |
+| `tools/entity_validator.py` | Entity name validation (prevents hallucinated entity names) |
+| `tools/medical_search.py` | Comprehensive medical content search (papers, news, images, videos) |
+| `tools/safe_calculator.py` | Safe math calculator for medical calculations |
+| `tools/semantic_router_v2.py` | Semantic Router V2 for fast intent classification |
+| `tools/text_to_sql_tool.py` | Natural language to SQL query conversion |
+| `tools/tool_errors.py` | Tool error handling utilities |
+| `tools/tool_registry.py` | Tool registration and discovery |
+| `tools/web_search.py` | Medical web search (DuckDuckGo + Tavily) |
 
 ### OpenFDA Tools
 
 | File | Purpose |
 |------|---------|
-| `tools/openfda/base.py` | Base HTTP client |
-| `tools/openfda/adverse_events.py` | FAERS database |
-| `tools/openfda/drug_enforcement.py` | Drug recalls |
-| `tools/openfda/drug_labels.py` | Drug labeling |
-| `tools/openfda/food_enforcement.py` | Food recalls |
-| `tools/openfda/food_events.py` | CAERS database |
+| `tools/openfda/api_client.py` | Base HTTP client with rate limiting |
+| `tools/openfda/models.py` | OpenFDA data models |
+| `tools/openfda/openfda_safety_service.py` | Unified OpenFDA safety service |
+| `tools/openfda/drug_adverse_events.py` | FAERS adverse event reports |
+| `tools/openfda/drug_enforcement.py` | Drug recall database |
+| `tools/openfda/drug_labels.py` | FDA-approved drug labeling |
+| `tools/openfda/food_enforcement.py` | Food recall database |
+| `tools/openfda/food_events.py` | CAERS food adverse events |
 
 ### FHIR Tools
 
 | File | Purpose |
 |------|---------|
-| `tools/fhir/client.py` | FHIR R4 async client |
-| `tools/fhir/resources.py` | Resource mappers |
+| `tools/fhir/fhir_client.py` | FHIR R4 async client |
+| `tools/fhir/fhir_agent_tool.py` | FHIR agent tool for LangGraph |
 
 ### Imaging Tools
 
 | File | Purpose |
 |------|---------|
-| `tools/dicom/parser.py` | DICOM file parser |
-| `tools/pathology/wsi_analyzer.py` | Whole-slide imaging |
-| `tools/radiology/volume_viewer.py` | 3D volume rendering |
+| `tools/dicom/dicom_handler.py` | DICOM file parsing & processing |
 
 ### Medical Coding
 

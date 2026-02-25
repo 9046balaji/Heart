@@ -71,7 +71,7 @@ HeartGuard AI is a medical chatbot specializing in heart disease. It combines a 
 │  │                         BACKEND (FastAPI)                           │ │
 │  │                                                                     │ │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │ │
-│  │  │ 32 Route │  │ Core     │  │ Security │  │ Rate Limiter     │   │ │
+│  │  │ 37 Route│  │ Core     │  │ Security │  │ Rate Limiter     │   │ │
 │  │  │ Files    │  │ Services │  │ JWT+PII  │  │ Redis-backed     │   │ │
 │  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────────────┘   │ │
 │  │       │              │             │              │                 │ │
@@ -92,8 +92,8 @@ HeartGuard AI is a medical chatbot specializing in heart disease. It combines a 
 │  │  │  └─────────────────────────────────────────────────────────┘  │  │ │
 │  │  │                                                               │  │ │
 │  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐    │  │ │
-│  │  │  │  22 Tools    │  │  RAG Pipeline │  │  Memori v2.3.0  │    │  │ │
-│  │  │  │  Drug, FHIR, │  │  Self-RAG     │  │  Patient memory │    │  │ │
+│  │  │  27 Tools    │  │  RAG Pipeline │  │  Memori v2.3.0  │    │  │ │
+│  │  │  Search,FHIR,│  │  Self-RAG     │  │  Patient memory │    │  │ │
 │  │  │  │  FDA, DICOM  │  │  CRAG, HyDE   │  │  Fact extraction│    │  │ │
 │  │  │  └──────────────┘  └──────────────┘  └──────────────────┘    │  │ │
 │  │  └───────────────────────────────────────────────────────────────┘  │ │
@@ -133,10 +133,10 @@ HeartGuard AI
 │   └── Mobile: Capacitor for Android
 │
 ├── Backend (FastAPI + Python 3.9+)
-│   ├── Routes (32 files)
-│   │   ├── Core: chat, auth, users, medications, vitals, appointments
-│   │   ├── Health: predictions, symptoms, drugs, RAG, goals, alerts
-│   │   └── Admin: monitoring, audit, compliance, config, cache
+│   ├── Routes (37 files, nested in core/health/admin/)
+│   │   ├── Core: chat, auth, users, documents, feedback, memory, profile
+│   │   ├── Health: predictions, vision, smartwatch, tools, medical_ai
+│   │   └── Admin: db_health, evaluation, models, nlp_debug, rag_memory
 │   │
 │   ├── Core Services
 │   │   ├── Config: Layered settings (TOML + env + DB)
@@ -151,10 +151,10 @@ HeartGuard AI
 │   │   ├── ThinkingAgent: Chain-of-thought reasoning
 │   │   └── Deep Research: Multi-source investigation
 │   │
-│   ├── Tools (22 tools)
-│   │   ├── Medical: Drug interaction, symptom check, medications
-│   │   ├── External: OpenFDA (5), FHIR, DICOM, web search
-│   │   └── Specialized: Medical coding, pathology, radiology
+│   ├── Tools (27 Python files)
+│   │   ├── Core: agentic_tools, entity_validator, text_to_sql, web_search
+│   │   ├── External: OpenFDA (8), FHIR (2), DICOM (1)
+│   │   └── Specialized: Medical coding, clinical guidelines, medical search
 │   │
 │   ├── RAG Pipeline
 │   │   ├── Embeddings: MedCPT (text) + SigLIP (images)
@@ -442,8 +442,8 @@ For deeper information on each subsystem, see these reports:
 | [CORE_ARCHITECTURE_REPORT.md](CORE_ARCHITECTURE_REPORT.md) | Core services, config, security, LLM, DI |
 | [DATABASE_ARCHITECTURE_REPORT.md](DATABASE_ARCHITECTURE_REPORT.md) | Database schema, migrations, caching |
 | [RAG_ARCHITECTURE_REPORT.md](RAG_ARCHITECTURE_REPORT.md) | RAG pipeline, embeddings, vector stores |
-| [ROUTES_ARCHITECTURE_REPORT.md](ROUTES_ARCHITECTURE_REPORT.md) | All 32 API route files and endpoints |
-| [TOOLS_ARCHITECTURE_REPORT.md](TOOLS_ARCHITECTURE_REPORT.md) | 22 agent tools (drugs, FHIR, FDA, etc.) |
+| [ROUTES_ARCHITECTURE_REPORT.md](ROUTES_ARCHITECTURE_REPORT.md) | All 37 API route files and endpoints |
+| [TOOLS_ARCHITECTURE_REPORT.md](TOOLS_ARCHITECTURE_REPORT.md) | 27 agent tools (search, FHIR, FDA, etc.) |
 | [MEMORI_ARCHITECTURE_REPORT.md](MEMORI_ARCHITECTURE_REPORT.md) | Memory system, fact extraction, caching |
 | [SETUP.md](SETUP.md) | Installation, configuration, deployment |
 
@@ -455,13 +455,13 @@ For deeper information on each subsystem, see these reports:
 ┌──────────────────────────────────────────────────┐
 │  CODEBASE METRICS                                │
 │                                                  │
-│  Backend Python files:     ~200+                 │
+│  Backend Python files:     ~284                  │
 │  Frontend TypeScript:      ~50+                  │
-│  Total route files:        32                    │
-│  Total agent files:        19+                   │
-│  Total tool files:         22                    │
-│  Total RAG files:          ~40                   │
-│  Total Memori files:       ~45                   │
+│  Total route files:        37                    │
+│  Total agent files:        23                    │
+│  Total tool files:         27                    │
+│  Total RAG files:          ~79                   │
+│  Total Memori files:       ~63                   │
 │  Database tables:          27+                   │
 │  Alembic migrations:       7                     │
 │  Docker services:          5                     │

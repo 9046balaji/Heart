@@ -491,7 +491,7 @@ Complete flow from user query to response:
 | File | Lines | Purpose |
 |------|-------|---------|
 | `agents/__init__.py` | 90 | Package exports |
-| `agents/langgraph_orchestrator.py` | 1,409 | Central orchestrator (LangGraph StateGraph) |
+| `agents/langgraph_orchestrator.py` | 1,710 | Central orchestrator (LangGraph StateGraph) |
 | `agents/heart_predictor.py` | 427 | Heart disease risk prediction |
 | `agents/evaluation.py` | 511 | LLM-as-judge response evaluator |
 | `agents/components/thinking.py` | ~470 | Chain-of-Thought reasoning engine |
@@ -517,7 +517,7 @@ Complete flow from user query to response:
 
 | Service | Purpose |
 |---------|---------|
-| **MedGemma** (port 8090) | LLM for reasoning, routing, generation |
+| **MedGemma-4B-IT** (port 8090) | LLM for reasoning, routing, generation (local via llama.cpp) |
 | **ChromaDB** | Vector store for medical documents |
 | **PostgreSQL** | Patient data, chat history |
 | **Redis** | Crash recovery checkpoints |

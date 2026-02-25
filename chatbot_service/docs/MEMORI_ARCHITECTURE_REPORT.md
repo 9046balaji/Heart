@@ -498,13 +498,17 @@ User: "My doctor changed my lisinopril to 20mg"
 
 ## File Reference
 
-### Core
+### Top-Level
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `memori/main.py` | Memori facade class | ~3240 |
-| `memori/memory_manager.py` | Singleton lifecycle manager | ~1158 |
-| `memori/config.py` | Configuration (MemoriConfig) | ~200 |
+| File | Purpose |
+|------|---------|
+| `memori/__init__.py` | Package exports |
+| `memori/memory_manager.py` | Singleton lifecycle manager |
+| `memori/memory_middleware.py` | FastAPI middleware for memory |
+| `memori/memory_aware_agents.py` | Memory-aware agent integration |
+| `memori/memory_observability.py` | Memory system metrics |
+| `memori/memory_performance.py` | Performance monitoring |
+| `memori/memory_query_optimizer.py` | Query optimization |
 
 ### Agents
 
@@ -514,43 +518,84 @@ User: "My doctor changed my lisinopril to 20mg"
 | `memori/agents/retrieval_agent.py` | Semantic memory retrieval |
 | `memori/agents/conscious_agent.py` | Smart memory management |
 
-### Storage
+### Config
 
 | File | Purpose |
 |------|---------|
-| `memori/storage/postgresql.py` | PostgreSQL backend |
-| `memori/storage/sqlite.py` | SQLite backend |
-| `memori/storage/mysql.py` | MySQL backend |
+| `memori/config/settings.py` | Configuration (MemoriConfig) |
+| `memori/config/manager.py` | Config manager |
+| `memori/config/memory_manager.py` | Memory manager config |
+| `memori/config/pool_config.py` | Connection pool settings |
 
-### Search
-
-| File | Purpose |
-|------|---------|
-| `memori/search/service.py` | Unified search service |
-| `memori/search/fts.py` | Full-text search |
-| `memori/search/semantic.py` | Embedding-based search |
-
-### Cache
+### Core
 
 | File | Purpose |
 |------|---------|
-| `memori/cache/memory_cache.py` | L1 in-memory LRU |
-| `memori/cache/redis_cache.py` | L2 Redis + ZSTD |
+| `memori/core/conversation.py` | Conversation memory management |
+| `memori/core/database.py` | Core database operations |
+| `memori/core/memory.py` | Memory CRUD operations |
+| `memori/core/providers.py` | Service providers |
+
+### Database
+
+| File | Purpose |
+|------|---------|
+| `memori/database/models.py` | SQLAlchemy models |
+| `memori/database/search_service.py` | Unified search service |
+| `memori/database/sqlalchemy_manager.py` | SQLAlchemy session management |
+| `memori/database/adapters/postgresql_adapter.py` | PostgreSQL backend |
+| `memori/database/connectors/postgres_connector.py` | PostgreSQL connection |
+| `memori/database/connectors/base_connector.py` | Base connector interface |
+| `memori/database/queries/memory_queries.py` | Memory SQL queries |
+| `memori/database/queries/chat_queries.py` | Chat SQL queries |
+| `memori/database/queries/base_queries.py` | Base query interface |
+| `memori/database/migrations/` | Migration scripts |
+
+### LLM Integrations
+
+| File | Purpose |
+|------|---------|
+| `memori/integrations/openai_integration.py` | OpenAI integration |
+| `memori/integrations/anthropic_integration.py` | Anthropic integration |
+| `memori/integrations/litellm_integration.py` | Universal LLM proxy |
+
+### Memory Layers
+
+| File | Purpose |
+|------|---------|
+| `memori/long_term/fact_extractor.py` | Long-term fact extraction |
+| `memori/short_term/redis_buffer.py` | Short-term Redis buffer (L2 cache) |
 
 ### Security
 
 | File | Purpose |
 |------|---------|
 | `memori/security/auth.py` | JWT / API Key / NoAuth |
-| `memori/security/sanitizer.py` | SQL injection + XSS detection |
 
-### LLM
+### Tools
 
 | File | Purpose |
 |------|---------|
-| `memori/llm/openai.py` | OpenAI integration |
-| `memori/llm/anthropic.py` | Anthropic integration |
-| `memori/llm/litellm.py` | Universal LLM proxy |
+| `memori/tools/memory_tool.py` | Memory tool for agents |
+
+### Utils
+
+| File | Purpose |
+|------|---------|
+| `memori/utils/helpers.py` | Helper utilities |
+| `memori/utils/validators.py` | Input validation |
+| `memori/utils/exceptions.py` | Custom exceptions |
+| `memori/utils/pydantic_models.py` | Pydantic schemas |
+| `memori/utils/query_builder.py` | SQL query builder |
+| `memori/utils/security.py` | Security utilities |
+| `memori/utils/security_audit.py` | Security audit logging |
+| `memori/utils/security_integration.py` | Security integration |
+| `memori/utils/input_validator.py` | Input sanitization |
+| `memori/utils/log_sanitizer.py` | Log sanitization |
+| `memori/utils/logging.py` | Logging configuration |
+| `memori/utils/rate_limiter.py` | Rate limiting |
+| `memori/utils/transaction_manager.py` | Transaction management |
+| `memori/utils/database/db_helpers.py` | Database helpers |
 
 ---
 

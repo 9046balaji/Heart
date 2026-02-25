@@ -23,9 +23,9 @@
 
 ## Overview
 
-HeartGuard AI exposes **32 route files** organized into three groups: **Core** (user-facing), **Health** (medical features), and **Admin** (system management). All routes are built with **FastAPI** and registered in `main.py`.
+HeartGuard AI exposes **37 route files** organized into three nested groups: **Core** (user-facing), **Health** (medical features), and **Admin** (system management). All routes are built with **FastAPI** and registered in `main.py`.
 
-**Base URL:** `http://localhost:5001` (development) or `http://localhost:8000` (production Docker)
+**Base URL:** `http://localhost:8000` (development and production)
 
 ---
 
@@ -42,50 +42,50 @@ HeartGuard AI exposes **32 route files** organized into three groups: **Core** (
 │  └── MemoryContextInjector (Memori)                          │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │                  CORE ROUTES                           │  │
+│  │            CORE ROUTES (routes/core/)                  │  │
 │  │                                                        │  │
 │  │  /auth       Authentication (login, register, JWT)     │  │
-│  │  /chat       AI Chat (async + sync + history)          │  │
-│  │  /users      User profiles & family                    │  │
-│  │  /medications Medication tracking & interactions       │  │
-│  │  /vitals     Vital sign measurements                   │  │
+│  │  /chat       AI Chat (orchestrated, sync + history)    │  │
+│  │  /users      User profiles                             │  │
 │  │  /documents  Document upload & parsing                 │  │
-│  │  /health-goals Goal tracking & milestones              │  │
-│  │  /appointments Doctor booking system                   │  │
-│  │  /notifications Push notification management           │  │
-│  │  /preferences User settings (HIPAA audit)              │  │
-│  │  /consent    GDPR/HIPAA consent management             │  │
-│  │  /calendar   Google Calendar integration               │  │
+│  │  /feedback   User feedback collection                  │  │
 │  │  /memory     Patient memory CRUD & search              │  │
+│  │  /profile    User profile management                   │  │
+│  │  /settings   User preferences & settings               │  │
+│  │  /speech     Text-to-speech / speech-to-text            │  │
+│  │  /sse        Server-Sent Events streaming               │  │
+│  │  /websocket  WebSocket real-time communication          │  │
+│  │  /files      File security & management                │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │                  HEALTH ROUTES                         │  │
+│  │            HEALTH ROUTES (routes/health/)              │  │
 │  │                                                        │  │
-│  │  /devices         IoT/wearable device management       │  │
-│  │  /health-alerts   Health alert engine                   │  │
-│  │  /predict         Heart disease ML prediction          │  │
-│  │  /drug-interaction Drug interaction database           │  │
-│  │  /symptom-checker  Symptom analysis & triage           │  │
-│  │  /medical-images  Medical imaging analysis             │  │
-│  │  /fhir           FHIR R4 interoperability              │  │
-│  │  /openfda        FDA adverse events & recalls          │  │
-│  │  /medical-coding ICD-10/SNOMED/CPT coding              │  │
-│  │  /rag            RAG pipeline direct access            │  │
-│  │  /embeddings     Embedding generation service          │  │
-│  │  /research       Deep research agent                   │  │
+│  │  /appointments   Doctor booking system                 │  │
+│  │  /calendar       Calendar integration                  │  │
+│  │  /compliance     HIPAA/GDPR compliance                │  │
+│  │  /consent        Consent management                    │  │
+│  │  /predict        Heart disease ML prediction           │  │
+│  │  /medical-ai     Medical AI analysis                   │  │
+│  │  /notifications  Push notification management          │  │
+│  │  /smartwatch     Wearable/IoT device data              │  │
+│  │  /structured     Structured AI outputs                 │  │
+│  │  /tools          Agent tool endpoints                  │  │
+│  │  /vision         Medical imaging analysis              │  │
+│  │  /weekly-summary Weekly health summaries               │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │                  ADMIN ROUTES                          │  │
+│  │            ADMIN ROUTES (routes/admin/)                │  │
 │  │                                                        │  │
-│  │  /admin          System health & stats                 │  │
-│  │  /compliance     HIPAA audit log & reports             │  │
-│  │  /monitoring     Prometheus metrics & circuit breakers │  │
-│  │  /safety         Content safety dashboard              │  │
-│  │  /data-export    GDPR data export/download             │  │
-│  │  /emergency      Emergency data access (break-glass)   │  │
-│  │  /performance    Performance reports & cache stats     │  │
+│  │  /db-health      Database health monitoring            │  │
+│  │  /evaluation     AI evaluation metrics                 │  │
+│  │  /graph          Knowledge graph visualization         │  │
+│  │  /integrations   External integration management       │  │
+│  │  /jobs           Background job management             │  │
+│  │  /models         ML model management                   │  │
+│  │  /nlp-debug      NLP pipeline debugging                │  │
+│  │  /rag-memory     RAG & memory health monitoring        │  │
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -413,52 +413,53 @@ Token flow:
 
 ## File Reference
 
-### Core Routes
+### Core Routes (`routes/core/`)
 
 | File | Purpose |
 |------|---------|
-| `routes/auth.py` | JWT authentication |
-| `routes/chat.py` | AI chat (async/sync) |
-| `routes/users.py` | User profiles |
-| `routes/medications.py` | Medication CRUD |
-| `routes/vitals.py` | Vital signs |
-| `routes/documents.py` | Document upload |
-| `routes/health_goals.py` | Goal tracking |
-| `routes/appointments.py` | Appointment booking |
-| `routes/notifications.py` | Push notifications |
-| `routes/preferences.py` | User preferences |
-| `routes/consent.py` | GDPR/HIPAA consent |
-| `routes/calendar_integration.py` | Google Calendar |
-| `routes/memory.py` | Patient memory |
+| `routes/core/auth_routes.py` | JWT authentication (login, register, refresh, logout) |
+| `routes/core/auth_db_service.py` | Auth database service layer |
+| `routes/core/orchestrated_chat.py` | AI chat (LangGraph orchestrated, async/sync) |
+| `routes/core/users.py` | User profiles & management |
+| `routes/core/documents.py` | Document upload & parsing |
+| `routes/core/feedback.py` | User feedback collection |
+| `routes/core/file_security.py` | File security & access control |
+| `routes/core/memory.py` | Patient memory CRUD & search |
+| `routes/core/profile.py` | User profile management |
+| `routes/core/settings.py` | User preferences & settings |
+| `routes/core/speech.py` | Text-to-speech / speech-to-text |
+| `routes/core/sse_routes.py` | Server-Sent Events streaming |
+| `routes/core/websocket_routes.py` | WebSocket real-time communication |
 
-### Health Routes
-
-| File | Purpose |
-|------|---------|
-| `routes/predict.py` | Heart disease prediction |
-| `routes/drug_interaction.py` | Drug interactions |
-| `routes/symptom_checker.py` | Symptom analysis |
-| `routes/medical_images.py` | Medical imaging |
-| `routes/devices.py` | IoT devices |
-| `routes/health_alerts.py` | Health alerts |
-| `routes/fhir.py` | FHIR R4 |
-| `routes/openfda.py` | OpenFDA |
-| `routes/medical_coding.py` | Medical coding |
-| `routes/rag.py` | RAG pipeline |
-| `routes/embeddings.py` | Embedding service |
-| `routes/research.py` | Deep research |
-
-### Admin Routes
+### Health Routes (`routes/health/`)
 
 | File | Purpose |
 |------|---------|
-| `routes/admin.py` | System admin |
-| `routes/compliance.py` | HIPAA compliance |
-| `routes/monitoring.py` | Observability |
-| `routes/safety_dashboard.py` | Content safety |
-| `routes/data_export.py` | GDPR export |
-| `routes/emergency_data.py` | Emergency access |
-| `routes/performance.py` | Performance metrics |
+| `routes/health/appointments.py` | Appointment booking system |
+| `routes/health/calendar.py` | Calendar integration |
+| `routes/health/compliance.py` | HIPAA/GDPR compliance |
+| `routes/health/consent.py` | Consent management |
+| `routes/health/heart_prediction.py` | Heart disease ML prediction |
+| `routes/health/medical_ai.py` | Medical AI analysis endpoints |
+| `routes/health/notifications.py` | Push notification management |
+| `routes/health/smartwatch.py` | Wearable/IoT device data |
+| `routes/health/structured_outputs.py` | Structured AI output endpoints |
+| `routes/health/tools.py` | Agent tool endpoints |
+| `routes/health/vision.py` | Medical imaging analysis |
+| `routes/health/weekly_summary.py` | Weekly health summary reports |
+
+### Admin Routes (`routes/admin/`)
+
+| File | Purpose |
+|------|---------|
+| `routes/admin/db_health.py` | Database health monitoring |
+| `routes/admin/evaluation.py` | AI evaluation metrics |
+| `routes/admin/graph_visualization.py` | Knowledge graph visualization |
+| `routes/admin/integrations.py` | External integration management |
+| `routes/admin/job_management.py` | Background job management |
+| `routes/admin/models_management.py` | ML model management |
+| `routes/admin/nlp_debug.py` | NLP pipeline debugging |
+| `routes/admin/rag_memory_health.py` | RAG & memory health monitoring |
 
 ---
 

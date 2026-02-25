@@ -457,7 +457,6 @@ Request ──▶ L1 (In-Memory LRU)  ──miss──▶ L2 (Redis + LZ4)  ─�
 | `core/circuit_breaker.py` | 385 | Redis-backed distributed circuit breaker |
 | `core/dependencies.py` | 702 | DIContainer — lazy service factory |
 | `core/graceful_degradation.py` | 322 | Fallback decorators & service tracking |
-| `core/main_router.py` | ~300 | CLI entry point (RAG → LLM → OpenFDA) |
 | `core/models.py` | 394 | Pydantic v2 request/response models |
 | `core/rate_limiter_redis.py` | ~190 | Redis sliding window rate limiter |
 | `core/security.py` | 515 | JWT, Argon2, rate limit, audit logger |
@@ -465,22 +464,33 @@ Request ──▶ L1 (In-Memory LRU)  ──miss──▶ L2 (Redis + LZ4)  ─�
 | `core/config/app_config.py` | 437 | Central AppConfig singleton |
 | `core/config/rag_config.py` | 175 | RAG-specific configuration |
 | `core/config/rag_paths.py` | 323 | Filesystem path resolution |
-| `core/llm/llm_gateway.py` | 458 | Single LLM entry point (MedGemma) |
+| `core/config/rag_settings.py` | — | RAG settings dataclass |
+| `core/config/compat.py` | — | Backward compatibility shims |
+| `core/config/legacy_settings.py` | — | Legacy settings migration |
+| `core/llm/llm_gateway.py` | 458 | Single LLM entry point (MedGemma-4B-IT, selective prompt loading) |
 | `core/llm/guardrails.py` | 561 | Safety validation & filtering |
 | `core/llm/medgemma_service.py` | ~100 | Direct llama.cpp client |
 | `core/llm/token_budget.py` | ~120 | Context window management |
 | `core/monitoring/prometheus_metrics.py` | ~310 | Custom Prometheus metrics |
 | `core/observability/tracing.py` | ~370 | Span-based agent tracing |
 | `core/prompts/system_prompts.py` | 525 | Complete prompt library |
-| `core/prompts/registry.py` | 556 | Centralized prompt management |
+| `core/prompts/registry.py` | 556 | Centralized prompt management (lazy per-category loading) |
+| `core/prompts/config_loader.py` | — | YAML/JSON prompt config loader |
+| `core/prompts/medical_prompts.py` | — | Medical domain prompt templates |
+| `core/prompts/migrate_prompts.py` | — | Prompt migration utility |
 | `core/safety/hallucination_grader.py` | ~80 | LLM grounding verification |
 | `core/services/encryption_service.py` | ~350 | AES-256-GCM PHI encryption |
 | `core/services/chat_history.py` | 948 | Persistent chat with LRU cache |
 | `core/services/advanced_cache.py` | 808 | 3-tier cache (L1+L2+L3) |
 | `core/services/spacy_service.py` | 314 | Medical NLP pipeline |
+| `core/services/multilingual_spacy_service.py` | — | Multilingual NLP support |
 | `core/services/websocket_manager.py` | 474 | Real-time WebSocket management |
 | `core/services/job_store.py` | 516 | Redis async job store |
 | `core/services/webhook_service.py` | 550 | HMAC-signed webhook delivery |
+| `core/services/health_service.py` | — | Health check service |
+| `core/services/interaction_detector.py` | — | Drug interaction detection service |
+| `core/services/medical_phrase_matcher.py` | — | Medical phrase matching |
+| `core/services/performance_monitor.py` | — | Performance monitoring |
 | `core/user/user_preferences.py` | 712 | GDPR/HIPAA user preferences |
 
 ---
