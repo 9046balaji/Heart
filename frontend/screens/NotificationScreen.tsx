@@ -218,11 +218,7 @@ const styles = StyleSheet.create({
         borderRadius: 15,
         padding: 20,
         marginBottom: 20,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
     },
     sectionHeader: {
         fontSize: 18,
@@ -281,11 +277,7 @@ const styles = StyleSheet.create({
     saveButton: {
         borderRadius: 15,
         overflow: 'hidden',
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.25)',
     },
     gradientButton: {
         padding: 18,

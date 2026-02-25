@@ -9,6 +9,7 @@ import {
     shareViaWhatsApp,
     shareViaLink,
     downloadAsPDF,
+    shareAsPDF,
     SavedAssessment,
 } from '../services/assessmentStorage';
 
@@ -248,38 +249,48 @@ const SavedResultsScreen: React.FC = () => {
                                         {/* Actions bar */}
                                         <div className="px-4 pb-4 space-y-2">
                                             {/* Share menu */}
-                                            <div className="relative">
+                                                <div className="relative">
                                                 <button
                                                     onClick={() => setShareOpenId(shareOpenId === a.id ? null : a.id)}
                                                     className="w-full py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                                 >
                                                     <span className="material-symbols-outlined text-sm">share</span>
-                                                    Share
+                                                    Share Report
                                                     <span className="material-symbols-outlined text-xs">{shareOpenId === a.id ? 'expand_less' : 'expand_more'}</span>
                                                 </button>
 
                                                 {shareOpenId === a.id && (
-                                                    <div className="mt-1 flex gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                        <button
-                                                            onClick={() => { shareViaWhatsApp(a); setShareOpenId(null); }}
-                                                            className="flex-1 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                                                        >
-                                                            WhatsApp
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => { await shareViaLink(a); showToast('Copied!'); setShareOpenId(null); }}
-                                                            className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                                                        >
-                                                            <span className="material-symbols-outlined text-xs">content_copy</span>
-                                                            Copy
-                                                        </button>
-                                                        <button
-                                                            onClick={() => { downloadAsPDF(a); setShareOpenId(null); }}
-                                                            className="flex-1 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                                        >
-                                                            <span className="material-symbols-outlined text-xs">picture_as_pdf</span>
-                                                            PDF
-                                                        </button>
+                                                    <div className="mt-1 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button
+                                                                onClick={() => { shareViaWhatsApp(a); setShareOpenId(null); }}
+                                                                className="py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                                            >
+                                                                WhatsApp
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => { await shareViaLink(a); showToast('Report text copied!'); setShareOpenId(null); }}
+                                                                className="py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-xs">content_copy</span>
+                                                                Copy Text
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { downloadAsPDF(a); setShareOpenId(null); }}
+                                                                className="py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-xs">picture_as_pdf</span>
+                                                                Download PDF
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => { await shareAsPDF(a); setShareOpenId(null); }}
+                                                                className="py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-xs">share</span>
+                                                                Share PDF
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-[9px] text-slate-400 text-center">Share as text or PDF — select any text above to copy</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -289,7 +300,31 @@ const SavedResultsScreen: React.FC = () => {
                                                 <button
                                                     onClick={() => {
                                                         const prob = (a.result.probability * 100).toFixed(1);
-                                                        const msg = `Based on my heart risk assessment results:\n- Risk Level: ${a.result.risk_level || (a.result.prediction === 1 ? 'High' : 'Low')}\n- Probability: ${prob}%\n- Prediction: ${a.result.prediction === 1 ? 'Heart Disease Likely' : 'Unlikely'}\n\nWhat lifestyle changes and medical steps should I take to reduce my cardiovascular risk? Please provide specific, actionable recommendations.`;
+                                                        const conf = a.result.confidence ? `${(a.result.confidence * 100).toFixed(0)}%` : 'N/A';
+                                                        const chestPainMap: Record<number, string> = { 1: 'Typical Angina', 2: 'Atypical Angina', 3: 'Non-Anginal', 4: 'Asymptomatic' };
+                                                        const ecgMap: Record<number, string> = { 0: 'Normal', 1: 'ST Abnormality', 2: 'LVH' };
+                                                        const slopeMap: Record<number, string> = { 1: 'Upsloping', 2: 'Flat', 3: 'Downsloping' };
+
+                                                        let msg = `Based on my heart risk assessment results:\n`;
+                                                        msg += `\n--- Patient Data ---\n`;
+                                                        msg += `- Age: ${a.input.age}, Sex: ${a.input.sex === 1 ? 'Male' : 'Female'}\n`;
+                                                        msg += `- Resting BP: ${a.input.resting_bp_s} mm Hg\n`;
+                                                        msg += `- Cholesterol: ${a.input.cholesterol} mg/dl\n`;
+                                                        msg += `- Max Heart Rate: ${a.input.max_heart_rate} bpm\n`;
+                                                        msg += `- Fasting Blood Sugar: ${a.input.fasting_blood_sugar === 1 ? '> 120' : '≤ 120'} mg/dl\n`;
+                                                        msg += `- Chest Pain Type: ${chestPainMap[a.input.chest_pain_type] || a.input.chest_pain_type}\n`;
+                                                        msg += `- Resting ECG: ${ecgMap[a.input.resting_ecg] || a.input.resting_ecg}\n`;
+                                                        msg += `- Exercise Angina: ${a.input.exercise_angina === 1 ? 'Yes' : 'No'}\n`;
+                                                        msg += `- Oldpeak: ${a.input.oldpeak}\n`;
+                                                        msg += `- ST Slope: ${slopeMap[a.input.st_slope] || a.input.st_slope}\n`;
+                                                        msg += `\n--- Model Prediction ---\n`;
+                                                        msg += `- Risk Level: ${a.result.risk_level || (a.result.prediction === 1 ? 'High' : 'Low')}\n`;
+                                                        msg += `- Probability: ${prob}%\n`;
+                                                        msg += `- Confidence: ${conf}\n`;
+                                                        msg += `- Prediction: ${a.result.prediction === 1 ? 'Heart Disease Likely' : 'Heart Disease Unlikely'}\n`;
+                                                        if (a.result.message) msg += `- Summary: ${a.result.message}\n`;
+                                                        if (a.result.clinical_interpretation) msg += `\n--- Clinical Interpretation ---\n${a.result.clinical_interpretation}\n`;
+                                                        msg += `\nWhat lifestyle changes and medical steps should I take to reduce my cardiovascular risk? Please provide specific, actionable recommendations based on my data above.`;
                                                         navigate('/chat', { state: { autoSend: msg } });
                                                     }}
                                                     className="py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-700 transition-colors"

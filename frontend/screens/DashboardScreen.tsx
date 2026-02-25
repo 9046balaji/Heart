@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { HealthAssessment, Appointment, Device, Medication, FamilyMember } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { apiClient, APIError } from '../services/apiClient';
-import { useWaterTracking } from '../hooks/useWaterTracking';
-import { useDailyInsight } from '../hooks/useDailyInsight';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const data = [
     { day: 'Mon', bpm: 68, note: 'Normal resting heart rate.' },
@@ -184,6 +184,7 @@ const DashboardScreen: React.FC = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
     const [showMedicalID, setShowMedicalID] = useState(false);
+    const [insightExpanded, setInsightExpanded] = useState(false);
 
     const [notifications, setNotifications] = useState<any[]>([
         { id: 1, title: 'Hydration Alert', message: 'Time to drink water!', time: '10m ago', icon: 'water_drop', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400', path: '/dashboard' },
@@ -490,11 +491,39 @@ const DashboardScreen: React.FC = () => {
                             <span className="material-symbols-outlined text-white">auto_awesome</span>
                         )}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-lg mb-1">{caretakerMode ? 'Caretaker Alert' : t('dashboard.insight_title')}</h3>
-                        <p className="text-sm text-indigo-100 leading-relaxed">
-                            {aiInsight}
-                        </p>
+                        <div className={`relative ${!insightExpanded ? 'max-h-[4.5rem] overflow-hidden' : ''}`}>
+                            <div className="text-sm text-indigo-100 leading-relaxed ai-insight-content prose prose-sm prose-invert max-w-none
+                                [&_p]:mb-1.5 [&_p]:last:mb-0
+                                [&_ul]:mb-1.5 [&_ul]:pl-4 [&_ul]:list-disc
+                                [&_ol]:mb-1.5 [&_ol]:pl-4 [&_ol]:list-decimal
+                                [&_li]:mb-0.5 [&_li]:text-indigo-100
+                                [&_strong]:text-white [&_strong]:font-semibold
+                                [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-1 [&_h1]:text-white
+                                [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mb-1 [&_h2]:text-white
+                                [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mb-1 [&_h3]:text-white
+                                [&_blockquote]:border-l-2 [&_blockquote]:border-white/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-indigo-200
+                                [&_code]:bg-white/10 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs
+                                [&_hr]:border-white/20 [&_hr]:my-2
+                            ">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {aiInsight}
+                                </ReactMarkdown>
+                            </div>
+                            {!insightExpanded && aiInsight.length > 150 && (
+                                <div className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t ${caretakerMode ? 'from-orange-600/90' : 'from-indigo-600/90'} to-transparent pointer-events-none`}></div>
+                            )}
+                        </div>
+                        {aiInsight.length > 150 && (
+                            <button
+                                onClick={() => setInsightExpanded(!insightExpanded)}
+                                className="mt-1.5 text-xs font-bold text-white/80 hover:text-white flex items-center gap-1 transition-colors"
+                            >
+                                {insightExpanded ? 'Show less' : 'Read more'}
+                                <span className="material-symbols-outlined text-xs">{insightExpanded ? 'expand_less' : 'expand_more'}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

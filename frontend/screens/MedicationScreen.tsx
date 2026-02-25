@@ -42,10 +42,28 @@ const MedicationScreen: React.FC = () => {
         name: '',
         dosage: '',
         frequency: 'Daily',
-        time: '08:00',
+        times: ['08:00'],
         instructions: '',
         quantity: '30'
     });
+
+    // Add another time slot for the same medication
+    const addTimeSlot = () => {
+        setNewMed(prev => ({ ...prev, times: [...prev.times, '08:00'] }));
+    };
+
+    const removeTimeSlot = (index: number) => {
+        if (newMed.times.length <= 1) return;
+        setNewMed(prev => ({ ...prev, times: prev.times.filter((_, i) => i !== index) }));
+    };
+
+    const updateTimeSlot = (index: number, value: string) => {
+        setNewMed(prev => {
+            const newTimes = [...prev.times];
+            newTimes[index] = value;
+            return { ...prev, times: newTimes };
+        });
+    };
 
     /**
      * Schedule a daily medication reminder notification
@@ -91,30 +109,42 @@ const MedicationScreen: React.FC = () => {
         }
     };
 
-    const handleAddMedication = async () => {
-        if (!newMed.name || !newMed.dosage) return;
+    const handleAddMedication = async (): Promise<boolean> => {
+        if (!newMed.name || !newMed.dosage) return false;
 
         const medData: Medication = {
             id: `med_${Date.now()}`,
             name: newMed.name,
             dosage: newMed.dosage,
             frequency: newMed.frequency,
-            times: [newMed.time],
-            takenToday: [false],
+            times: newMed.times,
+            takenToday: newMed.times.map(() => false),
             instructions: newMed.instructions,
             quantity: parseInt(newMed.quantity) || 30,
         } as any;
 
-        addMedication(medData);
+        try {
+            await addMedication(medData);
 
-        // Schedule reminder notification for the medication time
-        const reminderScheduled = await scheduleMedicationReminder(newMed.name, newMed.dosage, newMed.time);
-        if (reminderScheduled) {
-            showToast(`Reminder set for ${newMed.time}`, 'success');
+            // Schedule reminder notifications for each medication time
+            let anyRemindersScheduled = false;
+            for (const time of newMed.times) {
+                const reminderScheduled = await scheduleMedicationReminder(newMed.name, newMed.dosage, time);
+                if (reminderScheduled) anyRemindersScheduled = true;
+            }
+            if (anyRemindersScheduled) {
+                showToast(`Reminders set for ${newMed.times.join(', ')}`, 'success');
+            }
+
+            // Reset form but keep modal open so user can add more medications
+            setNewMed({ name: '', dosage: '', frequency: 'Daily', times: ['08:00'], instructions: '', quantity: '30' });
+            showToast(`${medData.name} added successfully!`, 'success');
+            return true;
+        } catch (error) {
+            console.error('[MedicationScreen] Failed to add medication:', error);
+            showToast('Failed to save medication. Please try again.', 'error');
+            return false;
         }
-
-        setShowAddModal(false);
-        setNewMed({ name: '', dosage: '', frequency: 'Daily', time: '08:00', instructions: '', quantity: '30' });
     };
 
     const toggleTaken = async (medId: string, timeIndex: number) => {
@@ -131,7 +161,12 @@ const MedicationScreen: React.FC = () => {
         else if (!isTaking) newQuantity += 1;
 
         const updatedMed = { ...med, takenToday: newTaken, quantity: newQuantity };
-        updateMedication(updatedMed);
+        try {
+            await updateMedication(updatedMed);
+        } catch (error) {
+            console.error('[MedicationScreen] Failed to update medication:', error);
+            showToast('Failed to update. Please try again.', 'error');
+        }
     };
 
     const checkInteractions = async () => {
@@ -217,8 +252,11 @@ const MedicationScreen: React.FC = () => {
                 quantity: medData.quantity || 30,
             };
 
-            addMedication(newMed);
+            await addMedication(newMed);
+            // Reset form state and close modal
+            setNewMed({ name: '', dosage: '', frequency: 'Daily', times: ['08:00'], instructions: '', quantity: '30' });
             setShowAddModal(false);
+            showToast(`${newMed.name} added from scan!`, 'success');
 
         } catch (error) {
             console.error('[MedicationScreen] Scan error:', error);
@@ -233,6 +271,8 @@ const MedicationScreen: React.FC = () => {
             <ScreenHeader
                 title="Medicine Cabinet"
                 subtitle="Track & Manage Prescriptions"
+                rightIcon="add"
+                onRightAction={() => setShowAddModal(true)}
             />
 
             <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -296,7 +336,7 @@ const MedicationScreen: React.FC = () => {
 
                     {!isLoading && medications.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {medications.sort((a, b) => a.times[0].localeCompare(b.times[0])).map((med) => (
+                            {[...medications].sort((a, b) => (a.times?.[0] || '').localeCompare(b.times?.[0] || '')).map((med) => (
                                 <div key={med.id} className="bg-white dark:bg-card-dark p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-lg hover:scale-[1.01] transition-all duration-300 relative group">
                                     <button
                                         onClick={() => deleteMed(med.id)}
@@ -466,13 +506,34 @@ const MedicationScreen: React.FC = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Time</label>
-                                    <input
-                                        type="time"
-                                        className="w-full mt-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold transition-all"
-                                        value={newMed.time}
-                                        onChange={e => setNewMed({ ...newMed, time: e.target.value })}
-                                    />
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Reminder Times</label>
+                                    <div className="space-y-2 mt-1">
+                                        {newMed.times.map((time, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                                <input
+                                                    type="time"
+                                                    className="flex-1 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/20 outline-none focus:ring-0 dark:text-white font-semibold transition-all"
+                                                    value={time}
+                                                    onChange={e => updateTimeSlot(idx, e.target.value)}
+                                                />
+                                                {newMed.times.length > 1 && (
+                                                    <button
+                                                        onClick={() => removeTimeSlot(idx)}
+                                                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">remove_circle</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={addTimeSlot}
+                                            className="w-full py-2.5 border-2 border-dashed border-indigo-200 dark:border-indigo-800 text-indigo-500 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-sm">add</span>
+                                            Add Another Time
+                                        </button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Instructions (Optional)</label>
@@ -486,9 +547,16 @@ const MedicationScreen: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex gap-3 mt-8">
-                                <button onClick={() => setShowAddModal(false)} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
-                                <button onClick={handleAddMedication} className="flex-1 py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all active:scale-95">Save Medication</button>
+                            <div className="flex flex-col gap-3 mt-8">
+                                <button onClick={handleAddMedication} className="w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-lg shadow-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">add</span>
+                                    Save & Add Another
+                                </button>
+                                <button onClick={async () => { const saved = await handleAddMedication(); if (saved) setShowAddModal(false); }} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-lg">check</span>
+                                    Save & Done
+                                </button>
+                                <button onClick={() => setShowAddModal(false)} className="w-full py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancel</button>
                             </div>
                         </div>
                     </div>

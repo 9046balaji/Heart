@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Provider, Appointment } from '../types';
 import { apiClient } from '../services/apiClient';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmDialog';
 
 // User ID — in production this comes from auth context
 const USER_ID = localStorage.getItem('user_id') || 'user123';
@@ -390,6 +391,7 @@ const VideoConsultationModal = ({ appointment, onClose }: { appointment: Appoint
 const AppointmentScreen: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const confirmDialog = useConfirm();
 
   // --- State ---
   const [view, setView] = useState<'list' | 'detail'>('list');
@@ -873,7 +875,7 @@ const AppointmentScreen: React.FC = () => {
                         </div>
 
                         <div className="grid grid-cols-7 text-center text-xs text-slate-400 mb-2 font-medium">
-                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d}>{d}</div>)}
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i}>{d}</div>)}
                         </div>
 
                         <div className="grid grid-cols-7 gap-1">
@@ -1113,7 +1115,14 @@ const AppointmentScreen: React.FC = () => {
                                     <button
                                         onClick={async (e) => {
                                             e.stopPropagation();
-                                            if (!confirm('Cancel this appointment?')) return;
+                                            const confirmed = await confirmDialog({
+                                                title: 'Cancel Appointment',
+                                                message: `Are you sure you want to cancel your appointment with ${appt.doctorName || 'the doctor'} on ${appt.date} at ${appt.time}? This action cannot be undone.`,
+                                                confirmText: 'Yes, Cancel',
+                                                cancelText: 'Keep It',
+                                                variant: 'danger',
+                                            });
+                                            if (!confirmed) return;
                                             try {
                                                 await apiClient.cancelAppointment(USER_ID, appt.id, 'Cancelled by patient');
                                                 showToast('Appointment cancelled', 'success');

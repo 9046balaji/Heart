@@ -11,10 +11,10 @@ import { useToast } from '../components/Toast';
 type Document = DocumentDetails;
 
 // Supported preview types
-const PREVIEWABLE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const PREVIEWABLE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml', 'application/pdf', 'text/plain'];
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.tiff', '.tif'];
 const PDF_EXTENSIONS = ['.pdf'];
-const TEXT_EXTENSIONS = ['.txt', '.md'];
+const TEXT_EXTENSIONS = ['.txt', '.md', '.csv', '.log'];
 
 export default function DocumentScreen() {
     const navigate = useNavigate();
@@ -55,7 +55,15 @@ export default function DocumentScreen() {
         try {
             const response = await apiClient.getDocuments();
             // Backend returns { documents: [], total: 0, ... } — extract the array
-            const docs = Array.isArray(response) ? response : (response as any)?.documents ?? [];
+            const raw = Array.isArray(response) ? response : (response as any)?.documents ?? [];
+            // Normalise field names: backend may send 'id' instead of 'document_id'
+            // and 'uploaded_at' instead of 'created_at'
+            const docs: Document[] = raw.map((d: any) => ({
+                ...d,
+                document_id: d.document_id || d.id || d.doc_id || '',
+                created_at: d.created_at || d.uploaded_at || new Date().toISOString(),
+                content_type: d.content_type || d.classification?.document_type || 'medical',
+            }));
             setDocuments(docs);
         } catch (error) {
             console.error('Failed to load documents:', error);
@@ -66,19 +74,41 @@ export default function DocumentScreen() {
     };
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file || !user) return;
+        const files = event.target.files;
+        if (!files || files.length === 0 || !user) return;
 
         setUploading(true);
+        let successCount = 0;
+        let failCount = 0;
+
         try {
-            await apiClient.uploadDocument(file); // Backend handles user and type for now
+            for (let i = 0; i < files.length; i++) {
+                try {
+                    await apiClient.uploadDocument(files[i]);
+                    successCount++;
+                } catch (error) {
+                    console.error(`Upload failed for ${files[i].name}:`, error);
+                    failCount++;
+                }
+            }
+
             await loadDocuments();
             setShowUploadModal(false);
+
+            if (failCount === 0) {
+                showToast(`${successCount} document${successCount > 1 ? 's' : ''} uploaded successfully`, 'success');
+            } else {
+                showToast(`${successCount} uploaded, ${failCount} failed`, 'warning');
+            }
         } catch (error) {
             console.error('Upload failed:', error);
-            showToast('Failed to upload document', 'error');
+            showToast('Failed to upload documents', 'error');
         } finally {
             setUploading(false);
+            // Reset the file input so the same file(s) can be selected again
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 
@@ -91,7 +121,14 @@ export default function DocumentScreen() {
         }
     };
 
-    const getPreviewType = (filename: string): 'image' | 'pdf' | 'text' | 'unsupported' => {
+    const getPreviewType = (filename: string, contentType?: string): 'image' | 'pdf' | 'text' | 'unsupported' => {
+        // First try content/mime type if available
+        if (contentType) {
+            if (contentType.startsWith('image/')) return 'image';
+            if (contentType === 'application/pdf') return 'pdf';
+            if (contentType.startsWith('text/')) return 'text';
+        }
+        // Fallback to extension-based detection
         const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
         if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
         if (PDF_EXTENSIONS.includes(ext)) return 'pdf';
@@ -104,18 +141,32 @@ export default function DocumentScreen() {
         setPreviewLoading(true);
         setTextContent('');
 
-        const type = getPreviewType(doc.filename || '');
-        setPreviewType(type);
-
-        if (type === 'unsupported') {
-            setPreviewLoading(false);
-            return;
-        }
+        // Initial type guess from filename extension
+        let type = getPreviewType(doc.filename || '', (doc as any).content_type);
 
         try {
             const response = await fetch(`/api/documents/${doc.document_id}/download`);
             if (!response.ok) throw new Error('Failed to load document');
             const blob = await response.blob();
+
+            // If extension-based detection failed, try again with the actual blob MIME type
+            if (type === 'unsupported' && blob.type) {
+                type = getPreviewType(doc.filename || '', blob.type);
+            }
+            // Also try the response Content-Type header as a last resort
+            if (type === 'unsupported') {
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType) {
+                    type = getPreviewType(doc.filename || '', contentType);
+                }
+            }
+
+            setPreviewType(type);
+
+            if (type === 'unsupported') {
+                setPreviewLoading(false);
+                return;
+            }
 
             if (type === 'text') {
                 const text = await blob.text();
@@ -347,8 +398,9 @@ export default function DocumentScreen() {
                             ) : (
                                 <>
                                     <span className="material-symbols-outlined text-4xl text-slate-400 mb-2">cloud_upload</span>
-                                    <p className="font-bold text-slate-900 dark:text-white">Tap to Select File</p>
-                                    <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG, TXT, DOC up to 10MB</p>
+                                    <p className="font-bold text-slate-900 dark:text-white">Tap to Select Files</p>
+                                    <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG, TXT, DOC up to 10MB each</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">You can select multiple files at once</p>
                                 </>
                             )}
                         </div>
@@ -358,6 +410,7 @@ export default function DocumentScreen() {
                             className="hidden"
                             onChange={handleFileUpload}
                             accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.md"
+                            multiple
                         />
 
                         <button

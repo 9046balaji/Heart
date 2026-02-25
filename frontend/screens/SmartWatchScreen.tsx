@@ -298,8 +298,8 @@ export default function SmartWatchScreen() {
                         <span className="text-xs text-slate-400">Last 30 readings</span>
                     </div>
 
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-64 w-full min-w-0 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                             <AreaChart data={heartRateHistory}>
                                 <defs>
                                     <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">

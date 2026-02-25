@@ -4,7 +4,7 @@ import { apiClient } from '../services/apiClient';
 import { HeartDiseasePredictionRequest, HeartDiseasePredictionResponse, TestResultDetail } from '../services/api.types';
 import ScreenHeader from '../components/ScreenHeader';
 import StructuredInterpretation from '../components/StructuredInterpretation';
-import { saveAssessment, shareViaWhatsApp, shareViaLink, downloadAsPDF, SavedAssessment } from '../services/assessmentStorage';
+import { saveAssessment, shareViaWhatsApp, shareViaLink, downloadAsPDF, shareAsPDF, SavedAssessment } from '../services/assessmentStorage';
 
 const AssessmentScreen: React.FC = () => {
     const navigate = useNavigate();
@@ -848,7 +848,31 @@ const AssessmentScreen: React.FC = () => {
                                     <button
                                         onClick={() => {
                                             const prob = (result.probability * 100).toFixed(1);
-                                            const msg = `Based on my heart risk assessment results:\n- Risk Level: ${result.risk_level || (result.prediction === 1 ? 'High' : 'Low')}\n- Probability: ${prob}%\n- Prediction: ${result.prediction === 1 ? 'Heart Disease Likely' : 'Unlikely'}\n\nWhat lifestyle changes and medical steps should I take to reduce my cardiovascular risk? Please provide specific, actionable recommendations.`;
+                                            const conf = result.confidence ? `${(result.confidence * 100).toFixed(0)}%` : 'N/A';
+                                            const chestPainMap: Record<number, string> = { 1: 'Typical Angina', 2: 'Atypical Angina', 3: 'Non-Anginal', 4: 'Asymptomatic' };
+                                            const ecgMap: Record<number, string> = { 0: 'Normal', 1: 'ST Abnormality', 2: 'LVH' };
+                                            const slopeMap: Record<number, string> = { 1: 'Upsloping', 2: 'Flat', 3: 'Downsloping' };
+
+                                            let msg = `Based on my heart risk assessment results:\n`;
+                                            msg += `\n--- Patient Data ---\n`;
+                                            msg += `- Age: ${formData.age}, Sex: ${formData.sex === 1 ? 'Male' : 'Female'}\n`;
+                                            msg += `- Resting BP: ${formData.resting_bp_s} mm Hg\n`;
+                                            msg += `- Cholesterol: ${formData.cholesterol} mg/dl\n`;
+                                            msg += `- Max Heart Rate: ${formData.max_heart_rate} bpm\n`;
+                                            msg += `- Fasting Blood Sugar: ${formData.fasting_blood_sugar === 1 ? '> 120' : '≤ 120'} mg/dl\n`;
+                                            msg += `- Chest Pain Type: ${chestPainMap[formData.chest_pain_type] || formData.chest_pain_type}\n`;
+                                            msg += `- Resting ECG: ${ecgMap[formData.resting_ecg] || formData.resting_ecg}\n`;
+                                            msg += `- Exercise Angina: ${formData.exercise_angina === 1 ? 'Yes' : 'No'}\n`;
+                                            msg += `- Oldpeak: ${formData.oldpeak}\n`;
+                                            msg += `- ST Slope: ${slopeMap[formData.st_slope] || formData.st_slope}\n`;
+                                            msg += `\n--- Model Prediction ---\n`;
+                                            msg += `- Risk Level: ${result.risk_level || (result.prediction === 1 ? 'High' : 'Low')}\n`;
+                                            msg += `- Probability: ${prob}%\n`;
+                                            msg += `- Confidence: ${conf}\n`;
+                                            msg += `- Prediction: ${result.prediction === 1 ? 'Heart Disease Likely' : 'Heart Disease Unlikely'}\n`;
+                                            if (result.message) msg += `- Summary: ${result.message}\n`;
+                                            if (result.clinical_interpretation) msg += `\n--- Clinical Interpretation ---\n${result.clinical_interpretation}\n`;
+                                            msg += `\nWhat lifestyle changes and medical steps should I take to reduce my cardiovascular risk? Please provide specific, actionable recommendations based on my data above.`;
                                             setResult(null);
                                             navigate('/chat', { state: { autoSend: msg } });
                                         }}
@@ -958,6 +982,35 @@ const AssessmentScreen: React.FC = () => {
                                                 <div>
                                                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Download PDF</p>
                                                     <p className="text-[10px] text-slate-400">Generate a printable PDF report</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={async () => {
+                                                    const input: HeartDiseasePredictionRequest = {
+                                                        age: Number(formData.age) || 0, sex: formData.sex,
+                                                        chest_pain_type: formData.chest_pain_type,
+                                                        resting_bp_s: Number(formData.resting_bp_s) || 0,
+                                                        cholesterol: Number(formData.cholesterol) || 0,
+                                                        fasting_blood_sugar: formData.fasting_blood_sugar,
+                                                        resting_ecg: formData.resting_ecg,
+                                                        max_heart_rate: Number(formData.max_heart_rate) || 0,
+                                                        exercise_angina: formData.exercise_angina,
+                                                        oldpeak: Number(formData.oldpeak) || 0,
+                                                        st_slope: formData.st_slope,
+                                                    };
+                                                    const saved: SavedAssessment = { id: 'temp', timestamp: new Date().toISOString(), input, result };
+                                                    await shareAsPDF(saved);
+                                                    setShareMenuOpen(false);
+                                                }}
+                                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left border-t border-slate-100 dark:border-slate-700"
+                                            >
+                                                <span className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-purple-600 text-sm">share</span>
+                                                </span>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Share PDF</p>
+                                                    <p className="text-[10px] text-slate-400">Share report as PDF via any app</p>
                                                 </div>
                                             </button>
                                         </div>
