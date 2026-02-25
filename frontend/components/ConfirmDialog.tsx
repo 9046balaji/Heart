@@ -147,6 +147,7 @@ interface UseConfirmDialogReturn {
     cancelText?: string;
     variant?: 'danger' | 'warning' | 'info';
   }) => Promise<boolean>;
+  handleConfirm: () => void;
   close: () => void;
 }
 
@@ -207,6 +208,7 @@ export function useConfirmDialog(): UseConfirmDialogReturn {
       ...dialogOptions,
     },
     confirm,
+    handleConfirm,
     close: handleCancel,
   };
 }
@@ -230,7 +232,7 @@ export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
       <ConfirmDialog
         {...dialog.dialogProps}
         onConfirm={() => {
-          dialog.close();
+          dialog.handleConfirm();
         }}
         onCancel={dialog.close}
       />

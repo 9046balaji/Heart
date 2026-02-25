@@ -364,11 +364,23 @@ export const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = memo(({
   isError = false,
   metadata,
 }) => {
+  // ALL hooks must be called unconditionally before any early returns
+  // to avoid "Rendered more hooks than during the previous render" error.
+
   // Parse content into structured sections
   const sections = useMemo(() => {
     if (!content || isStreaming || isError) return [];
     return parseContentSections(content);
   }, [content, isStreaming, isError]);
+
+  // Check if content has rich medical media (images, videos, papers, news)
+  const hasMedicalMedia = useMemo(() => {
+    if (!content || isStreaming || isError) return false;
+    const { images, videos, papers, news } = parseMedicalContent(content);
+    return images.length > 0 || videos.length > 0 || papers.length > 0 || news.length > 0;
+  }, [content, isStreaming, isError]);
+
+  const hasSpecialSections = useMemo(() => sections.some(s => s.type !== 'normal'), [sections]);
 
   // If streaming, show content as-is with typing indicator
   if (isStreaming) {
@@ -386,15 +398,6 @@ export const EnhancedChatMessage: React.FC<EnhancedChatMessageProps> = memo(({
   if (isError) {
     return <ErrorMessage content={content} />;
   }
-
-  // If no special sections detected, render normally
-  const hasSpecialSections = sections.some(s => s.type !== 'normal');
-
-  // Check if content has rich medical media (images, videos, papers, news)
-  const hasMedicalMedia = useMemo(() => {
-    const { images, videos, papers, news } = parseMedicalContent(content);
-    return images.length > 0 || videos.length > 0 || papers.length > 0 || news.length > 0;
-  }, [content]);
 
   if (!hasSpecialSections && !hasMedicalMedia) {
     return (
