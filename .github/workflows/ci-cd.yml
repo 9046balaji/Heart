@@ -69,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./chatbot_service
-          file: ./chatbot_service/Docker/Dockerfile
+          file: ./chatbot_service/Dockerfile
           push: false # set true to push to registry
           tags: cardio-ai-backend:latest
           cache-from: type=gha
