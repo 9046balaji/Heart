@@ -1,1 +1,2 @@
-console.log("Dummy test successfully passed");`nprocess.exit(0);
+console.log("Dummy test successfully passed");
+process.exit(0);
