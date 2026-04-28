@@ -180,7 +180,10 @@ def build_feature_dataframe(input_data: HeartDiseaseInput) -> pd.DataFrame:
         "ST slope_2": [1 if input_data.st_slope == 2 else 0],
         "ST slope_3": [1 if input_data.st_slope == 3 else 0],
     }
-    return pd.DataFrame(data, columns=FEATURE_COLUMNS)
+    # Force object-typed column labels to avoid pandas Arrow string index crashes
+    # observed on some Windows builds.
+    safe_columns = np.asarray(FEATURE_COLUMNS, dtype=object)
+    return pd.DataFrame(data, columns=safe_columns)
 
 
 def format_patient_summary(input_data: HeartDiseaseInput) -> str:

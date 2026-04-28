@@ -252,6 +252,7 @@ async def _process_sync_chat(request: ChatRequest, session_id: str) -> ChatRespo
                 "steps": result.get("steps", []),
                 "confidence": result.get("confidence", 0.0),
                 "source": result.get("metadata", {}).get("source", "unknown"),
+                "model": result.get("metadata", {}).get("model", "unknown"),
                 "intent": result.get("intent", "unknown"),
                 "pii_scrubbed": result.get("pii_scrubbed", False),
                 "sync_mode": True  # Indicate this was processed synchronously
