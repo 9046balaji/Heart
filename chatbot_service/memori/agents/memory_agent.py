@@ -6,6 +6,7 @@ enhanced classification and conscious context detection.
 """
 
 import json
+import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -73,6 +74,7 @@ class MemoryAgent:
 
         # Determine if we're using a local/custom endpoint that might not support structured outputs
         self._supports_structured_outputs = self._detect_structured_output_support()
+        self._max_tokens = int(os.getenv("MEMORI_MAX_TOKENS", "2000"))
 
         # Database type detection for unified processing
         self._database_type = None
@@ -154,6 +156,7 @@ CONVERSATION CONTEXT:
                         ],
                         response_format=ProcessedLongTermMemory,
                         temperature=0.1,  # Low temperature for consistent processing
+                        max_tokens=self._max_tokens,
                     )
 
                     # Handle potential refusal
@@ -404,7 +407,7 @@ CONVERSATION CONTEXT:
                     },
                 ],
                 temperature=0.1,  # Low temperature for consistent processing
-                max_tokens=2000,  # Ensure enough tokens for full response
+                max_tokens=self._max_tokens,
             )
 
             # Extract and parse JSON response

@@ -155,16 +155,7 @@ class EmbeddingSearchEngine:
         # Try remote embedding service
         if embedding is None and self.remote_service:
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        embedding_list = pool.submit(
-                            asyncio.run, self.remote_service.embed_text(text)
-                        ).result(timeout=30)
-                else:
-                    embedding_list = loop.run_until_complete(self.remote_service.embed_text(text))
+                embedding_list = self.remote_service.embed_text(text)
                 if embedding_list:
                     embedding = np.array(embedding_list)
             except Exception as e:
@@ -376,6 +367,7 @@ class MemorySearchEngine:
 
         # Determine if we're using a local/custom endpoint that might not support structured outputs
         self._supports_structured_outputs = self._detect_structured_output_support()
+        self._max_tokens = int(os.getenv("MEMORI_MAX_TOKENS", "2000"))
 
         # Performance improvements
         self._query_cache = {}  # Cache for search plans
@@ -442,6 +434,7 @@ class MemorySearchEngine:
                         ],
                         response_format=MemorySearchQuery,
                         temperature=0.1,
+                        max_tokens=self._max_tokens,
                     )
 
                     # Handle potential refusal
