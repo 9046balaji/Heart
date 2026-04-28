@@ -203,6 +203,7 @@ Begin with your structured thinking:"""
         self.max_context_chars = max_context_chars
         self.enable_self_verification = enable_self_verification
         
+        self.user_id = None  # To be set per run
         self.thinking_history: List[ThinkingBlock] = []
         self.tool_call_history: List[Dict[str, Any]] = []
         
@@ -215,7 +216,7 @@ Begin with your structured thinking:"""
         except Exception as e:
             logger.debug(f"TokenBudget not available: {e}")
     
-    async def run(self, query: str, context: str = "", file_ids: Optional[List[str]] = None) -> ThinkingResult:
+    async def run(self, query: str, context: str = "", file_ids: Optional[List[str]] = None, user_id: Optional[str] = None) -> ThinkingResult:
         """
         Run the thinking agent.
         
@@ -223,11 +224,13 @@ Begin with your structured thinking:"""
             query: User query
             context: Previous context
             file_ids: Optional list of file IDs to process
+            user_id: Optional user ID for context and tool calling
             
         Returns:
             ThinkingResult with answer and reasoning
         """
         start_time = datetime.utcnow()
+        self.user_id = user_id
         self.thinking_history = []
         self.tool_call_history = []
         
@@ -237,6 +240,10 @@ Begin with your structured thinking:"""
         if file_ids:
             file_context = f"\n\n[ATTACHED FILES]: The user has attached {len(file_ids)} file(s) with IDs: {', '.join(file_ids)}. Use the 'analyze_medical_image' or 'analyze_dicom_image' tools to examine them if they are images."
             current_context += file_context
+            
+        if self.user_id:
+            user_context = f"\n\n[SYSTEM CONTEXT]: current_user_id = \"{self.user_id}\". Use this ID for any tool calls that require a 'user_id' or 'patient_id' parameter."
+            current_context += user_context
         
         for round_num in range(self.max_thinking_rounds):
             if self.verbose:
@@ -579,6 +586,17 @@ Begin with your structured thinking:"""
             return f"Error: Unknown tool '{tool_name}'"
         
         tool = self.tools[tool_name]
+        
+        # Inject user_id if missing but required by tool signature
+        if self.user_id and "user_id" not in args:
+             import inspect
+             try:
+                 sig = inspect.signature(tool if not hasattr(tool, 'forward') else tool.forward)
+                 if "user_id" in sig.parameters:
+                     args["user_id"] = self.user_id
+                     logger.debug(f"💉 Injected user_id={self.user_id} into tool {tool_name}")
+             except Exception:
+                 pass
         
         try:
             if hasattr(tool, 'aforward'):

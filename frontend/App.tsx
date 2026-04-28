@@ -6,6 +6,9 @@ import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'r
 // Capacitor Platform Initialization
 // ============================================================================
 const initCapacitorPlugins = async () => {
+  const { Capacitor } = await import('@capacitor/core');
+  const isNative = Capacitor.getPlatform() !== 'web';
+
   try {
     // Hide splash screen after app loads
     const { SplashScreen } = await import('@capacitor/splash-screen');
@@ -20,14 +23,16 @@ const initCapacitorPlugins = async () => {
   } catch { /* not on native */ }
 
   try {
-    // Configure keyboard behavior
-    const { Keyboard } = await import('@capacitor/keyboard');
-    Keyboard.addListener('keyboardWillShow', () => {
-      document.body.classList.add('keyboard-visible');
-    });
-    Keyboard.addListener('keyboardWillHide', () => {
-      document.body.classList.remove('keyboard-visible');
-    });
+    // Keyboard plugin is native-only; skip on web to avoid unhandled plugin errors.
+    if (isNative && Capacitor.isPluginAvailable('Keyboard')) {
+      const { Keyboard } = await import('@capacitor/keyboard');
+      await Keyboard.addListener('keyboardWillShow', () => {
+        document.body.classList.add('keyboard-visible');
+      });
+      await Keyboard.addListener('keyboardWillHide', () => {
+        document.body.classList.remove('keyboard-visible');
+      });
+    }
   } catch { /* not on native */ }
 
   try {

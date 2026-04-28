@@ -701,6 +701,21 @@ class LangGraphOrchestrator:
         various LLM output formats (markdown code blocks, intro text, etc).
         """
         messages = state["messages"]
+        last_user_message = messages[-1].content if messages else ""
+        
+        # --- EMERGENCY OVERRIDE ---
+        # Intercept critical scenarios before LLM routing to prevent 
+        # emergencies from being incorrectly routed to data tools.
+        try:
+            from rag.nlp.symptom_checker import get_symptom_checker
+            checker = get_symptom_checker()
+            analysis = checker.analyze_symptoms(last_user_message)
+            if analysis.get("has_red_flags", False):
+                logger.warning("🚨 EMERGENCY ROUTE: Red flags detected in supervisor, forcing clinical_reasoning")
+                return {"next": "clinical_reasoning", "source": "emergency_override"}
+        except Exception as e:
+            logger.debug(f"Safety override check skipped: {e}")
+            pass
         
         # Count worker responses - enforce configurable max steps
         worker_responses = [m for m in messages if getattr(m, 'type', '') == 'tool']
@@ -868,10 +883,15 @@ class LangGraphOrchestrator:
                     graph_context="",
                     drug_interactions=""
                 )
-                response_content = prompt_builder.build_rag_prompt(
+                prompt_text = prompt_builder.build_rag_prompt(
                     query=query,
                     context=formatted_context,
                     history=""
+                )
+                response_content = await self.llm_gateway.generate(
+                    prompt_text,
+                    content_type="medical",
+                    user_id=user_id
                 )
             except Exception:
                 # Fallback to basic formatting
@@ -980,20 +1000,61 @@ class LangGraphOrchestrator:
         query = state["messages"][-1].content
         user_id = state["user_id"]
         result = await query_sql_db(query=query, user_id=user_id)
-        return {"messages": [ToolMessage(content=str(result.data), tool_call_id="call_sql")]}
+        
+        # Synthesize SQL output with LLM to prevent raw data leak
+        try:
+            prompt_text = f"User Query: {query}\n\nDatabase Results:\n{result.data}\n\nProvide a concise and helpful response to the user based on the database results. Do NOT output raw SQL queries."
+            response_content = await self.llm_gateway.generate(
+                prompt_text,
+                content_type="medical",
+                user_id=user_id
+            )
+        except Exception as e:
+            logger.error(f"Failed to synthesize SQL result: {e}")
+            response_content = f"Here is the database information I found:\n{result.data}"
+            
+        return {"messages": [ToolMessage(content=response_content, tool_call_id="call_sql")]}
 
     async def drug_expert_node(self, state: AgentState) -> Dict:
         """Worker: Drug Expert (EntityValidator + GraphRAG + OpenFDA + Local Interaction Database)"""
         query = state["messages"][-1].content
         
-        # 1. Extract drugs using regex heuristic
+        # 1. Provide smarter drug extraction via LLM if query is complex
         import re
+        
+        # Very simple extraction fallback
         drugs = re.findall(r'\b[A-Za-z]{3,}\b', query)
-        stop_words = {"what", "are", "the", "interactions", "between", "and", "with", "can", "take", "safe", "check", "interaction"}
+        stop_words = {"what", "are", "the", "interactions", "between", "and", "with", "can", "take", "safe", "check", "interaction", "provide", "detailed", "plan", "avoid", "prescription", "history", "male", "female"}
         drugs = [d for d in drugs if d.lower() not in stop_words]
         
-        if len(drugs) < 2:
-             return {"messages": [ToolMessage(content="I need at least two drug names to check for interactions.", tool_call_id="call_drug")]}
+        # Ask LLM to extract medication names to avoid fuzzy matching false positives
+        try:
+            extraction_prompt = f"""Task: Extract a simple comma-separated list of medication names from the text below.
+DO NOT answer the question. DO NOT provide medical advice. ONLY list the medications.
+If there are no medications, output exactly "NONE".
+
+Text: "{query}"
+
+Medications:"""
+            extracted_text = await self.llm_gateway.generate(extraction_prompt, content_type="general", user_id="system")
+            if extracted_text and "NONE" not in extracted_text.upper():
+                extracted_text = extracted_text.replace("Medications:", "").strip()
+                # If the generation is extremely long, it likely hallucinated an answer instead of a list
+                if len(extracted_text) < 150:
+                    llm_drugs = [d.strip() for d in extracted_text.replace('\n', ',').split(',') if len(d.strip()) > 2]
+                    # Filter out sentences and common stop words that might slip through
+                    llm_drugs = [d for d in llm_drugs if " " not in d and d.lower() not in stop_words]
+                    if llm_drugs:
+                        drugs = llm_drugs
+                        logger.info(f"💊 LLM Extracted Drugs: {drugs}")
+                else:
+                    logger.warning("LLM generated a response too long for a drug list. Falling back to regex.")
+        except Exception as e:
+            logger.debug(f"LLM drug extraction failed, using heuristic: {e}")
+            pass
+        
+        if not drugs:
+             return {"messages": [ToolMessage(content="I could not identify any specific medications to check for interactions.", tool_call_id="call_drug")]}
 
         # 1b. Validate drug names via EntityValidator (prevents hallucinated entity names)
         validation_warnings = []
@@ -1012,8 +1073,12 @@ class LangGraphOrchestrator:
         except Exception as e:
             logger.debug(f"EntityValidator skipped: {e}")
 
-        if len(drugs) < 2:
+        if not drugs:
             return {"messages": [ToolMessage(content="I need at least two valid drug names to check for interactions.", tool_call_id="call_drug")]}
+        
+        if len(drugs) == 1:
+            # We identified exactly 1 valid drug. User might just be asking for side effects or general info.
+            return {"messages": [ToolMessage(content=f"You mentioned {drugs[0]}. However, to check for drug interactions, I need at least one other medication name.", tool_call_id="call_drug")]}
 
         # 2. Check interactions via GraphRAG (primary)
         result = await self.graph_checker.check_interaction(drugs)
@@ -1178,7 +1243,8 @@ class LangGraphOrchestrator:
         
         # Run thinking agent
         file_ids = state.get("file_ids")
-        result = await self.thinking_agent.run(query, enhanced_context, file_ids=file_ids)
+        user_id = state.get("user_id")
+        result = await self.thinking_agent.run(query, enhanced_context, file_ids=file_ids, user_id=user_id)
         
         # Format response with reasoning trace (collapsible in UI)
         response = f"{result.answer}\n\n<details><summary>Reasoning Trace</summary>\n\n{result.get_reasoning_trace()}\n</details>"
@@ -1449,15 +1515,53 @@ class LangGraphOrchestrator:
                                if getattr(m, 'type', '') == 'tool' and hasattr(m, 'content')]
             context_for_grading = "\n---\n".join(worker_messages[-3:])  # Last 3 worker outputs
             
+            high_risk_medical_intents = {
+                "clinical_reasoning",
+                "differential_diagnosis",
+                "triage",
+                "drug_interaction",
+                "heart_risk_assessment",
+            }
+            source = str(final_state.get("source") or "").lower()
+            intent = str(final_state.get("intent") or "").lower()
+            query_lower = str(query or "").lower()
+
+            # Only show this warning for clinically risky/advisory requests.
+            high_risk_query_terms = (
+                "chest pain",
+                "shortness of breath",
+                "heart attack",
+                "stroke",
+                "emergency",
+                "severe",
+                "urgent",
+                "dose",
+                "dosage",
+                "interaction",
+                "side effect",
+                "diagnose",
+                "diagnosis",
+                "treatment",
+                "triage",
+                "suicid",
+                "self-harm",
+            )
+            is_high_risk_query = any(term in query_lower for term in high_risk_query_terms)
+            should_surface_grounding_warning = (
+                (source in {"rag", "crag"} or intent in high_risk_medical_intents)
+                and is_high_risk_query
+            )
+
             if context_for_grading and response and len(response) > 50:
                 is_grounded = await grader.grade(answer=str(response), context=context_for_grading)
                 if not is_grounded:
                     logger.warning("⚠️ Hallucination detected — response may not be fully grounded")
-                    response = (
-                        str(response) +
-                        "\n\n---\n⚠️ *Note: Some claims in this response may not be fully supported "
-                        "by the retrieved evidence. Please verify with a healthcare professional.*"
-                    )
+                    if should_surface_grounding_warning:
+                        response = (
+                            str(response) +
+                            "\n\n---\n⚠️ *Note: Some claims in this response may not be fully supported "
+                            "by the retrieved evidence. Please verify with a healthcare professional.*"
+                        )
                     final_state["confidence"] = max(0.0, (final_state.get("confidence") or 0.5) - 0.2)
                 else:
                     logger.debug("✅ Hallucination grading passed — response is grounded")
@@ -1572,7 +1676,7 @@ class LangGraphOrchestrator:
         # Emit webhook events for significant outcomes
         try:
             from core.services.webhook_service import get_webhook_service, WebhookEvent
-            webhook = get_webhook_service()
+            webhook = await get_webhook_service()
             if webhook:
                 if not is_grounded:
                     await webhook.emit(WebhookEvent.HALLUCINATION_DETECTED, {
@@ -1598,6 +1702,7 @@ class LangGraphOrchestrator:
             "metadata": {
                 "steps": len(final_state["messages"]),
                 "source": final_state.get("source", "unknown"),  # Track response source
+                "model": getattr(self.llm_gateway, "medgemma_model", "unknown"),
                 "checkpointed": self.checkpointer is not None,
                 "latency_ms": round(_latency_ms, 1),
                 "hallucination_checked": True,

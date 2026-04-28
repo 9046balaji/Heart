@@ -14,9 +14,11 @@ import time
 import logging
 import hashlib
 import asyncio
+import importlib.util
 import numpy as np
 from typing import List, Optional
 from collections import OrderedDict
+from pathlib import Path
 
 from rag.embedding.base import BaseEmbeddingService
 
@@ -123,6 +125,44 @@ class RemoteEmbeddingService(BaseEmbeddingService):
     # Client
     # ------------------------------------------------------------------
 
+    def _import_remote_colab_embeddings(self):
+        """Resolve RemoteColabEmbeddings across supported project layouts."""
+        try:
+            from colab.remote_embeddings import RemoteColabEmbeddings
+            return RemoteColabEmbeddings
+        except Exception:
+            pass
+
+        current_file = Path(__file__).resolve()
+        chatbot_service_root = current_file.parents[2]
+        workspace_root = chatbot_service_root.parent
+
+        candidates = [
+            chatbot_service_root / "colab" / "remote_embeddings.py",
+            workspace_root / "colab" / "remote_embeddings.py",
+            workspace_root / "colab Rag_Training" / "remote_embeddings.py",
+        ]
+
+        for path in candidates:
+            if not path.exists():
+                continue
+            spec = importlib.util.spec_from_file_location("remote_embeddings_dynamic", str(path))
+            if not spec or not spec.loader:
+                continue
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            cls = getattr(module, "RemoteColabEmbeddings", None)
+            if cls is not None:
+                logger.info(f"Loaded RemoteColabEmbeddings from: {path}")
+                return cls
+
+        searched = ", ".join(str(p) for p in candidates)
+        raise RuntimeError(
+            "RemoteColabEmbeddings could not be imported. "
+            f"Checked: {searched}. Ensure remote_embeddings.py exists "
+            "or disable USE_REMOTE_EMBEDDINGS."
+        )
+
     def _get_client(self):
         """Lazy-load the RemoteColabEmbeddings LangChain wrapper.
 
@@ -131,24 +171,7 @@ class RemoteEmbeddingService(BaseEmbeddingService):
         a raw ``ImportError``.
         """
         if self._client is None:
-            try:
-                from colab.remote_embeddings import RemoteColabEmbeddings
-            except ImportError:
-                # Fallback import path
-                import sys, os as _os
-                colab_dir = _os.path.join(
-                    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "colab"
-                )
-                if colab_dir not in sys.path:
-                    sys.path.insert(0, colab_dir)
-                try:
-                    from remote_embeddings import RemoteColabEmbeddings  # type: ignore[import-not-found]
-                except ImportError as exc:
-                    raise RuntimeError(
-                        "RemoteColabEmbeddings could not be imported. "
-                        "Ensure the colab/ package is on PYTHONPATH or fall "
-                        "back to a local embedding backend."
-                    ) from exc
+            RemoteColabEmbeddings = self._import_remote_colab_embeddings()
 
             self._client = RemoteColabEmbeddings(
                 base_url=self.base_url,
@@ -262,6 +285,13 @@ class RemoteEmbeddingService(BaseEmbeddingService):
                         self._set_cached(self._cache_key(texts[idx]), emb)
 
         return results  # type: ignore[return-value]
+
+    # Backward-compatible aliases used by existing vector store code.
+    def embed(self, text: str) -> List[float]:
+        return self.embed_text(text)
+
+    def embed_documents(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
+        return self.embed_batch(texts=texts, batch_size=batch_size)
 
     def similarity(self, text1: str, text2: str) -> float:
         """

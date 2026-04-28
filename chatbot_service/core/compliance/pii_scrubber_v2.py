@@ -8,6 +8,7 @@ de-identification of medical narratives.
 import re
 import logging
 import os
+import platform
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
@@ -15,19 +16,29 @@ from pathlib import Path
 MODELS_DIR = Path(__file__).parent.parent.parent / "models"
 SPACY_MODELS_DIR = MODELS_DIR / "spacy_models"
 
-try:
-    from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
-    from presidio_analyzer.nlp_engine import NlpEngineProvider
-    from presidio_anonymizer import AnonymizerEngine
-    from presidio_anonymizer.entities import OperatorConfig
-    PRESIDIO_AVAILABLE = True
-except Exception:
+_RUNNING_ON_WINDOWS = platform.system().lower() == "windows"
+_DISABLE_PRESIDIO_ON_WINDOWS = os.getenv("PII_SCRUBBER_DISABLE_PRESIDIO_ON_WINDOWS", "true").lower() == "true"
+
+if _RUNNING_ON_WINDOWS and _DISABLE_PRESIDIO_ON_WINDOWS:
     PRESIDIO_AVAILABLE = False
-    logging.warning("Presidio not installed. Using regex-only fallback.")
-    # Define dummy OperatorConfig to avoid NameError
+    logging.warning("Presidio disabled on Windows (PII_SCRUBBER_DISABLE_PRESIDIO_ON_WINDOWS=true) to avoid native CUDA/CuPy crashes.")
     class OperatorConfig:
         def __init__(self, operator_name, params):
             pass
+else:
+    try:
+        from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+        from presidio_anonymizer import AnonymizerEngine
+        from presidio_anonymizer.entities import OperatorConfig
+        PRESIDIO_AVAILABLE = True
+    except Exception:
+        PRESIDIO_AVAILABLE = False
+        logging.warning("Presidio not installed. Using regex-only fallback.")
+        # Define dummy OperatorConfig to avoid NameError
+        class OperatorConfig:
+            def __init__(self, operator_name, params):
+                pass
 
 try:
     import spacy
@@ -402,28 +413,65 @@ class EnhancedPIIScrubber:
             use_scispacy: Whether to use spaCy for additional NER
             auto_download: Whether to auto-download missing models (default: False)
         """
+        running_on_windows = platform.system().lower() == "windows"
+        disable_presidio_on_windows = os.getenv("PII_SCRUBBER_DISABLE_PRESIDIO_ON_WINDOWS", "true").lower() == "true"
+
         self.use_presidio = use_presidio and PRESIDIO_AVAILABLE
         self.use_scispacy = use_scispacy and SPACY_AVAILABLE
         self.auto_download = auto_download
+        # Keep PII scrubbing on CPU by default to avoid mixed cpu/cuda tensor failures.
+        self.force_cpu = os.getenv("PII_SCRUBBER_FORCE_CPU", "true").lower() == "true"
+        self._presidio_model_name = os.getenv("PII_SCRUBBER_SPACY_MODEL", "en_core_web_sm")
+
+        if self.force_cpu:
+            # Avoid CuPy/Thinc CUDA code paths that can trigger access violations.
+            os.environ.setdefault("THINC_CPU_ONLY", "1")
+            if SPACY_AVAILABLE:
+                try:
+                    spacy.require_cpu()
+                except Exception:
+                    pass
+
+        if running_on_windows and disable_presidio_on_windows and self.use_presidio:
+            logger.warning("Windows detected: disabling Presidio engine to avoid CUDA/CuPy access violations. Set PII_SCRUBBER_DISABLE_PRESIDIO_ON_WINDOWS=false to override.")
+            self.use_presidio = False
         
         self.analyzer = None
         self.anonymizer = None
         self.nlp = None
         
-        # Get centralized spaCy service
-        try:
-            from core.services.spacy_service import get_spacy_service
-            self.spacy_service = get_spacy_service()
-            self.nlp = self.spacy_service.nlp
-            logger.info("✅ SpaCyService loaded for PII scrubbing")
-        except Exception as e:
-            logger.warning(f"Failed to load SpaCyService: {e}")
-            self.use_scispacy = False
-            self.nlp = None
+        # Use a dedicated CPU spaCy model for PII by default.
+        # Sharing the main transformer pipeline can trigger cpu/cuda mismatches.
+        if not self.force_cpu:
+            try:
+                from core.services.spacy_service import get_spacy_service
+                self.spacy_service = get_spacy_service()
+                self.nlp = self.spacy_service.nlp
+                logger.info("✅ SpaCyService loaded for PII scrubbing")
+            except Exception as e:
+                logger.warning(f"Failed to load SpaCyService: {e}")
+                self.nlp = None
 
-        # Initialize Presidio with SHARED NLP engine (LATENCY OPTIMIZATION)
-        # This avoids loading a second copy of the spaCy model
-        if self.use_presidio and self.nlp:
+        if self.force_cpu and self.use_scispacy and self.nlp is None:
+            try:
+                for model_name in [self._presidio_model_name, "en_core_web_md", "en_core_web_sm"]:
+                    try:
+                        self.nlp = spacy.load(model_name)
+                        logger.info(f"✅ CPU spaCy model loaded for PII scrubbing: {model_name}")
+                        break
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.warning(f"Failed to load CPU spaCy model for PII scrubber: {e}")
+                self.nlp = None
+
+        if self.use_scispacy and self.nlp is None:
+            self.use_scispacy = False
+
+        # Initialize Presidio NLP engine.
+        # In CPU mode we should still attempt Presidio even if shared SpaCyService
+        # is unavailable, because Presidio can create its own spaCy engine.
+        if self.use_presidio:
             try:
                 from presidio_analyzer.nlp_engine import NlpEngineProvider, NerModelConfiguration
                 
@@ -439,11 +487,12 @@ class EnhancedPIIScrubber:
                 
                 # Use NlpEngineProvider with NerModelConfiguration embedded in the model config
                 # NOTE: ner_model_configuration goes INSIDE the model dict, not at the top level
+                presidio_model_name = self._presidio_model_name if self.force_cpu else "en_core_web_trf"
                 nlp_configuration = {
                     "nlp_engine_name": "spacy",
                     "models": [{
                         "lang_code": "en", 
-                        "model_name": "en_core_web_trf",
+                        "model_name": presidio_model_name,
                         "ner_model_configuration": ner_model_config
                     }],
                 }
@@ -481,9 +530,9 @@ class EnhancedPIIScrubber:
                 logger.warning(f"Failed to initialize Presidio with NlpEngineProvider: {e}. Trying standard init...")
                 try:
                     # Fallback to standard initialization
-                    model_name = "en_core_web_trf" 
+                    model_name = self._presidio_model_name if self.force_cpu else "en_core_web_trf"
                     if not spacy.util.is_package(model_name):
-                        model_name = "en_core_web_lg"
+                        model_name = "en_core_web_md" if self.force_cpu else "en_core_web_lg"
                         if not spacy.util.is_package(model_name):
                              model_name = "en_core_web_sm"
                     
@@ -501,9 +550,9 @@ class EnhancedPIIScrubber:
                 except Exception as e2:
                     logger.warning(f"Presidio fallback failed: {e2}. Using regex only.")
                     self.use_presidio = False
-        elif self.use_presidio:
-             logger.warning("Presidio enabled but no spaCy model available. Disabling Presidio.")
-             self.use_presidio = False
+        if self.use_presidio and self.analyzer is None:
+            logger.warning("Presidio enabled but no compatible spaCy model is available. Disabling Presidio.")
+            self.use_presidio = False
     
     def scrub(self, text: str, language: str = "en") -> str:
         """
@@ -640,6 +689,8 @@ class EnhancedPIIScrubber:
             return text
         except Exception as e:
             logger.warning(f"spaCy scrubbing failed: {e}")
+            # Prevent repeated failures in hot paths.
+            self.use_scispacy = False
         
         return text
     
