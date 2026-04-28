@@ -399,24 +399,22 @@ const ChatScreen: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           <div>
             <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5 block">AI Model</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['gemini', 'ollama'] as const).map(m => (
+            <div className="grid grid-cols-1 gap-2">
+              {(['medgemma'] as const).map(m => (
                 <button key={m} onClick={() => setSelectedModel(m)}
                   className={`py-3 px-3 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
                     selectedModel === m
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg shadow-red-500/25'
                       : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}>
-                  <span className="material-symbols-outlined text-base">{m === 'ollama' ? 'memory' : 'cloud'}</span>
-                  {m === 'ollama' ? 'Ollama' : 'Gemini'}
+                  <span className="material-symbols-outlined text-base">memory</span>
+                  MedGemma
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5 block">
-              Temperature <span className="text-slate-900 dark:text-white font-bold ml-1">{localSettings.temperature.toFixed(1)}</span>
-            </label>
+            <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2.5 block">Temperature</label>
             <input type="range" min="0" max="1" step="0.1" value={localSettings.temperature}
               onChange={e => setLocalSettings({ ...localSettings, temperature: parseFloat(e.target.value) })}
               className="w-full accent-red-500 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer" />

@@ -25,7 +25,7 @@ export interface ChatSession {
   messages: Message[];
 }
 
-export type ModelType = 'gemini' | 'ollama';
+export type ModelType = 'medgemma' | 'ollama' | 'gemini';
 
 export interface ChatSettings {
   temperature: number;
@@ -171,7 +171,7 @@ export const useChatStore = create<ChatState>()(
         isSearchingMemories: false,
         error: null as string | null,
 
-        selectedModel: 'gemini' as ModelType,
+        selectedModel: 'medgemma' as ModelType,
         isThinkingEnabled: false,
         autoSaveEnabled: true,
         settings: { ...defaultSettings },
@@ -348,7 +348,7 @@ export const useChatStore = create<ChatState>()(
                   createdAt: s.createdAt || new Date().toISOString(),
                   updatedAt: s.lastActivity || new Date().toISOString(),
                   messageCount: s.messageCount,
-                  model: 'gemini' as ModelType,
+                  model: 'medgemma' as ModelType,
                   isPinned: false,
                   isArchived: false,
                   messages: [],
@@ -548,6 +548,8 @@ export const chatActions = {
 
     try {
       const selectedModel = model || store.selectedModel;
+      // Frontend guard: route all chat requests through the MedGemma backend path.
+      const effectiveModel: ModelType = selectedModel === 'gemini' ? 'medgemma' : selectedModel;
       const { settings } = store;
 
       const assistantId = generateId();
@@ -561,7 +563,7 @@ export const chatActions = {
 
       store.setStreaming(true);
 
-      if (selectedModel === 'ollama') {
+      if (effectiveModel === 'ollama' || effectiveModel === 'medgemma') {
         const conversationHistory = store.messages
           .filter((m) => m.id !== 'welcome' && m.id !== assistantId)
           .map((m) => ({ role: m.role, content: m.content }));
