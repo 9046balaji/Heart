@@ -865,7 +865,7 @@ Answer ONLY: RELEVANT or IRRELEVANT"""
         
         prompt = "\n".join(prompt_parts)
         
-        return await self.llm.generate(prompt)
+        return await self.llm.generate(prompt, content_type="medical")
     
     async def _check_support_level(
         self,
