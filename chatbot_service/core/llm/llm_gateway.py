@@ -108,6 +108,14 @@ class LLMGateway:
             "MEDGEMMA_MODEL", 
             os.getenv("LLAMA_LOCAL_MODEL", "medgemma-4b-it")
         )
+        if "medgemma" not in self.medgemma_model.lower():
+            logger.warning(
+                f"Invalid non-MedGemma model configured ('{self.medgemma_model}'). "
+                "Forcing MEDGEMMA_MODEL=medgemma-4b-it."
+            )
+            self.medgemma_model = "medgemma-4b-it"
+        # Backward-compatible alias used by some tracing hooks.
+        self.model_name = self.medgemma_model
         self.medgemma_api_key = os.getenv(
             "MEDGEMMA_API_KEY", 
             os.getenv("LLAMA_LOCAL_API_KEY", "sk-no-key-required")
