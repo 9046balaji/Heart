@@ -31,6 +31,12 @@ langgraph-checkpoint-redis>=0.3.2
 langfuse>=2.0.0
 litellm>=1.83.0
 cupy-cuda12x
+
+# ============================================================
+# KV CACHE COMPRESSION (ICLR 2026 - TurboQuant)
+# ============================================================
+turboquant>=0.2.0  # PolarQuant rotation + quantization for long-context inference
+                   # Enables 32k+ token processing on RTX 4050 (6GB VRAM)
 # ============================================================
 # NLP & EMBEDDINGS (GPU ENABLED)
 # ============================================================
