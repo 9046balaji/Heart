@@ -48,6 +48,15 @@ export const unloadAllAsync = async () => {
     loadedFonts.clear();
 };
 
+// Mock for renderToImageAsync (used by @expo/vector-icons)
+export const renderToImageAsync = async (
+    component: any,
+    options?: { width?: number; height?: number; format?: string }
+) => {
+    // Return a mock image URI for web compatibility
+    return Promise.resolve({ uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' });
+};
+
 // Font object for default export compatibility
 const Font = {
     loadAsync,
@@ -55,6 +64,7 @@ const Font = {
     isLoading,
     unloadAsync,
     unloadAllAsync,
+    renderToImageAsync,
 };
 
 export default Font;
