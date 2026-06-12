@@ -418,6 +418,11 @@ class ModelLoader:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            # Suppress loky CPU count warning (wmic deprecated on Windows 11)
+            warnings.filterwarnings("ignore", category=UserWarning, message=".*Could not find the number of physical cores.*")
+            # Suppress LGBMClassifier feature names warning
+            warnings.filterwarnings("ignore", category=UserWarning, message=".*X does not have valid feature names.*")
+            
             try:
                 self._model = joblib.load(model_path, mmap_mode=None)
                 logger.info(f"Stacking model loaded: {model_path}")
@@ -451,7 +456,13 @@ class ModelLoader:
             path = os.path.join(self.model_dir, filename)
             if os.path.exists(path):
                 try:
-                    self._individual_pipelines[name] = joblib.load(path)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        # Suppress loky CPU count warning (wmic deprecated on Windows 11)
+                        warnings.filterwarnings("ignore", category=UserWarning, message=".*Could not find the number of physical cores.*")
+                        # Suppress LGBMClassifier feature names warning
+                        warnings.filterwarnings("ignore", category=UserWarning, message=".*X does not have valid feature names.*")
+                        self._individual_pipelines[name] = joblib.load(path)
                     logger.debug(f"Loaded pipeline: {name}")
                 except Exception as e:
                     logger.warning(f"Failed to load {name}: {e}")
