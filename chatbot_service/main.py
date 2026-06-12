@@ -7,8 +7,27 @@ import os
 import io
 import platform
 
-# Prevent OpenMP duplicate library crash (sentence-transformers + NumPy on Windows)
+# ============================================================================
+# CRITICAL ENVIRONMENT SETUP (MUST BE BEFORE ALL IMPORTS)
+# ============================================================================
+
+# 1. Prevent OpenMP duplicate library crash (sentence-transformers + NumPy on Windows)
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+# 2. Fix loky/joblib CPU warning on Windows (wmic is deprecated)
+#    Set to your logical CPU count (safe default: 10 for modern systems)
+if platform.system() == 'Windows' and not os.getenv('LOKY_MAX_CPU_COUNT'):
+    os.environ['LOKY_MAX_CPU_COUNT'] = "10"
+    print("✅ LOKY_MAX_CPU_COUNT set to 10 (suppresses wmic deprecation warning)")
+
+# 3. Route memory extraction to local MedGemma instead of OpenRouter (402 credit issue)
+#    This prevents the memory manager from using cloud OpenRouter API if the account is out of credits
+if not os.getenv('MEMORI_LLM_API_TYPE'):
+    os.environ['MEMORI_LLM_API_TYPE'] = 'custom'
+    os.environ['MEMORI_OPENAI_API_BASE'] = 'http://127.0.0.1:8090/v1'
+    os.environ['MEMORI_OPENAI_API_KEY'] = 'sk-local-not-needed'
+    print("✅ Memory extraction configured to use local MedGemma (port 8090)")
+    print("   This bypasses the OpenRouter 402 credit issue by using your local model")
 
 
 # Force UTF-8 encoding for Windows consoles to prevent charmap errors with emojis
