@@ -208,10 +208,15 @@ class LangGraphOrchestrator:
             logger.error("❌ Supervisor LLM not initialized. Supervisor agent will fail.")
 
         # --- Advanced RAG Tools ---
+        from rag.retrieval.token_budget import TokenBudgetManager
+        # MedGemma local server has -c 8192 context size. Maximize token budget to 7168 context tokens,
+        # leaving 1024 tokens for response generation.
+        token_budget_mgr = TokenBudgetManager(model_name="gemma", max_tokens=7168)
         self.rag_tool = MedicalSelfRAG(
             vector_store=self.vector_store,     # Use resolved self.vector_store
             llm_gateway=self.llm_gateway,       # Use resolved self.llm_gateway
             memory_bridge=self.memori_bridge,   # Use resolved self.memori_bridge
+            token_budget_manager=token_budget_mgr, # Expand budget for local GPU capacity
             enable_compression=True,            # P3.3: Enable Unified Compressor
             enable_fusion_retrieval=True        # P3.2: Explicitly enable Fusion
         )
